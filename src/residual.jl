@@ -1,57 +1,97 @@
 """
 	system_residual!(resid, x, beams, prescribed_conditions, distributed_loads,
-	irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam)
+		irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam)
+	system_residual!(resid, x, beams, prescribed_conditions, distributed_loads,
+		irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
+	system_residual!(resid, x, beams, prescribed_conditions, distributed_loads,
+		irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0,
+		udot, θdot, CtCabPdot, CtCabHdot)
+	system_residual!(resid, x, beams, prescribed_conditions, distributed_loads,
+		irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0,
+		u_p, θ_p, CtCabP_p, CtCabH_p, udot_p, θdot_p, CtCabPdot_p, CtCabHdot_p, dt)
 
 Populate the residual vector `resid` with the results of the residual equations
-for the system
+for the system.
+
+There are four implementations corresponding to the following analysis types:
+ - Static
+ - Dynamic - Steady State
+ - Dynamic - Initial Step (for initializing time domain simulations)
+ - Dynamic - Time Marching
+
+ See "GEBT: A general-purpose nonlinear analysis tool for composite beams" by
+ Wenbin Yu and "Geometrically nonlinear analysis of composite beams using
+ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 
 # Arguments
  - resid: Residual vector
  - x: Vector containing current state variables of the system
- - prescribed_conditions: Vector of prescribed conditions for each point with prescribed conditions
- - distributed_loads: Vector of distribued loads on each beam
+ - beams: Vector containing beam elements
+ - prescribed_conditions: Vector of prescribed conditions for each point
+ - distributed_loads: Vector of distributed loads for each beam element
  - irow_pt: Row index of first equilibrium equation for each point
  - irow_beam1: Row index of first equation for the left side of each beam
  - irow_beam2: Row index of first equation for the right side of each beam
  - icol_pt: Column index of first state variable for each point
  - icol_beam: Column index of first state variable for each beam element
+
+# Additional Arguments for Dynamic Analyses
+ - x0: Global frame origin (only for dynamic analyses)
+ - v0: Global frame linear velocity (only for dynamic analyses)
+ - ω0: Global frame angular velocity (only for dynamic analyses)
+
+# Additional Arguments for Initial Step Analyses
+ - udot: time derivative of u for each beam element (used only for initial step of time-marching simulations)
+ - θdot: time derivative of θ for each beam element (used only for initial step of time-marching simulations)
+ - CtCabPdot: C'*Cab*Pdot for each beam element (used only for initial step of time-marching simulations)
+ - CtCabHdot: C'*Cab*Hdot for each beam element (used only for initial step of time-marching simulations)
+
+# Additional Arguments for Time Marching Analyses
+ - u_p: `u` for each beam element from the previous time step (used for time-marching)
+ - θ_p: `θ` for each beam element from the previous time step (used for time-marching)
+ - CtCabP_p: `C'*Cab*P` for each beam element from the previous time step (used for time-marching)
+ - CtCabH_p: `C'*Cab*H` for each beam element from the previous time step (used for time-marching)
+ - udot_p: `udot` for each beam element from the previous time step (used for time-marching)
+ - θdot_p: `θdot` for each beam element from the previous time step (used for time-marching)
+ - CtCabPdot_p: `C'*Cab*Pdot` for each beam element from the previous time step (used for time-marching)
+ - CtCabHdot_p: `C'*Cab*Hdot` for each beam element from the previous time step (used for time-marching)
+ - dt: time step size (used for time-marching)
 """
 function system_residual!(resid, x, beams, prescribed_conditions, distributed_loads,
-	irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam)
+	irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam, args...)
 
 	nbeam = length(beams)
 
 	# add contributions to residual equations from the elements
 	for ibeam = 1:nbeam
+		icol = icol_beam[ibeam]
 		irow_b1 = irow_beam1[ibeam]
 		irow_p1 = irow_pt[beams[ibeam].pt1]
 		irow_b2 = irow_beam2[ibeam]
 		irow_p2 = irow_pt[beams[ibeam].pt2]
-		state_variables = element_state_variables(solution, icol_beam, ibeam, mode)
-		properties = element_properties(beam, x0, v0, ω0, state_variables..., )
-		internal_resultants = element_equations(properties...)
+		properties = element_properties(x, icol, ibeam, beam, args...)
+		internal_resultants = element_equations(distributed_loads[ibeam], properties...)
 		resid = element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, internal_resultants...)
 	end
 
 	# add contributions to the residual equations from the prescribed point conditions
-	for prescribed_condition in prescribed_conditions
+	for (point, prescribed_condition) in enumerate(prescribed_conditions)
 		# get variables resulting from the prescribed point condition
-		ipt = prescribed_condition.ipt
-		u, θ, F, M = point_variables(solution, icol_pt, prescribed_condition)
+		u, θ, F, M = point_variables(solution, icol_pt[point], prescribed_condition)
 		# search for beams that are connected to the specified point
 		for ibeam = 1:nbeam
 			# check left side of beam
-			if ipt == beams[ibeam].pt1
+			if point == beams[ibeam].pt1
 				# add to residual equations for the beam endpoint
 				irow_b = irow_beam1[ibeam]
-				irow_p = irow_pt[ipt]
+				irow_p = irow_pt[point]
 				point_residual!(resid, irow_b, irow_p, u, θ, F, M)
 			end
 			# check right side of beam
-			if ipt == beams[ibeam].pt2
+			if point == beams[ibeam].pt2
 				# add to residual equations for the beam endpoint
 				irow_b = irow_beam2[ibeam]
-				irow_p = irow_pt[ipt]
+				irow_p = irow_pt[point]
 				point_residual!(resid, irow_b, irow_p, u, θ, F, M)
 			end
 		end
@@ -60,6 +100,8 @@ function system_residual!(resid, x, beams, prescribed_conditions, distributed_lo
 end
 
 """
+	element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1,
+		f_ψ2, f_F1, f_F2, f_M1, f_M2)
 	element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1,
 		f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H)
 
@@ -70,9 +112,27 @@ f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H
 
 If irow_b1 != irow_p1 and/or irow_b2 != irow_p2, assume the equilibrium equations
 have already been initialized for the left and/or right internal resultants, respectively.
+
+There are two implementations, one for static and one for dynamic
+
+# Arguments
+ - resid: Residual vector
+ - irow_b1: Row index of the first equation for the left side of the beam
+ - irow_p1: Row index of the first equation for the point on the left side of the beam
+ - irow_b1: Row index of the first equation for the right side of the beam
+ - irow_p2: Row index of the first equation for the point on the right side of the beam
+ - f_u1, f_u2: Resultant displacements for the left and right side of the beam element, respectively
+ - f_ψ1, f_ψ2: Resultant rotations for the left and right side of the beam element, respectively
+ - f_F1, f_F2: Resultant forces for the left and right side of the beam element, respectively
+ - f_M1, f_M2: Resultant moments for the left and right side of the beam element, respectively
+
+# Additional Arguments for Dynamic Analyses
+ - f_P: Resultant linear momenta of the beam element
+ - f_H: Resultant angular momenta of the beam element
 """
 element_residual
 
+# static
 function element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2)
 
 	# create/add to residual equations for left endpoint
@@ -112,6 +172,7 @@ function element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2
 	return resid
 end
 
+# dynamic
 function element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H)
 
 	resid = element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2)
@@ -131,11 +192,19 @@ end
 """
 	point_residual!(resid, irow_b, irow_p, u, θ, F, M)
 
-Modify the equilibrium and constitutive equations specified at irow_p and irow_b
-respectively to account for the point variables given by u, θ, F, M
+Modify the equilibrium and constitutive equations to account for the point
+variables given by u, θ, F, M
 
-If irow_b == irow_p, assume that the equilibrium equations have already
-been modified
+If irow_b != irow_p, assume that the equilibrium equations have already been modified
+
+# Arguments
+ - resid: Residual vector
+ - irow_b: Row index of the first equilibrium/compatability equation for one side of the beam element
+ - irow_p: Row index of the first equilibrium equation for the point
+ - u: Displacement of the point
+ - θ: Rotation of the point
+ - F: External forces imposed on the point
+ - M: External moments imposed on the point
 """
 function point_residual!(resid, irow_b, irow_p, u, θ, F, M)
 
@@ -157,7 +226,7 @@ end
 """
 	point_variables(x, icol_p, prescribed_condition)
 
-Extract u, θ, F, M for the point described by the state variables at `icol_p` in
+Extract u, θ, F, M for the point described by the point state variables at `icol` in
 x after incorporating the prescribed conditions in `prescribed_condition`
 
 Note that the degrees of freedom that are not specified in `prescribed_condition`
@@ -182,11 +251,10 @@ function point_variables(x, icol_p, prescribed_condition)
 	Fp = zero(u)
 	for i = 1:3
 		if cond.force[i]
-			if cond.follower[i]
-				Fp += SVector(CT[1,i], Ct[2,i], Ct[3,i])*cond.val[i]
-			else
-				Fp += SVector(I3[1,i], I3[2,i], I3[3,i])*cond.val[i]
-			end
+			# add dead force
+			Fp += SVector(I3[1,i], I3[2,i], I3[3,i])*cond.val[i]
+			# add follower force
+			Fp += SVector(CT[1,i], Ct[2,i], Ct[3,i])*cond.follower[i]
 		end
 	end
 
@@ -194,11 +262,10 @@ function point_variables(x, icol_p, prescribed_condition)
 	Mp = zero(θ)
 	for i = 4:6
 		if cond.force[i]
-			if cond.follower[i]
-				Mp += SVector(CT[1,i], Ct[2,i], Ct[3,i])*cond.val[i]
-			else
-				Mp += SVector(I3[1,i], I3[2,i], I3[3,i])*cond.val[i]
-			end
+			# add dead force
+			Mp += SVector(I3[1,i], I3[2,i], I3[3,i])*cond.val[i]
+			# add follower force
+			Mp += SVector(CT[1,i], Ct[2,i], Ct[3,i])*cond.val[i]
 		end
 	end
 

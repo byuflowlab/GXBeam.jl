@@ -1,5 +1,12 @@
 # determines row and column indices for the assembly
-function system_indexes(points, beams, steady)
+"""
+    system_indices(points, beams, static=false)
+
+Solve for the row indices of the first equilibrium or compatability equations for
+each point and side of each beam element.  Also solve for the row/column index of
+each point and beam state variable.
+"""
+function system_indices(points, beams, static=false)
 
     npt = length(points)
     nbeam = length(beams)
@@ -33,7 +40,7 @@ function system_indexes(points, beams, steady)
         icol_beam[ibeam] = icol
         icol += 12
 
-        if !steady
+        if !static
             # 6 linear and angular momentum residual equations for each element
             irow += 6
             # 6 additional unknowns for each member for unsteady analyses

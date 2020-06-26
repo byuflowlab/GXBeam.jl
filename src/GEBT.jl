@@ -5,12 +5,11 @@ using StaticArrays
 using FLOWMath
 
 abstract type AbstractAnalysisType end
-struct Steady <: AbstractSystemType end
-struct Unsteady <: AbstractSystemType end
-struct InitialStep <: AbstractSystemType end
-struct TimeMarching{TF} <: AbstractSystemType
-	dt::TF
-end
+struct Static <: AbstractAnalysisType end
+struct Steady <: AbstractAnalysisType end
+struct Eigenvalue <: AbstractAnalysisType end
+struct InitialStep <: AbstractAnalysisType end
+struct TimeMarching{TF} <: AbstractAnalysisType end
 
 """
     tilde(x)
@@ -29,6 +28,7 @@ function wiener_milenkovic(c)
 	return ((c0^2 - c'*c)*I - 2*c0*tilde(c) + 2*c*c')/(4-c0)^2
 end
 
+# identity matrix
 const I3 = @SMatrix [1 0 0; 0 1 0; 0 0 1]
 
 function static_analysis(assembly, prescribed_conditions, distributed_loads)
