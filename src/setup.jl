@@ -1,12 +1,20 @@
-# determines row and column indices for the assembly
+
 """
-    system_indices(points, beams, static=false)
+    system_indices(points, beams, static)
 
 Solve for the row indices of the first equilibrium or compatability equations for
 each point and side of each beam element.  Also solve for the row/column index of
 each point and beam state variable.
+
+Return Values:
+ - `N`: Number of rows/columns in system jacobian
+ - irow_pt: Row index of first equilibrium equation for each point
+ - irow_beam1: Row index of first equation for the left side of each beam
+ - irow_beam2: Row index of first equation for the right side of each beam
+ - icol_pt: Column index of first state variable for each point
+ - icol_beam: Column index of first state variable for each beam element
 """
-function system_indices(points, beams, static=false)
+function system_indices(points, beams, static)
 
     npt = length(points)
     nbeam = length(beams)
@@ -63,5 +71,9 @@ function system_indices(points, beams, static=false)
         end
     end
 
-    return irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam
+    nrow = irow-1
+    ncol = icol-1
+    @assert nrow == ncol
+
+    return nrow, irow_pt, irow_beam1, irow_beam2, icol_pt, icol_beam
 end

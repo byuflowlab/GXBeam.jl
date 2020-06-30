@@ -189,6 +189,98 @@ function element_residual!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2
 	return resid
 end
 
+
+"""
+	element_jacobian!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1,
+		f_ψ2, f_F1, f_F2, f_M1, f_M2)
+	element_jacobian!(resid, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1,
+		f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H)
+
+Initialize the equilibrium and constitutive equations at irow_p1 and irow_b1,
+for the left side of the beam element and irow_p2 and irow_b2 for the right side
+of the beam element, respectively, to account for the beam element internal resultants given by
+f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H
+
+If irow_b1 != irow_p1 and/or irow_b2 != irow_p2, assume the equilibrium equations
+have already been initialized for the left and/or right internal resultants, respectively.
+
+There are two implementations, one for static and one for dynamic
+
+# Arguments
+ - resid: Residual vector
+ - irow_b1: Row index of the first equation for the left side of the beam
+ - irow_p1: Row index of the first equation for the point on the left side of the beam
+ - irow_b1: Row index of the first equation for the right side of the beam
+ - irow_p2: Row index of the first equation for the point on the right side of the beam
+ - f_u1, f_u2: Resultant displacements for the left and right side of the beam element, respectively
+ - f_ψ1, f_ψ2: Resultant rotations for the left and right side of the beam element, respectively
+ - f_F1, f_F2: Resultant forces for the left and right side of the beam element, respectively
+ - f_M1, f_M2: Resultant moments for the left and right side of the beam element, respectively
+
+# Additional Arguments for Dynamic Analyses
+ - f_P: Resultant linear momenta of the beam element
+ - f_H: Resultant angular momenta of the beam element
+"""
+element_jacobian
+
+# static
+function element_jacobian!(resid, irow_b1, irow_p1, irow_b2, irow_p2, icol_b, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2)
+
+	# create/add to residual equations for left endpoint
+	if irow_b1 == irow_p1
+		# add equilibrium equations
+		jacob[irow_b1:irow_b1+2, icol_b:icol_b+11] = -f_u1
+		jacob[irow_b1+3:irow_b1+5, icol_b:icol_b+11] = -f_ψ1
+		# add compatability equations
+		jacob[irow_b1+6:irow_b1+8, icol_b:icol_b+11] = -f_F1
+		jacob[irow_b1+9:irow_b1+11, icol_b:icol_b+11] = -f_M1
+	else
+		# add to existing equilibrium equations
+		jacob[irow_p1:irow_p1+2, icol_b:icol_b+11] -= f_u1
+		jacob[irow_p1+3:irow_p1+5, icol_b:icol_b+11] -= f_ψ1
+		# add compatability equations
+		jacob[irow_b1:irow_b1+2, icol_b:icol_b+11] = -f_F1
+		jacob[irow_b1+3:irow_b1+5, icol_b:icol_b+11] = -f_M1
+	end
+
+	# create/add to residual equations for right endpoint
+	if irow_b2 == irow_p2
+		# add equilibrium equations
+		jacob[irow_b2:irow_b2+2, icol_b:icol_b+11] = -f_u2
+		jacob[irow_b2+3:irow_b2+5, icol_b:icol_b+11] = -f_ψ2
+		# add compatability equations
+		jacob[irow_b2+6:irow_b2+8, icol_b:icol_b+11] = f_F2
+		jacob[irow_b2+9:irow_b2+11, icol_b:icol_b+11] = f_M2
+	else
+		# add to existing equilibrium equations
+		jacob[irow_p2:irow_p2+2, icol_b:icol_b+11] -= f_u2
+		jacob[irow_p2+3:irow_p2+5, icol_b:icol_b+11] -= f_ψ2
+		# add compatability equations
+		jacob[irow_b2:irow_b2+2, icol_b:icol_b+11] = f_F2
+		jacob[irow_b2+3:irow_b2+5, icol_b:icol_b+11] = f_M2
+	end
+
+	return jacob
+end
+
+# dynamic
+function element_jacobian!(resid, irow_b1, irow_p1, irow_b2, irow_p2, icol_b, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H)
+
+	jacob = element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2)
+
+	# residual equations for element
+	if irow_b1 == irow_p1
+		jacob[irow_b1+12:irow_b1+14, icol_b:icol_b+17] = f_P
+		jacob[irow_b1+15:irow_b1+17, icol_b:icol_b+17] = f_H
+	else
+		jacob[irow_b1+6:irow_b1+8, icol_b:icol_b+17] = f_P
+		jacob[irow_b1+9:irow_b1+11, icol_b:icol_b+17] = f_H
+	end
+
+	return resid
+end
+
+
 """
 	point_residual!(resid, irow_b, irow_p, u, θ, F, M)
 
@@ -234,8 +326,6 @@ are used as state variables (e.g. prescribing F[2] would mean u[2] = x[icol+1])
 """
 function point_variables(x, icol_p, prescribed_condition)
 
-	force = prescribed_condition.force
-
 	# get the displacement and rotations of the point
 	u = SVector(ifelse(force, x[icol_p  ], prescribed_condition.val[1]),
 				ifelse(force, x[icol_p+1], prescribed_condition.val[2]),
@@ -250,7 +340,7 @@ function point_variables(x, icol_p, prescribed_condition)
 	# solve for the force applied at the point due to the prescribed loads
 	Fp = zero(u)
 	for i = 1:3
-		if cond.force[i]
+		if prescribed_condition.force[i]
 			# add dead force
 			Fp += SVector(I3[1,i], I3[2,i], I3[3,i])*cond.val[i]
 			# add follower force
@@ -261,7 +351,7 @@ function point_variables(x, icol_p, prescribed_condition)
 	# solve for the moment applied at the point due to the prescribed loads
 	Mp = zero(θ)
 	for i = 4:6
-		if cond.force[i]
+		if prescribed_condition.force[i]
 			# add dead force
 			Mp += SVector(I3[1,i], I3[2,i], I3[3,i])*cond.val[i]
 			# add follower force
