@@ -1,88 +1,61 @@
-struct Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TE<:AbstractVector{<:AbstractElement{TF}}}
+"""
+    Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
+
+Composite type that defines an assembly of connected nonlinear beam elements for
+analysis.
+
+# Fields
+ - `points`: Array of all beam element endpoints
+ - `start`: Array containing point index where each beam element starts
+ - `stop`: Array containing point index where each beam element stops
+ - `element`: Array of `Element`s
+"""
+struct Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
 	points::TP
+	start::TC
+	stop::TC
 	elements::TE
 end
-Base.eltype(::Assembly{TF, TP, TE}) = TF
+Base.eltype(::Assembly{TF, TP, TE}) where {TF, TP, TE} = TF
 
 """
-	Assembly(points, connectivity, compliance, mass, frames, [lengths, midpoints])
+	Assembly(points, start, stop; kwargs...)
 
 Construct an assembly of connected nonlinear beam elements for analysis.  Beam lengths
 and midpoints may be manually specified in case beam elements are curved rather than
 straight.
 
 # Arguments
- - points: Array of all beam element endpoints
- - pt1: Array containing index of start of each beam element
- - pt2: Array containing index of end of each beam element
- - compliance: Array of (6 x 6) compliance matrices at the midpoint of each beam element
- - mass: Array of (6 x 6) mass matrices at the midpoint of each beam element
- - frames: Array of (3 x 3) direction cosine matrices at the midpoint of each beam
- - lengths: Array containing length of each beam, defaults to distance between beam endpoints
- - midpoints: Array containing the midpoints of each beam element, defaults to average of the beam element endpoints
+ - `points`: Array of all beam element endpoints
+ - `start`: Array containing point index where each beam element starts
+ - `stop`: Array containing point index where each beam element stops
+
+# Keyword Arguments
+ - `compliance = fill((@SMatrix zeros(6,6)), length(start))`: Array of (6 x 6)
+ 	compliance matrices for each beam element,
+ - `mass = fill((@SMatrix zeros(6,6)), length(start))`: Array of (6 x 6) mass
+ 	matrices for each beam element
+ - `frames = fill(SMatrix{3,3}(I))`: Array of (3 x 3) direction cosine matrices for each beam element
+ - `lengths = norm.(points[stop] - points[start])`: Array containing the length of each beam, defaults to the distance between beam endpoints
+ - `midpoints = (points[stop] + points[start])/2`: Array containing the midpoint of each beam element, defaults to the average of the beam element endpoints
 """
-Assembly
+function Assembly(points, start, stop;
+	compliance = fill((@SMatrix zeros(6,6)), length(start)),
+	mass = fill((@SMatrix zeros(6,6)), length(start)),
+	frames = fill(SMatrix{3,3}(I)),
+	lengths = norm.(points[stop] - points[start]),
+	midpoints = (points[stop] + points[start])/2)
 
-function Assembly(points, pt1, pt2, compliance, mass, frames, lengths, midpoints)
+	TF = promote_type(
+		eltype(eltype(points)),
+		eltype(eltype(compliance)),
+		eltype(eltype(mass)),
+		eltype(eltype(frames)),
+		eltype(eltype(lengths)),
+		eltype(eltype(midpoints))
+		)
 
-	elements = Element.(lengths, midpoints, pt1, pt2, compliance, mass, frames)
+	elements = Element{TF}.(lengths, midpoints, compliance, mass, frames)
 
-	return Assembly(points, elements)
-end
-
-function Assembly(points, pt1, pt2, compliance, mass, frames)
-
-	lengths = norm.(points[pt2] - points[pt1])
-	midpoints = (points[pt2] + points[pt1])/2
-
-	return Assembly(points, connectivity, compliance, mass, frames, lengths, midpoints)
-end
-
-struct PointState{TF}
-	u::SVector{3, TF}
-	theta::SVector{3, TF}
-	F::SVector{3, TF}
-	M::SVector{3, TF}
-end
-
-struct ElementState{TF}
-	u::SVector{3, TF}
-	theta::SVector{3, TF}
-	F::SVector{3, TF}
-	M::SVector{3, TF}
-	P::SVector{3, TF}
-	H::SVector{3, TF}
-end
-
-struct AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
-	points::TP
-	elements::TE
-end
-Base.eltype(::AssemblyState{TF, TP, TE}) = TF
-
-function AssemblyState(x, prescribed_conditions, icol_pt, icol_beam, static)
-
-	TF = eltype(x)
-	npt = length(icol_pt)
-	nbeam = length(icol_beam)
-
-	points = AbstractVector{PointState{TF}}(undef, npt)
-	for ipt = 1:npt
-		u, theta, F, M = point_variables(x, icol_pt[ipt], prescribed_conditions[ipt])
-		points[ipt] = PointState{TF}(u, theta, F, M)
-	end
-
-	elements = AbstractVector{ElementState{TF}}(undef, nbeam)
-	for ibeam = 1:nbeam
-		icol = icol_beam[ibeam]
-		u = SVector{3, TF}(x[icol], x[icol+1], x[icol+2])
-		theta = SVector{3, TF}(x[icol+3], x[icol+4], x[icol+5])
-		F = SVector{3, TF}(x[icol+6], x[icol+7], x[icol+8])
-		M = SVector{3, TF}(x[icol+9], x[icol+10], x[icol+11])
-		P = ifelse(static, zero(u), SVector{3, TF}(x[icol+12], x[icol+13], x[icol+14]))
-		H = ifelse(static, zero(u), SVector{3, TF}(x[icol+15], x[icol+16], x[icol+17]))
-		elements[ibeam] = ElementState{TF}(u, theta, F, M, P, H)
-	end
-
-	return AssemblyState(points, elements)
+	return Assembly(points, start, stop, elements)
 end
