@@ -90,6 +90,12 @@ end
     # create assembly of interconnected nonlinear beams
     assembly = Assembly(points, pt1, pt2, compliance=compliance)
 
+    # pre-initialize system storage
+    static = true
+    preserved_points = [1, nelem+1]
+    n_tf = 0
+    system = System(assembly, preserved_points, static, n_tf)
+
     # save tip deflection for each case
     utip_computational = zeros(length(M))
     vtip_computational = zeros(length(M))
@@ -109,7 +115,7 @@ end
             )
         )
 
-        state = steady_state_analysis(assembly, prescribed_conditions=prescribed_conditions)
+        state = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
 
         utip_computational[i] = state.points[end].u[1]
         vtip_computational[i] = state.points[end].u[2]
@@ -199,8 +205,7 @@ end
         )
     )
 
-    state = steady_state_analysis(assembly, prescribed_conditions=prescribed_conditions)
-
+    state = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
 
     # Results from "Large Displacement Analysis of Three-Dimensional Beam
     # Structures" by Bathe and Bolourch:
@@ -252,8 +257,8 @@ end
 
     # shear correction factors
     AR = w/h
-    ky = 1.0#6/5 + (ν/(1+ν))^2*AR^-4*(1/5 - 18/(AR*pi^5)*sum([tanh(m*pi*AR)/m^5 for m = 1:1000]))
-    kz = 1.0#6/5 + (ν/(1+ν))^2*AR^4*(1/5 - 18/(pi^5)*sum([tanh(n*pi*AR^-1)/n^5 for n = 1:1000]))
+    ky = 6/5 + (ν/(1+ν))^2*AR^-4*(1/5 - 18/(AR*pi^5)*sum([tanh(m*pi*AR)/m^5 for m = 1:1000]))
+    kz = 6/5 + (ν/(1+ν))^2*AR^4*(1/5 - 18/(pi^5)*sum([tanh(n*pi*AR^-1)/n^5 for n = 1:1000]))
 
     A = h*w
     Ay = A/ky
@@ -266,10 +271,10 @@ end
 
     compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*J), 1/(E*Iyy), 1/(E*Izz)]), nelem)
 
-    mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+    minv = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz])^-1, nelem)
 
     # create assembly
-    assembly = Assembly(points, pt1, pt2, compliance=compliance, mass=mass,
+    assembly = Assembly(points, pt1, pt2, compliance=compliance, minv=minv,
         frames=Cab, lengths=lengths, midpoints=midpoints)
 
     # create dictionary of prescribed conditions

@@ -16,7 +16,7 @@ struct Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector
 	stop::TC
 	elements::TE
 end
-Base.eltype(::Assembly{TF, TP, TE}) where {TF, TP, TE} = TF
+Base.eltype(::Assembly{TF, TP, TC, TE}) where {TF, TP, TC, TE} = TF
 
 """
 	Assembly(points, start, stop; kwargs...)
@@ -33,15 +33,15 @@ straight.
 # Keyword Arguments
  - `compliance = fill((@SMatrix zeros(6,6)), length(start))`: Array of (6 x 6)
  	compliance matrices for each beam element,
- - `mass = fill((@SMatrix zeros(6,6)), length(start))`: Array of (6 x 6) mass
- 	matrices for each beam element
+ - `mass = fill((@SMatrix zeros(6,6)), length(start))`: Array of (6 x 6) inverse
+ 	mass matrices for each beam element
  - `frames = fill(SMatrix{3,3}(I))`: Array of (3 x 3) direction cosine matrices for each beam element
  - `lengths = norm.(points[stop] - points[start])`: Array containing the length of each beam, defaults to the distance between beam endpoints
  - `midpoints = (points[stop] + points[start])/2`: Array containing the midpoint of each beam element, defaults to the average of the beam element endpoints
 """
 function Assembly(points, start, stop;
 	compliance = fill((@SMatrix zeros(6,6)), length(start)),
-	mass = fill((@SMatrix zeros(6,6)), length(start)),
+	minv = fill((@SMatrix zeros(6,6)), length(start)),
 	frames = fill(SMatrix{3,3}(I)),
 	lengths = norm.(points[stop] - points[start]),
 	midpoints = (points[stop] + points[start])/2)
@@ -49,13 +49,13 @@ function Assembly(points, start, stop;
 	TF = promote_type(
 		eltype(eltype(points)),
 		eltype(eltype(compliance)),
-		eltype(eltype(mass)),
+		eltype(eltype(minv)),
 		eltype(eltype(frames)),
 		eltype(eltype(lengths)),
 		eltype(eltype(midpoints))
 		)
 
-	elements = Element{TF}.(lengths, midpoints, compliance, mass, frames)
+	elements = Element{TF}.(lengths, midpoints, compliance, minv, frames)
 
-	return Assembly(points, start, stop, elements)
+	return Assembly(points, promote(start, stop)..., elements)
 end

@@ -9,8 +9,9 @@ using StaticArrays
 using OffsetArrays
 
 export curve_length, discretize_beam
-export Assembly, PrescribedConditions, DistributedLoads, TimeFunction
+export System, Assembly, PrescribedConditions, DistributedLoads, TimeFunction
 export static_analysis, steady_state_analysis, eigenvalue_analysis, time_domain_analysis
+export static_analysis!, steady_state_analysis!, eigenvalue_analysis!, time_domain_analysis!
 
 # Constant used for scaling forces/moments
 # this is needed because sparse arrays don't have scaling methods defined yet
