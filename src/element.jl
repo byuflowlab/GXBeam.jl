@@ -543,7 +543,7 @@ end
 	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0)
 
 	# compute element properties
-	ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Q = element_properties(x, icol, beam, x0, v0, ω0)
+	ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω = element_properties(x, icol, beam, x0, v0, ω0)
 
 	# solve for element resultants
 	f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H = element_equations(
