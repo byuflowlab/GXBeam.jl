@@ -680,6 +680,9 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
+	# zero out near-zero values ( < eps() ), but keep size of matrix
+	jacob = droptol!(jacob, eps(eltype(jacob)); trim=false)
+
 	return jacob
 end
 
@@ -721,22 +724,14 @@ function system_mass_matrix!(jacob, x, assembly, irow_pt, irow_beam, irow_beam1,
 		irow_b2 = irow_beam2[ibeam]
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
-		# get beam element properties
-		ΔL = beam.ΔL
-		θ = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ])
-		P = SVector(x[icol+12], x[icol+13], x[icol+14])
-		H = SVector(x[icol+15], x[icol+16], x[icol+17])
-		C = wiener_milenkovic(θ)
-		Cab = beam.Cab
-
-		# get jacobians of beam element equations
-		mass_matrix_jacobians = element_mass_matrix_equations(assembly.elements[ibeam], ΔL, C, Cab, θ, P, H)
-
-		# initialize/insert into jacobian matrix for the system
-		jacob = element_mass!(jacob, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, icol, mass_matrix_jacobians...)
+		element_mass_matrix!(jacob, x, assembly.elements[ibeam], icol, irow_b,
+			irow_b1, irow_p1, irow_b2, irow_p2)
 	end
 
 	# no contributions to "mass matrix" from point state variables
+
+	# zero out near-zero values ( < eps() ), but keep size of matrix
+	jacob = droptol!(jacob, eps(eltype(jacob)); trim=false)
 
 	return jacob
 end

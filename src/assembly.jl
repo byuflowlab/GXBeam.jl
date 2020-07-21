@@ -31,17 +31,17 @@ straight.
  - `stop`: Array containing point index where each beam element stops
 
 # Keyword Arguments
- - `compliance = fill(Diagonal(@SVector ones(6))), length(start))`: Array of (6 x 6)
+ - `compliance = fill(Diagonal((@SMatrix zeros(6,6))))), length(start))`: Array of (6 x 6)
  	compliance matrices for each beam element,
- - `mass = fill(Diagonal(@SVector ones(6))), length(start))`: Array of (6 x 6) inverse
- 	mass matrices for each beam element
+ - `minv = fill((Diagonal((@SVector ones(6)))), length(start))`: Array of (6 x 6) inverse
+ 	mass matrix inverses for each beam element
  - `frames = fill(SMatrix{3,3}(I))`: Array of (3 x 3) direction cosine matrices for each beam element
  - `lengths = norm.(points[stop] - points[start])`: Array containing the length of each beam, defaults to the distance between beam endpoints
  - `midpoints = (points[stop] + points[start])/2`: Array containing the midpoint of each beam element, defaults to the average of the beam element endpoints
 """
 function Assembly(points, start, stop;
-	compliance = fill(@SMatrix zeros(6,6)), length(start)),
-	minv = fill((Diagonal(@SVector ones(6))), length(start)),
+	compliance = fill((@SMatrix zeros(6,6)), length(start)),
+	minv = fill(Diagonal((@SVector ones(6))), length(start)),
 	frames = fill(SMatrix{3,3}(I)),
 	lengths = norm.(points[stop] - points[start]),
 	midpoints = (points[stop] + points[start])/2)

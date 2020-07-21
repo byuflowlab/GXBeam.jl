@@ -59,12 +59,12 @@ end
 	end
 
 	# overwrite external forces/moments with solved for forces/moments
-	F = SVector(ifelse(force_dof[1], Fp[1], x[icol  ]),
-				ifelse(force_dof[2], Fp[2], x[icol+1]),
-				ifelse(force_dof[3], Fp[3], x[icol+2]))
-	M = SVector(ifelse(force_dof[4], Mp[1], x[icol+3]),
-				ifelse(force_dof[5], Mp[2], x[icol+4]),
-				ifelse(force_dof[6], Mp[3], x[icol+5]))
+	F = SVector(ifelse(force_dof[1], Fp[1], x[icol  ] * FORCE_SCALING),
+				ifelse(force_dof[2], Fp[2], x[icol+1] * FORCE_SCALING),
+				ifelse(force_dof[3], Fp[3], x[icol+2] * FORCE_SCALING))
+	M = SVector(ifelse(force_dof[4], Mp[1], x[icol+3] * FORCE_SCALING),
+				ifelse(force_dof[5], Mp[2], x[icol+4] * FORCE_SCALING),
+				ifelse(force_dof[6], Mp[3], x[icol+5] * FORCE_SCALING))
 
 	return u, θ, F, M
 end
@@ -92,8 +92,8 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
 	if irow_b == irow_p
 		# add to equilibrium and compatability equations
 		for i = 1:3
-			resid[irow_b+i-1] -= F[i]./FORCE_SCALING
-			resid[irow_b+i+2] -= M[i]./FORCE_SCALING
+			resid[irow_b+i-1] -= F[i] ./ FORCE_SCALING
+			resid[irow_b+i+2] -= M[i] ./ FORCE_SCALING
 			resid[irow_b+i+5] += side*u[i]
 			resid[irow_b+i+8] += side*θ[i]
 		end
@@ -253,7 +253,7 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
 					# check if θ[j-3] is a state variable
 					if prescribed_force[j]
 						# add equilibrium equation jacobian component
-						jacob[irow_b+i-1, icol+j-1] = -F_θ[i,j-3]./FORCE_SCALING
+						jacob[irow_b+i-1, icol+j-1] = -F_θ[i,j-3] ./ FORCE_SCALING
 					end
 				end
 				# add compatability equation jacobian component
@@ -262,7 +262,7 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
 				# u[i] is prescribed, F[i] is a state variable
 
 				# add equilibrium equation jacobian component
-				jacob[irow_b+i-1, icol+i-1] = -1 ./ FORCE_SCALING # F_F = I
+				jacob[irow_b+i-1, icol+i-1] = -1 # F_F = I
 			end
 		end
 		for i = 4:6 # moments/rotations
@@ -272,7 +272,7 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
 					# check if θ[j-3] is a state variable
 					if prescribed_force[j]
 						# add equilibrium equation jacobian component
-						jacob[irow_b+i-1, icol+j-1] = -M_θ[i-3,j-3]./FORCE_SCALING
+						jacob[irow_b+i-1, icol+j-1] = -M_θ[i-3,j-3] ./ FORCE_SCALING
 					end
 				end
 				# add compatability equation jacobian component
@@ -281,7 +281,7 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
 				# θ[i-3] is prescribed, M[i-3] is a state variable
 
 				# add equilibrium equation jacobian component
-				jacob[irow_b+i-1, icol+i-1] = -1 ./ FORCE_SCALING # M_M = I
+				jacob[irow_b+i-1, icol+i-1] = -1 # M_M = I
 			end
 		end
 	else

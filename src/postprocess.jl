@@ -50,8 +50,8 @@ function AssemblyState(converged, x, assembly, prescribed_conditions, distribute
 			icol_b = icol_beam[ibeam]
 			u_b = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
 			θ_b = SVector(x[icol_b+3 ], x[icol_b+4 ], x[icol_b+5 ])
-			F_b = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ])
-			M_b = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11])
+			F_b = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* FORCE_SCALING
+			M_b = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* FORCE_SCALING
 
 			# get beam element properties
 			ΔL_b = beam.ΔL
@@ -86,8 +86,8 @@ function AssemblyState(converged, x, assembly, prescribed_conditions, distribute
 		static = irow_beam[ibeam] <= 0
 		u = SVector{3, TF}(x[icol], x[icol+1], x[icol+2])
 		theta = SVector{3, TF}(x[icol+3], x[icol+4], x[icol+5])
-		F = SVector{3, TF}(x[icol+6], x[icol+7], x[icol+8])
-		M = SVector{3, TF}(x[icol+9], x[icol+10], x[icol+11])
+		F = SVector{3, TF}(x[icol+6], x[icol+7], x[icol+8]) .* FORCE_SCALING
+		M = SVector{3, TF}(x[icol+9], x[icol+10], x[icol+11]) .* FORCE_SCALING
 		P = ifelse(static, zero(u), SVector{3, TF}(x[icol+12], x[icol+13], x[icol+14]))
 		H = ifelse(static, zero(u), SVector{3, TF}(x[icol+15], x[icol+16], x[icol+17]))
 		elements[ibeam] = ElementState{TF}(u, theta, F, M, P, H)

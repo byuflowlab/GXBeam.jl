@@ -205,7 +205,7 @@ end
         )
     )
 
-    state = steady_state_analysis(assembly, prescribed_conditions=prescribed_conditions)
+    state = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
 
     # Results from "Large Displacement Analysis of Three-Dimensional Beam
     # Structures" by Bathe and Bolourch:
@@ -312,6 +312,13 @@ end
         prescribed_conditions=prescribed_conditions,
         time_functions=time_functions,
         nstep = nstep
+        )
+
+    state, λ, V = eigenvalue_analysis(assembly,
+        prescribed_conditions=prescribed_conditions,
+        time_functions=time_functions,
+        nstep = nstep,
+        nev = 50,
         )
 
 end

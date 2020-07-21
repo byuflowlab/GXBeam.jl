@@ -3,10 +3,12 @@ module GEBT
 using Arpack
 using FLOWMath
 using LinearAlgebra
+using LinearMaps
 using NLsolve
 using SparseArrays
 using StaticArrays
 using OffsetArrays
+using IterativeSolvers
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads, TimeFunction
@@ -15,7 +17,7 @@ export static_analysis!, steady_state_analysis!, eigenvalue_analysis!, time_doma
 
 # Constant used for scaling forces/moments
 # this is needed because sparse arrays don't have scaling methods defined yet
-const FORCE_SCALING = 1000.0
+const FORCE_SCALING = 1e6
 
 # Global constants used for distributed-load integration
 const N_GAUSS = 6

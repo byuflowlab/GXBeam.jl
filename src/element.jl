@@ -128,8 +128,8 @@ element_properties
 
 	u = SVector(x[icol   ], x[icol+1 ], x[icol+2 ])
 	θ = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ])
-	F = SVector(x[icol+6 ], x[icol+7 ], x[icol+8 ])
-	M = SVector(x[icol+9 ], x[icol+10], x[icol+11])
+	F = SVector(x[icol+6 ], x[icol+7 ], x[icol+8 ]) .* FORCE_SCALING
+	M = SVector(x[icol+9 ], x[icol+10], x[icol+11]) .* FORCE_SCALING
 
 	ΔL = beam.ΔL
 	Ct = get_C(θ)'
@@ -158,8 +158,8 @@ end
 	# note that CtCabPdot and CtCabHdot are state variables instead of u and θ
 	u = u0[ibeam]
 	θ = θ0[ibeam]
-	F = SVector(x[icol+6 ], x[icol+7 ], x[icol+8 ])
-	M = SVector(x[icol+9 ], x[icol+10], x[icol+11])
+	F = SVector(x[icol+6 ], x[icol+7 ], x[icol+8 ]) .* FORCE_SCALING
+	M = SVector(x[icol+9 ], x[icol+10], x[icol+11]) .* FORCE_SCALING
 
 	ΔL = beam.ΔL
 	Ct = get_C(θ0[ibeam])'
@@ -483,6 +483,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `ibeam`: beam element index
  - `beam`: beam element
  - `distributed_loads`: dictionary with all distributed loads
+ - `time_function_values`: values of time functions at the current time step
  - `icol`: starting index for the beam's state variables
  - `irow_b1`: Row index of the first equation for the left side of the beam element
     (a value <= 0 indicates the equations have been eliminated from the system of equations)
@@ -1049,12 +1050,12 @@ insert_element_jacobian!
 	f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M)
 
 	# equilibrium equation jacobian entries for left endpoint
-	jacob[irow_p1:irow_p1+2, icol+3:icol+5] .= f_u1_θ./FORCE_SCALING
-	jacob[irow_p1:irow_p1+2, icol+6:icol+8] .= f_u1_F./FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+3:icol+5] .= f_u1_θ ./ FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+6:icol+8] .= f_u1_F
 
-	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_θ./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+6:icol+8] .= f_ψ1_F./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+9:icol+11] .= f_ψ1_M./FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_θ ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+6:icol+8] .= f_ψ1_F
+	jacob[irow_p1+3:irow_p1+5, icol+9:icol+11] .= f_ψ1_M
 
 	# compatability equation jacobian entries for left endpoint
 	# if irow_b1 == irow_p1 use row corresponding to compatability equations for this beam
@@ -1064,20 +1065,20 @@ insert_element_jacobian!
 
 	jacob[irow:irow+2, icol:icol+2] .= f_F1_u
 	jacob[irow:irow+2, icol+3:icol+5] .= f_F1_θ
-	jacob[irow:irow+2, icol+6:icol+8] .= f_F1_F
-	jacob[irow:irow+2, icol+9:icol+11] .= f_F1_M
+	jacob[irow:irow+2, icol+6:icol+8] .= f_F1_F .* FORCE_SCALING
+	jacob[irow:irow+2, icol+9:icol+11] .= f_F1_M .* FORCE_SCALING
 
 	jacob[irow+3:irow+5, icol+3:icol+5] .= f_M1_θ
-	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M1_F
-	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M1_M
+	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M1_F .* FORCE_SCALING
+	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M1_M .* FORCE_SCALING
 
 	# equilibrium equation jacobian entries for right endpoint
-	jacob[irow_p2:irow_p2+2, icol+3:icol+5] .= f_u2_θ./FORCE_SCALING
-	jacob[irow_p2:irow_p2+2, icol+6:icol+8] .= f_u2_F./FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+3:icol+5] .= f_u2_θ ./ FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+6:icol+8] .= f_u2_F
 
-	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_θ./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+6:icol+8] .= f_ψ2_F./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+9:icol+11] .= f_ψ2_M./FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_θ ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+6:icol+8] .= f_ψ2_F
+	jacob[irow_p2+3:irow_p2+5, icol+9:icol+11] .= f_ψ2_M
 
 	# compatability equation jacobian entries for right endpoint
 	# if irow_b2 == irow_p2 use row corresponding to compatability equations for this beam
@@ -1087,12 +1088,12 @@ insert_element_jacobian!
 
 	jacob[irow:irow+2, icol:icol+2] .= f_F2_u
 	jacob[irow:irow+2, icol+3:icol+5] .= f_F2_θ
-	jacob[irow:irow+2, icol+6:icol+8] .= f_F2_F
-	jacob[irow:irow+2, icol+9:icol+11] .= f_F2_M
+	jacob[irow:irow+2, icol+6:icol+8] .= f_F2_F .* FORCE_SCALING
+	jacob[irow:irow+2, icol+9:icol+11] .= f_F2_M .* FORCE_SCALING
 
 	jacob[irow+3:irow+5, icol+3:icol+5] .= f_M2_θ
-	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M2_F
-	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M2_M
+	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M2_F .* FORCE_SCALING
+	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M2_M .* FORCE_SCALING
 
 	return jacob
 end
@@ -1113,14 +1114,14 @@ end
 		f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M)
 
 	# add equilibrium equation jacobian entries for left endpoint
-	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H./FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H ./ FORCE_SCALING
 
 	# add equilibrium equation jacobian entries for right endpoint
-	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H./FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H ./ FORCE_SCALING
 
 	# add beam residual equation jacobian entries
 	jacob[irow_b:irow_b+2, icol:icol+2] .= f_P_u
@@ -1145,15 +1146,15 @@ end
 	f_H_P, f_H_H)
 
 	# add equilibrium equation jacobian entries for left endpoint
-	jacob[irow_p1:irow_p1+2, icol:icol+2] .= f_u1_CtCabPdot./FORCE_SCALING
-	jacob[irow_p1:irow_p1+2, icol+6:icol+8] .= f_u1_F./FORCE_SCALING
-	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P./FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol:icol+2] .= f_u1_CtCabPdot ./ FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+6:icol+8] .= f_u1_F
+	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P ./ FORCE_SCALING
 
-	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_CtCabHdot./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+6:icol+8] .= f_ψ1_F./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+9:icol+11] .= f_ψ1_M./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H./FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_CtCabHdot ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+6:icol+8] .= f_ψ1_F
+	jacob[irow_p1+3:irow_p1+5, icol+9:icol+11] .= f_ψ1_M
+	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H ./ FORCE_SCALING
 
 	# add compatability equation jacobian entries for left endpoint
 	# if irow_b1 == irow_p1 use row corresponding to compatability equations for this beam
@@ -1161,22 +1162,22 @@ end
 	# otherwise use row corresponding to compatability equations for this beam
 	irow = ifelse(irow_b1 == irow_p1 || irow_b1 <= 0, irow_p1+6, irow_b1)
 
-	jacob[irow:irow+2, icol+6:icol+8] .= f_F1_F
-	jacob[irow:irow+2, icol+9:icol+11] .= f_F1_M
+	jacob[irow:irow+2, icol+6:icol+8] .= f_F1_F .* FORCE_SCALING
+	jacob[irow:irow+2, icol+9:icol+11] .= f_F1_M .* FORCE_SCALING
 
-	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M1_F
-	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M1_M
+	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M1_F .* FORCE_SCALING
+	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M1_M .* FORCE_SCALING
 
 	# add equilibrium equation jacobian entries for right endpoint
-	jacob[irow_p2:irow_p2+2, icol:icol+2] .= f_u2_CtCabPdot./FORCE_SCALING
-	jacob[irow_p2:irow_p2+2, icol+6:icol+8] .= f_u2_F./FORCE_SCALING
-	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P./FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol:icol+2] .= f_u2_CtCabPdot ./ FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+6:icol+8] .= f_u2_F
+	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P ./ FORCE_SCALING
 
-	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_CtCabHdot./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+6:icol+8] .= f_ψ2_F./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+9:icol+11] .= f_ψ2_M./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H./FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_CtCabHdot ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+6:icol+8] .= f_ψ2_F
+	jacob[irow_p2+3:irow_p2+5, icol+9:icol+11] .= f_ψ2_M
+	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H ./ FORCE_SCALING
 
 	# add compatability equation jacobian entries for right endpoint
 	# if irow_b2 == irow_p2 use row corresponding to compatability equations for this beam
@@ -1184,11 +1185,11 @@ end
 	# otherwise use row corresponding to compatability equations for this beam
 	irow = ifelse(irow_b2 == irow_p2 || irow_b2 <= 0, irow_p2 + 6, irow_b2)
 
-	jacob[irow:irow+2, icol+6:icol+8] .= f_F2_F
-	jacob[irow:irow+2, icol+9:icol+11] .= f_F2_M
+	jacob[irow:irow+2, icol+6:icol+8] .= f_F2_F .* FORCE_SCALING
+	jacob[irow:irow+2, icol+9:icol+11] .= f_F2_M .* FORCE_SCALING
 
-	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M2_F
-	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M2_M
+	jacob[irow+3:irow+5, icol+6:icol+8] .= f_M2_F .* FORCE_SCALING
+	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M2_M .* FORCE_SCALING
 
 	# add beam residual equation jacobian entries
 	jacob[irow_b:irow_b+2, icol+12:icol+14] .= f_P_P
@@ -1211,7 +1212,7 @@ end
 		irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
 		CtCabPdot_init, CtCabHdot_init, dt)
 
-Adds a beam element's contributions to the jacobian vector
+Adds a beam element's contributions to the jacobian matrix
 
 There are four implementations corresponding to the following analysis types:
  - Static
@@ -1224,11 +1225,12 @@ Wenbin Yu and "Geometrically nonlinear analysis of composite beams using
 Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 
 # Arguments
- - `jacob`: System jacobian vector
+ - `jacob`: System jacobian matrix
  - `x`: current state vector
  - `ibeam`: beam element index
  - `beam`: beam element
  - `distributed_loads`: dictionary with all distributed loads
+ - `time_function_values`: values of time functions at the current time step
  - `icol`: starting index for the beam's state variables
  - `irow_b1`: Row index of the first equation for the left side of the beam element
     (a value <= 0 indicates the equations have been eliminated from the system of equations)
@@ -1285,7 +1287,7 @@ element_jacobian!
 		f_ψ2_θ -= m2_θ
 	end
 
-	# insert element resultants into the jacobian vector
+	# insert element resultants into the jacobian matrix
 	jacob = insert_element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_θ, f_u2_θ, f_u1_F, f_u2_F,
 		f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M,
@@ -1325,7 +1327,7 @@ end
 		f_ψ2_θ -= m2_θ
 	end
 
-	# insert element resultants into the jacobian vector
+	# insert element resultants into the jacobian matrix
 	jacob = insert_element_jacobian!(jacob, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
 		f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_P, f_ψ2_P, f_ψ1_H, f_ψ2_H,
@@ -1356,7 +1358,7 @@ end
 		f_H_P, f_H_H = element_jacobian_equations(beam, ΔL, Cab, CtCab, θ, F, γ,
 		ω, P, V, θdot)
 
-	# insert element resultants into the jacobian vector
+	# insert element resultants into the jacobian matrix
 	jacob = element_jacobian!(jacob, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_CtCabPdot, f_u2_CtCabPdot, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
 		f_ψ1_CtCabHdot, f_ψ2_CtCabHdot, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_P, f_ψ2_P, f_ψ1_H, f_ψ2_H,
@@ -1400,7 +1402,7 @@ end
 		f_ψ2_θ -= m2_θ
 	end
 
-	# insert element resultants into the jacobian vector
+	# insert element resultants into the jacobian matrix
 	jacob = insert_element_jacobian!(jacob, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
 		f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_P, f_ψ2_P, f_ψ1_H, f_ψ2_H,
@@ -1410,6 +1412,28 @@ end
 		f_H_θ, f_H_P, f_H_H)
 
 	return jacob
+end
+
+"""
+	element_mass_matrix_properties(x, icol, beam)
+
+Extract/Compute the properties needed for mass matrix construction: `ΔL`, `Ct`,
+`Cab`, `CtCab`, `θ`, `P`, `H`, `Ctdot_cdot1`, `Ctdot_cdot2`, and Ctdot_cdot3
+"""
+@inline function element_mass_matrix_properties(x, icol, beam)
+
+	ΔL = beam.ΔL
+	θ = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ])
+	P = SVector(x[icol+12], x[icol+13], x[icol+14])
+	H = SVector(x[icol+15], x[icol+16], x[icol+17])
+	C = get_C(θ)
+	Ct = C'
+	Cab = beam.Cab
+	CtCab = Ct*Cab
+	Cdot_cdot1, Cdot_cdot2, Cdot_cdot3 = get_C_cdot(C, θ)
+	Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3 = Cdot_cdot1', Cdot_cdot2', Cdot_cdot3'
+
+	return ΔL, Ct, Cab, CtCab, θ, P, H, Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3
 end
 
 """
@@ -1430,11 +1454,8 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `P`: Linear momenta for the element [P1, P2, P3]
  - `H`: Angular momenta for the element [H1, H2, H3]
 """
-element_mass_matrix_equations
-
-@inline function element_mass_matrix_equations(ΔL, Ct, Cab, CtCab, θ, P, H)
-
-	Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3 = get_C_cdot(Ct', θ)
+@inline function element_mass_matrix_equations(ΔL, Ct, Cab, CtCab, θ, P, H,
+	Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3)
 
 	tmp = ΔL/2*mul3(Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3, Cab*P)
     f_u1_θdot = tmp
@@ -1463,15 +1484,15 @@ element_mass_matrix_equations
 end
 
 """
-	element_mass_matrix!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
+	insert_element_mass_matrix!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_θdot, f_u2_θdot, f_u1_Pdot, f_u2_Pdot, f_ψ1_θdot, f_ψ2_θdot,
 		f_ψ1_Hdot, f_ψ2_Hdot, f_P_udot, f_H_θdot)
 
-Add the beam element's contributions to the "mass matrix": the jacobian of the
+Insert the beam element's contributions into the "mass matrix": the jacobian of the
 residual equations with respect to the time derivatives of the state variables
 
 # Arguments
- - `jacob`: System jacobian matrix
+ - `jacob`: System jacobian matrix (mass matrix)
  - `irow_b1`: Row index of the first equation for the left side of the beam
  - `irow_p1`: Row index of the first equation for the point on the left side of the beam
  - `irow_b2`: Row index of the first equation for the right side of the beam
@@ -1481,25 +1502,68 @@ residual equations with respect to the time derivatives of the state variables
 All other arguments use the following naming convention:
  - `f_y_x`: Jacobian of element equation "y" with respect to state variable "x"
 """
-@inline function element_mass_matrix!(jacob, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, icol,
+@inline function insert_element_mass_matrix!(jacob, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 	f_u1_θdot, f_u2_θdot, f_u1_Pdot, f_u2_Pdot, f_ψ1_θdot, f_ψ2_θdot, f_ψ1_Hdot, f_ψ2_Hdot,
 	f_P_udot, f_H_θdot)
 
 	# create jacobian entries for left endpoint
-	jacob[irow_p1:irow_p1+2, icol+3:icol+5] .= f_u1_θdot./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_θdot./FORCE_SCALING
-	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_Pdot./FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_Hdot./FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+3:icol+5] .= f_u1_θdot ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_θdot ./ FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_Pdot ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_Hdot ./ FORCE_SCALING
 
 	# create jacobian entries for right endpoint
-	jacob[irow_p2:irow_p2+2, icol+3:icol+5] .= f_u2_θdot./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_θdot./FORCE_SCALING
-	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_Pdot./FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_Hdot./FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+3:icol+5] .= f_u2_θdot ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_θdot ./ FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_Pdot ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_Hdot ./ FORCE_SCALING
 
 	# create jacobian entries for beam residual equations
 	jacob[irow_b:irow_b+2, icol:icol+2] .= f_P_udot
 	jacob[irow_b+3:irow_b+5, icol+3:icol+5] .= f_H_θdot
+
+	return jacob
+end
+
+"""
+	element_mass_matrix!(jacob, x, beam, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
+
+Add the beam element's contributions to the "mass matrix": the jacobian of the
+residual equations with respect to the time derivatives of the state variables
+
+See "GEBT: A general-purpose nonlinear analysis tool for composite beams" by
+Wenbin Yu and "Geometrically nonlinear analysis of composite beams using
+Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
+
+# Arguments
+ - `jacob`: System jacobian matrix
+ - `x`: current state vector
+ - `beam`: beam element
+ - `icol`: starting index for the beam's state variables
+ - `irow_b1`: Row index of the first equation for the left side of the beam element
+    (a value <= 0 indicates the equations have been eliminated from the system of equations)
+ - `irow_p1`: Row index of the first equation for the point on the left side of the beam element
+ - `irow_b2`: Row index of the first equation for the right side of the beam element
+    (a value <= 0 indicates the equations have been eliminated from the system of equations)
+ - `irow_p2`: Row index of the first equation for the point on the right side of the beam element
+"""
+@inline function element_mass_matrix!(jacob, x, beam, icol, irow_b, irow_b1,
+	irow_p1, irow_b2, irow_p2)
+
+	# get beam element properties
+	ΔL, Ct, Cab, CtCab, θ, P, H, Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3 =
+		element_mass_matrix_properties(x, icol, beam)
+
+	# get jacobians of beam element equations
+	f_u1_θdot, f_u2_θdot, f_u1_Pdot, f_u2_Pdot,
+		f_ψ1_θdot, f_ψ2_θdot, f_ψ1_Hdot, f_ψ2_Hdot,
+		f_P_udot, f_H_θdot = element_mass_matrix_equations(ΔL, Ct, Cab, CtCab,
+		θ, P, H, Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3)
+
+	# initialize/insert into jacobian matrix for the system
+	jacob = insert_element_mass_matrix!(jacob, irow_b, irow_b1, irow_p1,
+		irow_b2, irow_p2, icol, f_u1_θdot, f_u2_θdot, f_u1_Pdot, f_u2_Pdot,
+		f_ψ1_θdot, f_ψ2_θdot, f_ψ1_Hdot, f_ψ2_Hdot, f_P_udot, f_H_θdot)
 
 	return jacob
 end

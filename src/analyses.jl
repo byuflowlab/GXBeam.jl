@@ -96,7 +96,7 @@ function static_analysis!(system, assembly;
 
 		df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
-		result = NLsolve.nlsolve(f!, x,
+		result = NLsolve.nlsolve(df, x,
 			linsolve=(x,A,b)->ldiv!(x, lu(A), b),
 			method=method,
 			linesearch=linesearch,
@@ -106,11 +106,8 @@ function static_analysis!(system, assembly;
 		# update solution
 		x .= result.zero
 
-		# stop early if unconverged
-		if !result.f_converged
-			converged = false
-			break
-		end
+		# update convergence flag
+		converged = result.f_converged
 	end
 
 	return AssemblyState(converged, x, assembly, prescribed_conditions,
@@ -248,7 +245,7 @@ function steady_state_analysis!(system, assembly;
 
 		df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
-		result = NLsolve.nlsolve(f!, x,
+		result = NLsolve.nlsolve(df, x,
 			linsolve=(x,A,b)->ldiv!(x, lu(A), b),
 			method=method,
 			linesearch=linesearch,
@@ -258,17 +255,10 @@ function steady_state_analysis!(system, assembly;
 		# update the solution
 		x .= result.zero
 
-		# stop early if unconverged
-		if !result.f_converged
-			converged = false
-			break
-		end
-	end
+		# update the convergence flag
+		convergence = result.f_converged
 
-	# perform a final update of the system jacobian (needed for eigenvalue analysis)
-	J = system_jacobian!(J, x, assembly, prescribed_conditions,
-		distributed_loads, time_function_values, irow_pt, irow_beam,
-		irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
+	end
 
 	return AssemblyState(converged, x, assembly, prescribed_conditions,
 		distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
@@ -299,11 +289,6 @@ contained in `assembly` by calling ARPACK.
  - `nstep = 1`: Number of time steps. May be used in conjunction with `time_functions`
    to gradually increase displacements/loads.
  - `nev = 6`: Number of eigenvalues to compute
- - `which = :LM`: Method for calculating eigenvalues, see Arpack.jl
- - `tol = 0.0`: relative tolerance for calculating eigenvalues, see Arpack.jl
- - `maxiter = 300`: Maximum number of iterations for eigenvalue computations
- - `sigma = nothing`: Level shift used during eigenvalue inverse iteration, see Arpack.jl
- - `v0 = zeros((0,)):` Starting vector from which to start the eigenvalue iterations
 """
 function eigenvalue_analysis(assembly;
 	prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -319,12 +304,7 @@ function eigenvalue_analysis(assembly;
 	ftol = 1e-12,
 	iterations = 1000,
 	nstep = 1,
-	nev = 6,
-	which = :LM,
-	tol = 0.0,
-	maxiter = 300,
-	sigma = nothing,
-	v0 = zeros((0,))
+	nev = 6
 	)
 
 	static = false
@@ -345,12 +325,7 @@ function eigenvalue_analysis(assembly;
 		ftol = ftol,
 		iterations = iterations,
 		nstep = nstep,
-		nev = nev,
-		which = which,
-		tol = tol,
-		maxiter = maxiter,
-		sigma = sigma,
-		v0 = v0
+		nev = nev
 		)
 end
 
@@ -374,15 +349,10 @@ function eigenvalue_analysis!(system, assembly;
 	iterations = 1000,
 	nstep = 1,
 	nev = 6,
-	which = :LM,
-	tol = 0.0,
-	maxiter = 300,
-	sigma = nothing,
-	v0 = zeros((0,))
 	)
 
 	# perform steady state analysis
-	system = steady_state_analysis!(system, assembly;
+    result = steady_state_analysis!(system, assembly;
 		prescribed_conditions = prescribed_conditions,
 		distributed_loads = distributed_loads,
 		time_functions = time_functions,
@@ -398,17 +368,114 @@ function eigenvalue_analysis!(system, assembly;
 		nstep = nstep,
 		)
 
-	# unpack stiffness and mass matrices
-	K = system.K # populated during steady state solution
+	# unpack state vector, stiffness, and mass matrices
+	x = system.x # populated during steady state solution
+	K = system.K # needs to be updated
 	M = system.M # still needs to be populated
 
-	# populate system mass matrix
+	# also unpack system indices
+	irow_pt = system.irow_pt
+	irow_beam = system.irow_beam
+	irow_beam1 = system.irow_beam1
+	irow_beam2 = system.irow_beam2
+	icol_pt = system.icol_pt
+	icol_beam = system.icol_beam
+
+	# unpack last time function values from steady state analysis
+	time_function_values = system.time_function_values
+
+	# get global frame time functions
+	v0_tf = SVector{3}(linear_velocity_tf)
+	ω0_tf = SVector{3}(angular_velocity_tf)
+
+	# get global frame origin and motion
+	x0 = SVector{3}(origin)
+	v0 = linear_velocity .* time_function_values[v0_tf]
+	ω0 = angular_velocity .* time_function_values[ω0_tf]
+
+	# solve for the system stiffness matrix
+	K = system_jacobian!(K, x, assembly, prescribed_conditions,
+		distributed_loads, time_function_values, irow_pt, irow_beam,
+		irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
+
+	# solve for the system mass matrix
 	M = system_mass_matrix!(M, x, assembly, irow_pt, irow_beam, irow_beam1,
 		irow_beam2, icol_pt, icol_beam)
 
-	# compute eigenvalues and eigenvectors
-	return Arpack.eigs(K, M; nev=nev, which=which, tol=tol, maxiter=maxiter,
-		sigma=sigma, v0=v0)
+	# construct linear map
+	T = eltype(system)
+	nx = length(x)
+	Kfact = lu(K)
+	f! = (b, x) -> ldiv!(b, Kfact, M*x)
+	fc! = (b, x) -> mul!(b, M', Kfact'\x)
+	A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
+
+	# compute eigenvalues and right eigenvectors
+	λ, V, _ = Arpack.eigs(A; nev=min(nx,nev), which=:LM)
+
+	# eigenvalues are actually 1/λ, no modification necessary for eigenvectors
+	λ = 1 ./ λr
+
+	# compute left eigenvectors using inverse power iteration
+	Us = left_eigenvectors(λ, V, K, M)
+
+	return result, λ, [AssemblyState(result.converged, view(V, 1:nx, i), assembly, prescribed_conditions,
+		distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
+		irow_beam2, icol_pt, icol_beam) for i = 1:length(λ)]
+end
+
+"""
+    left_eigenvectors(λ, V, K, M)
+
+Computes left eigenvector matrix U*.
+"""
+function left_eigenvectors(λ, V, K, M)
+
+	# problem type and dimensions
+	TC = eltype(V)
+	nx = size(V,1)
+	nev = size(V,2)
+
+	# allocate storage
+	Us = rand(TC, nev, nx)
+	u = Vector{TC}(undef, nx)
+	tmp = Vector{TC}(undef, nx)
+
+	# get entries in M
+	iM, jM, valM = findnz(M)
+
+	# compute eigenvectors for each eigenvalue
+	for iλ = 1:nev
+
+		# factorize (K + λ*M)'
+		KmλMfact = factorize(K' - λ[iλ]'*M')
+
+		# initialize left eigenvector
+		for i = 1:nx
+			u[i] = Us[iλ,i]
+		end
+
+		# perform a few iterations to converge the left eigenvector
+		for ipass = 1:3
+			# get updated u
+			mul!(tmp, M, u)
+			ldiv!(u, KmλMfact, tmp)
+			# normalize u
+			unorm = zero(TC)
+			for k = 1:length(valM)
+				unorm += conj(u[iM[k]])*valM[k]*V[jM[k],iλ]
+			end
+			rdiv!(u, conj(unorm))
+		end
+
+		# store conjugate of final eigenvector
+		for i = 1:nx
+			Us[iλ,i] = conj(u[i])
+		end
+
+	end
+
+	return Us
 end
 
 """
