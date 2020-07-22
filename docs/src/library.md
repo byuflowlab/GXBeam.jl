@@ -95,7 +95,7 @@ GEBT.insert_element_jacobian!
 GEBT.element_jacobian!
 GEBT.element_mass_matrix_properties
 GEBT.element_mass_matrix_equations
-GEBT.insert_mass_matrix!
+GEBT.insert_element_mass_matrix!
 GEBT.element_mass_matrix!
 ```
 
