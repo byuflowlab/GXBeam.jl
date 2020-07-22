@@ -204,7 +204,7 @@ write_vtk("curved", assembly, state)
 The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
 
 
-### Nonlinear Steady State Examples
+## Nonlinear Steady State Examples
 
 ## Nonlinear Stability Analysis Examples
 
