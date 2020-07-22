@@ -1,13 +1,19 @@
-# Static Analyses
-
-These examples show how to use the nonlinear static analysis capabilities of GEBT.jl.
+# Examples
 
 ```@contents
-Pages = ["example.md"]
+Pages = ["examples.md"]
 Depth = 3
 ```
 
-## Cantilever Subjected to a Constant Moment
+These examples show how to use the various analysis capabilities of GEBT.jl.  Some of the examples also provide a verification/validation for the implementation of geometrically exact beam theory in GEBT.jl.
+
+## Linear
+
+## Static
+
+
+
+### Cantilever Subjected to a Constant Moment
 
 This problem is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
 
@@ -125,7 +131,7 @@ savefig("cantilever.png"); nothing # hide
 
 ```
 
-## Bending of a Curved Beam in 3D Space
+### Bending of a Curved Beam in 3D Space
 
 This problem is also a common benchmark problem for the geometrically exact bending of nonlinear beams, but does not have an analytical solution.
 
@@ -197,3 +203,10 @@ write_vtk("curved", assembly, state)
 ![](curved.png)
 
 The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
+
+
+## Steady State
+
+## Eigenvalue
+
+## Time Marching

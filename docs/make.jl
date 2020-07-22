@@ -5,13 +5,7 @@ makedocs(;
     format = Documenter.HTML(),
     pages = [
         "Home" => "index.md",
-        "Examples" => [
-            "Linear" => "linear.md",
-            "Static" => "static.md",
-            "Steady State" => "steady_state.md",
-            "Stability" => "stability.md",
-            "Time Marching" => "time_marching.md"
-        ],
+        "Examples" => "examples.md",
         "Library" => "library.md"
     ],
     sitename = "GEBT.jl",

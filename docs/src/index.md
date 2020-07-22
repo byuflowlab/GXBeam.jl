@@ -43,7 +43,7 @@ This code has been optimized to be highly performant, primarily by maintaining t
 
 ## Usage
 
-See the examples
+See the [examples](@ref Examples)
 
 Note that while the theory is identical to the Wenbin Yu's code, some of the implementation details vary.
 
