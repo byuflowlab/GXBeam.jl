@@ -997,19 +997,19 @@ end
 end
 
 """
-	element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
+	insert_element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_θ, f_u2_θ, f_u1_F, f_u2_F,
 		f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M,
 		f_F1_u, f_F2_u, f_F1_θ, f_F2_θ, f_F1_F, f_F2_F, f_F1_M, f_F2_M,
 		f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M)
-	element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
+	insert_element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
 		f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_P, f_ψ2_P, f_ψ1_H, f_ψ2_H,
 		f_F1_u, f_F2_u, f_F1_θ, f_F2_θ, f_F1_F, f_F2_F, f_F1_M, f_F2_M,
 		f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
 		f_P_u, f_P_θ, f_P_P, f_P_H,
 		f_H_θ, f_H_P, f_H_H)
-	element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
+	insert_element_jacobian!(jacob, irow_b1, irow_p1, irow_b2, irow_p2, icol,
 		f_u1_CtCabPdot, f_u2_CtCabPdot, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
 		f_ψ1_CtCabHdot, f_ψ2_CtCabHdot, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_P, f_ψ2_P, f_ψ1_H, f_ψ2_H,
 		f_F1_F, f_F2_F, f_F1_M, f_F2_M,
@@ -1018,7 +1018,7 @@ end
 		f_H_P, f_H_H)
 
 
-Add the beam element's contributions to the jacobian matrix
+Insert the the beam element jacobian entries into the jacobian matrix
 
 There are three implementations corresponding to the following analysis types:
  - Static

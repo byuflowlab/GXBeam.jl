@@ -14,15 +14,36 @@ struct ElementState{TF}
 	H::SVector{3, TF}
 end
 
+"""
+
+"""
 struct AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
 	points::TP
 	elements::TE
-	converged::Bool
 end
 Base.eltype(::AssemblyState{TF, TP, TE}) where {TF, TP, TE} = TF
 
-function AssemblyState(converged, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+"""
+    AssemblyState(system, assembly, x = system.x;
+		prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+Post-process the system state given the solution vector `x`.  Return an object
+of type `AssemblyState` that defines the state of the assembly for the time step.
+
+If `prescribed_conditions` is not provided, all point state variables are assumed
+to be displacements/rotations, rather than their actual identities as used in the
+analysis.
+"""
+function AssemblyState(system, assembly, x = system.x;
+	prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+	time_function_values = system.time_function_values
+	irow_pt = system.irow_pt
+	irow_beam = system.irow_beam
+	irow_beam1 = system.irow_beam1
+	irow_beam2 = system.irow_beam2
+	icol_pt = system.icol_pt
+	icol_beam = system.icol_beam
 
 	TF = eltype(x)
 
@@ -61,8 +82,8 @@ function AssemblyState(converged, x, assembly, prescribed_conditions, distribute
 			κ_b = element_curvature(beam, F_b, M_b)
 
 			# solve for the displacements/rotations of the point
-			u =  side*u_b - ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
-			theta =  side*θ_b - ΔL_b/2*get_Qinv(θ_b)*Cab_b*κ_b
+			u = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
+			theta = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
 			F = @SVector zeros(3)
 			M = @SVector zeros(3)
 		else
@@ -93,5 +114,50 @@ function AssemblyState(converged, x, assembly, prescribed_conditions, distribute
 		elements[ibeam] = ElementState{TF}(u, theta, F, M, P, H)
 	end
 
-	return AssemblyState(points, elements, converged)
+	return AssemblyState(points, elements)
+end
+
+function write_vtk(name, assembly::Assembly, state::AssemblyState, scaling=1.0)
+
+	# get problem dimensions
+	npoint = length(assembly.points)
+	nbeam = length(assembly.elements)
+
+	# extract point locations
+	points = Matrix{eltype(assembly)}(undef, 3, npoint)
+	for ipoint = 1:npoint
+		for i = 1:3
+			points[i,ipoint] = assembly.points[ipoint][i] + scaling*state.points[ipoint].u[i]
+		end
+	end
+
+	global points
+
+	# create cells
+	cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+
+	# write vtk file
+	vtk_grid(name, points, cells) do vtkfile
+
+		# add point data
+		for field in fieldnames(PointState)
+			data = Matrix{eltype(assembly)}(undef, 3, npoint)
+			for ipoint = 1:npoint
+				data[:, ipoint] .= getproperty(state.points[ipoint], field)
+			end
+			vtkfile[string(field), VTKPointData()] = data
+		end
+
+		# add cell data
+		for field in fieldnames(ElementState)
+			data = Matrix{eltype(assembly)}(undef, 3, nbeam)
+			for ibeam = 1:nbeam
+				data[:, ibeam] .= getproperty(state.elements[ibeam], field)
+			end
+			vtkfile[string(field), VTKCellData()] = data
+		end
+
+	end
+
+	return nothing
 end

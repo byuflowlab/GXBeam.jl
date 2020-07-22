@@ -8,16 +8,18 @@ using NLsolve
 using SparseArrays
 using StaticArrays
 using OffsetArrays
-using IterativeSolvers
+using WriteVTK
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads, TimeFunction
 export static_analysis, steady_state_analysis, eigenvalue_analysis, time_domain_analysis
 export static_analysis!, steady_state_analysis!, eigenvalue_analysis!, time_domain_analysis!
+export left_eigenvectors
+export AssemblyState, write_vtk
 
 # Constant used for scaling forces/moments
 # this is needed because sparse arrays don't have scaling methods defined yet
-const FORCE_SCALING = 1e6
+const FORCE_SCALING = 1e3
 
 # Global constants used for distributed-load integration
 const N_GAUSS = 6

@@ -2,53 +2,6 @@ using GEBT
 using Test
 using LinearAlgebra
 
-# this test corresponds to Cantilever 1 in GEBT by Yu
-@testset "cantilever 1" begin
-
-    # create points
-    nelem = 600
-    x = range(0, 1, length=nelem+1)
-    y = zero(x)
-    z = zero(x)
-    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
-
-    # index of left and right endpoints of each beam element
-    pt1 = 1:nelem
-    pt2 = 2:nelem+1
-
-    # compliance matrix for each beam element
-    compliance = fill(Diagonal([1.9230769231E-08, 0, 0, 2.0689655172E-05, 5.7692307692E-06, 2.3076923077E-05]), nelem)
-
-    # create assembly of interconnected nonlinear beams
-    assembly = Assembly(points, pt1, pt2, compliance=compliance)
-
-    # create dictionary of prescribed conditions
-    prescribed_conditions = Dict(
-        # fixed left side
-        1 => PrescribedConditions(
-            force_dof = (false, false, false, false, false, false)
-            ),
-        # point load on right side
-        nelem+1 => PrescribedConditions(
-            follower = (0, 0, 5e5, 0, 0, 0)
-        )
-    )
-
-    # solve problem
-    state = steady_state_analysis(assembly, prescribed_conditions=prescribed_conditions)
-
-    @test isapprox(state.points[1].F, [487776.07284937444, 0.0, -109884.04231571428])
-    @test isapprox(state.points[1].M, [0.0, 410247.1078760718, 0.0])
-
-    @test isapprox(state.points[end].u, [-0.4245981310817911, 0.0, 0.711432240897314])
-    @test isapprox(state.points[end].theta, [0.0, -1.4028296750755636, 0.0])
-
-    @test isapprox(state.elements[end].u, [-0.42394793944398157, 0.0, 0.710619281158426])
-    @test isapprox(state.elements[end].theta, [0.0, -1.4028274254856647, 0.0])
-    @test isapprox(state.elements[end].F, [-1.0016023689458582, 0.0, 499999.9999989967])
-    @test isapprox(state.elements[end].M, [0.0, -416.6666586401802, 0.0])
-end
-
 @testset "Static Analysis: Cantilever Subjected to a Constant Moment" begin
 
     # See Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic
@@ -115,7 +68,11 @@ end
             )
         )
 
-        state = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+
+        println(converged)
+
+        state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
         utip_computational[i] = state.points[end].u[1]
         vtip_computational[i] = state.points[end].u[2]
@@ -205,7 +162,9 @@ end
         )
     )
 
-    state = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
+    system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
+
+    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
     # Results from "Large Displacement Analysis of Three-Dimensional Beam
     # Structures" by Bathe and Bolourch:
@@ -308,7 +267,7 @@ end
 
     time_functions = [tf_1]
 
-    history = time_domain_analysis(assembly, dt,
+    system, history, converged = time_domain_analysis(assembly, dt,
         prescribed_conditions=prescribed_conditions,
         time_functions=time_functions,
         nstep = nstep

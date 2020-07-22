@@ -1,8 +1,9 @@
 """
 	static_analysis(assembly; kwargs...)
 
-Performs a static analysis for the system of nonlinear beams contained in
-`assembly`. Returns the resulting state of the assembly.
+Perform a static analysis of the system of nonlinear beams contained in
+`assembly`. Return the resulting system and a flag indicating whether the
+iteration procedure converged.
 
 # Keyword Arguments
  - `prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
@@ -14,6 +15,7 @@ Performs a static analysis for the system of nonlinear beams contained in
  - `linesearch=LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
  - `ftol=1e-12`: tolerance for solving nonlinear system of equations
  - `iterations=1000`: maximum iterations for solving the nonlinear system of equations
+ 	Set <= 1 to perform a linear analysis.
  - `nstep=1`: Number of time steps. May be used in conjunction with `time_functions`
    to gradually increase displacements/loads.
 """
@@ -85,7 +87,7 @@ function static_analysis!(system, assembly;
 		# update time functions (except default time function)
 		time_function_values[1:n_tf] .= getindex.(time_functions, istep)
 
-		# solve the nonlinear system of equations
+		# solve the system of equations
 		f! = (F, x) -> system_residual!(F, x, assembly, prescribed_conditions,
 			distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
 			irow_beam2, icol_pt, icol_beam)
@@ -94,32 +96,40 @@ function static_analysis!(system, assembly;
 			distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2,
 			icol_pt, icol_beam)
 
-		df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
+		# if iterations <= 1
+		# 	# linear analysis
+		# 	x .= 0.0
+		# 	f!(F, x)
+		# 	j!(J, x)
+		# 	x .= J\F
+		# else
+			# nonlinear analysis
+			df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
-		result = NLsolve.nlsolve(df, x,
-			linsolve=(x,A,b)->ldiv!(x, lu(A), b),
-			method=method,
-			linesearch=linesearch,
-			ftol=ftol,
-			iterations=iterations)
+			result = NLsolve.nlsolve(df, x,
+				linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+				method=method,
+				linesearch=linesearch,
+				ftol=ftol,
+				iterations=iterations)
 
-		# update solution
-		x .= result.zero
+			# update solution
+			x .= result.zero
 
-		# update convergence flag
-		converged = result.f_converged
+			# update convergence flag
+			converged = result.f_converged
+		# end
 	end
 
-	return AssemblyState(converged, x, assembly, prescribed_conditions,
-		distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
-		irow_beam2, icol_pt, icol_beam)
+	return system, converged
 end
 
 """
 	steady_state_analysis(assembly; kwargs...)
 
-Performs a steady-state analysis for the system of nonlinear beams contained in
-`assembly`.
+Perform a steady-state analysis for the system of nonlinear beams contained in
+`assembly`.  Return the resulting system and a flag indicating whether the
+iteration procedure converged.
 
 # Keyword Arguments
  - `prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
@@ -179,7 +189,7 @@ end
 """
 	steady_state_analysis!(system, assembly; kwargs...)
 
-Pre-allocated version of `steady_state_analysis`.
+Pre-allocated version of `steady_state_analysis`
 """
 function steady_state_analysis!(system, assembly;
 	prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -234,7 +244,6 @@ function steady_state_analysis!(system, assembly;
 		v0 = linear_velocity .* time_function_values[v0_tf]
 		ω0 = angular_velocity .* time_function_values[ω0_tf]
 
-		# solve the nonlinear system of equations
 		f! = (F, x) -> system_residual!(F, x, assembly, prescribed_conditions,
 			distributed_loads, time_function_values, irow_pt, irow_beam,
 			irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
@@ -243,33 +252,42 @@ function steady_state_analysis!(system, assembly;
 			distributed_loads, time_function_values, irow_pt, irow_beam,
 			irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
 
-		df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
+		# solve the system of equations
+		if iterations <= 1
+			# linear analysis
+			x .= 0.0
+			f!(F, x)
+			j!(J, x)
+			x .= J\F
+		else
+			# nonlinear analysis
+			df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
-		result = NLsolve.nlsolve(df, x,
-			linsolve=(x,A,b)->ldiv!(x, lu(A), b),
-			method=method,
-			linesearch=linesearch,
-			ftol=ftol,
-			iterations=iterations)
+			result = NLsolve.nlsolve(df, x,
+				linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+				method=method,
+				linesearch=linesearch,
+				ftol=ftol,
+				iterations=iterations)
 
-		# update the solution
-		x .= result.zero
+			# update the solution
+			x .= result.zero
 
-		# update the convergence flag
-		convergence = result.f_converged
-
+			# update the convergence flag
+			convergence = result.f_converged
+		end
 	end
 
-	return AssemblyState(converged, x, assembly, prescribed_conditions,
-		distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
-		irow_beam2, icol_pt, icol_beam)
+	return system, converged
 end
 
 """
 	eigenvalue_analysis(assembly; kwargs...)
 
-Computes the eigenvalues and eigenvectors of the system of nonlinear beams
-contained in `assembly` by calling ARPACK.
+Compute the eigenvalues and eigenvectors of the system of nonlinear beams
+contained in `assembly` by calling ARPACK.  Return the eigenvalues, eigenvectors,
+and a convergence flag indicating whether the corresponding steady-state analysis
+converged.
 
 # Keyword Arguments
  - `prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
@@ -352,7 +370,7 @@ function eigenvalue_analysis!(system, assembly;
 	)
 
 	# perform steady state analysis
-    result = steady_state_analysis!(system, assembly;
+    system, converged = steady_state_analysis!(system, assembly;
 		prescribed_conditions = prescribed_conditions,
 		distributed_loads = distributed_loads,
 		time_functions = time_functions,
@@ -419,17 +437,30 @@ function eigenvalue_analysis!(system, assembly;
 	# compute left eigenvectors using inverse power iteration
 	Us = left_eigenvectors(λ, V, K, M)
 
-	return result, λ, [AssemblyState(result.converged, view(V, 1:nx, i), assembly, prescribed_conditions,
-		distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
-		irow_beam2, icol_pt, icol_beam) for i = 1:length(λ)]
+	return λ, V, Us, converged
 end
 
 """
-    left_eigenvectors(λ, V, K, M)
+	left_eigenvectors(system, λ, V)
+	left_eigenvectors(K, M, λ, V)
 
-Computes left eigenvector matrix U*.
+Compute the left eigenvector matrix `Us` for the `system` using inverse power
+iteration given the eigenvalues `λ` and the corresponding right eigenvector
+matrix `V`.
+
+The complex conjugate of each left eigenvector is stored in each row of the
+matrix `Us`
+
+Left and right eigenvectors satisfy the following M-orthogonality condition:
+ - u'*M*v = 1 if u and v correspond to the same eigenvalue
+ - u'*M*v = 0 if u and v correspond to different eigenvalues
+
+This function assumes that `system` has not been modified since the eigenvalues
+and right eigenvectors were computed.
 """
-function left_eigenvectors(λ, V, K, M)
+left_eigenvectors(system, λ, V) = left_eigenvectors(system.K, system.M, λ, V)
+
+function left_eigenvectors(K, M, λ, V)
 
 	# problem type and dimensions
 	TC = eltype(V)
@@ -481,8 +512,9 @@ end
 """
 	time_domain_analysis(assembly, dt; kwargs...)
 
-Performs a time-domain analysis for the system of nonlinear beams contained in
-`assembly`
+Perform a time-domain analysis for the system of nonlinear beams contained in
+`assembly`.  Return the final system, a post-processed solution history, and a
+convergence flag indicating whether the iterations converged for each time step.
 
 # Keyword Arguments
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
@@ -504,6 +536,7 @@ Performs a time-domain analysis for the system of nonlinear beams contained in
  - `ftol=1e-12`: tolerance for solving nonlinear system of equations
  - `iterations=1000`: maximum iterations for solving the nonlinear system of equations
  - `nstep=1`: Number of time steps.
+ - `save=1:nstep`: Steps at which to save the time history
 """
 function time_domain_analysis(assembly, dt;
 	prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -523,6 +556,7 @@ function time_domain_analysis(assembly, dt;
 	ftol = 1e-12,
 	iterations = 1000,
 	nstep = 1,
+	save = 1:nstep
 	)
 
 	static = false
@@ -546,7 +580,8 @@ function time_domain_analysis(assembly, dt;
 		linesearch = linesearch,
 		ftol = ftol,
 		iterations = iterations,
-		nstep = nstep
+		nstep = nstep,
+		save = 1:nstep
 		)
 end
 
@@ -573,6 +608,7 @@ function time_domain_analysis!(system, assembly, dt;
 	ftol = 1e-12,
 	iterations = 1000,
 	nstep = 1,
+	save = 1:nstep
 	)
 
 	# check to make sure the simulation is dynamic
@@ -628,18 +664,26 @@ function time_domain_analysis!(system, assembly, dt;
 		irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0, u0, theta0,
 		udot0, thetadot0)
 
-	# solve nonlinear system of equations
-	df = OnceDifferentiable(f!, j!, x, F, J)
+	# solve system of equations
+	if iterations <= 1
+		# linear analysis
+		x .= 0.0
+		f!(F, x)
+		j!(J, x)
+		x .= J\F
+	else
+		# nonlinear analysis
+		df = OnceDifferentiable(f!, j!, x, F, J)
 
-	result = NLsolve.nlsolve(df, x,
-		linsolve=(x,A,b)->ldiv!(x, lu(A), b),
-		method=method,
-		linesearch=linesearch,
-		ftol=ftol,
-		iterations=iterations)
+		result = NLsolve.nlsolve(df, x,
+			linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+			method=method,
+			linesearch=linesearch,
+			ftol=ftol,
+			iterations=iterations)
 
-	# update solution
-	x .= result.zero
+		x .= result.zero
+	end
 
 	# --- End Initial Condition Run --- #
 
@@ -668,12 +712,14 @@ function time_domain_analysis!(system, assembly, dt;
 	end
 
 	# initialize storage for each time step
-	history = Vector{AssemblyState{eltype(system)}}(undef, nstep)
+	isave = 1
+	history = Vector{AssemblyState{eltype(system)}}(undef, length(save))
 
-	# add initial state to the solution history
-	history[1] = AssemblyState(result.f_converged, x, assembly, prescribed_conditions,
-		distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
-		irow_beam2, icol_pt, icol_beam)
+	# add initial state to the solution history (if it should be saved)
+	if 1 in save
+		history[isave] = AssemblyState(system, assembly, prescribed_conditions = prescribed_conditions)
+		isave += 1
+	end
 
 	# --- Begin Time Domain Simulation --- #
 
@@ -695,22 +741,31 @@ function time_domain_analysis!(system, assembly, dt;
 			irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0, udot_init,
 			θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
-		df = OnceDifferentiable(f!, j!, x, F, J)
+		# solve system of equations
+		if iterations <= 1
+			# linear analysis
+			x .= 0.0
+			f!(F, x)
+			j!(J, x)
+			x .= J\F
+		else
+			df = OnceDifferentiable(f!, j!, x, F, J)
 
-		result = NLsolve.nlsolve(df, x,
-			linsolve=(x,A,b)->ldiv!(x, lu(A), b),
-			method=method,
-			linesearch=linesearch,
-			ftol=ftol,
-			iterations=iterations)
+			result = NLsolve.nlsolve(df, x,
+				linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+				method=method,
+				linesearch=linesearch,
+				ftol=ftol,
+				iterations=iterations)
 
-		# update the solution
-		x .= result.zero
+			x .= result.zero
+		end
 
 		# add state to history
-		history[istep] = AssemblyState(result.f_converged, x, assembly, prescribed_conditions,
-			distributed_loads, time_function_values, irow_pt, irow_beam, irow_beam1,
-			irow_beam2, icol_pt, icol_beam)
+		if istep in save
+			history[isave] = AssemblyState(system, assembly, prescribed_conditions = prescribed_conditions)
+			isave += 1
+		end
 
 		# stop early if unconverged
 		if !result.f_converged
@@ -750,5 +805,5 @@ function time_domain_analysis!(system, assembly, dt;
 
 	# --- End Time Domain Simulation --- #
 
-	return history
+	return system, history, converged
 end

@@ -59,3 +59,85 @@ function Assembly(points, start, stop;
 
 	return Assembly(points, promote(start, stop)..., elements)
 end
+
+"""
+	discretize_beam(L, r, d; Cab = Matrix(I,3,3)), k = zeros(3))
+
+Discretize a beam according to the discretization provided in `d`, an array that
+ranges from 0 to 1, with 0 representing the beginning of the beam and 1 representing
+the end of the beam.
+
+If `d` is an integer, the beam is discretized into `d` uniformly spaced elements.
+
+Return the lengths, endpoints, midpoints, and rotation matrices of the beam elements.
+
+# Arguments
+ - `L`: Beam length
+ - `r`: Beam starting point
+ - `d`: Discretization vector
+ - `Cab`: 3x3 beam rotation matrix at the starting point
+ - `k`: curvature vector
+"""
+function discretize_beam(L, r, ndiv::Integer; Cab = I3, k = (@SVector zeros(3)))
+
+	d = range(0, 1, length=ndiv+1)
+
+	return discretize_beam(L, r, d; Cab=Cab, k=k)
+end
+
+function discretize_beam(L, r, d; Cab = I3, k = (@SVector zeros(3)))
+
+	# discretize beam
+	sp = L*d
+	sm = (sp[1:end-1] .+ sp[2:end])/2
+	ΔL = (sp[2:end] .- sp[1:end-1])
+
+	# precompute some curvature quantities
+	kkt = k*k'
+	ktilde = tilde(k)
+	kn = sqrt(k'*k)
+
+	if k == zero(k)
+		triads = fill(Cab, ndiv)
+		xp = [r + s*Cab*e1 for s in sp]
+		xm = [r + s*Cab*e1 for s in sm]
+	else
+		triads = curve_triad.(Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sm)
+		xp = curve_coordinates.(Ref(r), Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sp)
+		xm = curve_coordinates.(Ref(r), Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sm)
+	end
+
+	return ΔL, xp, xm, triads
+end
+
+
+"""
+	curve_length(r1, r2, k)
+
+Calculate the length of a curve given its endpoints and its curvature vector
+"""
+function curve_length(r1, r2, k)
+	kn = sqrt(k'*k)
+	r = r2 - r1
+	rn = sqrt(r'*r)
+	if kn == 0 || (k[2] == 0 && k[3] == 0)
+		ΔL = rn
+	else
+		if k[1] == 0
+			ΔL = 2*asin(kn*rn/2)/kn
+		else
+			lower_bound = rn
+			upper_bound = rn*kn/k
+			residual = (L) -> (2*(kn^2-k[1]^2)*(1-cos(kn*L)) + k[1]^2*(kn*L)^2)/kn^4 - rnorm
+			ΔL = fzero(residual, lower_bound, upper_bound)
+		end
+	end
+	return ΔL
+end
+
+@inline curve_triad(Cab, k, s) = curve_triad(Cab, k*k', tilde(k), sqrt(k'*k), s)
+@inline curve_triad(Cab, kkt, ktilde, kn, s) = SMatrix{3,3}(Cab*((I - kkt/kn^2)*cos(kn*s) +
+	ktilde/kn*sin(kn*s) + kkt/kn^2))
+
+@inline curve_coordinates(r, Cab, k, s) = curve_coordinates(r, Cab, k*k', tilde(k), sqrt(k'*k), s)
+@inline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^2)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)
