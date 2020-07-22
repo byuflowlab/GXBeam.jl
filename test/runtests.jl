@@ -271,7 +271,7 @@ end
         nstep = nstep
         )
 
-    state, λ, V = eigenvalue_analysis(assembly,
+    λ, V, converged = eigenvalue_analysis(assembly,
         prescribed_conditions=prescribed_conditions,
         time_functions=time_functions,
         nstep = nstep,
