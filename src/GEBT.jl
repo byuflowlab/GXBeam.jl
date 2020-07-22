@@ -14,8 +14,7 @@ export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads, TimeFunction
 export static_analysis, steady_state_analysis, eigenvalue_analysis, time_domain_analysis
 export static_analysis!, steady_state_analysis!, eigenvalue_analysis!, time_domain_analysis!
-export left_eigenvectors
-export AssemblyState, write_vtk
+export AssemblyState, left_eigenvectors, wiener_milenkovic, write_vtk
 
 # Constant used for scaling forces/moments
 # this is needed because sparse arrays don't have scaling methods defined yet

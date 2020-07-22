@@ -14,9 +14,6 @@ struct ElementState{TF}
 	H::SVector{3, TF}
 end
 
-"""
-
-"""
 struct AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
 	points::TP
 	elements::TE
@@ -115,6 +112,42 @@ function AssemblyState(system, assembly, x = system.x;
 	end
 
 	return AssemblyState(points, elements)
+end
+
+"""
+    write_vtk(name, assembly::Assembly, [state::AssemblyState, scaling=1.0])
+
+Write the deformed geometry (and associated data) to a VTK file for visualization
+using ParaView.  The deflections can be scaled with `scaling`.
+
+The `state` and `scaling` parameters may be omitted to write the original geometry
+to a VTK file without any associated data.
+"""
+function write_vtk(name, assembly::Assembly)
+
+	# get problem dimensions
+	npoint = length(assembly.points)
+	nbeam = length(assembly.elements)
+
+	# extract point locations
+	points = Matrix{eltype(assembly)}(undef, 3, npoint)
+	for ipoint = 1:npoint
+		for i = 1:3
+			points[i,ipoint] = assembly.points[ipoint][i]
+		end
+	end
+
+	# create cells
+	cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+
+	# write vtk file
+	vtk_grid(name, points, cells) do vtkfile
+
+		# no associated data to add
+
+	end
+
+	return nothing
 end
 
 function write_vtk(name, assembly::Assembly, state::AssemblyState, scaling=1.0)

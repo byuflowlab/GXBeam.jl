@@ -12,11 +12,11 @@ Construct the cross product operator matrix
 @inline tilde(x) = @SMatrix [0 -x[3] x[2]; x[3] 0 -x[1]; -x[2] x[1] 0]
 
 """
-    get_C(c)
+    wiener_milenkovic(c)
 
 Construct a Wiener-Milenkovic rotation matrix
 """
-@inline function get_C(c)
+@inline function wiener_milenkovic(c)
 
 	c0 = 2 - c'*c/8
 
@@ -27,6 +27,13 @@ Construct a Wiener-Milenkovic rotation matrix
 		]
 	)
 end
+
+"""
+    get_C(c)
+
+Alias for `wiener_milenkovic(c)`
+"""
+@inline get_C(c) = wiener_milenkovic(c)
 
 """
 	get_C_t([C, ] c, c_t)

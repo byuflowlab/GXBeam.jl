@@ -19,11 +19,11 @@ Author: Taylor McDonnell
     - Captures all geometric nonlinearities due to large deflections and rotations
     - Capable of using the full 6x6 Timoshenko beam stiffness matrix
  - Models arbitrary distributed forces/moments on beam elements using:
-    - Dead forces/moments (which do not rotate as the beam element deflects)
-    - Follower forces/moments (which rotate as the beam element deflects)
+    - Dead forces/moments (which do not rotate as the beam element rotates)
+    - Follower forces/moments (which rotate as the beam element rotates)
  - Models arbitrary prescribed forces/moments and/or displacements/rotations at the connection points between beam elements using:
-    - Dead forces/moments (which do not rotate as the beam element deflects)
-    - Follower forces/moments (which rotate as the beam element deflects)
+    - Dead forces/moments (which do not rotate as the point rotates)
+    - Follower forces/moments (which rotate as the point rotates)
  - Provides time functions to define the variation of the applied loads/displacements over time for both steady and unsteady simulations.
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)

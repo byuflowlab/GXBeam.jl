@@ -47,6 +47,8 @@ time_domain_analysis!
 ```@docs
 AssemblyState
 left_eigenvectors
+wiener_milenkovic
+write_vtk
 ```
 
 ## Private API
