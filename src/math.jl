@@ -14,7 +14,8 @@ Construct the cross product operator matrix
 """
     wiener_milenkovic(c)
 
-Construct a Wiener-Milenkovic rotation matrix
+Construct a Wiener-Milenkovic rotation matrix, given the three Wiener-Milenkovic
+rotation parameters in `c`.
 """
 @inline function wiener_milenkovic(c)
 
