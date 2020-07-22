@@ -8,11 +8,9 @@ Pages = ["examples.md"]
 Depth = 3
 ```
 
-## Linear Analysis Examples
+## Linear Analyses
 
-## Nonlinear Static Analysis Examples
-
-
+## Nonlinear Static Analyses
 
 ### Cantilever Subjected to a Constant Moment
 
@@ -204,8 +202,8 @@ write_vtk("curved", assembly, state)
 The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
 
 
-## Nonlinear Steady State Examples
+## Nonlinear Steady-State Analyses
 
-## Nonlinear Stability Analysis Examples
+## Nonlinear Stability Analyses
 
-## Nonlinear Time Marching Analysis Examples
+## Nonlinear Time-Marching Analyses
