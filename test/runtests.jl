@@ -68,9 +68,7 @@ using LinearAlgebra
             )
         )
 
-        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
-
-        println(converged)
+        static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
 
         state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
