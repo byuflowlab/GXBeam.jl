@@ -98,7 +98,7 @@ function discretize_beam(L, r, d; Cab = I3, k = (@SVector zeros(3)))
 	kn = sqrt(k'*k)
 
 	if k == zero(k)
-		triads = fill(Cab, ndiv)
+		triads = fill(Cab, length(sm))
 		xp = [r + s*Cab*e1 for s in sp]
 		xm = [r + s*Cab*e1 for s in sm]
 	else
