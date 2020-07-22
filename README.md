@@ -11,10 +11,10 @@ Author: Taylor McDonnell
 
 ## Package Features
  - Performs multiple types of analyses including:
-    - Nonlinear static analyses
-    - Nonlinear steady-state dynamic analyses
-    - Nonlinear eigenvalue analyses (by linearizing about a steady state condition)
-    - Nonlinear time-marching dynamic analyses
+    - Linear/Nonlinear static analyses
+    - Linear/Nonlinear steady-state dynamic analyses
+    - Linear/Nonlinear eigenvalue analyses (by linearizing about a steady state condition)
+    - Linear/Nonlinear time-marching dynamic analyses
  - Accurately models arbitrary systems of interconnected highly flexible composite beams.
     - Captures all geometric nonlinearities due to large deflections and rotations
     - Capable of using the full 6x6 Timoshenko beam stiffness matrix
