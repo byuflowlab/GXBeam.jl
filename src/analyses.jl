@@ -432,7 +432,7 @@ function eigenvalue_analysis!(system, assembly;
 	λ, V, _ = Arpack.eigs(A; nev=min(nx,nev), which=:LM)
 
 	# eigenvalues are actually 1/λ, no modification necessary for eigenvectors
-	λ = 1 ./ λr
+	λ .= 1 ./ λ
 
 	# compute left eigenvectors using inverse power iteration
 	Us = left_eigenvectors(λ, V, K, M)
