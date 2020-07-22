@@ -75,7 +75,7 @@ GEBT.point_variables
 GEBT.insert_point_residual!
 GEBT.point_residual!
 GEBT.point_follower_jacobians
-GEBT.insert_point_jacobians!
+GEBT.insert_point_jacobian!
 GEBT.point_jacobian!
 ```
 
