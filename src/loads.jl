@@ -136,7 +136,7 @@ end
 Return Chebyshev-Gauss quadrature points for a beam element that starts at
 x1 and stops at x2.
 """
-quadrature_points(x1, x2) = (1 .+ X_CHEBYSHEV)*(x2-x1)/2 .+ x1
+@inline quadrature_points(x1, x2) = (1 .+ X_CHEBYSHEV)*(x2-x1)/2 .+ x1
 
 """
 	integrate_element_loads(ΔL, Ct, distributed_load)
@@ -144,7 +144,7 @@ quadrature_points(x1, x2) = (1 .+ X_CHEBYSHEV)*(x2-x1)/2 .+ x1
 Return the integrated loads (`f1, m1, f2, m2`) on each element given the
 element length (`ΔL`), rotation matrix (`Ct`), and distributed load.
 """
-function integrate_element_loads(ΔL, Ct, distributed_load, time_function_values)
+@inline function integrate_element_loads(ΔL, Ct, distributed_load, time_function_values)
 
 	# apply time functions to forces/moments
 	f = distributed_load.f .* time_function_values[distributed_load.f_tf]
@@ -178,7 +178,7 @@ end
 
 Return the jacobian of the follower loads with respect to θ.
 """
-function follower_load_jacobians(ΔL, Ct_θ1, Ct_θ2, Ct_θ3, distributed_load, time_function_values)
+@inline function follower_load_jacobians(ΔL, Ct_θ1, Ct_θ2, Ct_θ3, distributed_load, time_function_values)
 
 	# apply time functions to forces/moments
 	f_follower = distributed_load.f_follower .* time_function_values[distributed_load.f_follower_tf]
