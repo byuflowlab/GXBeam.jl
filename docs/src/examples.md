@@ -126,11 +126,9 @@ end
 plot!(show=true)
 
 savefig("cantilever.png"); nothing # hide
-``
+```
 
 ![](cantilever.png)
-
-```
 
 ### Bending of a Curved Beam in 3D Space
 
