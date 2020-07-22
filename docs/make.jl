@@ -9,9 +9,9 @@ makedocs(;
             "Linear" => "linear.md",
             "Static" => "static.md",
             "Steady State" => "steady_state.md",
-            "Stability" => "stability.md"
+            "Stability" => "stability.md",
             "Time Marching" => "time_marching.md"
-        ]
+        ],
         "Library" => "library.md"
     ],
     sitename = "GEBT.jl",
