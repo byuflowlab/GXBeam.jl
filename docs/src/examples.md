@@ -8,11 +8,9 @@ Pages = ["examples.md"]
 Depth = 3
 ```
 
-## Linear Analyses
+## Static Analyses
 
-## Nonlinear Static Analyses
-
-### Cantilever Subjected to a Constant Moment
+### Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
 
 This problem is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
 
@@ -128,7 +126,7 @@ savefig("cantilever.png"); nothing # hide
 
 ![](cantilever.png)
 
-### Bending of a Curved Beam in 3D Space
+### Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
 This problem is also a common benchmark problem for the geometrically exact bending of nonlinear beams, but does not have an analytical solution.
 
@@ -202,8 +200,8 @@ write_vtk("curved", assembly, state)
 The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
 
 
-## Nonlinear Steady-State Analyses
+## Steady-State Analyses
 
-## Nonlinear Stability Analyses
+## Stability Analyses
 
-## Nonlinear Time-Marching Analyses
+## Time-Marching Analyses
