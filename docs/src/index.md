@@ -43,18 +43,17 @@ This code has been optimized to be highly performant, primarily by maintaining t
 
 ## Usage
 
-See the [documentation](https://flow.byu.edu/GEBT.jl/dev)
+See the examples
 
 Note that while the theory is identical to the Wenbin Yu's code, some of the implementation details vary.
 
 ## References
-<a id="1">[1]</a> 
-Yu, W., & Blair, M. (2012). 
-GEBT: A general-purpose nonlinear analysis tool for composite beams. 
+<a id="1">[1]</a>
+Yu, W., & Blair, M. (2012).
+GEBT: A general-purpose nonlinear analysis tool for composite beams.
 Composite Structures, 94(9), 2677-2689.
 
-<a id="2">[2]</a> 
-Wang, Q., & Yu, W. (2017). 
-Geometrically nonlinear analysis of composite beams using Wiener-Milenković parameters. 
+<a id="2">[2]</a>
+Wang, Q., & Yu, W. (2017).
+Geometrically nonlinear analysis of composite beams using Wiener-Milenković parameters.
 Journal of Renewable and Sustainable Energy, 9(3), 033306.
-
