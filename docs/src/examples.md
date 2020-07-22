@@ -7,9 +7,9 @@ Depth = 3
 
 These examples show how to use the various analysis capabilities of GEBT.jl.  Some of the examples also provide a verification/validation for the implementation of geometrically exact beam theory in GEBT.jl.
 
-## Linear
+## Linear Analysis Examples
 
-## Static
+## Nonlinear Static Analysis Examples
 
 
 
@@ -205,8 +205,8 @@ write_vtk("curved", assembly, state)
 The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
 
 
-## Steady State
+### Nonlinear Steady State Examples
 
-## Eigenvalue
+## Nonlinear Stability Analysis Examples
 
-## Time Marching
+## Nonlinear Time Marching Analysis Examples
