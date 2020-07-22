@@ -7,7 +7,7 @@
 
 Author: Taylor McDonnell
 
-**GEBT.jl** is an (almost) pure Julia implementation of Geometrically Exact Beam Theory, based on the similarly named open source [GEBT code by Wenbin Yu](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2).  The "almost" here refers to the fact that the Fortran library ARPACK is used for eigenvalue computations.  Otherwise the code is written with pure Julia and should work with custom types and automatic differentiation packages such as [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl).
+**GEBT.jl** is an (almost) pure Julia implementation of Geometrically Exact Beam Theory, based on the similarly named open source [GEBT code by Wenbin Yu](https://cdmhub.org/resources/367) and its associated papers[[1]](@ref References)[[2]](@ref References).  The "almost" here refers to the fact that the Fortran library ARPACK is used for eigenvalue computations.  Otherwise the code is written with pure Julia and should work with custom types and automatic differentiation packages such as [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl).
 
 ## Package Features
  - Performs multiple types of analyses including:
@@ -48,12 +48,10 @@ See the [examples](@ref Examples)
 Note that while the theory is identical to the Wenbin Yu's code, some of the implementation details vary.
 
 ## References
-<a id="1">[1]</a>
 Yu, W., & Blair, M. (2012).
 GEBT: A general-purpose nonlinear analysis tool for composite beams.
 Composite Structures, 94(9), 2677-2689.
 
-<a id="2">[2]</a>
 Wang, Q., & Yu, W. (2017).
 Geometrically nonlinear analysis of composite beams using Wiener-Milenković parameters.
 Journal of Renewable and Sustainable Energy, 9(3), 033306.
