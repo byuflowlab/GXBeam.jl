@@ -75,11 +75,11 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:lengt
 y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
-savefig("cantilever1.png"); nothing #hide
+savefig("cantilever1.svg"); nothing #hide
 
 ```
 
-![](cantilever1.png)
+![](cantilever1.svg)
 
 ## Linear Analysis of a Beam Under a Linear Distributed Load
 
@@ -147,11 +147,11 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:lengt
 y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
-savefig("cantilever2.png"); nothing #hide
+savefig("cantilever2.svg"); nothing #hide
 
 ```
 
-![](cantilever2.png)
+![](cantilever2.svg)
 
 
 ## Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
@@ -261,10 +261,10 @@ end
 # show the plot
 plot!(show=true)
 
-savefig("cantilever3.png"); nothing #hide
+savefig("cantilever3.svg"); nothing #hide
 ```
 
-![](cantilever3.png)
+![](cantilever3.svg)
 
 ## Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
