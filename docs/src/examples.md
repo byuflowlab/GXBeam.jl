@@ -8,9 +8,15 @@ Pages = ["examples.md"]
 Depth = 3
 ```
 
+
 ## Linear Analysis of a Cantilever Subjected to a Uniform Distributed Load
 
-```@example
+```@setup cantilever1
+using Plots
+pyplot()
+```
+
+```@example cantilever1
 
 using GEBT, LinearAlgebra
 
@@ -83,7 +89,12 @@ savefig("cantilever1.svg"); nothing #hide
 
 ## Linear Analysis of a Beam Under a Linear Distributed Load
 
-```@example
+```@setup beam1
+using Plots
+pyplot()
+```
+
+```@example beam1
 
 using GEBT, LinearAlgebra
 
@@ -147,18 +158,23 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:lengt
 y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
-savefig("cantilever2.svg"); nothing #hide
+savefig("beam1.svg"); nothing #hide
 
 ```
 
-![](cantilever2.svg)
+![](beam1.svg)
 
 
 ## Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
 
 This problem is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
 
-```@example
+```@setup cantilever2
+using Plots
+pyplot()
+```
+
+```@example cantilever2
 
 using GEBT, LinearAlgebra
 
@@ -261,16 +277,17 @@ end
 # show the plot
 plot!(show=true)
 
-savefig("cantilever3.svg"); nothing #hide
+savefig("cantilever2.svg"); nothing #hide
 ```
 
-![](cantilever3.svg)
+![](cantilever2.svg)
 
 ## Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
 This problem is also a common benchmark problem for the geometrically exact bending of nonlinear beams, but does not have an analytical solution.
 
-```
+```@example curved
+using GEBT, LinearAlgebra
 
 # problem constants
 R = 100
