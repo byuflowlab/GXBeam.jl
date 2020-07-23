@@ -1,6 +1,6 @@
 """
 	point_variables(x, icol)
-	point_variables(x, icol, prescribed_conditions, time_function_values)
+	point_variables(x, icol, prescribed_conditions, istep)
 
 Extract u, θ, F, M for the point described by the point state variables at `icol` in
 x after incorporating the prescribed conditions in `prescribed_conditions`
@@ -16,14 +16,13 @@ are used as state variables (e.g. prescribing F[2] would mean u[2] = x[icol+1])
 	return u, θ, F, M
 end
 
-@inline function point_variables(x, icol, prescribed_conditions, time_function_values)
+@inline function point_variables(x, icol, prescribed_conditions, istep)
 
-	# apply time functions to forces/displacements and/or moments/rotations
-	value = prescribed_conditions.value .* time_function_values[prescribed_conditions.value_tf]
-	follower = prescribed_conditions.follower .* time_function_values[prescribed_conditions.follower_tf]
+	value = prescribed_conditions.value[istep]
+	follower = prescribed_conditions.follower[istep]
 
 	# get degrees of freedom to fix/set
-	force_dof = prescribed_conditions.force_dof
+	force_dof = prescribed_conditions.force
 
 	# get the displacement and rotations of the point
 	u = SVector(ifelse(force_dof[1], x[icol  ], value[1]),
@@ -126,14 +125,14 @@ Adds a points contributions to the residual vector
  - `irow_beam2`: Row index of first equation for the right side of each beam
 """
 @inline function point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-	time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+	istep, icol, irow_p, irow_beam1, irow_beam2)
 
 	nbeam = length(assembly.elements)
 
 	# incorporate prescribed condition if applicable
 	prescribed = haskey(prescribed_conditions, ipoint)
 	if prescribed
-		u, θ, F, M = point_variables(x, icol, prescribed_conditions[ipoint], time_function_values)
+		u, θ, F, M = point_variables(x, icol, prescribed_conditions[ipoint], istep)
 	else
 		u, θ, F, M = point_variables(x, icol)
 	end
@@ -169,15 +168,15 @@ Calculate the jacobians of the follower forces/moments with respect to θ
  - icol: Row/Column index of the first state variable for the point
  - prescribed_conditions: Prescribed conditions for the point
 """
-@inline function point_follower_jacobians(x, icol, prescribed_conditions, time_function_values)
+@inline function point_follower_jacobians(x, icol, prescribed_conditions, istep)
 
 	TF = eltype(x)
 
 	# Apply time functions
-	value = prescribed_conditions.value .* time_function_values[prescribed_conditions.value_tf]
-	follower = prescribed_conditions.follower .* time_function_values[prescribed_conditions.follower_tf]
+	value = prescribed_conditions.value[istep]
+	follower = prescribed_conditions.follower[istep]
 
-	force_dof = prescribed_conditions.force_dof
+	force_dof = prescribed_conditions.force
 
 	θ = SVector(ifelse(force_dof[4], x[icol+3], value[4]),
 				ifelse(force_dof[5], x[icol+4], value[5]),
@@ -316,22 +315,22 @@ Adds a points contributions to the residual vector
  - `ipoint`: index of point
  - `assembly`: assembly of interconnected beam elements
  - `prescribed_conditions`: dictionary of prescribed conditions
- - `time_function_values`: current time function values
+ - `istep`: current time step
  - `icol`: starting index for the point's state variables
  - `irow_p`: Row index of the first equilibrium equation for the point
  - `irow_beam1`: Row index of first equation for the left side of each beam
  - `irow_beam2`: Row index of first equation for the right side of each beam
 """
 @inline function point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-	time_function_values, icol,	irow_p, irow_beam1, irow_beam2)
+	istep, icol, irow_p, irow_beam1, irow_beam2)
 
 	nbeam = length(assembly.elements)
 
 	# incorporate prescribed condition if applicable
 	prescribed = haskey(prescribed_conditions, ipoint)
 	if prescribed
-		F_θ, M_θ = point_follower_jacobians(x, icol, prescribed_conditions[ipoint], time_function_values)
-		force_dof = prescribed_conditions[ipoint].force_dof
+		F_θ, M_θ = point_follower_jacobians(x, icol, prescribed_conditions[ipoint], istep)
+		force_dof = prescribed_conditions[ipoint].force
 	else
 		F_θ = @SMatrix zeros(3,3)
 		M_θ = @SMatrix zeros(3,3)

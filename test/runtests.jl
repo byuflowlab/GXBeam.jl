@@ -2,12 +2,100 @@ using GEBT
 using Test
 using LinearAlgebra
 
-@testset "Static Analysis: Cantilever Subjected to a Constant Moment" begin
+@testset "Linear Static Analysis: Cantilever Under Uniform Distributed Load" begin
+
+    nelem = 12
+
+    # create points
+    n1 = n3 = div(nelem, 3)
+    n2 = nelem - n1 - n3
+    x1 = range(0, 0.3, length=n1+1)
+    x2 = range(0.3, 0.7, length=n2+1)
+    x3 = range(0.7, 1.0, length=n3+1)
+    x = vcat(x1, x2[2:end], x3[2:end])
+    y = zero(x)
+    z = zero(x)
+    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+    # index of endpoints for each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
+
+    # create compliance matrix for each beam element
+    compliance = fill(Diagonal([2.93944738387698E-10, 0, 0, 4.69246721094557E-08, 6.79584e-8, 1.37068861370898E-09]), nelem)
+
+    # create assembly
+    assembly = Assembly(points, start, stop, compliance=compliance)
+
+    # set prescribed conditions (fixed right endpoint)
+    prescribed_conditions = Dict(
+        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+    )
+
+    # create distributed load
+    distributed_loads = Dict()
+    for ielem in n1+1:n1+n2
+        distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz = (s) -> 1000)
+    end
+
+    system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads, linear=true)
+
+    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+    #TODO: Add test vs. analytical solution
+
+end
+
+@testset "Linear Static Analysis: Beam Under Linear Distributed Load" begin
+
+    nelem = 16
+
+    # create points
+    x = range(0, 1, length=nelem+1)
+    y = zero(x)
+    z = zero(x)
+    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+    # index of endpoints for each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
+
+    # create compliance matrix for each beam element
+    compliance = fill(Diagonal([2.93944738387698E-10, 0, 0, 4.69246721094557E-08, 6.79584e-8, 1.37068861370898E-09]), nelem)
+
+    # create assembly
+    assembly = Assembly(points, start, stop, compliance=compliance)
+
+    # set prescribed conditions
+    prescribed_conditions = Dict(
+        # simply supported left endpoint
+        1 => PrescribedConditions(uz=0),
+        # clamped right endpoint
+        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+    )
+
+    # create distributed load
+    distributed_loads = Dict()
+    for i = 1:nelem
+        distributed_loads[i] = DistributedLoads(assembly, i; s1=x[i],
+            s2=x[i+1], fz = (s) -> 1000*s)
+    end
+
+    system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads, linear=true)
+
+    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+    #TODO: Add test vs. analytical solution
+
+end
+
+@testset "Nonlinear Static Analysis: Cantilever Subjected to a Constant Moment" begin
 
     # See Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic
     # Parameters by Qi Wang, Wenbin Yu, and Michael A. Sprague
 
-    # problem constants
     L = 12 # inches
     h = w = 1 # inches
     E = 30e6 # lb/in^4 Young's Modulus
@@ -22,10 +110,6 @@ using LinearAlgebra
     m = pi*E*Iyy/L
     M = λ*m
 
-    # analytical solution (ρ = E*I/M)
-    u0(x, ρ) = ρ*sin(x/ρ)-x
-    v0(x, ρ) = ρ*(1-cos(x/ρ))
-
     # create points
     nelem = 16
     x = range(0, L, length=nelem+1)
@@ -33,51 +117,43 @@ using LinearAlgebra
     z = zero(x)
     points = [[x[i],y[i],z[i]] for i = 1:length(x)]
 
-    # index of left and right endpoints of each beam element
-    pt1 = 1:nelem
-    pt2 = 2:nelem+1
+    # index of endpoints for each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
 
     # compliance matrix for each beam element
     compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
 
     # create assembly of interconnected nonlinear beams
-    assembly = Assembly(points, pt1, pt2, compliance=compliance)
+    assembly = Assembly(points, start, stop, compliance=compliance)
 
     # pre-initialize system storage
     static = true
-    preserved_points = [1, nelem+1]
-    n_tf = 0
-    system = System(assembly, preserved_points, static, n_tf)
+    keep_points = [1, nelem+1]
+    system = System(assembly, keep_points, static)
 
-    # save tip deflection for each case
-    utip_computational = zeros(length(M))
-    vtip_computational = zeros(length(M))
-    utip_analytical = zeros(length(M))
-    vtip_analytical = zeros(length(M))
+    # run an analysis for each prescribed bending moment
+
+    states = Vector{AssemblyState{Float64}}(undef, length(M))
+
     for i = 1:length(M)
 
         # create dictionary of prescribed conditions
         prescribed_conditions = Dict(
             # fixed left side
-            1 => PrescribedConditions(
-                force_dof = [false, false, false, false, false, false]
-                ),
+            1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
             # moment on right side
-            nelem+1 => PrescribedConditions(
-                follower = [0, 0, 0, 0, 0, M[i]]
-            )
+            nelem+1 => PrescribedConditions(Mz = M[i])
         )
 
         static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
 
-        state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
-        utip_computational[i] = state.points[end].u[1]
-        vtip_computational[i] = state.points[end].u[2]
-
-        utip_analytical[i] = u0(x[end], E*Iyy/M[i])
-        vtip_analytical[i] = v0(x[end], E*Iyy/M[i])
     end
+
+    # analytical solution (ρ = E*I/M)
+    analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
 
     # Results:
     #  λ  | Analytical Solution |  GEBT (16 Elements)  |
@@ -99,8 +175,8 @@ using LinearAlgebra
     ]
 
     for i = 1:length(M)
-        @test isapprox(utip_computational[i], current_gebt_solution[i][1], atol=1e-4)
-        @test isapprox(vtip_computational[i], current_gebt_solution[i][2], atol=1e-4)
+        @test isapprox(states[i].points[end].u[1], current_gebt_solution[i][1], atol=1e-4)
+        @test isapprox(states[i].points[end].u[2], current_gebt_solution[i][2], atol=1e-4)
     end
 end
 
@@ -138,26 +214,22 @@ end
     P = 600 # lbs
 
     # index of left and right endpoints of each beam element
-    pt1 = 1:nelem
-    pt2 = 2:nelem+1
+    start = 1:nelem
+    stop = 2:nelem+1
 
     # compliance matrix for each beam element
     compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*J), 1/(E*Iyy), 1/(E*Izz)]), nelem)
 
     # create assembly of interconnected nonlinear beams
-    assembly = Assembly(xp, pt1, pt2, compliance=compliance, frames=Cab,
+    assembly = Assembly(xp, start, stop, compliance=compliance, frames=Cab,
         lengths=ΔL, midpoints=xm)
 
     # create dictionary of prescribed conditions
     prescribed_conditions = Dict(
         # fixed left endpoint
-        1 => PrescribedConditions(
-            force_dof = [false, false, false, false, false, false]
-            ),
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         # force on right endpoint
-        nelem+1 => PrescribedConditions(
-            value = [0, 0, P, 0, 0, 0]
-        )
+        nelem+1 => PrescribedConditions(Fz=P)
     )
 
     system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
@@ -198,8 +270,8 @@ end
 
     # combine elements and points into one array
     points = vcat(xp_b1, xp_b2[2:end])
-    pt1 = 1:nelem_b1 + nelem_b2
-    pt2 = 2:nelem_b1 + nelem_b2 + 1
+    start = 1:nelem_b1 + nelem_b2
+    stop = 2:nelem_b1 + nelem_b2 + 1
     lengths = vcat(lengths_b1, lengths_b2)
     midpoints = vcat(xm_b1, xm_b2)
     Cab = vcat(Cab_b1, Cab_b2)
@@ -231,51 +303,32 @@ end
     minv = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz])^-1, nelem)
 
     # create assembly
-    assembly = Assembly(points, pt1, pt2, compliance=compliance, minv=minv,
+    assembly = Assembly(points, start, stop, compliance=compliance, minv=minv,
         frames=Cab, lengths=lengths, midpoints=midpoints)
 
-    # create dictionary of prescribed conditions
-    prescribed_conditions = Dict(
-        # fixed endpoint on beam 1
-        1 => PrescribedConditions(
-            force_dof = [false, false, false, false, false, false]
-            ),
-        # fixed endpoint on beam 2
-        nelem+1 => PrescribedConditions(
-            force_dof = [false, false, false, false, false, false]
-            ),
-        # force applied on connected endpoint
-        nelem_b1+1 => PrescribedConditions(
-            # applied force at each time step is encoded in time function 1
-            value = [0, 0, 1, 0, 0, 0],
-            value_tf = [0, 0, 1, 0, 0, 0]
-        )
-    )
-
-    # create time functions
+    # time
     dt = 0.001
     t = 0:dt:0.5
     nstep = length(t)
 
-    A_F = 1e5 # N
-    ω_F = 20 # rad/s
-    Fz = (t) -> A_F*sin(ω_F*t)
-
-    tf_1 = TimeFunction(1:nstep, Fz.(t))
-
-    time_functions = [tf_1]
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed endpoint on beam 1
+        1 => PrescribedConditions(dt, nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # fixed endpoint on beam 2
+        nelem+1 => PrescribedConditions(dt, nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force applied on connected endpoint
+        nelem_b1+1 => PrescribedConditions(dt, nstep=nstep, Fz=(t)->1e5*sin(20*t))
+    )
 
     system, history, converged = time_domain_analysis(assembly, dt,
-        prescribed_conditions=prescribed_conditions,
-        time_functions=time_functions,
-        nstep = nstep
-        )
+        prescribed_conditions=prescribed_conditions, nstep = nstep)
 
-    λ, V, converged = eigenvalue_analysis(assembly,
-        prescribed_conditions=prescribed_conditions,
-        time_functions=time_functions,
-        nstep = nstep,
-        nev = 50,
-        )
+    system, λ, V, converged = eigenvalue_analysis(assembly,
+        prescribed_conditions=prescribed_conditions, nstep = nstep, nev = 50)
+
+    Us = left_eigenvectors(system, λ, V)
+
+    #TODO: Add test of time domain solution
 
 end

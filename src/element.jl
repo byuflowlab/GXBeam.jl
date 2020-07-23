@@ -4,7 +4,7 @@
 Composite type that defines a beam element's properties
 
 # Fields
- - `ΔL`: Length of the beam element
+ - `L`: Length of the beam element
  - `x`: Location of the beam element (the midpoint of the beam element)
  - `C11`: Upper left portion of the beam element's compliance matrix
  - `C12`: Upper right portion of the beam element's compliance matrix
@@ -15,7 +15,7 @@ Composite type that defines a beam element's properties
  - `Cab`: Rotation matrix from the global frame to beam element's frame
 """
 struct Element{TF}
-	ΔL::TF
+	L::TF
 	x::SVector{3,TF}
 	C11::SMatrix{3,3,TF,9}
 	C12::SMatrix{3,3,TF,9}
@@ -131,7 +131,7 @@ element_properties
 	F = SVector(x[icol+6 ], x[icol+7 ], x[icol+8 ]) .* FORCE_SCALING
 	M = SVector(x[icol+9 ], x[icol+10], x[icol+11]) .* FORCE_SCALING
 
-	ΔL = beam.ΔL
+	ΔL = beam.L
 	Ct = get_C(θ)'
 	Cab = beam.Cab
 	CtCab = Ct*Cab
@@ -161,7 +161,7 @@ end
 	F = SVector(x[icol+6 ], x[icol+7 ], x[icol+8 ]) .* FORCE_SCALING
 	M = SVector(x[icol+9 ], x[icol+10], x[icol+11]) .* FORCE_SCALING
 
-	ΔL = beam.ΔL
+	ΔL = beam.L
 	Ct = get_C(θ0[ibeam])'
 	Cab = beam.Cab
 	CtCab = Ct*Cab
@@ -483,7 +483,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `ibeam`: beam element index
  - `beam`: beam element
  - `distributed_loads`: dictionary with all distributed loads
- - `time_function_values`: values of time functions at the current time step
+ - `istep`: current time step
  - `icol`: starting index for the beam's state variables
  - `irow_b1`: Row index of the first equation for the left side of the beam element
     (a value <= 0 indicates the equations have been eliminated from the system of equations)
@@ -514,7 +514,7 @@ element_residual!
 
 # static
 @inline function element_residual!(resid, x, ibeam, beam, distributed_loads,
-	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
+	istep, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
 
 	# compute element properties
 	ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ = element_properties(x, icol, beam)
@@ -525,11 +525,10 @@ element_residual!
 
 	# add distributed loads to the element equations (if applicable)
 	if haskey(distributed_loads, ibeam)
-		f1, f2, m1, m2 = integrate_element_loads(ΔL, Ct, distributed_loads, time_function_values)
-		f_u1 -= f1
-		f_u2 -= f2
-		f_ψ1 -= m1
-		f_ψ2 -= m2
+		f_u1 -= distributed_loads[ibeam].f1[istep] + Ct*distributed_loads[ibeam].f1_follower[istep]
+		f_u2 -= distributed_loads[ibeam].f2[istep] + Ct*distributed_loads[ibeam].f2_follower[istep]
+		f_ψ1 -= distributed_loads[ibeam].m1[istep] + Ct*distributed_loads[ibeam].m1_follower[istep]
+		f_ψ2 -= distributed_loads[ibeam].m2[istep] + Ct*distributed_loads[ibeam].m2_follower[istep]
 	end
 
 	# insert element resultants into residual vector
@@ -541,7 +540,7 @@ end
 
 # dynamic
 @inline function element_residual!(resid, x, ibeam, beam, distributed_loads,
-	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0)
+	istep, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0)
 
 	# compute element properties
 	ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω = element_properties(x, icol, beam, x0, v0, ω0)
@@ -552,11 +551,10 @@ end
 
 	# add distributed loads to the element equations (if applicable)
 	if haskey(distributed_loads, ibeam)
-		f1, f2, m1, m2 = integrate_element_loads(ΔL, Ct, distributed_loads, time_function_values)
-		f_u1 -= f1
-		f_u2 -= f2
-		f_ψ1 -= m1
-		f_ψ2 -= m2
+		f_u1 -= distributed_loads[ibeam].f1[istep] + Ct*distributed_loads[ibeam].f1_follower[istep]
+		f_u2 -= distributed_loads[ibeam].f2[istep] + Ct*distributed_loads[ibeam].f2_follower[istep]
+		f_ψ1 -= distributed_loads[ibeam].m1[istep] + Ct*distributed_loads[ibeam].m1_follower[istep]
+		f_ψ2 -= distributed_loads[ibeam].m2[istep] + Ct*distributed_loads[ibeam].m2_follower[istep]
 	end
 
 	# insert element resultants into the residual vector
@@ -568,7 +566,7 @@ end
 
 # initial step
 @inline function element_residual!(resid, x, ibeam, beam, distributed_loads,
-	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2,
+	istep, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2,
 	x0, v0, ω0, u0, θ0, udot0, θdot0)
 
 	# compute element properties
@@ -583,11 +581,10 @@ end
 
 	# add distributed loads to the element equations (if applicable)
 	if haskey(distributed_loads, ibeam)
-		f1, f2, m1, m2 = integrate_element_loads(ΔL, Ct, distributed_loads, time_function_values)
-		f_u1 -= f1
-		f_u2 -= f2
-		f_ψ1 -= m1
-		f_ψ2 -= m2
+		f_u1 -= distributed_loads[ibeam].f1[istep] + Ct*distributed_loads[ibeam].f1_follower[istep]
+		f_u2 -= distributed_loads[ibeam].f2[istep] + Ct*distributed_loads[ibeam].f2_follower[istep]
+		f_ψ1 -= distributed_loads[ibeam].m1[istep] + Ct*distributed_loads[ibeam].m1_follower[istep]
+		f_ψ2 -= distributed_loads[ibeam].m2[istep] + Ct*distributed_loads[ibeam].m2_follower[istep]
 	end
 
 	# insert element resultants into the residual vector
@@ -598,7 +595,7 @@ end
 end
 
 @inline function element_residual!(resid, x, ibeam, beam, distributed_loads,
-	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
+	istep, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
 	CtCabPdot_init, CtCabHdot_init, dt)
 
 	# compute element properties
@@ -613,11 +610,10 @@ end
 
 	# add distributed loads to the element equations (if applicable)
 	if haskey(distributed_loads, ibeam)
-		f1, f2, m1, m2 = integrate_element_loads(ΔL, Ct, distributed_loads, time_function_values)
-		f_u1 -= f1
-		f_u2 -= f2
-		f_ψ1 -= m1
-		f_ψ2 -= m2
+		f_u1 -= distributed_loads[ibeam].f1[istep] + Ct*distributed_loads[ibeam].f1_follower[istep]
+		f_u2 -= distributed_loads[ibeam].f2[istep] + Ct*distributed_loads[ibeam].f2_follower[istep]
+		f_ψ1 -= distributed_loads[ibeam].m1[istep] + Ct*distributed_loads[ibeam].m1_follower[istep]
+		f_ψ2 -= distributed_loads[ibeam].m2[istep] + Ct*distributed_loads[ibeam].m2_follower[istep]
 	end
 
 	# insert element resultants into the residual vector
@@ -1230,7 +1226,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `ibeam`: beam element index
  - `beam`: beam element
  - `distributed_loads`: dictionary with all distributed loads
- - `time_function_values`: values of time functions at the current time step
+ - `istep`: current time step
  - `icol`: starting index for the beam's state variables
  - `irow_b1`: Row index of the first equation for the left side of the beam element
     (a value <= 0 indicates the equations have been eliminated from the system of equations)
@@ -1261,7 +1257,7 @@ element_jacobian!
 
 # static
 @inline function element_jacobian!(jacob, x, ibeam, beam, distributed_loads,
-	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
+	istep, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
 
 	# compute element properties
 	ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ = element_properties(x, icol, beam)
@@ -1279,12 +1275,10 @@ element_jacobian!
 
 	# add jacobians for follower loads (if applicable)
 	if haskey(distributed_loads, ibeam)
-		f1_θ, f2_θ, m1_θ, m2_θ = follower_load_jacobians(ΔL, Ct_θ1, Ct_θ2, Ct_θ3,
-			distributed_loads, time_function_values)
-		f_u1_θ -= f1_θ
-		f_u2_θ -= f2_θ
-		f_ψ1_θ -= m1_θ
-		f_ψ2_θ -= m2_θ
+		f_u1_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].f1_follower[istep])
+		f_u2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].f2_follower[istep])
+		f_ψ1_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].m1_follower[istep])
+		f_ψ2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].m2_follower[istep])
 	end
 
 	# insert element resultants into the jacobian matrix
@@ -1299,7 +1293,7 @@ end
 
 # dynamic
 @inline function element_jacobian!(jacob, x, ibeam, beam, distributed_loads,
-	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0)
+	istep, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0)
 
 	# compute element properties
 	ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Q = element_properties(x, icol, beam, x0, v0, ω0)
@@ -1319,12 +1313,10 @@ end
 
 	# add jacobians for follower loads (if applicable)
 	if haskey(distributed_loads, ibeam)
-		f1_θ, f2_θ, m1_θ, m2_θ = follower_load_jacobians(ΔL, Ct_θ1, Ct_θ2, Ct_θ3,
-			distributed_loads, time_function_values)
-		f_u1_θ -= f1_θ
-		f_u2_θ -= f2_θ
-		f_ψ1_θ -= m1_θ
-		f_ψ2_θ -= m2_θ
+		f_u1_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].f1_follower[istep])
+		f_u2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].f2_follower[istep])
+		f_ψ1_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].m1_follower[istep])
+		f_ψ2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].m2_follower[istep])
 	end
 
 	# insert element resultants into the jacobian matrix
@@ -1371,7 +1363,7 @@ end
 end
 
 @inline function element_jacobian!(jacob, x, ibeam, beam, distributed_loads,
-	time_function_values, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
+	istep, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
 	CtCabPdot_init, CtCabHdot_init, dt)
 
 	# compute element properties
@@ -1394,12 +1386,10 @@ end
 
 	# add jacobians for follower loads (if applicable)
 	if haskey(distributed_loads, ibeam)
-		f1_θ, f2_θ, m1_θ, m2_θ = follower_load_jacobians(ΔL, Ct_θ1, Ct_θ2, Ct_θ3,
-			distributed_loads, time_function_values)
-		f_u1_θ -= f1_θ
-		f_u2_θ -= f2_θ
-		f_ψ1_θ -= m1_θ
-		f_ψ2_θ -= m2_θ
+		f_u1_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].f1_follower[istep])
+		f_u2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].f2_follower[istep])
+		f_ψ1_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].m1_follower[istep])
+		f_ψ2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ibeam].m2_follower[istep])
 	end
 
 	# insert element resultants into the jacobian matrix
@@ -1422,7 +1412,7 @@ Extract/Compute the properties needed for mass matrix construction: `ΔL`, `Ct`,
 """
 @inline function element_mass_matrix_properties(x, icol, beam)
 
-	ΔL = beam.ΔL
+	ΔL = beam.L
 	θ = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ])
 	P = SVector(x[icol+12], x[icol+13], x[icol+14])
 	H = SVector(x[icol+15], x[icol+16], x[icol+17])

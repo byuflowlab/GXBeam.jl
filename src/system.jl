@@ -17,7 +17,7 @@ needed for time domain simulations.
  - `irow_beam2`: Row index of first equation for the right side of each beam
  - `icol_pt`: Row/Column index of first state variable for each point
  - `icol_beam`: Row/Column index of first state variable for each beam element
- - `time_function_values`: Current time function values
+ - `current_step`: Current time step
  - `udot_init`: `2/dt*u + udot` for each beam element from the previous time step
  - `θdot_init`: `2/dt*θ + θdot` for each beam element from the previous time step
  - `CtCabPdot_init`: `2/dt*C'*Cab*P + C'*Cab*Pdot` for each beam element from the previous time step
@@ -35,7 +35,7 @@ struct System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
 	irow_beam2::Vector{Int}
 	icol_pt::Vector{Int}
 	icol_beam::Vector{Int}
-	time_function_values::OffsetArray{TF,1,Array{TF,1}}
+	current_step::Ref{Int}
 	udot_init::Vector{SVector{3,TF}}
 	θdot_init::Vector{SVector{3,TF}}
 	CtCabPdot_init::Vector{SVector{3,TF}}
@@ -44,7 +44,7 @@ end
 Base.eltype(::System{TF, TV, TM}) where {TF, TV, TM} = TF
 
 """
-    System([TF=eltype(assembly),] assembly, points, static, n_tf)
+    System([TF=eltype(assembly),] assembly, points, static)
 
 Initialize an object of type `System` which stores the system state, residual vector,
 current time function values,and jacobian matrices as well as pointers to
@@ -52,14 +52,13 @@ be able to access their contents.
 
 # Arguments:
  - `TF:` (optional) Used to specify floating point type used by resulting `System` object
- - `assembly`: Interconnected beam elements and points
+ - `assembly`: Assembly of rigidly connected nonlinear beam elements
  - `points`: Point indices which should be preserved in the system of equations
  - `static`: Flag indicating whether system matrices will be used only for static simulations
- - `n_tf`: Maximum number of time functions used in conjunction with the system of equations
 """
-System(assembly, points, static, n_tf) = System(eltype(assembly), assembly, points, static, n_tf)
+System(assembly, points, static) = System(eltype(assembly), assembly, points, static)
 
-function System(TF::Type{<:AbstractFloat}, assembly, points, static, n_tf)
+function System(TF::Type{<:AbstractFloat}, assembly, points, static)
 
 	# get number of beams
 	nbeam = length(assembly.elements)
@@ -77,16 +76,18 @@ function System(TF::Type{<:AbstractFloat}, assembly, points, static, n_tf)
 	K = spzeros(TF, n, n)
 	M = spzeros(TF, n, n)
 
+	# initialize pointer to value of current time step
+	current_step = Ref(0)
+
 	# initialize storage for time domain simulations
-	time_function_values = OffsetArray(ones(TF, 1+n_tf), 0:n_tf)
 	udot_init = [@SVector zeros(TF, 3) for i = 1:nbeam]
 	θdot_init = [@SVector zeros(TF, 3) for i = 1:nbeam]
 	CtCabPdot_init = [@SVector zeros(TF, 3) for i = 1:nbeam]
 	CtCabHdot_init = [@SVector zeros(TF, 3) for i = 1:nbeam]
 
 	return System(static, x, r, K, M, irow_pt, irow_beam, irow_beam1, irow_beam2,
-		icol_pt, icol_beam, time_function_values, udot_init, θdot_init,
-		CtCabPdot_init, CtCabHdot_init)
+		icol_pt, icol_beam, current_step, udot_init, θdot_init, CtCabPdot_init,
+		CtCabHdot_init)
 end
 
 """
@@ -121,7 +122,7 @@ eliminated are assigned a column index of -1.  Beams for which the compatability
 equations have been eliminated are also assigned an index of -1
 
 # Arguments:
- - `assembly`: object of type Assembly
+ - `assembly`: Assembly of rigidly connected nonlinear beam elements
  - `points`: Point indices which should be preserved in the system matrices
  - `n_connections`: Number of connections to each point
  - `static`: flag indicating whether analysis is static
@@ -233,14 +234,14 @@ end
 
 """
 	system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
 	system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
 	system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0,
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0,
 		u, θ, udot, θdot)
 	system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0,
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0,
 		udot, θdot_init, CtCabPdot, CtCabHdot, dt)
 
 Populate the residual vector `resid` with the results of the residual equations
@@ -260,9 +261,9 @@ There are four implementations corresponding to the following analysis types:
  - `resid`: System residual vector
  - `x`: Current state variables of the system
  - `assembly`: Assembly of rigidly connected nonlinear beam elements
- - `prescribed_conditions`: Dictionary of prescribed conditions
- - `distributed_loads`: Dictionary of distributed loads
- - `time_function_values`: Time functions, evaluated at the current time step
+ - `prescribed_conditions`: Dictionary of prescribed conditions at all time steps
+ - `distributed_loads`: Dictionary of distributed loads at all time steps
+ - `istep`: Current time step
  - `irow_pt`: Row index of first equilibrium equation for each point
  - `irow_beam`: Row index of first equation for just this beam element
  - `irow_beam1`: Row index of first equation for the left side of each beam
@@ -292,7 +293,7 @@ system_residual!
 
 # static
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
 
 	npoint = length(assembly.points)
 	nbeam = length(assembly.elements)
@@ -309,7 +310,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
 		resid = element_residual!(resid, x, ibeam, assembly.elements[ibeam],
-		 	distributed_loads, time_function_values, icol, irow_b, irow_b1,
+		 	distributed_loads, istep, icol, irow_b, irow_b1,
 			irow_p1, irow_b2, irow_p2)
 	end
 
@@ -325,7 +326,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
 	return resid
@@ -333,7 +334,7 @@ end
 
 # dynamic
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 	x0, v0, ω0)
 
 	npoint = length(assembly.points)
@@ -351,7 +352,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
 		resid = element_residual!(resid, x, ibeam, assembly.elements[ibeam],
-		 	distributed_loads, time_function_values, icol, irow_b, irow_b1,
+		 	distributed_loads, istep, icol, irow_b, irow_b1,
 			irow_p1, irow_b2, irow_p2, x0, v0, ω0)
 	end
 
@@ -367,7 +368,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
 	return resid
@@ -375,7 +376,7 @@ end
 
 # initial step
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 	x0, v0, ω0, u, θ, udot, θdot)
 
 	npoint = length(assembly.points)
@@ -393,7 +394,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
 		resid = element_residual!(resid, x, ibeam, assembly.elements[ibeam],
-		 	distributed_loads, time_function_values, icol, irow_b, irow_b1,
+		 	distributed_loads, istep, icol, irow_b, irow_b1,
 			irow_p1, irow_b2, irow_p2, x0, v0, ω0, u, θ, udot, θdot)
 	end
 
@@ -409,7 +410,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
 	return resid
@@ -417,7 +418,7 @@ end
 
 # time marching
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 	x0, v0, ω0, udot, θdot_init, CtCabPdot, CtCabHdot, dt)
 
 	nbeam = length(assembly.elements)
@@ -435,7 +436,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
 		resid = element_residual!(resid, x, ibeam, assembly.elements[ibeam],
-		 	distributed_loads, time_function_values, icol, irow_b, irow_b1,
+		 	distributed_loads, istep, icol, irow_b, irow_b1,
 			irow_p1, irow_b2, irow_p2, x0, v0, ω0, udot, θdot_init, CtCabPdot,
 			CtCabHdot, dt)
 	end
@@ -452,7 +453,7 @@ function system_residual!(resid, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
 	return resid
@@ -460,15 +461,15 @@ end
 
 """
 	system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
 	system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 		x0, v0, ω0)
 	system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 		x0, v0, ω0, u, θ, udot, θdot)
 	system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-		time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+		istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 		x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
 Populate the jacobian matrix `jacob` with the jacobian of the residual vector
@@ -487,10 +488,10 @@ There are four implementations corresponding to the following analysis types:
 # Arguments
  - `jacob`: Jacobian matrix
  - `x`: Vector containing current state variables of the system
- - `assembly`: Vector containing beam elements
- - `prescribed_conditions`: Vector of prescribed conditions for each point
- - `distributed_loads`: Vector of distributed loads for each beam element
- - `time_function_values`: Time functions, evaluated at the current time step
+ - `assembly`: Assembly of rigidly connected nonlinear beam elements
+ - `prescribed_conditions`: Dictionary of prescribed conditions at all time steps
+ - `distributed_loads`: Dictionary of distributed loads at all time steps
+ - `istep`: Current time step
  - `irow_pt`: Row index of first equilibrium equation for each point
  - `irow_beam`: Row index of first equation for just this beam element
  - `irow_beam1`: Row index of first equation for the left side of each beam
@@ -520,7 +521,7 @@ system_jacobian!
 
 # static
 function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
 
 	npoint = length(assembly.points)
 	nbeam = length(assembly.elements)
@@ -536,7 +537,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
 		jacob = element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
-			distributed_loads, time_function_values, icol, irow_b, irow_b1,
+			distributed_loads, istep, icol, irow_b, irow_b1,
 			irow_p1, irow_b2, irow_p2)
 	end
 
@@ -552,7 +553,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 
 	end
 
@@ -561,7 +562,7 @@ end
 
 # dynamic
 function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 	x0, v0, ω0)
 
 	npoint = length(assembly.points)
@@ -578,7 +579,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
 		jacob = element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
-			distributed_loads, time_function_values, icol, irow_b, irow_b1,
+			distributed_loads, istep, icol, irow_b, irow_b1,
 			irow_p1, irow_b2, irow_p2, x0, v0, ω0)
 	end
 
@@ -594,7 +595,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
 	return jacob
@@ -602,7 +603,7 @@ end
 
 # initial step
 function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 	x0, v0, ω0, u, θ, udot, θdot)
 
 	npoint = length(assembly.points)
@@ -635,7 +636,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
 	return jacob
@@ -643,7 +644,7 @@ end
 
 # time marching
 function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-	time_function_values, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+	istep, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
 	x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
 	npoint = length(assembly.points)
@@ -660,7 +661,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 		irow_p2 = irow_pt[assembly.stop[ibeam]]
 
 		jacob = element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
-			distributed_loads, time_function_values, icol, irow_b, irow_b1,
+			distributed_loads, istep, icol, irow_b, irow_b1,
 			irow_p1, irow_b2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
 			CtCabPdot_init, CtCabHdot_init, dt)
 	end
@@ -677,7 +678,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 		irow_p = irow_pt[ipoint]
 
 		jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-			time_function_values, icol, irow_p, irow_beam1, irow_beam2)
+			istep, icol, irow_p, irow_beam1, irow_beam2)
 	end
 
 	# zero out near-zero values ( < eps() ), but keep size of matrix
@@ -700,7 +701,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 # Arguments
  - `jacob`: Jacobian matrix
  - `x`: Vector containing current state variables of the system
- - `assembly`: Vector containing beam elements
+ - `assembly`: Assembly of rigidly connected nonlinear beam elements
  - `irow_pt`: Row index of first equilibrium equation for each point
  - `irow_beam`: Row index of first equation for just this beam element
  - `irow_beam1`: Row index of first equation for the left side of each beam

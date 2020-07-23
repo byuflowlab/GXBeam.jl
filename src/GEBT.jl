@@ -21,11 +21,25 @@ export AssemblyState, left_eigenvectors, wiener_milenkovic, write_vtk
 const FORCE_SCALING = 1e3
 
 # Global constants used for distributed-load integration
-const N_GAUSS = 6
-const X_GAUSS = @SVector [-cos((2*i-1)/(2*N_GAUSS)*pi) for i = 1:N_GAUSS]
-const W_GAUSS = @SVector [pi/N_GAUSS for i = 1:N_GAUSS]
-const W1 = (1 .- X_GAUSS) ./ 4 .* W_GAUSS
-const W2 = (1 .+ X_GAUSS) ./ 4 .* W_GAUSS
+N_GAUSS = 6
+X_GAUSS = SVector(
+    -0.9324695142031521,
+    -0.6612093864662645,
+    -0.2386191860831969,
+     0.2386191860831969,
+     0.6612093864662645,
+     0.9324695142031521
+     )
+W_GAUSS = SVector(
+    0.17132449237917044,
+    0.36076157304813855,
+    0.46791393457269115,
+    0.46791393457269109,
+    0.36076157304813855,
+    0.17132449237917044
+    )
+W1 = ((1 .- X_GAUSS) ./ 4 .* W_GAUSS)
+W2 = ((1 .+ X_GAUSS) ./ 4 .* W_GAUSS)
 
 include("math.jl")
 include("element.jl")

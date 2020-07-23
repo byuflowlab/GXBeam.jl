@@ -8,17 +8,159 @@ Pages = ["examples.md"]
 Depth = 3
 ```
 
-## Static Analyses
+## Linear Analysis of a Cantilever Subjected to a Uniform Distributed Load
 
-### Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
+```@example
+
+using GEBT, LinearAlgebra
+
+nelem = 12
+
+# create points
+n1 = n3 = div(nelem, 3)
+n2 = nelem - n1 - n3
+x1 = range(0, 0.3, length=n1+1)
+x2 = range(0.3, 0.7, length=n2+1)
+x3 = range(0.7, 1.0, length=n3+1)
+x = vcat(x1, x2[2:end], x3[2:end])
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints for each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# create compliance matrix for each beam element
+compliance = fill(Diagonal([2.93944738387698E-10, 0, 0, 4.69246721094557E-08, 6.79584e-8, 1.37068861370898E-09]), nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# set prescribed conditions (fixed right endpoint)
+prescribed_conditions = Dict(
+    nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+)
+
+# create distributed load
+distributed_loads = Dict()
+for ielem in n1+1:n1+n2
+    distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz = (s) -> 1000)
+end
+
+system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
+    distributed_loads=distributed_loads, linear=true)
+
+state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+# Plot Results
+
+using Plots
+pyplot()
+
+# set up the plot
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = "x (m)",
+    ylim = (0, 3e-6),
+    yticks = 0.0:5e-7:3e-6,
+    ylabel = "Deflection (m)",
+    grid = false,
+    overwrite_figure=false
+    )
+
+# GEBT
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
+y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
+plot!(x, y, markershape=:circle, label="")
+
+savefig("cantilever1.png"); nothing # hide
+
+```
+
+![](cantilever1.png)
+
+## Linear Analysis of a Beam Under a Linear Distributed Load
+
+```@example
+
+using GEBT, LinearAlgebra
+
+nelem = 16
+
+# create points
+x = range(0, 1, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints for each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# create compliance matrix for each beam element
+compliance = fill(Diagonal([2.93944738387698E-10, 0, 0, 4.69246721094557E-08, 6.79584e-8, 1.37068861370898E-09]), nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# set prescribed conditions
+prescribed_conditions = Dict(
+    # simply supported left endpoint
+    1 => PrescribedConditions(uz=0),
+    # clamped right endpoint
+    nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+)
+
+# create distributed load
+distributed_loads = Dict()
+for i = 1:nelem
+    distributed_loads[i] = DistributedLoads(assembly, i; s1=x[i],
+        s2=x[i+1], fz = (s) -> 1000*s)
+end
+
+system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
+    distributed_loads=distributed_loads, linear=true)
+
+state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+# Plot Results
+
+using Plots
+pyplot()
+
+# set up the plot
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = "x (m)",
+    ylim = (0, 1.7e-7),
+    yticks = 0.0:5e-8:1.5e-7,
+    ylabel = "Deflection (m)",
+    grid = false,
+    overwrite_figure=false
+    )
+
+# GEBT
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
+y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
+plot!(x, y, markershape=:circle, label="")
+
+savefig("cantilever2.png"); nothing # hide
+
+```
+
+![](cantilever2.png)
+
+
+## Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
 
 This problem is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
 
 ```@example
 
-using GEBT
-using Plots
-pyplot()
+using GEBT, LinearAlgebra
 
 L = 12 # inches
 h = w = 1 # inches
@@ -41,7 +183,7 @@ y = zero(x)
 z = zero(x)
 points = [[x[i],y[i],z[i]] for i = 1:length(x)]
 
-# index of first and last endpoints of each beam element
+# index of endpoints of each beam element
 start = 1:nelem
 stop = 2:nelem+1
 
@@ -54,8 +196,7 @@ assembly = Assembly(points, start, stop, compliance=compliance)
 # pre-initialize system storage
 static = true
 keep_points = [1, nelem+1] # points that we request are included in the system of equations
-n_tf = 0 # number of time functions
-system = System(assembly, preserved_points, static, n_tf)
+system = System(assembly, preserved_points, static)
 
 # run an analysis for each prescribed bending moment
 
@@ -66,13 +207,9 @@ for i = 1:length(M)
     # create dictionary of prescribed conditions
     prescribed_conditions = Dict(
         # fixed left side
-        1 => PrescribedConditions(
-            force_dof = [false, false, false, false, false, false]
-            ),
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         # moment on right side
-        nelem+1 => PrescribedConditions(
-            follower = [0, 0, 0, 0, 0, M[i]]
-        )
+        nelem+1 => PrescribedConditions(Mz = M[i])
     )
 
     static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
@@ -81,10 +218,10 @@ for i = 1:length(M)
 
 end
 
-# analytical solution (ρ = E*I/M)
-analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
-
 # Plot Results
+
+using Plots
+pyplot()
 
 # set up the plot
 plot(
@@ -121,12 +258,12 @@ end
 # show the plot
 plot!(show=true)
 
-savefig("cantilever.png"); nothing # hide
+savefig("cantilever3.png"); nothing # hide
 ```
 
-![](cantilever.png)
+![](cantilever3.png)
 
-### Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
+## Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
 This problem is also a common benchmark problem for the geometrically exact bending of nonlinear beams, but does not have an analytical solution.
 
@@ -174,13 +311,9 @@ assembly = Assembly(xp, pt1, pt2, compliance=compliance, frames=Cab,
 # create dictionary of prescribed conditions
 prescribed_conditions = Dict(
     # fixed left endpoint
-    1 => PrescribedConditions(
-        force_dof = [false, false, false, false, false, false]
-        ),
+    1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
     # force on right endpoint
-    nelem+1 => PrescribedConditions(
-        value = [0, 0, P, 0, 0, 0]
-    )
+    nelem+1 => PrescribedConditions(Fz=P)
 )
 
 system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
@@ -198,10 +331,3 @@ write_vtk("curved", assembly, state)
 ![](curved.png)
 
 The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
-
-
-## Steady-State Analyses
-
-## Stability Analyses
-
-## Time-Marching Analyses

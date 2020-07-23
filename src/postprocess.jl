@@ -34,7 +34,6 @@ analysis.
 function AssemblyState(system, assembly, x = system.x;
 	prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-	time_function_values = system.time_function_values
 	irow_pt = system.irow_pt
 	irow_beam = system.irow_beam
 	irow_beam1 = system.irow_beam1
@@ -42,7 +41,10 @@ function AssemblyState(system, assembly, x = system.x;
 	icol_pt = system.icol_pt
 	icol_beam = system.icol_beam
 
+
 	TF = eltype(x)
+
+	istep = system.current_step[]
 
 	npoint = length(assembly.points)
 	nbeam = length(assembly.elements)
@@ -72,7 +74,7 @@ function AssemblyState(system, assembly, x = system.x;
 			M_b = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* FORCE_SCALING
 
 			# get beam element properties
-			ΔL_b = beam.ΔL
+			ΔL_b = beam.L
 			Ct_b = get_C(θ_b)'
 			Cab_b = beam.Cab
 			γ_b = element_strain(beam, F_b, M_b)
@@ -88,7 +90,7 @@ function AssemblyState(system, assembly, x = system.x;
 			prescribed = haskey(prescribed_conditions, ipoint)
 			if prescribed
 				u, theta, F, M = point_variables(x, icol_pt[ipoint],
-					prescribed_conditions[ipoint], time_function_values)
+					prescribed_conditions[ipoint], istep)
 			else
 				u, theta, F, M = point_variables(x, icol_pt[ipoint])
 			end

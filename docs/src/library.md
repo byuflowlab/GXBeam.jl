@@ -20,7 +20,6 @@ Assembly
 ```@docs
 PrescribedConditions
 DistributedLoads
-TimeFunction
 ```
 
 ### Pre-Initializing Memory for an Analysis
@@ -99,14 +98,6 @@ GEBT.element_mass_matrix_properties
 GEBT.element_mass_matrix_equations
 GEBT.insert_element_mass_matrix!
 GEBT.element_mass_matrix!
-```
-
-### Loads
-
-```@docs
-GEBT.quadrature_points
-GEBT.integrate_element_loads
-GEBT.follower_load_jacobians
 ```
 
 ### System
