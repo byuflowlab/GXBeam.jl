@@ -14,6 +14,7 @@ Depth = 3
 ```@setup cantilever1
 using Plots
 pyplot()
+nothing #hide
 ```
 
 ```@example cantilever1
@@ -92,6 +93,7 @@ savefig("cantilever1.svg"); nothing #hide
 ```@setup beam1
 using Plots
 pyplot()
+nothing #hide
 ```
 
 ```@example beam1
@@ -172,6 +174,7 @@ This problem is a common benchmark problem for the geometrically nonlinear analy
 ```@setup cantilever2
 using Plots
 pyplot()
+nothing #hide
 ```
 
 ```@example cantilever2
