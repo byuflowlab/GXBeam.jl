@@ -8,14 +8,7 @@ Pages = ["examples.md"]
 Depth = 3
 ```
 
-
 ## Linear Analysis of a Cantilever Subjected to a Uniform Distributed Load
-
-```@setup cantilever1
-using Plots
-pyplot()
-nothing #hide
-```
 
 ```@example cantilever1
 
@@ -89,12 +82,6 @@ savefig("cantilever1.svg"); nothing #hide
 ![](cantilever1.svg)
 
 ## Linear Analysis of a Beam Under a Linear Distributed Load
-
-```@setup beam1
-using Plots
-pyplot()
-nothing #hide
-```
 
 ```@example beam1
 
@@ -170,12 +157,6 @@ savefig("beam1.svg"); nothing #hide
 ## Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
 
 This problem is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
-
-```@setup cantilever2
-using Plots
-pyplot()
-nothing #hide
-```
 
 ```@example cantilever2
 
