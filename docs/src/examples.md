@@ -331,3 +331,89 @@ write_vtk("curved", assembly, state)
 ![](curved.png)
 
 The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
+
+## Nonlinear Time-Marching and Eigenvalue Analysis of a Beam Assembly
+
+```@example
+
+using GEBT, LinearAlgebra
+
+nelem = 20
+nelem_b1 = div(nelem, 2)
+nelem_b2 = div(nelem, 2)
+
+# beam 1
+L_b1 = sqrt(1 + 0.5^2)
+r_b1 = [0, -0.5, 0]
+s_b1, c_b1 = 0.5/L_b1, 1/L_b1
+frame_b1 = [c_b1 -s_b1 0; s_b1 c_b1 0; 0 0 1]
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1, Cab=frame_b1)
+
+# beam 2
+L_b2 = sqrt(1 + 0.5^2)
+r_b2 = [1, 0.0, 0]
+s_b2, c_b2 = 0.5/L_b2, -1/L_b2
+frame_b2 = [c_b2 -s_b2 0; s_b2 c_b2 0; 0 0 1]
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, Cab=frame_b2)
+
+# combine elements and points into one array
+points = vcat(xp_b1, xp_b2[2:end])
+start = 1:nelem_b1 + nelem_b2
+stop = 2:nelem_b1 + nelem_b2 + 1
+lengths = vcat(lengths_b1, lengths_b2)
+midpoints = vcat(xm_b1, xm_b2)
+Cab = vcat(Cab_b1, Cab_b2)
+
+# cross-sections for both beams
+w = 0.1 # meters
+h = 0.05 # meters
+
+E = 70e9 # Pa
+ν = 0.35
+ρ = 2700 # kg/m^3
+
+# shear correction factors
+AR = w/h
+ky = 6/5 + (ν/(1+ν))^2*AR^-4*(1/5 - 18/(AR*pi^5)*sum([tanh(m*pi*AR)/m^5 for m = 1:1000]))
+kz = 6/5 + (ν/(1+ν))^2*AR^4*(1/5 - 18/(pi^5)*sum([tanh(n*pi*AR^-1)/n^5 for n = 1:1000]))
+
+A = h*w
+Ay = A/ky
+Az = A/kz
+Iyy = w*h^3/12
+Izz = w^3*h/12
+J = Iyy + Izz
+
+G = E/(2*(1+ν))
+
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*J), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+minv = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz])^-1, nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop, compliance=compliance, minv=minv,
+    frames=Cab, lengths=lengths, midpoints=midpoints)
+
+# time
+dt = 0.001
+t = 0:dt:0.5
+nstep = length(t)
+
+# create dictionary of prescribed conditions
+prescribed_conditions = Dict(
+    # fixed endpoint on beam 1
+    1 => PrescribedConditions(dt, nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    # fixed endpoint on beam 2
+    nelem+1 => PrescribedConditions(dt, nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    # force applied on connected endpoint
+    nelem_b1+1 => PrescribedConditions(dt, nstep=nstep, Fz=(t)->1e5*sin(20*t))
+)
+
+system, history, converged = time_domain_analysis(assembly, dt,
+    prescribed_conditions=prescribed_conditions, nstep = nstep)
+
+system, λ, V, converged = eigenvalue_analysis(assembly,
+    prescribed_conditions=prescribed_conditions, nstep = nstep, nev = 50)
+
+Us = left_eigenvectors(system, λ, V)
+```
