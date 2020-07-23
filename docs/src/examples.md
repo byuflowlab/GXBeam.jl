@@ -75,7 +75,7 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:lengt
 y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
-savefig("cantilever1.png"); nothing # hide
+savefig("cantilever1.png"); nothing #hide
 
 ```
 
@@ -147,7 +147,7 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:lengt
 y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
-savefig("cantilever2.png"); nothing # hide
+savefig("cantilever2.png"); nothing #hide
 
 ```
 
@@ -258,7 +258,7 @@ end
 # show the plot
 plot!(show=true)
 
-savefig("cantilever3.png"); nothing # hide
+savefig("cantilever3.png"); nothing #hide
 ```
 
 ![](cantilever3.png)
@@ -326,6 +326,7 @@ println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
 # write a file that can be visualized in ParaView
 write_vtk("curved", assembly, state)
 
+nothing #hide
 ```
 
 ![](curved.png)
@@ -416,4 +417,6 @@ system, λ, V, converged = eigenvalue_analysis(assembly,
     prescribed_conditions=prescribed_conditions, nstep = nstep, nev = 50)
 
 Us = left_eigenvectors(system, λ, V)
+
+nothing #hide
 ```
