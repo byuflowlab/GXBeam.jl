@@ -196,7 +196,7 @@ assembly = Assembly(points, start, stop, compliance=compliance)
 # pre-initialize system storage
 static = true
 keep_points = [1, nelem+1] # points that we request are included in the system of equations
-system = System(assembly, preserved_points, static)
+system = System(assembly, keep_points, static)
 
 # run an analysis for each prescribed bending moment
 
@@ -217,6 +217,9 @@ for i = 1:length(M)
     states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
 end
+
+# analytical solution (ρ = E*I/M)
+analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
 
 # Plot Results
 
