@@ -11,7 +11,7 @@ using OffsetArrays
 using WriteVTK
 
 export curve_length, discretize_beam
-export System, Assembly, PrescribedConditions, DistributedLoads, TimeFunction
+export System, Assembly, PrescribedConditions, DistributedLoads
 export static_analysis, steady_state_analysis, eigenvalue_analysis, time_domain_analysis
 export static_analysis!, steady_state_analysis!, eigenvalue_analysis!, time_domain_analysis!
 export AssemblyState, left_eigenvectors, wiener_milenkovic, write_vtk

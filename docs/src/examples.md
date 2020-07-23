@@ -53,6 +53,11 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
+nothing #hide
+```
+
+```@setup cantilever1
+
 # Plot Results
 
 using Plots
@@ -76,7 +81,6 @@ y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
 savefig("cantilever1.svg"); nothing #hide
-
 ```
 
 ![](cantilever1.svg)
@@ -125,6 +129,10 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
+nothing #hide
+```
+
+```@setup beam1
 # Plot Results
 
 using Plots
@@ -148,7 +156,6 @@ y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
 savefig("beam1.svg"); nothing #hide
-
 ```
 
 ![](beam1.svg)
@@ -220,9 +227,9 @@ end
 
 # analytical solution (ρ = E*I/M)
 analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
+```
 
-# Plot Results
-
+```@setup cantilever2
 using Plots
 pyplot()
 
@@ -257,9 +264,6 @@ for i = 1:length(M)
     y = getindex.(deflection, 2)
     plot!(x/L, y/L, label="λ=$(λ[i])", color=i)
 end
-
-# show the plot
-plot!(show=true)
 
 savefig("cantilever2.svg"); nothing #hide
 ```

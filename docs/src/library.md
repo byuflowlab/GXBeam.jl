@@ -12,20 +12,20 @@ Depth = 3
 ```@docs
 curve_length
 discretize_beam
-Assembly
+Assembly(points, start, stop)
 ```
 
 ### Defining Prescribed Conditions
 
 ```@docs
-PrescribedConditions
-DistributedLoads
+PrescribedConditions()
+DistributedLoads(assembly, ibeam)
 ```
 
 ### Pre-Initializing Memory for an Analysis
 
 ```@docs
-System
+System(assembly, points, static)
 ```
 
 ### Performing an Analysis
@@ -100,9 +100,18 @@ GEBT.insert_element_mass_matrix!
 GEBT.element_mass_matrix!
 ```
 
+### Loads
+
+```@docs
+GEBT.PrescribedConditions
+GEBT.DistributedLoads
+```
+
 ### System
 
 ```@docs
+GEBT.Assembly
+GEBT.System
 GEBT.point_connections
 GEBT.system_indices
 GEBT.system_residual!
