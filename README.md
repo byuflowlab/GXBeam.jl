@@ -18,13 +18,12 @@ Author: Taylor McDonnell
  - Accurately models arbitrary systems of interconnected highly flexible composite beams.
     - Captures all geometric nonlinearities due to large deflections and rotations
     - Capable of using the full 6x6 Timoshenko beam stiffness matrix
- - Models arbitrary distributed forces/moments on beam elements using:
+ - Models arbitrary time-varying distributed forces/moments on beam elements using:
     - Dead forces/moments (which do not rotate as the beam element rotates)
     - Follower forces/moments (which rotate as the beam element rotates)
- - Models arbitrary prescribed forces/moments and/or displacements/rotations at the connection points between beam elements using:
+ - Models arbitrary time-varying prescribed forces/moments and/or displacements/rotations at the connection points between beam elements using:
     - Dead forces/moments (which do not rotate as the point rotates)
     - Follower forces/moments (which rotate as the point rotates)
- - Provides time functions to define the variation of the applied loads/displacements over time for both steady and unsteady simulations.
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
  - Thoroughly validated against published analytical and computational results.
@@ -48,13 +47,12 @@ See the [documentation](https://flow.byu.edu/GEBT.jl/dev)
 Note that while the theory is identical to the Wenbin Yu's code, some of the implementation details vary.
 
 ## References
-<a id="1">[1]</a> 
-Yu, W., & Blair, M. (2012). 
-GEBT: A general-purpose nonlinear analysis tool for composite beams. 
+<a id="1">[1]</a>
+Yu, W., & Blair, M. (2012).
+GEBT: A general-purpose nonlinear analysis tool for composite beams.
 Composite Structures, 94(9), 2677-2689.
 
-<a id="2">[2]</a> 
-Wang, Q., & Yu, W. (2017). 
-Geometrically nonlinear analysis of composite beams using Wiener-Milenković parameters. 
+<a id="2">[2]</a>
+Wang, Q., & Yu, W. (2017).
+Geometrically nonlinear analysis of composite beams using Wiener-Milenković parameters.
 Journal of Renewable and Sustainable Energy, 9(3), 033306.
-
