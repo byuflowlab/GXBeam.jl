@@ -225,13 +225,16 @@ for i = 1:length(M)
 
 end
 
-# analytical solution (ρ = E*I/M)
-analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
+nothing #hide
 ```
 
 ```@setup cantilever2
 using Plots
 pyplot()
+
+
+# analytical solution (ρ = E*I/M)
+analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
 
 # set up the plot
 plot(
