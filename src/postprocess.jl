@@ -82,7 +82,7 @@ function AssemblyState(system, assembly, x = system.x;
 
 			# solve for the displacements/rotations of the point
 			u = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
-			theta = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
+			theta = θ_b + side*ΔL_b/2*get_Qinv(θ_b)*Cab_b*κ_b
 			F = @SVector zeros(3)
 			M = @SVector zeros(3)
 		else
