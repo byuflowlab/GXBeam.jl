@@ -8,7 +8,9 @@ Pages = ["examples.md"]
 Depth = 3
 ```
 
-## Linear Analysis of a Cantilever Subjected to a Uniform Distributed Load
+## Linear Analysis of a Cantilever Partially Under a Uniform Distributed Load
+
+![](cantilever1-drawing.svg)
 
 ```@example cantilever1
 
@@ -52,40 +54,93 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
     distributed_loads=distributed_loads, linear=true)
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-
 nothing #hide
 ```
 
-```@setup cantilever1
-
-# Plot Results
-
+```@example cantilever1
 using Plots
 pyplot()
+
+# Construct Analytical Solution
+dx = 1e-6
+EI = 1/6.79584e-8
+x_a = 0.0:dx:1.0
+q_a(x) = 0.3 <= x <= 0.7 ? -1000 : 0 # define distributed load
+V_a = cumsum(-q_a.(x_a) .* dx) # integrate to get shear
+M_a = cumsum(V_a .* dx) # integrate to get moment
+slope_a = cumsum(M_a./EI .* dx) # integrate to get slope
+slope_a .-= slope_a[end] # apply boundary condition
+deflection_a = cumsum(slope_a .* dx) # integrate to get deflection
+deflection_a .-= deflection_a[end] # apply boundary condition
+
+# change coordinate system of analytical solution
+M_a = -M_a
 
 # set up the plot
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    ylim = (0, 3e-6),
     yticks = 0.0:5e-7:3e-6,
     ylabel = "Deflection (m)",
     grid = false,
     overwrite_figure=false
     )
 
-# GEBT
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
 y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
-plot!(x, y, markershape=:circle, label="")
+plot!(x_a, deflection_a, label="Analytical")
+scatter!(x, y, label="GEBT")
 
-savefig("cantilever1.svg"); nothing #hide
+savefig("cantilever1-1.svg") #hide
+
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = "x (m)",
+    yticks = 0.0:5e-7:3.5e-6,
+    ylabel = "Rotation Parameter \$\\theta_y\$",
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
+y = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
+plot!(x_a, -atan.(slope_a), label="Analytical")
+scatter!(x, y, label="GEBT")
+
+savefig("cantilever1-2.svg") #hide
+
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = "x (m)",
+    yticks = 0.0:-50:-200,
+    ylabel = "Bending Moment (\$Nm\$)",
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
+y = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+plot!(x_a, M_a, label="Analytical")
+scatter!(x, y, label="GEBT")
+
+savefig("cantilever1-3.svg") #hide
+nothing #hide
 ```
 
-![](cantilever1.svg)
+![](cantilever1-1.svg)
+
+![](cantilever1-2.svg)
+
+![](cantilever1-3.svg)
 
 ## Linear Analysis of a Beam Under a Linear Distributed Load
+
+This example is taken from "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu.
+
+![](beam1-drawing.svg)
 
 ```@example beam1
 
@@ -128,13 +183,10 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
     distributed_loads=distributed_loads, linear=true)
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-
 nothing #hide
 ```
 
-```@setup beam1
-# Plot Results
-
+```@example beam1
 using Plots
 pyplot()
 
@@ -150,20 +202,150 @@ plot(
     overwrite_figure=false
     )
 
-# GEBT
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
 y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x, y, markershape=:circle, label="")
 
-savefig("beam1.svg"); nothing #hide
+savefig("beam1-1.svg") #hide
+
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = "x (m)",
+    yticks = -6e-7:2e-7:4e-7,
+    ylabel = "Rotation Parameter \$\\theta_2\$",
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
+y = [state.points[ipoint].theta[2] for ipoint = 1:length(assembly.points)]
+plot!(x, y, markershape=:circle, label="")
+
+savefig("beam1-2.svg") #hide
+
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = "x (m)",
+    yticks = -60:20:20,
+    ylabel = "Bending Moment (\$Nm\$)",
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
+y = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+plot!(x, y, markershape=:circle, label="")
+
+savefig("beam1-3.svg") #hide
+nothing #hide
 ```
 
-![](beam1.svg)
+![](beam1-1.svg)
 
+![](beam1-2.svg)
+
+![](beam1-3.svg)
+
+## Nonlinear Analysis of a Cantilever Subjected to a Constant Tip Load
+
+This example is taken from "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu.
+
+![](cantilever-tipload-drawing.svg)
+
+```@example cantilever-tipload
+
+using GEBT, LinearAlgebra
+
+L = 1
+EI = 1e6
+
+# shear force (applied at end)
+# note that solutions for λ > 1.8 do not converge
+λ = 0:0.5:16
+p = EI/L^2
+P = λ*p
+
+# create points
+nelem = 16
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# compliance matrix for each beam element
+compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# pre-initialize system storage
+static = true
+keep_points = [1, nelem+1] # points that we request are included in the system of equations
+system = System(assembly, keep_points, static)
+
+# run an analysis for each prescribed tip load
+
+states = Vector{AssemblyState{Float64}}(undef, length(P))
+
+for i = 1:length(P)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # shear force on right tip
+        nelem+1 => PrescribedConditions(Fz = P[i])
+    )
+
+    static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+
+    states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+end
+
+nothing #hide
+```
+
+```@example cantilever-tipload
+using Plots
+pyplot()
+
+# set up the plot
+plot(
+    xlim = (0, 16),
+    xticks = 0:1:16,
+    xlabel = "Nondimensional Force \$\\left(\\frac{PL^2}{EI}\\right)\$",
+    ylim = (0, 1.2),
+    yticks = 0.0:0.2:1.2,
+    ylabel = "Nondimensional Tip Displacements",
+    grid = false,
+    overwrite_figure=false
+    )
+
+u = [states[i].points[end].u[1] for i = 1:length(P)]
+θ = [states[i].points[end].theta[2] for i = 1:length(P)]
+w = [states[i].points[end].u[3] for i = 1:length(P)]
+
+plot!(λ, w/L, markershape=:circle, label="Vertical \$\\left(w/L\\right)\$")
+plot!(λ, -u/L, markershape=:circle, label="Horizontal \$\\left(-u/L\\right)\$")
+plot!(λ, -4*atan.(θ/(2*pi)), markershape=:circle, label="Rotational \$\\left(-4\\tan^{-1}\\left(\\frac{\\theta_2}{2\\pi}\\right)\\right)\$")
+
+savefig("cantilever-tipload.svg"); nothing #hide
+```
+
+![](cantilever-tipload.svg)
 
 ## Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
 
-This problem is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
+This example is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
+
+![](cantilever2-drawing.svg)
 
 ```@example cantilever2
 
@@ -225,13 +407,15 @@ for i = 1:length(M)
 
 end
 
-# analytical solution (ρ = E*I/M)
-analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
+nothing #hide
 ```
 
-```@setup cantilever2
+```@example cantilever2
 using Plots
 pyplot()
+
+# analytical solution (ρ = E*I/M)
+analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
 
 # set up the plot
 plot(
@@ -272,7 +456,9 @@ savefig("cantilever2.svg"); nothing #hide
 
 ## Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
-This problem is also a common benchmark problem for the geometrically exact bending of nonlinear beams, but does not have an analytical solution.
+This example is also a common benchmark problem for the geometrically exact bending of nonlinear beams, but does not have an analytical solution.
+
+![](curved-drawing.svg)
 
 ```@example curved
 using GEBT, LinearAlgebra
@@ -339,7 +525,8 @@ nothing #hide
 
 ![](curved.png)
 
-The calculated tip displacements match those found by Bathe and Bolourch closely, thus verifying our GEBT implementation.
+The calculated tip displacements match those reported by Bathe and Bolourch in "Large Displacement Analysis of
+Three-Dimensional Beam Structures" closely, thus verifying our GEBT implementation.
 
 ## Nonlinear Time-Marching and Eigenvalue Analysis of a Beam Assembly
 
