@@ -8,11 +8,19 @@ Pages = ["examples.md"]
 Depth = 3
 ```
 
+```@setup examples
+# this is placed here to pre-install matplotlib so the documentation doesn't get cluttered with the installation print statements.
+using Plots
+pyplot()
+```
+
 ## Linear Analysis of a Cantilever Partially Under a Uniform Distributed Load
 
-![](cantilever1-drawing.svg)
+This example shows how to predict the behavior of a cantilever beam which is partially subjected to a uniform distributed load.
 
-```@example cantilever1
+![](linear-cantilever-pudl-drawing.svg)
+
+```@example linear-cantilever-pudl
 
 using GEBT, LinearAlgebra
 
@@ -54,14 +62,12 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
     distributed_loads=distributed_loads, linear=true)
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-nothing #hide
 ```
 
-```@example cantilever1
-using Plots
-pyplot()
+We can construct the analytical solution for this problem by integrating from the fixed end of the cantilever.
 
-# Construct Analytical Solution
+```@example linear-cantilever-pudl
+# construct analytical solution
 dx = 1e-6
 EI = 1/6.79584e-8
 x_a = 0.0:dx:1.0
@@ -73,10 +79,20 @@ slope_a .-= slope_a[end] # apply boundary condition
 deflection_a = cumsum(slope_a .* dx) # integrate to get deflection
 deflection_a .-= deflection_a[end] # apply boundary condition
 
-# change coordinate system of analytical solution
-M_a = -M_a
+# get elastic twist angle
+theta_a = -atan.(slope_a)
 
-# set up the plot
+# adjust coordinate system of the analytical solution to match the computational solution
+M_a = -M_a
+```
+
+Plotting the results reveals that the analytical and computational solutions are identical.
+
+```@example linear-cantilever-pudl
+using Plots
+pyplot()
+
+# deflection plot
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
@@ -88,29 +104,31 @@ plot(
     )
 
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
-y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
+deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, deflection_a, label="Analytical")
-scatter!(x, y, label="GEBT")
+scatter!(x, deflection, label="GEBT")
 
-savefig("cantilever1-1.svg") #hide
+savefig("linear-cantilever-pudl-1.svg") #hide
 
+# elastic twist plot (euler angle)
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
     yticks = 0.0:5e-7:3.5e-6,
-    ylabel = "Rotation Parameter \$\\theta_y\$",
+    ylabel = "Rotation Parameter \$\\theta_y\$ (Euler Angle)",
     grid = false,
     overwrite_figure=false
     )
 
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
-y = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
-plot!(x_a, -atan.(slope_a), label="Analytical")
-scatter!(x, y, label="GEBT")
+theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
+plot!(x_a, theta_a, label="Analytical")
+scatter!(x, theta, label="GEBT")
 
-savefig("cantilever1-2.svg") #hide
+savefig("linear-cantilever-pudl-2.svg") #hide
 
+# bending moment plot
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
@@ -122,27 +140,29 @@ plot(
     )
 
 x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
-y = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
-scatter!(x, y, label="GEBT")
+scatter!(x, M, label="GEBT")
 
-savefig("cantilever1-3.svg") #hide
+savefig("linear-cantilever-pudl-3.svg") #hide
 nothing #hide
 ```
 
-![](cantilever1-1.svg)
+![](linear-cantilever-pudl-1.svg)
 
-![](cantilever1-2.svg)
+![](linear-cantilever-pudl-2.svg)
 
-![](cantilever1-3.svg)
+![](linear-cantilever-pudl-3.svg)
+
+Note that we could have easily performed a nonlinear analysis for this problem by setting `linear=false`.
 
 ## Linear Analysis of a Beam Under a Linear Distributed Load
 
-This example is taken from "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu.
+This example shows how to predict the behavior of a beam which is clamped at one end and simply supported at the other end when subjected to a linear distributed load.
 
-![](beam1-drawing.svg)
+![](linear-overdetermined-ldl-drawing.svg)
 
-```@example beam1
+```@example linear-overdetermined-ldl
 
 using GEBT, LinearAlgebra
 
@@ -183,10 +203,27 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
     distributed_loads=distributed_loads, linear=true)
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-nothing #hide
 ```
 
-```@example beam1
+An analytical solution to this over-determined problem can be found using the method of superposition using the analytical solutions to a cantilever with a linearly distributed load and a cantilever with an end load.
+
+```@example linear-overdetermined-ldl
+# construct analytical solution
+EI = 1/6.79584e-8
+x_a = range(0.0, 1.0, length=1000)
+w_a = @. 1000*(1-x_a)^2/(120*EI)*(4 - 8*(1-x_a) + 5*(1-x_a)^2 - (1-x_a)^3)
+slope_a = @. -1000*(1-x_a)/(120*EI)*(8 - 24*(1-x_a) + 20*(1-x_a)^2 - 5*(1-x_a)^3)
+M_a = @. 1000/120*(8 - 48*(1-x_a) + 60*(1-x_a)^2 - 20*(1-x_a)^3)
+
+theta_a = -atan.(slope_a)
+
+# adjust coordinate system of analytical solution
+M_a = -M_a
+```
+
+Plotting the results reveals that the analytical and computational solutions are identical.
+
+```@example linear-overdetermined-ldl
 using Plots
 pyplot()
 
@@ -203,26 +240,29 @@ plot(
     )
 
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
-y = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
-plot!(x, y, markershape=:circle, label="")
+deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
+plot!(x_a, w_a, label="Analytical")
+scatter!(x, deflection, label="GEBT")
 
-savefig("beam1-1.svg") #hide
+savefig("linear-overdetermined-ldl-1.svg") #hide
 
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
+    ylim = (-6e-7,Inf),
     yticks = -6e-7:2e-7:4e-7,
-    ylabel = "Rotation Parameter \$\\theta_2\$",
+    ylabel = "Rotation Parameter \$\\theta_y\$ (Euler Angle)",
     grid = false,
     overwrite_figure=false
     )
 
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
-y = [state.points[ipoint].theta[2] for ipoint = 1:length(assembly.points)]
-plot!(x, y, markershape=:circle, label="")
+theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
+plot!(x_a, theta_a, label="Analytical")
+scatter!(x, theta, label="GEBT")
 
-savefig("beam1-2.svg") #hide
+savefig("linear-overdetermined-ldl-2.svg") #hide
 
 plot(
     xlim = (0.0, 1.0),
@@ -235,26 +275,29 @@ plot(
     )
 
 x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
-y = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
-plot!(x, y, markershape=:circle, label="")
+M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+plot!(x_a, M_a, label="Analytical")
+scatter!(x, M, label="GEBT")
 
-savefig("beam1-3.svg") #hide
+savefig("linear-overdetermined-ldl-3.svg") #hide
 nothing #hide
 ```
 
-![](beam1-1.svg)
+![](linear-overdetermined-ldl-1.svg)
 
-![](beam1-2.svg)
+![](linear-overdetermined-ldl-2.svg)
 
-![](beam1-3.svg)
+![](linear-overdetermined-ldl-3.svg)
+
+Note that we could have easily performed a nonlinear analysis for this problem by setting `linear=false`.
 
 ## Nonlinear Analysis of a Cantilever Subjected to a Constant Tip Load
 
-This example is taken from "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu.
+This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip load.
 
-![](cantilever-tipload-drawing.svg)
+![](cantilever-tipforce-drawing.svg)
 
-```@example cantilever-tipload
+```@example cantilever-tipforce
 
 using GEBT, LinearAlgebra
 
@@ -308,13 +351,37 @@ for i = 1:length(P)
     states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
 end
+```
+
+The analytical solution to this problem has been presented by several authors.  Here we follow the solution by H. J. Barten in "On the Deflection of a Cantilever Beam", after incorporating the corrections they submitted for finding the tip angle.
+
+```@example cantilever-tipforce
+using Elliptic
+
+δ = range(pi/4, pi/2, length=10^5)[2:end-1]
+
+k = @. cos(pi/4)/sin(δ)
+λ_a = @. (Elliptic.F(pi/2, k^2) - Elliptic.F(δ,  k^2))^2
+
+θ_a = @. 2*(pi/4 - acos(k))
+
+ξ_a = @. sqrt(2*sin(θ_a)/λ_a) .- 1
+
+η_a = @. 1-2/sqrt(λ_a)*(Elliptic.E(pi/2, k^2) - Elliptic.E(δ, k^2))
 
 nothing #hide
 ```
 
-```@example cantilever-tipload
+Plotting the results reveals that the analytical and computational solutions are identical.
+
+```@example cantilever-tipforce
 using Plots
 pyplot()
+
+u = [states[i].points[end].u[1] for i = 1:length(P)]
+θ = [states[i].points[end].theta[2] for i = 1:length(P)]
+w = [states[i].points[end].u[3] for i = 1:length(P)]
+
 
 # set up the plot
 plot(
@@ -328,26 +395,33 @@ plot(
     overwrite_figure=false
     )
 
-u = [states[i].points[end].u[1] for i = 1:length(P)]
-θ = [states[i].points[end].theta[2] for i = 1:length(P)]
-w = [states[i].points[end].u[3] for i = 1:length(P)]
+plot!([Inf], [Inf], color=:black, label="Analytical")
+scatter!([Inf], [Inf], color=:black, label="GEBT")
+plot!([Inf], [Inf], color=1, label="Vertical \$\\left(w/L\\right)\$")
+plot!([Inf], [Inf], color=2, label="Horizontal \$\\left(-u/L\\right)\$")
+plot!([Inf], [Inf], color=3, label="\$ \\theta/(\\pi/2) \$")
 
-plot!(λ, w/L, markershape=:circle, label="Vertical \$\\left(w/L\\right)\$")
-plot!(λ, -u/L, markershape=:circle, label="Horizontal \$\\left(-u/L\\right)\$")
-plot!(λ, -4*atan.(θ/(2*pi)), markershape=:circle, label="Rotational \$\\left(-4\\tan^{-1}\\left(\\frac{\\theta_2}{2\\pi}\\right)\\right)\$")
+plot!(λ_a, η_a, color=1, label="")
+scatter!(λ, w/L, color=1, label="")
 
-savefig("cantilever-tipload.svg"); nothing #hide
+plot!(λ_a, -ξ_a, color=2, label="")
+scatter!(λ, -u/L, color=2, label="")
+
+plot!(λ_a, θ_a*2/pi, color=3, label="")
+scatter!(λ, -4*atan.(θ/4)*2/pi, color=3, label="")
+
+savefig("cantilever-tipforce.svg"); nothing #hide
 ```
 
-![](cantilever-tipload.svg)
+![](cantilever-tipforce.svg)
 
 ## Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
 
-This example is a common benchmark problem for the geometrically nonlinear analysis of beams and has an analytical solution.
+This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip moment.  This is a common benchmark problem for the geometrically nonlinear analysis of beams.
 
-![](cantilever2-drawing.svg)
+![](cantilever-tipmoment-drawing.svg)
 
-```@example cantilever2
+```@example cantilever-tipmoment
 
 using GEBT, LinearAlgebra
 
@@ -410,12 +484,20 @@ end
 nothing #hide
 ```
 
-```@example cantilever2
-using Plots
-pyplot()
+This problem has a simple analytical solution, which we obtained from "Study of the Geometric Stiffening Effect: Comparison of Different Formulations" by Juana M. Mayo, Daniel Garcia-Vallejo, and Jaime Dominguez.
+
+```@example cantilever-tipmoment
 
 # analytical solution (ρ = E*I/M)
 analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
+
+```
+
+Plotting the results reveals that the analytical and computational results are identical.
+
+```@example cantilever-tipmoment
+using Plots
+pyplot()
 
 # set up the plot
 plot(
@@ -449,18 +531,18 @@ for i = 1:length(M)
     plot!(x/L, y/L, label="λ=$(λ[i])", color=i)
 end
 
-savefig("cantilever2.svg"); nothing #hide
+savefig("cantilever-tipmoment.svg"); nothing #hide
 ```
 
-![](cantilever2.svg)
+![](cantilever-tipmoment.svg)
 
 ## Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
-This example is also a common benchmark problem for the geometrically exact bending of nonlinear beams, but does not have an analytical solution.
+This example is also a common benchmark problem for the geometrically exact bending of nonlinear beams.
 
-![](curved-drawing.svg)
+![](cantilever-curved-drawing.svg)
 
-```@example curved
+```@example cantilever-curved
 using GEBT, LinearAlgebra
 
 # problem constants
@@ -518,12 +600,12 @@ println("Tip Displacement: ", state.points[end].u)
 println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
 
 # write a file that can be visualized in ParaView
-write_vtk("curved", assembly, state)
+write_vtk("cantilever-curved", assembly, state)
 
 nothing #hide
 ```
 
-![](curved.png)
+![](cantilever-curved.png)
 
 The calculated tip displacements match those reported by Bathe and Bolourch in "Large Displacement Analysis of
 Three-Dimensional Beam Structures" closely, thus verifying our GEBT implementation.
