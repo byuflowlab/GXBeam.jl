@@ -952,6 +952,7 @@ nothing #hide
 ![](rotating-beam-frequencies-3.svg)
 ![](rotating-beam-frequencies-4.svg)
 
+In this case our eigenmode correlations worked, but remember that large changes in the underlying parameters (or just drastic changes in the eigenvectors themselves due to a small perturbation) can cause these automatic eigenmode correlations to fail.
 
 ## Nonlinear Time-Marching and Eigenvalue Analysis of a Beam Assembly
 
