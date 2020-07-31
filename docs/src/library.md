@@ -46,8 +46,6 @@ time_domain_analysis!
 ```@docs
 AssemblyState(system, assembly)
 AssemblyState
-PointState
-ElementState
 left_eigenvectors
 wiener_milenkovic
 write_vtk
@@ -79,6 +77,7 @@ GEBT.point_residual!
 GEBT.point_follower_jacobians
 GEBT.insert_point_jacobian!
 GEBT.point_jacobian!
+GEBT.PointState
 ```
 
 ### Elements
@@ -101,6 +100,7 @@ GEBT.element_mass_matrix_properties
 GEBT.element_mass_matrix_equations
 GEBT.insert_element_mass_matrix!
 GEBT.element_mass_matrix!
+GEBT.ElementState
 ```
 
 ### Loads
