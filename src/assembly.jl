@@ -70,16 +70,7 @@ function Assembly(points, start, stop;
 		frames = fill(I3, nbeam)
 	end
 
-	TF = promote_type(
-		eltype(eltype(points)),
-		eltype(eltype(compliance)),
-		eltype(eltype(minv)),
-		eltype(eltype(frames)),
-		eltype(eltype(lengths)),
-		eltype(eltype(midpoints))
-		)
-
-	elements = Element{TF}.(lengths, midpoints, compliance, minv, frames)
+	elements = Element.(lengths, midpoints, compliance, minv, frames)
 
 	return Assembly(points, promote(start, stop)..., elements)
 end

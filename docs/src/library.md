@@ -44,7 +44,10 @@ time_domain_analysis!
 ### Post-Processing
 
 ```@docs
+AssemblyState(system, assembly)
 AssemblyState
+PointState
+ElementState
 left_eigenvectors
 wiener_milenkovic
 write_vtk

@@ -1,3 +1,14 @@
+"""
+    PointState
+
+Holds the state variables for a point
+
+# Fields:
+ - `u`: Displacement variables for the point
+ - `theta`: Wiener-Milenkovic rotation variables for the point
+ - `F`: Externally applied forces on the point
+ - `M`: Externally applied moments on the point
+"""
 struct PointState{TF}
 	u::SVector{3, TF}
 	theta::SVector{3, TF}
@@ -5,6 +16,19 @@ struct PointState{TF}
 	M::SVector{3, TF}
 end
 
+"""
+    ElementState
+
+Holds the state variables for an element
+
+# Fields:
+ - `u`: Displacement variables for the element
+ - theta: Wiener-Milenkovic rotation variables for the element
+ - `F`: Resultant forces for the element
+ - `M`: Resultant moments for the element
+ - `P`: Linear momenta of the element
+ - `H`: Angular momenta of the element
+"""
 struct ElementState{TF}
 	u::SVector{3, TF}
 	theta::SVector{3, TF}
@@ -14,6 +38,15 @@ struct ElementState{TF}
 	H::SVector{3, TF}
 end
 
+"""
+    AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
+
+Struct for storing state variables for the points and elements in an assembly.
+
+# Fields:
+ - `points::TP`: Array of `PointState`s for each point in the assembly
+ - `elements::TE`: Array of `ElementState`s for each element in the assembly
+"""
 struct AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
 	points::TP
 	elements::TE
@@ -260,8 +293,63 @@ function left_eigenvectors(K, M, λ, V)
 		for i = 1:nx
 			Us[iλ,i] = conj(u[i])
 		end
-
 	end
 
 	return Us
+end
+
+"""
+	correlate_eigenmodes(C)
+
+Return the permutation and the associated corruption index vector which associates
+eigenmodes from the currrent iteration with those of the previous iteration given
+the correlation matrix `C`.
+
+The correlation matrix can take one of the following forms (in order of preference):
+ - `C = U_p*M*V`
+ - `C = U*M_p*V_p`
+ - `C = V_p'*V`
+ - `C = V'*V_p`
+where `U` is a matrix of conjugated left eigenvectors, `M` is the system mass
+matrix, `V` is a matrix of right eigenvectors, and `()_p` indicates a variable
+from the previous iteration.
+
+The corruption index is the largest magnitude in a given row/column of `C`
+that was not chosen divided by the magnitude of the chosen eigenmode.  It is most
+meaningful when using one of the two first forms of the correlation matrix since
+correct eigenmodes will have magnitudes close to 1 and incorrect eigenmodes will
+have magnitudes close to 0.
+
+If the new mode number is already assigned the next highest unassigned mode
+number is used.  In this case a corruption index higher than 1 will be returned,
+otherwise the values of the corruption index will always be bounded by 0 and 1.
+
+See "New Mode Tracking Methods in Aeroelastic Analysis" by Eldred, Vankayya, and
+Anderson.
+"""
+function correlate_eigenmodes(C)
+
+	# get row permutation that puts maximum values on the diagonals
+	nev = size(C, 1)
+	tmp = Vector{real(eltype(C))}(undef, nev)
+	perm = zeros(Int, nev)
+	corruption = Vector{real(eltype(C))}(undef, nev)
+	for i = 1:nev
+
+		# rank each value in this row
+		for j = 1:nev
+			tmp[j] = abs(C[i,j])
+		end
+		ranked_modes = sortperm(tmp, rev=true)
+
+		# choose the best fit that is not yet assigned
+		i1 = ranked_modes[findfirst((x) -> !(x in perm), ranked_modes)]
+		i2 = i1 == ranked_modes[1] ? ranked_modes[2] : ranked_modes[1]
+
+		# assign best eigenmode fit, create corruption index
+		perm[i] = i1
+		corruption[i] = tmp[i2]/tmp[i1]
+	end
+
+	return perm, corruption
 end
