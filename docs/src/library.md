@@ -47,6 +47,7 @@ time_domain_analysis!
 AssemblyState(system, assembly)
 AssemblyState
 left_eigenvectors
+correlate_eigenmodes
 wiener_milenkovic
 write_vtk
 ```
