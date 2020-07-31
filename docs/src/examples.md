@@ -62,6 +62,8 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
     distributed_loads=distributed_loads, linear=true)
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+nothing #hide
 ```
 
 We can construct the analytical solution for this problem by integrating from the fixed end of the cantilever.
@@ -84,6 +86,8 @@ theta_a = -atan.(slope_a)
 
 # adjust coordinate system of the analytical solution to match the computational solution
 M_a = -M_a
+
+nothing #hide
 ```
 
 Plotting the results reveals that the analytical and computational solutions are identical.
@@ -203,6 +207,8 @@ system, converged = static_analysis(assembly, prescribed_conditions=prescribed_c
     distributed_loads=distributed_loads, linear=true)
 
 state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+nothing #hide
 ```
 
 An analytical solution to this over-determined problem can be found using the method of superposition using the analytical solutions to a cantilever with a linearly distributed load and a cantilever with an end load.
@@ -219,6 +225,8 @@ theta_a = -atan.(slope_a)
 
 # adjust coordinate system of analytical solution
 M_a = -M_a
+
+nothing #hide
 ```
 
 Plotting the results reveals that the analytical and computational solutions are identical.
@@ -491,6 +499,7 @@ This problem has a simple analytical solution, which we obtained from "Study of 
 # analytical solution (ρ = E*I/M)
 analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
 
+nothing #hide
 ```
 
 Plotting the results reveals that the analytical and computational results are identical.
@@ -857,8 +866,12 @@ nothing #hide
 
 We can correlate each eigenmode by taking advantage of the fact that left and right eigenvectors satisfy the following relationships:
 
-$ u^H M v = 1 \text{ if $u$ and $v$ correspond to the same eigenmode} $
-$ u^H M v = 0 \text{ if $u$ and $v$ correspond to different eigenmodes} $
+```math
+\begin{aligned}
+u^H M v &= 1 &\text{ if $u$ and $v$ correspond to the same eigenmode} $
+u^H M v &= 0 &\text{ if $u$ and $v$ correspond to different eigenmodes} $
+\end{aligned}
+```
 
 ```@example rotating-beam
 
