@@ -622,6 +622,8 @@ The calculated tip displacements match those reported by Bathe and Bolourch in "
 
 In this example we analyze a rotating beam with a swept tip.  The parameters for this example come from "Finite element solution of nonlinear intrinsic equations for curved composite beams" by Hodges, Shang, and Cesnik.
 
+![](rotating-beam-drawing.svg)
+
 ```@example rotating-beam
 
 using GEBT, LinearAlgebra
