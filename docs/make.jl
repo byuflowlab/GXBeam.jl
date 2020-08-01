@@ -2,7 +2,6 @@ using Documenter, GEBT
 
 makedocs(;
     modules = [GEBT],
-    format = Documenter.HTML(),
     pages = [
         "Home" => "index.md",
         "Examples" => "examples.md",
