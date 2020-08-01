@@ -2,9 +2,9 @@ name: Documentation
 
 on:
   push:
-    paths:
-    - '.github/workflows/docs.yaml'
-    - 'docs/**'
+    branches: 
+      - master
+  pull_request:
 
 jobs:
   build:
@@ -15,7 +15,7 @@ jobs:
         julia-arch: [x86]
         os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v1.0.0
+      - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
           version: ${{ matrix.julia-version }}
