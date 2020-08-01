@@ -870,8 +870,8 @@ We can correlate each eigenmode by taking advantage of the fact that left and ri
 
 ```math
 \begin{aligned}
-u^H M v &= 1 &\text{if $u$ and $v$ correspond to the same eigenmode} \\
-u^H M v &= 0 &\text{if $u$ and $v$ correspond to different eigenmodes}
+u^H M v &= 1 &\text{if \(u\) and \(v\) correspond to the same eigenmode} \\
+u^H M v &= 0 &\text{if \(u\) and \(v\) correspond to different eigenmodes}
 \end{aligned}
 ```
 
