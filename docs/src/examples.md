@@ -618,7 +618,7 @@ nothing #hide
 
 The calculated tip displacements match those reported by Bathe and Bolourch in "Large Displacement Analysis of Three-Dimensional Beam Structures" closely, thus verifying our GEBT implementation.
 
-## Rotating Beam with Swept Tip
+## Rotating Beam with a Swept Tip
 
 In this example we analyze a rotating beam with a swept tip.  The parameters for this example come from "Finite element solution of nonlinear intrinsic equations for curved composite beams" by Hodges, Shang, and Cesnik.
 
