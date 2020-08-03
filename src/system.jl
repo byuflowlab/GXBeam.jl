@@ -682,7 +682,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
 	end
 
 	# zero out near-zero values ( < eps() ), but keep size of matrix
-	jacob = droptol!(jacob, eps(eltype(jacob)); trim=false)
+	jacob = droptol!(jacob, eps(eltype(jacob)))
 
 	return jacob
 end
@@ -732,7 +732,7 @@ function system_mass_matrix!(jacob, x, assembly, irow_pt, irow_beam, irow_beam1,
 	# no contributions to "mass matrix" from point state variables
 
 	# zero out near-zero values ( < eps() ), but keep size of matrix
-	jacob = droptol!(jacob, eps(eltype(jacob)); trim=false)
+	jacob = droptol!(jacob, eps(eltype(jacob)))
 
 	return jacob
 end
