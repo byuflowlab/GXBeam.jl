@@ -811,6 +811,14 @@ MV = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
 state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
 eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
 for i = 1:length(sweep)
+    local L_b1, r_b1, nelem_b1, lengths_b1 #hide
+    local xp_b1, xm_b1, Cab_b1 #hide
+    local cs, ss #hide
+    local L_b2, r_b2, nelem_b2, frame_b2, lengths_b2 #hide
+    local xp_b2, xm_b2, Cab_b2 #hide
+    local nelem, points, start, stop #hide
+    local lengths, midpoints, Cab, compliance, mass, assembly #hide
+
     # straight section of the beam
     L_b1 = 31.5 # inch
     r_b1 = [2.5, 0, 0]
@@ -965,7 +973,8 @@ In this case our eigenmode correlations worked, but remember that large changes 
 We can also visualize eigenmodes using ParaView.  Here we will visualize the first bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.
 
 ```@example rotating-beam
-write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end], λ[end,end][1], eigenstates[end,end][1], mode_scaling=100.0)
+write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end], λ[end,end][1],
+    eigenstates[end,end][1], mode_scaling=100.0)
 nothing #hide
 ```
 
