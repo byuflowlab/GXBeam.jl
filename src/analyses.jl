@@ -585,6 +585,8 @@ function time_domain_analysis!(system, assembly, dt;
 		x .= result.zero
 	end
 
+	converged = result.f_converged
+
 	# --- End Initial Condition Run --- #
 
 	# now set up for the time-domain run
@@ -667,6 +669,7 @@ function time_domain_analysis!(system, assembly, dt;
 
 		# stop early if unconverged
 		if !result.f_converged
+			converged = false
 			break
 		end
 

@@ -980,6 +980,132 @@ nothing #hide
 
 ![](rotating-beam.gif)
 
+## Dynamic Nonlinear Analysis of a Wind Turbine Blade
+
+```@example dynamic-wind-turbine
+
+using GEBT, LinearAlgebra
+
+L = 60 # m
+
+# create points
+nelem = 10
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# stiffness matrix for each beam element
+stiffness = fill(
+    [2.389e9  1.524e6  6.734e6 -3.382e7 -2.627e7 -4.736e8
+     1.524e6  4.334e8 -3.741e6 -2.935e5  1.527e7  3.835e5
+     6.734e6 -3.741e6  2.743e7 -4.592e5 -6.869e5 -4.742e6
+    -3.382e7 -2.935e5 -4.592e5  2.167e7 -6.279e5  1.430e6
+    -2.627e7  1.527e7 -6.869e5 -6.279e5  1.970e7  1.209e7
+    -4.736e8  3.835e5 -4.742e6  1.430e6  1.209e7  4.406e8],
+    nelem)
+
+# mass matrix for each beam element
+mass = fill(
+    [258.053      0.0        0.0      0.0      7.07839  -71.6871
+       0.0      258.053      0.0     -7.07839  0.0        0.0
+       0.0        0.0      258.053   71.6871   0.0        0.0
+       0.0       -7.07839   71.6871  48.59     0.0        0.0
+       7.07839    0.0        0.0      0.0      2.172      0.0
+     -71.6871     0.0        0.0      0.0      0.0       46.418],
+     nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
+
+# simulation time
+dt = 0.001
+t = 0:dt:2.0
+nstep = length(t)
+
+# prescribed conditions
+prescribed_conditions = Dict(
+    # fixed left side
+    1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    # force on right side
+    nelem+1 => PrescribedConditions(dt; nstep=nstep, Fz=(t)->1e5*sin.(20*t))
+)
+
+system, history, converged = time_domain_analysis(assembly, dt; prescribed_conditions=prescribed_conditions, nstep=nstep)
+
+nothing #hide
+```
+
+We can visualize tip displacements and the resultant forces in the root by accessing the post-processed results for each time step contained in the variable `history`.  Note that  the root resultant forces for this case are equal to the external forces/moments, but with opposite sign.
+
+```@example rotating-beam
+using Plots
+pyplot()
+
+point = vcat(fill(nelem+1, 6), fill(1, 6))
+field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
+direction = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]
+ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
+    "\$\\theta_x\$ (degree)", "\$\\theta_y\$ (degree)", "\$\\theta_z\$ (degree)",
+    "\$F_x\$ (\$N\$)", "\$F_y\$ (\$N\$)", "\$F_z\$ (\$N\$)",
+    "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
+
+for i = 1:12
+    plot(
+        xlim = (0, 2.0),
+        xticks = 0:0.5:2.0,
+        xlabel = "Time (s)",
+        ylabel = ylabel[i],
+        grid = false,
+        overwrite_figure=false
+        )
+    y = [getproperty(state.points[point[i]], field[i])[direction[i]] for state in history]
+
+    if field[i] == :theta
+        # convert to Euler angle
+        @. y = 4*atan(y/4)
+        # convert to degrees
+        @. y = rad2deg(y)
+    end
+
+    if field[i] == :F || field[i] == :M
+        y = -y
+    end
+
+    plot!(t, y, label="")
+    plot!(show=true)
+    savefig("dynamic-wind-turbine-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
+end
+```
+
+![](dynamic-wind-turbine-u1.svg)
+![](dynamic-wind-turbine-u2.svg)
+![](dynamic-wind-turbine-u3.svg)
+![](dynamic-wind-turbine-theta1.svg)
+![](dynamic-wind-turbine-theta2.svg)
+![](dynamic-wind-turbine-theta3.svg)
+![](dynamic-wind-turbine-F1.svg)
+![](dynamic-wind-turbine-F2.svg)
+![](dynamic-wind-turbine-F3.svg)
+![](dynamic-wind-turbine-M1.svg)
+![](dynamic-wind-turbine-M2.svg)
+![](dynamic-wind-turbine-M3.svg)
+
+These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A. Sprague in "Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic Parameters".
+
+We can also visualize the time history of the system using ParaView.
+
+```@example rotating-beam
+write_vtk("dynamic-wind-turbine", assembly, history, dt)
+nothing #hide
+```
+
+![]("dynamic-wind-turbine.gif")
+
 ## Nonlinear Time-Marching and Eigenvalue Analysis of a Beam Assembly
 
 ```@example

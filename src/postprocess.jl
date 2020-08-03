@@ -149,7 +149,9 @@ function AssemblyState(system, assembly, x = system.x;
 end
 
 """
-    write_vtk(name, assembly::Assembly [, state::AssemblyState]; kwargs...)
+    write_vtk(name, assembly::Assembly; kwargs...)
+	write_vtk(name, assembly::Assembly, state::AssemblyState; kwargs...)
+	write_vtk(name, assembly::Assembly, history::Vector{<:AssemblyState}], dt; kwargs...)
 
 Write the deformed geometry (and associated data) to a VTK file for visualization
 using ParaView.
@@ -157,9 +159,11 @@ using ParaView.
 The `state` parameter may be omitted to write the original geometry to a VTK file
 without any associated data.
 
+If the solution time `history` is provided, the time step must also be provided
+
 # Keyword Arguments
- - `scaling=1.0`: Parameter to scale the deflections
- - `metadata=Dict()`: Dictionary of metadata for the file
+ - `scaling=1.0`: Parameter to scale the deflections (only valid if state is provided)
+ - `metadata=Dict()`: Dictionary of metadata for the file(s)
 """
 function write_vtk(name, assembly; metadata=Dict())
 
@@ -240,6 +244,67 @@ function write_vtk(name, assembly, state; scaling=1.0,
 	return nothing
 end
 
+function write_vtk(name, assembly, history, dt; scaling=1.0,
+	metadata=Dict())
+
+	# get problem dimensions
+	npoint = length(assembly.points)
+	nbeam = length(assembly.elements)
+
+	paraview_collection(name) do pvd
+
+		t = 0.0
+
+		for (current_step, state) in enumerate(history)
+
+			# extract point locations
+			points = Matrix{eltype(assembly)}(undef, 3, npoint)
+			for ipoint = 1:npoint
+				for i = 1:3
+					points[i,ipoint] = assembly.points[ipoint][i] + scaling*state.points[ipoint].u[i]
+				end
+			end
+
+			# create cells
+			cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+
+			# write vtk file
+			vtkfile = vtk_grid(name*"-step$current_step", points, cells)
+
+			# add metadata
+			vtkfile["time"] = t
+			for (key, value) in pairs(metadata)
+				vtkfile[string(key)] = value
+			end
+
+			# add point data
+			for field in fieldnames(PointState)
+				data = Matrix{eltype(assembly)}(undef, 3, npoint)
+				for ipoint = 1:npoint
+					data[:, ipoint] .= getproperty(state.points[ipoint], field)
+				end
+				vtkfile[string(field), VTKPointData()] = data
+			end
+
+			# add cell data
+			for field in fieldnames(ElementState)
+				data = Matrix{eltype(assembly)}(undef, 3, nbeam)
+				for ibeam = 1:nbeam
+					data[:, ibeam] .= getproperty(state.elements[ibeam], field)
+				end
+				vtkfile[string(field), VTKCellData()] = data
+			end
+
+			pvd[t] = vtkfile
+
+			# increment time
+			t += dt
+		end
+	end
+
+	return nothing
+end
+
 """
 	write_vtk(name, assembly::Assembly, [state::AssemblyState, ]λ::Number, eigenstate::AssemblyState;
 	scaling=1.0, mode_scaling=1.0, cycles=1, steps=100)
@@ -293,7 +358,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
 			cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
 
 			# write vtk file
-			vtkfile = vtk_grid(name*"-t$(current_step)", points, cells)
+			vtkfile = vtk_grid(name*"-step$(current_step)", points, cells)
 
 			# add metadata
 			vtkfile["time"] = t
