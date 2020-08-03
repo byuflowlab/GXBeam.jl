@@ -12,6 +12,5 @@ makedocs(;
 )
 
 deploydocs(
-    deps = Deps.pip("python-markdown-math"),
     repo = "github.com/byuflowlab/GEBT.jl.git",
 )
