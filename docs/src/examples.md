@@ -807,8 +807,9 @@ nev = 30
 
 λ = Matrix{Vector{ComplexF64}}(undef, length(sweep), length(rpm))
 U = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
-V = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
 MV = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
+state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
+eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
 for i = 1:length(sweep)
     # straight section of the beam
     L_b1 = 31.5 # inch
@@ -849,17 +850,22 @@ for i = 1:length(sweep)
         w0 = [0, 0, rpm[j]*(2*pi)/60]
 
         # eigenvalues and (right) eigenvectors
-        system, λ[i,j], V[i,j], converged = eigenvalue_analysis!(system, assembly,
+        system, λ[i,j], V, converged = eigenvalue_analysis!(system, assembly,
             angular_velocity = w0,
             prescribed_conditions = prescribed_conditions,
             nev=nev)
 
         # corresponding left eigenvectors
-        U[i,j] = left_eigenvectors(system, λ[i,j], V[i,j])
+        U[i,j] = left_eigenvectors(system, λ[i,j], V)
 
         # post-multiply mass matrix with right eigenvector matrix
         # (we use this later for correlating eigenvalues)
-        MV[i,j] = system.M * V[i,j]
+        MV[i,j] = system.M * V
+
+        # process state and eigenstates
+        state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
+        eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
+            prescribed_conditions=prescribed_conditions) for k = 1:nev]
     end
 end
 
@@ -891,8 +897,8 @@ for j = 1:length(rpm)
         # re-arrange eigenvalues and eigenvectors
         λ[i,j] = λ[i,j][perm]
         U[i,j] = U[i,j][perm,:]
-        V[i,j] = V[i,j][:,perm]
         MV[i,j] = MV[i,j][:,perm]
+        eigenstates[i,j] = eigenstates[i,j][perm]
 
         # update previous eigenvector matrix
         U_p .= U[i,j]
@@ -955,6 +961,15 @@ nothing #hide
 ![](rotating-beam-frequencies-4.svg)
 
 In this case our eigenmode correlations worked, but remember that large changes in the underlying parameters (or just drastic changes in the eigenvectors themselves due to a small perturbation) can cause these automatic eigenmode correlations to fail.
+
+We can also visualize eigenmodes using ParaView.  Here we will visualize the first bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.
+
+```@example rotating-beam
+write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end], λ[end,end][1], eigenstates[end,end][1], mode_scaling=100.0)
+nothing #hide
+```
+
+![](rotating-beam.gif)
 
 ## Nonlinear Time-Marching and Eigenvalue Analysis of a Beam Assembly
 

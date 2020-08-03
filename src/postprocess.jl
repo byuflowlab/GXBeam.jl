@@ -74,7 +74,6 @@ function AssemblyState(system, assembly, x = system.x;
 	icol_pt = system.icol_pt
 	icol_beam = system.icol_beam
 
-
 	TF = eltype(x)
 
 	istep = system.current_step[]
@@ -150,15 +149,19 @@ function AssemblyState(system, assembly, x = system.x;
 end
 
 """
-    write_vtk(name, assembly::Assembly, [state::AssemblyState, scaling=1.0])
+    write_vtk(name, assembly::Assembly [, state::AssemblyState]; kwargs...)
 
 Write the deformed geometry (and associated data) to a VTK file for visualization
-using ParaView.  The deflections can be scaled with `scaling`.
+using ParaView.
 
-The `state` and `scaling` parameters may be omitted to write the original geometry
-to a VTK file without any associated data.
+The `state` parameter may be omitted to write the original geometry to a VTK file
+without any associated data.
+
+# Keyword Arguments
+ - `scaling=1.0`: Parameter to scale the deflections
+ - `metadata=Dict()`: Dictionary of metadata for the file
 """
-function write_vtk(name, assembly::Assembly)
+function write_vtk(name, assembly; metadata=Dict())
 
 	# get problem dimensions
 	npoint = length(assembly.points)
@@ -178,14 +181,18 @@ function write_vtk(name, assembly::Assembly)
 	# write vtk file
 	vtk_grid(name, points, cells) do vtkfile
 
-		# no associated data to add
+		# add metadata
+		for (key, value) in pairs(metadata)
+			vtkfile[string(key)] = value
+		end
 
 	end
 
 	return nothing
 end
 
-function write_vtk(name, assembly::Assembly, state::AssemblyState, scaling=1.0)
+function write_vtk(name, assembly, state; scaling=1.0,
+	metadata=Dict())
 
 	# get problem dimensions
 	npoint = length(assembly.points)
@@ -199,13 +206,16 @@ function write_vtk(name, assembly::Assembly, state::AssemblyState, scaling=1.0)
 		end
 	end
 
-	global points
-
 	# create cells
 	cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
 
 	# write vtk file
 	vtk_grid(name, points, cells) do vtkfile
+
+		# add metadata
+		for (key, value) in pairs(metadata)
+			vtkfile[string(key)] = value
+		end
 
 		# add point data
 		for field in fieldnames(PointState)
@@ -229,6 +239,93 @@ function write_vtk(name, assembly::Assembly, state::AssemblyState, scaling=1.0)
 
 	return nothing
 end
+
+"""
+	write_vtk(name, assembly::Assembly, [state::AssemblyState, ]λ::Number, eigenstate::AssemblyState;
+	scaling=1.0, mode_scaling=1.0, cycles=1, steps=100)
+
+Write a series of files corresponding to the elastic motion of the `assembly`
+about the deformed state encoded in `state` defined by the eigenvalue `λ` and
+the eigenvector encoded in `eigenstate` over the time period specified by `time`.
+
+The steady-state deflections can be scaled with `scaling` and the eigenmode
+deflections can be scaled using `mode_scaling`.
+
+The current time is encoded in the metadata tag "time"
+"""
+function write_vtk(name, assembly, state, λ, eigenstate;
+	scaling=1.0,
+	mode_scaling=1.0,
+	cycles = 1,
+	steps = 100)
+
+	npoint = length(assembly.points)
+	nbeam = length(assembly.elements)
+
+	damping = real(λ)
+	period = 2*pi/imag(λ)
+
+	if damping <= 0.0
+		start = -period*cycles
+		stop = 0.0
+	else
+		start = 0.0
+		stop = period*cycles
+	end
+
+	time=range(start, stop, length=steps)
+
+	paraview_collection(name) do pvd
+
+		for (current_step, t) in enumerate(time)
+
+			# extract point locations
+			points = Matrix{eltype(assembly)}(undef, 3, npoint)
+			for ipoint = 1:npoint
+				for i = 1:3
+					points[i,ipoint] = assembly.points[ipoint][i] +
+						scaling*state.points[ipoint].u[i] +
+						mode_scaling*real(eigenstate.points[ipoint].u[i]*exp(λ*t))
+				end
+			end
+
+			# create cells
+			cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+
+			# write vtk file
+			vtkfile = vtk_grid(name*"-t$(current_step)", points, cells)
+
+			# add metadata
+			vtkfile["time"] = t
+			vtkfile["phase"] = 2*pi*t/period
+
+			# add point data
+			for field in fieldnames(PointState)
+				data = Matrix{eltype(assembly)}(undef, 3, npoint)
+				for ipoint = 1:npoint
+					data[:, ipoint] .= getproperty(state.points[ipoint], field) +
+					 	mode_scaling*real(getproperty(eigenstate.points[ipoint], field) .* exp(λ*t))
+				end
+				vtkfile[string(field), VTKPointData()] = data
+			end
+
+			# add cell data
+			for field in fieldnames(ElementState)
+				data = Matrix{eltype(assembly)}(undef, 3, nbeam)
+				for ibeam = 1:nbeam
+					data[:, ibeam] .= getproperty(state.elements[ibeam], field) +
+					 	mode_scaling*real(getproperty(eigenstate.elements[ibeam], field).* exp(λ*t))
+				end
+				vtkfile[string(field), VTKCellData()] = data
+			end
+
+			pvd[t] = vtkfile
+		end
+	end
+
+	return nothing
+end
+
 
 """
 	left_eigenvectors(system, λ, V)
