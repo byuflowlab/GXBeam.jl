@@ -7,7 +7,6 @@ using LinearMaps
 using NLsolve
 using SparseArrays
 using StaticArrays
-using OffsetArrays
 using WriteVTK
 
 export curve_length, discretize_beam
