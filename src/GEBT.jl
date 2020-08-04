@@ -19,8 +19,7 @@ export AssemblyState, left_eigenvectors, wiener_milenkovic, write_vtk, correlate
 # Constant used for scaling forces/moments
 # this is needed because sparse arrays don't seem to be able to handle
 # mismatched units very well
-const FORCE_SCALING = 5e4
-const MOMENTUM_SCALING = 1e3
+const FORCE_SCALING = 1e3
 
 include("math.jl")
 include("element.jl")
