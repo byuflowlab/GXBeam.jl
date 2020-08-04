@@ -524,8 +524,9 @@ where `U` is a matrix of conjugated left eigenvectors, `M` is the system mass
 matrix, `V` is a matrix of right eigenvectors, and `()_p` indicates a variable
 from the previous iteration.
 
-Note that the following two forms of the correlation matrix is incorrect for
-varying mass matrices: `C = U*M*V_p` and `C = U_p*M_p*V`.
+Note that the following two forms of the correlation matrix seem to be significantly
+inferior to their counterparts listed above: `C = U*M*V_p` and `C = U_p*M_p*V`.
+This is likely due to the way in which the left eigenvector matrix is calculated.
 
 The corruption index is the largest magnitude in a given row/column of `C`
 that was not chosen divided by the magnitude of the chosen eigenmode.  It is most
