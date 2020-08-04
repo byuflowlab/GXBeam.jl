@@ -190,6 +190,17 @@ function write_vtk(name, assembly; metadata=Dict())
 			vtkfile[string(key)] = value
 		end
 
+		# add local axis data
+		axis_name = ["x", "y", "z"]
+		axis_vector = [e1, e2, e3]
+		for i = 1:3
+			data = Matrix{eltype(assembly)}(undef, 3, nbeam)
+			for ibeam = 1:nbeam
+				data[:, ibeam] .= assembly.elements[ibeam].Cab*axis_vector[i]
+			end
+			vtkfile[axis_name[i], VTKCellData()] = data
+		end
+
 	end
 
 	return nothing
@@ -219,6 +230,18 @@ function write_vtk(name, assembly, state; scaling=1.0,
 		# add metadata
 		for (key, value) in pairs(metadata)
 			vtkfile[string(key)] = value
+		end
+
+		# add local axis data
+		axis_name = ["x", "y", "z"]
+		axis_vector = [e1, e2, e3]
+		for i = 1:3
+			data = Matrix{eltype(assembly)}(undef, 3, nbeam)
+			for ibeam = 1:nbeam
+				CtCab = wiener_milenkovic(state.elements[ibeam].theta)'*assembly.elements[ibeam].Cab
+				data[:, ibeam] .= CtCab * axis_vector[i]
+			end
+			vtkfile[axis_name[i], VTKCellData()] = data
 		end
 
 		# add point data
@@ -275,6 +298,18 @@ function write_vtk(name, assembly, history, dt; scaling=1.0,
 			vtkfile["time"] = t
 			for (key, value) in pairs(metadata)
 				vtkfile[string(key)] = value
+			end
+
+			# add local axis data
+			axis_name = ["x", "y", "z"]
+			axis_vector = [e1, e2, e3]
+			for i = 1:3
+				data = Matrix{eltype(assembly)}(undef, 3, nbeam)
+				for ibeam = 1:nbeam
+					CtCab = wiener_milenkovic(state.elements[ibeam].theta)' * assembly.elements[ibeam].Cab
+					data[:, ibeam] .= CtCab * axis_vector[i]
+				end
+				vtkfile[axis_name[i], VTKCellData()] = data
 			end
 
 			# add point data
@@ -363,6 +398,19 @@ function write_vtk(name, assembly, state, λ, eigenstate;
 			# add metadata
 			vtkfile["time"] = t
 			vtkfile["phase"] = 2*pi*t/period
+
+			# add local axis data
+			axis_name = ["x", "y", "z"]
+			axis_vector = [e1, e2, e3]
+			for i = 1:3
+				data = Matrix{eltype(assembly)}(undef, 3, nbeam)
+				for ibeam = 1:nbeam
+					CtCab = wiener_milenkovic(real(state.elements[ibeam].theta .* exp(λ*t)))' *
+						assembly.elements[ibeam].Cab
+					data[:, ibeam] .= CtCab * axis_vector[i]
+				end
+				vtkfile[axis_name[i], VTKCellData()] = data
+			end
 
 			# add point data
 			for field in fieldnames(PointState)

@@ -527,6 +527,7 @@ plot!([NaN, NaN], [NaN, NaN], color=:black, label="Analytical")
 
 # plot the data
 for i = 1:length(M)
+    local x, y #hide
     # GEBT
     x = [assembly.points[ipoint][1] + states[i].points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
     y = [assembly.points[ipoint][2] + states[i].points[ipoint].u[2] for ipoint = 1:length(assembly.points)]
