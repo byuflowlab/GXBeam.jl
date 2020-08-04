@@ -1055,6 +1055,7 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
     "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
 
 for i = 1:12
+    local y #hide
     plot(
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
@@ -1104,7 +1105,7 @@ write_vtk("dynamic-wind-turbine", assembly, history, dt)
 nothing #hide
 ```
 
-![]("dynamic-wind-turbine.gif")
+![](dynamic-wind-turbine.gif)
 
 ## Nonlinear Time-Marching and Eigenvalue Analysis of a Beam Assembly
 
