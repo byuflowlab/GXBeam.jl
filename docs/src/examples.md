@@ -1099,7 +1099,7 @@ These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael 
 
 We can also visualize the time history of the system using ParaView.
 
-```@example rotating-beam
+```@example dynamic-wind-turbine
 write_vtk("dynamic-wind-turbine", assembly, history, dt)
 nothing #hide
 ```
