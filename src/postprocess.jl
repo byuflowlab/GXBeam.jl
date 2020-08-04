@@ -140,8 +140,8 @@ function AssemblyState(system, assembly, x = system.x;
 		theta = SVector{3, TF}(x[icol+3], x[icol+4], x[icol+5])
 		F = SVector{3, TF}(x[icol+6], x[icol+7], x[icol+8]) .* FORCE_SCALING
 		M = SVector{3, TF}(x[icol+9], x[icol+10], x[icol+11]) .* FORCE_SCALING
-		P = ifelse(static, zero(u), SVector{3, TF}(x[icol+12], x[icol+13], x[icol+14]))
-		H = ifelse(static, zero(u), SVector{3, TF}(x[icol+15], x[icol+16], x[icol+17]))
+		P = ifelse(static, zero(u), SVector{3, TF}(x[icol+12], x[icol+13], x[icol+14])) .* MOMENTUM_SCALING
+		H = ifelse(static, zero(u), SVector{3, TF}(x[icol+15], x[icol+16], x[icol+17])) .* MOMENTUM_SCALING
 		elements[ibeam] = ElementState{TF}(u, theta, F, M, P, H)
 	end
 

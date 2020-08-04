@@ -172,8 +172,8 @@ end
 
 	udot = udot0[ibeam]
 	θdot = θdot0[ibeam]
-	CtCabPdot = SVector(x[icol   ], x[icol+1 ], x[icol+2 ])
-	CtCabHdot = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ])
+	CtCabPdot = SVector(x[icol   ], x[icol+1 ], x[icol+2 ]) .* MOMENTUM_SCALING
+	CtCabHdot = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ]) .* MOMENTUM_SCALING
 
 	return ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot, CtCabPdot, CtCabHdot
 end
@@ -204,8 +204,8 @@ Extract/Compute `v`, `ω`, `P`, `H`, `V`, and `Ω`.
 	v = v0 + cross(ω0, beam.x - x0)
 	ω = ω0
 
-	P = SVector(x[icol+12], x[icol+13], x[icol+14])
-	H = SVector(x[icol+15], x[icol+16], x[icol+17])
+	P = SVector(x[icol+12], x[icol+13], x[icol+14]) .* MOMENTUM_SCALING
+	H = SVector(x[icol+15], x[icol+16], x[icol+17]) .* MOMENTUM_SCALING
 
 	V = element_linear_velocity(beam, P, H)
 	Ω = element_angular_velocity(beam, P, H)
@@ -1110,24 +1110,24 @@ end
 		f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M)
 
 	# add equilibrium equation jacobian entries for left endpoint
-	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P ./ FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P ./ FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H ./ FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H .* MOMENTUM_SCALING ./ FORCE_SCALING
 
 	# add equilibrium equation jacobian entries for right endpoint
-	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P ./ FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P ./ FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H ./ FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H .* MOMENTUM_SCALING ./ FORCE_SCALING
 
 	# add beam residual equation jacobian entries
 	jacob[irow_b:irow_b+2, icol:icol+2] .= f_P_u
 	jacob[irow_b:irow_b+2, icol+3:icol+5] .= f_P_θ
-	jacob[irow_b:irow_b+2, icol+12:icol+14] .= f_P_P
-	jacob[irow_b:irow_b+2, icol+15:icol+17] .= f_P_H
+	jacob[irow_b:irow_b+2, icol+12:icol+14] .= f_P_P .* MOMENTUM_SCALING
+	jacob[irow_b:irow_b+2, icol+15:icol+17] .= f_P_H .* MOMENTUM_SCALING
 
 	jacob[irow_b+3:irow_b+5, icol+3:icol+5] .= f_H_θ
-	jacob[irow_b+3:irow_b+5, icol+12:icol+14] .= f_H_P
-	jacob[irow_b+3:irow_b+5, icol+15:icol+17] .= f_H_H
+	jacob[irow_b+3:irow_b+5, icol+12:icol+14] .= f_H_P .* MOMENTUM_SCALING
+	jacob[irow_b+3:irow_b+5, icol+15:icol+17] .= f_H_H .* MOMENTUM_SCALING
 
 	return jacob
 end
@@ -1142,15 +1142,15 @@ end
 	f_H_P, f_H_H)
 
 	# add equilibrium equation jacobian entries for left endpoint
-	jacob[irow_p1:irow_p1+2, icol:icol+2] .= f_u1_CtCabPdot ./ FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol:icol+2] .= f_u1_CtCabPdot .* MOMENTUM_SCALING ./ FORCE_SCALING
 	jacob[irow_p1:irow_p1+2, icol+6:icol+8] .= f_u1_F
-	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P ./ FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_P .* MOMENTUM_SCALING ./ FORCE_SCALING
 
-	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_CtCabHdot ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_CtCabHdot .* MOMENTUM_SCALING ./ FORCE_SCALING
 	jacob[irow_p1+3:irow_p1+5, icol+6:icol+8] .= f_ψ1_F
 	jacob[irow_p1+3:irow_p1+5, icol+9:icol+11] .= f_ψ1_M
-	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P ./ FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+12:icol+14] .= f_ψ1_P .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_H .* MOMENTUM_SCALING ./ FORCE_SCALING
 
 	# add compatability equation jacobian entries for left endpoint
 	# if irow_b1 == irow_p1 use row corresponding to compatability equations for this beam
@@ -1165,15 +1165,15 @@ end
 	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M1_M .* FORCE_SCALING
 
 	# add equilibrium equation jacobian entries for right endpoint
-	jacob[irow_p2:irow_p2+2, icol:icol+2] .= f_u2_CtCabPdot ./ FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol:icol+2] .= f_u2_CtCabPdot .* MOMENTUM_SCALING ./ FORCE_SCALING
 	jacob[irow_p2:irow_p2+2, icol+6:icol+8] .= f_u2_F
-	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P ./ FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_P .* MOMENTUM_SCALING ./ FORCE_SCALING
 
-	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_CtCabHdot ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_CtCabHdot .* MOMENTUM_SCALING ./ FORCE_SCALING
 	jacob[irow_p2+3:irow_p2+5, icol+6:icol+8] .= f_ψ2_F
 	jacob[irow_p2+3:irow_p2+5, icol+9:icol+11] .= f_ψ2_M
-	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P ./ FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+12:icol+14] .= f_ψ2_P .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_H .* MOMENTUM_SCALING ./ FORCE_SCALING
 
 	# add compatability equation jacobian entries for right endpoint
 	# if irow_b2 == irow_p2 use row corresponding to compatability equations for this beam
@@ -1188,11 +1188,11 @@ end
 	jacob[irow+3:irow+5, icol+9:icol+11] .= f_M2_M .* FORCE_SCALING
 
 	# add beam residual equation jacobian entries
-	jacob[irow_b:irow_b+2, icol+12:icol+14] .= f_P_P
-	jacob[irow_b:irow_b+2, icol+15:icol+17] .= f_P_H
+	jacob[irow_b:irow_b+2, icol+12:icol+14] .= f_P_P .* MOMENTUM_SCALING
+	jacob[irow_b:irow_b+2, icol+15:icol+17] .= f_P_H .* MOMENTUM_SCALING
 
-	jacob[irow_b+3:irow_b+5, icol+12:icol+14] .= f_H_P
-	jacob[irow_b+3:irow_b+5, icol+15:icol+17] .= f_H_H
+	jacob[irow_b+3:irow_b+5, icol+12:icol+14] .= f_H_P .* MOMENTUM_SCALING
+	jacob[irow_b+3:irow_b+5, icol+15:icol+17] .= f_H_H .* MOMENTUM_SCALING
 
 	return jacob
 end
@@ -1414,8 +1414,8 @@ Extract/Compute the properties needed for mass matrix construction: `ΔL`, `Ct`,
 
 	ΔL = beam.L
 	θ = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ])
-	P = SVector(x[icol+12], x[icol+13], x[icol+14])
-	H = SVector(x[icol+15], x[icol+16], x[icol+17])
+	P = SVector(x[icol+12], x[icol+13], x[icol+14]) .* MOMENTUM_SCALING
+	H = SVector(x[icol+15], x[icol+16], x[icol+17]) .* MOMENTUM_SCALING
 	C = get_C(θ)
 	Ct = C'
 	Cab = beam.Cab
@@ -1499,14 +1499,14 @@ All other arguments use the following naming convention:
 	# create jacobian entries for left endpoint
 	jacob[irow_p1:irow_p1+2, icol+3:icol+5] .= f_u1_θdot ./ FORCE_SCALING
 	jacob[irow_p1+3:irow_p1+5, icol+3:icol+5] .= f_ψ1_θdot ./ FORCE_SCALING
-	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_Pdot ./ FORCE_SCALING
-	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_Hdot ./ FORCE_SCALING
+	jacob[irow_p1:irow_p1+2, icol+12:icol+14] .= f_u1_Pdot .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p1+3:irow_p1+5, icol+15:icol+17] .= f_ψ1_Hdot .* MOMENTUM_SCALING ./ FORCE_SCALING
 
 	# create jacobian entries for right endpoint
 	jacob[irow_p2:irow_p2+2, icol+3:icol+5] .= f_u2_θdot ./ FORCE_SCALING
 	jacob[irow_p2+3:irow_p2+5, icol+3:icol+5] .= f_ψ2_θdot ./ FORCE_SCALING
-	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_Pdot ./ FORCE_SCALING
-	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_Hdot ./ FORCE_SCALING
+	jacob[irow_p2:irow_p2+2, icol+12:icol+14] .= f_u2_Pdot .* MOMENTUM_SCALING ./ FORCE_SCALING
+	jacob[irow_p2+3:irow_p2+5, icol+15:icol+17] .= f_ψ2_Hdot .* MOMENTUM_SCALING ./ FORCE_SCALING
 
 	# create jacobian entries for beam residual equations
 	jacob[irow_b:irow_b+2, icol:icol+2] .= f_P_udot

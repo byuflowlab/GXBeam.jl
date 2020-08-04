@@ -17,8 +17,10 @@ export static_analysis!, steady_state_analysis!, eigenvalue_analysis!, time_doma
 export AssemblyState, left_eigenvectors, wiener_milenkovic, write_vtk, correlate_eigenmodes
 
 # Constant used for scaling forces/moments
-# this is needed because sparse arrays don't have scaling methods defined yet
-const FORCE_SCALING = 1e6
+# this is needed because sparse arrays don't seem to be able to handle
+# mismatched units very well
+const FORCE_SCALING = 5e4
+const MOMENTUM_SCALING = 1e3
 
 include("math.jl")
 include("element.jl")

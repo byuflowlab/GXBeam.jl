@@ -601,12 +601,12 @@ function time_domain_analysis!(system, assembly, dt;
 		Cab = assembly.elements[ibeam].Cab
 		CtCab = C'*Cab
 		# calculate CtCabPdot_init
-		CtCabP = CtCab*SVector{3}(x[icol+12], x[icol+13], x[icol+14])
-		CtCabPdot = SVector{3}(x[icol], x[icol+1], x[icol+2])
+		CtCabP = CtCab*SVector{3}(x[icol+12], x[icol+13], x[icol+14]) .* MOMENTUM_SCALING
+		CtCabPdot = SVector{3}(x[icol], x[icol+1], x[icol+2]) .* MOMENTUM_SCALING
 		CtCabPdot_init[ibeam] = 2/dt*CtCabP + CtCabPdot
 		# calculate CtCabHdot_init
-		CtCabH = CtCab*SVector{3}(x[icol+15], x[icol+16], x[icol+17])
-		CtCabHdot = SVector{3}(x[icol+3], x[icol+4], x[icol+5])
+		CtCabH = CtCab*SVector{3}(x[icol+15], x[icol+16], x[icol+17]) .* MOMENTUM_SCALING
+		CtCabHdot = SVector{3}(x[icol+3], x[icol+4], x[icol+5]) .* MOMENTUM_SCALING
 		CtCabHdot_init[ibeam] = 2/dt*CtCabH + CtCabHdot
 		# insert initial conditions for time-domain analysis
 		x[icol:icol+2] .= u0[ibeam]
@@ -694,11 +694,11 @@ function time_domain_analysis!(system, assembly, dt;
 			Cab = assembly.elements[ibeam].Cab
 			CtCab = C'*Cab
 			# calculate CtCabPdot for next time step
-			CtCabP = CtCab*SVector(x[icol+12], x[icol+13], x[icol+14])
+			CtCabP = CtCab*SVector(x[icol+12], x[icol+13], x[icol+14]) .* MOMENTUM_SCALING
 			CtCabPdot = 2/dt*CtCabP - CtCabPdot_init[ibeam]
 			CtCabPdot_init[ibeam] = 2/dt*CtCabP + CtCabPdot
 			# calculate CtCabHdot for next time step
-			CtCabH = CtCab*SVector(x[icol+15], x[icol+16], x[icol+17])
+			CtCabH = CtCab*SVector(x[icol+15], x[icol+16], x[icol+17]) .* MOMENTUM_SCALING
 			CtCabHdot = 2/dt*CtCabH - CtCabHdot_init[ibeam]
 			CtCabHdot_init[ibeam] = 2/dt*CtCabH + CtCabHdot
 		end

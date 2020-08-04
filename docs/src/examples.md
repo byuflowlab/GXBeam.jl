@@ -1042,7 +1042,7 @@ nothing #hide
 
 We can visualize tip displacements and the resultant forces in the root by accessing the post-processed results for each time step contained in the variable `history`.  Note that  the root resultant forces for this case are equal to the external forces/moments, but with opposite sign.
 
-```@example rotating-beam
+```@example dynamic-wind-turbine
 using Plots
 pyplot()
 
