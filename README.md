@@ -7,7 +7,10 @@
 
 Author: Taylor McDonnell
 
-**GEBT.jl** is an (almost) pure Julia implementation of Geometrically Exact Beam Theory, based on the similarly named open source [GEBT code by Wenbin Yu](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2).  The "almost" here refers to the fact that the Fortran library ARPACK is used for eigenvalue computations.  Otherwise the code is written with pure Julia and should work with custom types and automatic differentiation packages such as [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl).
+**GEBT.jl** is an (almost) pure Julia implementation of Geometrically Exact Beam Theory, based on the similarly named open source [GEBT code by Wenbin Yu](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2).  The "almost" here refers to the fact that the Fortran library ARPACK is used for eigenvalue computations.  Otherwise the code is written with pure Julia and should work with custom types and automatic differentiation packages such as [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl).  
+
+As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a wind turbine blade to a sinusoidal force at the blade's tip:
+![](docs/src/dynamic-wind-turbine.gif)
 
 ## Package Features
  - Performs multiple types of analyses including:
