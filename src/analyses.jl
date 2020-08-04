@@ -6,16 +6,16 @@ Perform a static analysis of the system of nonlinear beams contained in
 iteration procedure converged.
 
 # Keyword Arguments
- - `prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
  	holding PrescribedConditions composite types for the points in `keys(prescribed_conditions)`
- - `distributed_loads=Dict{Int,DistributedLoads{Float64}}()`: Dictionary holding
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: Dictionary holding
  	DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
- - `linear=false`: Set to `true` for a linear analysis
- - `method=:newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch=LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
- - `ftol=1e-12`: tolerance for solving nonlinear system of equations
- - `iterations=1000`: maximum iterations for solving the nonlinear system of equations
- - `nstep=1`: Number of time steps. May be used in conjunction with time varying
+ - `linear = false`: Set to `true` for a linear analysis
+ - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
+ - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
+ - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
+ - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
+ - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
  	prescribed conditions and distributed loads to gradually increase
 	displacements/loads.
 """
@@ -25,7 +25,7 @@ function static_analysis(assembly;
 	linear = false,
 	method = :newton,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	)
@@ -56,7 +56,7 @@ function static_analysis!(system, assembly;
 	linear = false,
 	method = :newton,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	)
@@ -127,16 +127,16 @@ Perform a steady-state analysis for the system of nonlinear beams contained in
 iteration procedure converged.
 
 # Keyword Arguments
- - `prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
  	holding PrescribedConditions composite types for the points in `keys(prescribed_conditions)`
- - `distributed_loads=Dict{Int,DistributedLoads{Float64}}()`: Dictionary holding
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: Dictionary holding
  	DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
- - `linear=false`: Set to `true` for a linear analysis
- - `method=:newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch=LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
- - `ftol=1e-12`: tolerance for solving nonlinear system of equations
- - `iterations=1000`: maximum iterations for solving the nonlinear system of equations
- - `nstep=1`: Number of time steps. May be used in conjunction with time varying
+ - `linear = false`: Set to `true` for a linear analysis
+ - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
+ - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
+ - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
+ - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
+ - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
  	prescribed conditions, distributed loads, and global motion to gradually
 	increase displacements/loads.
  - `origin = zeros(3)`: Global frame origin
@@ -149,7 +149,7 @@ function steady_state_analysis(assembly;
 	linear = false,
 	method = :newton,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	origin = (@SVector zeros(3)),
@@ -187,7 +187,7 @@ function steady_state_analysis!(system, assembly;
 	linear = false,
 	method = :newton,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	origin = (@SVector zeros(3)),
@@ -275,16 +275,16 @@ eigenvalues, eigenvectors, and a convergence flag indicating whether the corresp
 converged.
 
 # Keyword Arguments
- - `prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`: Dictionary
  	holding PrescribedConditions composite types for the points in `keys(prescribed_conditions)`
- - `distributed_loads=Dict{Int,DistributedLoads{Float64}}()`: Dictionary holding
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: Dictionary holding
  	DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
- - `linear=false`: Set to `true` for a linear analysis
+ - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
- - `ftol = 1e-12`: tolerance for solving nonlinear system of equations
+ - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
- - `nstep=1`: Number of time steps. May be used in conjunction with time varying
+ - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
  	prescribed conditions, distributed loads, and global motion to gradually
 	increase displacements/loads.
  - `origin = zeros(3)`: Global frame origin
@@ -298,7 +298,7 @@ function eigenvalue_analysis(assembly;
 	method = :newton,
 	linear = false,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	origin = (@SVector zeros(3)),
@@ -338,7 +338,7 @@ function eigenvalue_analysis!(system, assembly;
 	linear = false,
 	method = :newton,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	origin = (@SVector zeros(3)),
@@ -434,12 +434,12 @@ convergence flag indicating whether the iterations converged for each time step.
  	holding PrescribedConditions composite types for the points in `keys(prescribed_conditions)`
  - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: Dictionary holding
  	DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
- - `linear=false`: Set to `true` for a linear analysis
- - `method=:newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch=LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
- - `ftol=1e-12`: tolerance for solving nonlinear system of equations
- - `iterations=1000`: maximum iterations for solving the nonlinear system of equations
- - `nstep=1`: The total length of the time vector
+ - `linear = false`: Set to `true` for a linear analysis
+ - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
+ - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
+ - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
+ - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
+ - `nstep = 1`: The total length of the time vector
  - `origin = zeros(3)`: Global frame origin
  - `linear_velocity = fill(zeros(3), nstep)`: Global frame linear velocity for each time step.
  - `angular_velocity = fill(zeros(3), nstep)`: Global frame angular velocity for each time step.
@@ -455,7 +455,7 @@ function time_domain_analysis(assembly, dt;
 	linear = false,
 	method = :newton,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	origin = (@SVector zeros(3)),
@@ -503,7 +503,7 @@ function time_domain_analysis!(system, assembly, dt;
 	linear = false,
 	method = :newton,
 	linesearch = BackTracking(),
-	ftol = 1e-12,
+	ftol = 1e-9,
 	iterations = 1000,
 	nstep = 1,
 	origin = (@SVector zeros(3)),
@@ -601,12 +601,12 @@ function time_domain_analysis!(system, assembly, dt;
 		Cab = assembly.elements[ibeam].Cab
 		CtCab = C'*Cab
 		# calculate CtCabPdot_init
-		CtCabP = CtCab*SVector{3}(x[icol+12], x[icol+13], x[icol+14]) .* MOMENTUM_SCALING
-		CtCabPdot = SVector{3}(x[icol], x[icol+1], x[icol+2]) .* MOMENTUM_SCALING
+		CtCabP = CtCab*SVector{3}(x[icol+12], x[icol+13], x[icol+14])
+		CtCabPdot = SVector{3}(x[icol], x[icol+1], x[icol+2])
 		CtCabPdot_init[ibeam] = 2/dt*CtCabP + CtCabPdot
 		# calculate CtCabHdot_init
-		CtCabH = CtCab*SVector{3}(x[icol+15], x[icol+16], x[icol+17]) .* MOMENTUM_SCALING
-		CtCabHdot = SVector{3}(x[icol+3], x[icol+4], x[icol+5]) .* MOMENTUM_SCALING
+		CtCabH = CtCab*SVector{3}(x[icol+15], x[icol+16], x[icol+17])
+		CtCabHdot = SVector{3}(x[icol+3], x[icol+4], x[icol+5])
 		CtCabHdot_init[ibeam] = 2/dt*CtCabH + CtCabHdot
 		# insert initial conditions for time-domain analysis
 		x[icol:icol+2] .= u0[ibeam]
@@ -694,11 +694,11 @@ function time_domain_analysis!(system, assembly, dt;
 			Cab = assembly.elements[ibeam].Cab
 			CtCab = C'*Cab
 			# calculate CtCabPdot for next time step
-			CtCabP = CtCab*SVector(x[icol+12], x[icol+13], x[icol+14]) .* MOMENTUM_SCALING
+			CtCabP = CtCab*SVector(x[icol+12], x[icol+13], x[icol+14])
 			CtCabPdot = 2/dt*CtCabP - CtCabPdot_init[ibeam]
 			CtCabPdot_init[ibeam] = 2/dt*CtCabP + CtCabPdot
 			# calculate CtCabHdot for next time step
-			CtCabH = CtCab*SVector(x[icol+15], x[icol+16], x[icol+17]) .* MOMENTUM_SCALING
+			CtCabH = CtCab*SVector(x[icol+15], x[icol+16], x[icol+17])
 			CtCabHdot = 2/dt*CtCabH - CtCabHdot_init[ibeam]
 			CtCabHdot_init[ibeam] = 2/dt*CtCabH + CtCabHdot
 		end
