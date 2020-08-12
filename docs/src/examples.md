@@ -447,7 +447,7 @@ m = pi*E*Iyy/L
 M = λ*m
 
 # create points
-nelem = 100
+nelem = 16
 x = range(0, L, length=nelem+1)
 y = zero(x)
 z = zero(x)
