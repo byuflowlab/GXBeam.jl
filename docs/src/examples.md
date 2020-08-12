@@ -1,6 +1,6 @@
 # Examples
 
-These examples show how to use the various analysis capabilities of GEBT.jl.  Some of the examples also provide a verification/validation for the implementation of geometrically exact beam theory in GEBT.jl.
+These examples show how to use the various analysis capabilities of GEBT.jl.  Many of these examples also provide a verification/validation for the implementation of geometrically exact beam theory in GEBT.jl.
 
 
 ```@contents
