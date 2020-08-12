@@ -13,7 +13,7 @@ As a sample of one of the many things this package can do, here's a time domain 
 ![](docs/src/dynamic-wind-turbine.gif)
 
 And here's the gust response of a joined wing, scaled up in order to visualize the deflections:
-![](dynamic-joined-wing.gif)
+![](docs/src/dynamic-joined-wing.gif)
 
 ## Package Features
  - Performs multiple types of analyses including:
