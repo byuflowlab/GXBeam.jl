@@ -728,35 +728,35 @@ end
     # beam 1
     L_b1 = norm(p2-p1)
     r_b1 = p1
-    nelem_b1 = 10
+    nelem_b1 = 5
     lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1, frame=Cab_1)
     compliance_b1 = fill(Diagonal([1.05204e-9, 3.19659e-9, 2.13106e-8, 1.15475e-7, 1.52885e-7, 7.1672e-9]), nelem_b1)
 
     # beam 2
     L_b2 = norm(p3-p2)
     r_b2 = p2
-    nelem_b2 = 10
+    nelem_b2 = 5
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=Cab_1)
     compliance_b2 = fill(Diagonal([1.24467e-9, 3.77682e-9, 2.51788e-8, 1.90461e-7, 2.55034e-7, 1.18646e-8]), nelem_b2)
 
     # beam 3
     L_b3 = norm(p4-p3)
     r_b3 = p3
-    nelem_b3 = 10
+    nelem_b3 = 5
     lengths_b3, xp_b3, xm_b3, Cab_b3 = discretize_beam(L_b3, r_b3, nelem_b3, frame=Cab_1)
     compliance_b3 = fill(Diagonal([1.60806e-9, 4.86724e-9, 3.24482e-8, 4.07637e-7, 5.57611e-7, 2.55684e-8]), nelem_b3)
 
     # beam 4
     L_b4 = norm(p5-p4)
     r_b4 = p4
-    nelem_b4 = 10
+    nelem_b4 = 5
     lengths_b4, xp_b4, xm_b4, Cab_b4 = discretize_beam(L_b4, r_b4, nelem_b4, frame=Cab_1)
     compliance_b4 = fill(Diagonal([2.56482e-9, 7.60456e-9, 5.67609e-8, 1.92171e-6, 2.8757e-6, 1.02718e-7]), nelem_b4)
 
     # beam 5
     L_b5 = norm(p6-p5)
     r_b5 = p5
-    nelem_b5 = 40
+    nelem_b5 = 20
     lengths_b5, xp_b5, xm_b5, Cab_b5 = discretize_beam(L_b5, r_b5, nelem_b5, frame=Cab_2)
     compliance_b5 = fill(Diagonal([2.77393e-9, 7.60456e-9, 1.52091e-7, 1.27757e-5, 2.7835e-5, 1.26026e-7]), nelem_b5)
 
