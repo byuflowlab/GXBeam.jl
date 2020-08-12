@@ -59,6 +59,7 @@ write_vtk
 
 ```@docs
 GEBT.tilde
+GEBT.rotation_parameter_scaling
 GEBT.get_C
 GEBT.get_C_t
 GEBT.get_C_θ

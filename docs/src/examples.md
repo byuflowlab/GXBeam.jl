@@ -49,7 +49,7 @@ EI = 1e9
 compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
 
 # create assembly
-assembly = Assembly(points, start, stop, stiffness=stiffness)
+assembly = Assembly(points, start, stop, compliance=compliance)
 
 # set prescribed conditions (fixed right endpoint)
 prescribed_conditions = Dict(
@@ -71,8 +71,7 @@ state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditi
 nothing #hide
 ```
 
-We can construct the analytical solution for this problem by integrating from
-the free end of the beam and applying the appropriate boundary conditions.
+We can construct the analytical solution for this problem by integrating from the free end of the beam and applying the appropriate boundary conditions.
 
 ```@example linear-cantilever-pudl
 # construct analytical solution
@@ -938,7 +937,7 @@ In this case these eigenmode correlations work, but remember that large changes 
 
 We'll now plot the frequency of the different eigenmodes against those found by Epps and Chandra in "The Natural Frequencies of Rotating Composite Beams With Tip Sweep".
 
-```
+```@example rotating-beam
 names = ["First Bending Mode", "Second Bending Mode", "Third Bending Mode"]
 indices = [1, 2, 4]
 
