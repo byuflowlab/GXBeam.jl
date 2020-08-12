@@ -12,6 +12,9 @@ Author: Taylor McDonnell
 As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a wind turbine blade to a sinusoidal force at the blade's tip:
 ![](docs/src/dynamic-wind-turbine.gif)
 
+And here's the gust response of a joined wing, scaled up in order to visualize the deflections:
+![](dynamic-joined-wing.gif)
+
 ## Package Features
  - Performs multiple types of analyses including:
     - Linear/Nonlinear static analyses
@@ -21,6 +24,7 @@ As a sample of one of the many things this package can do, here's a time domain 
  - Accurately models arbitrary systems of interconnected highly flexible composite beams.
     - Captures all geometric nonlinearities due to large deflections and rotations
     - Capable of using the full 6x6 Timoshenko beam stiffness matrix
+    - Singularity-free rotational deflections of any magnitude using only 3 rotational parameters
  - Models arbitrary time-varying distributed forces/moments on beam elements using:
     - Dead forces/moments (which do not rotate as the beam element rotates)
     - Follower forces/moments (which rotate as the beam element rotates)
@@ -29,7 +33,7 @@ As a sample of one of the many things this package can do, here's a time domain 
     - Follower forces/moments (which rotate as the point rotates)
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
- - Thoroughly validated against published analytical and computational results.
+ - Extensively validated against published analytical and computational results.  See the examples in the [documentation](https://flow.byu.edu/GEBT.jl/dev).
 
 ## Installation
 
@@ -41,13 +45,13 @@ pkg> add https://github.com/byuflowlab/GEBT.jl
 
 ## Performance
 
-This code has been optimized to be highly performant, primarily by maintaining type stability and minimizing allocations.  As a result the performance of this package rivals (and sometimes beats) that of the Fortran implementation of GEBT provided by Wenbin Yu.  At this point, differences in performance between the two codes can be primarily attributed to the performance of the sparse linear system solver in each.
+This code has been optimized to be highly performant, primarily by maintaining type stability and minimizing allocations.  As a result the performance of this package rivals (or even outperforms) that of the Fortran implementation of GEBT provided by Wenbin Yu.  At this point, differences in performance between the two codes can be primarily attributed to the performance of the sparse linear system solver in each.
 
 ## Usage
 
 See the [documentation](https://flow.byu.edu/GEBT.jl/dev)
 
-Note that while the theory is identical to the Wenbin Yu's code, some of the implementation details vary.
+Note that while the theoretical basis for this code is identical to Wenbin Yu's code, some of the implementation details vary.
 
 ## References
 <a id="1">[1]</a>

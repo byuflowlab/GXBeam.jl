@@ -162,7 +162,7 @@ end
     M = SVector(x[icol+9 ], x[icol+10], x[icol+11]) .* FORCE_SCALING
 
     ΔL = beam.L
-    Ct = get_C(θ0[ibeam])'
+    Ct = get_C(θ)'
     Cab = beam.Cab
     CtCab = Ct*Cab
     γ = element_strain(beam, F, M)
@@ -746,7 +746,7 @@ element_jacobian_equations
     # --- f_M1, f_M2 --- #
 
     # d_fM/d_θ
-    Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_c(θ)
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_θ(θ)
     tmp = mul3(Qinv_θ1, Qinv_θ2, Qinv_θ3, ΔL/2*Cab*κ)
     f_M1_θ =  I - tmp
     f_M2_θ = -I - tmp
@@ -981,7 +981,7 @@ end
 
     # --- d_fH_dθ --- #
     Q = get_Q(θ)
-    Q_θ1, Q_θ2, Q_θ3 = get_Q_c(θ)
+    Q_θ1, Q_θ2, Q_θ3 = get_Q_θ(θ)
     f_H_θ -= Cab'*(mul3(Q_θ1, Q_θ2, Q_θ3, θdot) + Q*2/dt)
 
     return f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
@@ -1263,7 +1263,7 @@ element_jacobian!
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ = element_properties(x, icol, beam)
 
     # pre-calculate jacobian of rotation matrix wrt θ
-    C_θ1, C_θ2, C_θ3 = get_C_c(Ct', θ)
+    C_θ1, C_θ2, C_θ3 = get_C_θ(Ct', θ)
     Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
 
     # solve for the element resultants
@@ -1299,7 +1299,7 @@ end
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Q = element_properties(x, icol, beam, x0, v0, ω0)
 
     # pre-calculate jacobian of rotation matrix wrt θ
-    C_θ1, C_θ2, C_θ3 = get_C_c(Ct', θ)
+    C_θ1, C_θ2, C_θ3 = get_C_θ(Ct', θ)
     Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
 
     # solve for the element resultants
@@ -1372,7 +1372,7 @@ end
         ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
     # pre-calculate jacobian of rotation matrix wrt θ
-    C_θ1, C_θ2, C_θ3 = get_C_c(Ct', θ)
+    C_θ1, C_θ2, C_θ3 = get_C_θ(Ct', θ)
     Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
 
     # solve for the element resultants
@@ -1420,7 +1420,7 @@ Extract/Compute the properties needed for mass matrix construction: `ΔL`, `Ct`,
     Ct = C'
     Cab = beam.Cab
     CtCab = Ct*Cab
-    Cdot_cdot1, Cdot_cdot2, Cdot_cdot3 = get_C_cdot(C, θ)
+    Cdot_cdot1, Cdot_cdot2, Cdot_cdot3 = get_C_θdot(C, θ)
     Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3 = Cdot_cdot1', Cdot_cdot2', Cdot_cdot3'
 
     return ΔL, Ct, Cab, CtCab, θ, P, H, Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3

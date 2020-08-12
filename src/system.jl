@@ -53,8 +53,9 @@ be able to access their contents.
 # Arguments:
  - `TF:` (optional) Used to specify floating point type used by resulting `System` object
  - `assembly`: Assembly of rigidly connected nonlinear beam elements
- - `points`: Point indices which should be preserved in the system of equations
- - `static`: Flag indicating whether system matrices will be used only for static simulations
+ - `points`: Point indices which should be preserved in the system of equations.
+        All points with prescribed conditions should be included.
+ - `static`: Flag indicating whether system matrices will be used for static simulations
 """
 System(assembly, points, static) = System(eltype(assembly), assembly, points, static)
 
@@ -91,6 +92,16 @@ function System(TF::Type{<:AbstractFloat}, assembly, points, static)
 end
 
 """
+   reset_state!(system)
+
+Reset the state variables in `system` (stored in `system.x`) to zero.
+"""
+function reset_state!(system)
+    system.x .= 0
+    return system
+end
+
+"""
     point_connections(assembly)
 
 Count the number of beams connected to each point
@@ -114,6 +125,9 @@ end
 Solve for the row indices of the first equilibrium or compatability equations for
 each point and side of each beam element.  Also solve for the row/column index of
 each point and beam state variable.
+
+Note that this function includes the following logic which reduces the size of
+the system of equations where possible (without sacrificing any accuracy):
 
 If only two beams meet at a point, the 6 unknowns associated with that point as
 well as the 6 compatability equations are eliminated from the system, except if
@@ -226,8 +240,6 @@ function system_indices(assembly, points, n_connections, static)
 
     # number of unknowns/equations
     n = irow - 1
-
-    # TODO: also return maximum number of nonzero values for initializing sparse matrices
 
     return n, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam
 end
@@ -681,7 +693,7 @@ function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed
             istep, icol, irow_p, irow_beam1, irow_beam2)
     end
 
-    # zero out near-zero values ( < eps() ), but keep size of matrix
+    # zero out near-zero values ( < eps() )
     jacob = droptol!(jacob, eps(eltype(jacob)))
 
     return jacob
@@ -731,7 +743,7 @@ function system_mass_matrix!(jacob, x, assembly, irow_pt, irow_beam, irow_beam1,
 
     # no contributions to "mass matrix" from point state variables
 
-    # zero out near-zero values ( < eps() ), but keep size of matrix
+    # zero out near-zero values ( < eps() )
     jacob = droptol!(jacob, eps(eltype(jacob)))
 
     return jacob

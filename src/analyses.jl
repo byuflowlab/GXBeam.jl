@@ -48,7 +48,8 @@ end
 """
     static_analysis!(system, assembly; kwargs...)
 
-Pre-allocated version of `static_analysis`.
+Pre-allocated version of `static_analysis`.  Uses the state variables stored in
+`system` as an initial guess for iterating.
 """
 function static_analysis!(system, assembly;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -58,8 +59,7 @@ function static_analysis!(system, assembly;
     linesearch = BackTracking(),
     ftol = 1e-9,
     iterations = 1000,
-    nstep = 1,
-    )
+    nstep = 1)
 
     # check to make sure system is static
     @assert system.static == true
@@ -102,13 +102,13 @@ function static_analysis!(system, assembly;
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
             result = NLsolve.nlsolve(df, x,
-                linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+                linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
                 iterations=iterations)
 
-            # update solution
+            # update the solution
             x .= result.zero
 
             # update convergence flag
@@ -138,7 +138,7 @@ iteration procedure converged.
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
      prescribed conditions, distributed loads, and global motion to gradually
-    increase displacements/loads.
+     increase displacements/loads.
  - `origin = zeros(3)`: Global frame origin
  - `linear_velocity = fill(zeros(3), nstep)`: Global frame linear velocity for each time step.
  - `angular_velocity = fill(zeros(3), nstep)`: Global frame angular velocity for each time step
@@ -179,7 +179,8 @@ end
 """
     steady_state_analysis!(system, assembly; kwargs...)
 
-Pre-allocated version of `steady_state_analysis`
+Pre-allocated version of `steady_state_analysis`.  Uses the state variables stored in
+`system` as an initial guess for iterating.
 """
 function steady_state_analysis!(system, assembly;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -249,7 +250,7 @@ function steady_state_analysis!(system, assembly;
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
             result = NLsolve.nlsolve(df, x,
-                linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+                linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
@@ -286,7 +287,7 @@ converged.
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
      prescribed conditions, distributed loads, and global motion to gradually
-    increase displacements/loads.
+     increase displacements/loads.
  - `origin = zeros(3)`: Global frame origin
  - `linear_velocity = fill(zeros(3), nstep)`: Global frame linear velocity for each time step.
  - `angular_velocity = fill(zeros(3), nstep)`: Global frame angular velocity for each time step
@@ -330,7 +331,8 @@ end
 """
     eigenvalue_analysis!(system, assembly; kwargs...)
 
-Pre-allocated version of `eigenvalue_analysis`.
+Pre-allocated version of `eigenvalue_analysis`.  Uses the state variables stored in
+`system` as an initial guess for iterating to find the steady state solution.
 """
 function eigenvalue_analysis!(system, assembly;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -495,7 +497,8 @@ end
 """
     time_domain_analysis!(system, assembly, dt; kwargs...)
 
-Pre-allocated version of `time_domain_analysis`.
+Pre-allocated version of `time_domain_analysis`.  Uses the state variables stored
+in `system` as an initial guess for iterating.
 """
 function time_domain_analysis!(system, assembly, dt;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -576,7 +579,7 @@ function time_domain_analysis!(system, assembly, dt;
         df = OnceDifferentiable(f!, j!, x, F, J)
 
         result = NLsolve.nlsolve(df, x,
-            linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+            linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
             method=method,
             linesearch=linesearch,
             ftol=ftol,
@@ -652,7 +655,7 @@ function time_domain_analysis!(system, assembly, dt;
             df = OnceDifferentiable(f!, j!, x, F, J)
 
             result = NLsolve.nlsolve(df, x,
-                linsolve=(x,A,b)->ldiv!(x, lu(A), b),
+                linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
@@ -707,4 +710,27 @@ function time_domain_analysis!(system, assembly, dt;
     # --- End Time Domain Simulation --- #
 
     return system, history, converged
+end
+
+# this function is currently unused
+function linsolve!(x, A, b)
+
+    # get scaling vectors
+    r, s = linf_norm_scaling(A)
+
+    # scale matrix and vector
+    A .= A .* r .* s'
+    b .= b .* r
+
+    # do linear solve
+    ldiv!(x, lu(A), b)
+
+    # remove scaling from result
+    x .= x .* s
+
+    # remove scaling from matrix and vector
+    A .= A ./ r ./ s'
+    b .= b ./ r
+
+    return x
 end

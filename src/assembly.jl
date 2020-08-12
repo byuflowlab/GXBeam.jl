@@ -27,15 +27,16 @@ straight.
 
 # Arguments
  - `points`: Array of all beam element endpoints
- - `start`: Array containing point index where each beam element starts
- - `stop`: Array containing point index where each beam element stops
+ - `start`: Array containing point indices where each beam element starts
+ - `stop`: Array containing point indices where each beam element stops
 
 # Keyword Arguments
  - `stiffness`: Array of (6 x 6) stiffness matrices for each beam element, alternative to providing `compliance`
  - `compliance`: Array of (6 x 6) compliance matrices for each beam element, defaults to `zeros(6,6)` for each beam element
  - `mass`: Array of (6 x 6) mass matrices for each beam element, alternative to providing `minv`
  - `minv`: Array of (6 x 6) mass matrices for each beam element, defaults to the identity matrix for each beam element
- - `frames`: Array of (3 x 3) direction cosine matrices for each beam element, defaults to the identity matrix for each beam element
+ - `frames`: Array of (3 x 3) rotation matrices for each beam element (to transform
+        to the global frame), defaults to the identity matrix for each beam element
  - `lengths`: Array containing the length of each beam, defaults to the distance between beam endpoints
  - `midpoints`: Array containing the midpoint of each beam element, defaults to the average of the beam element endpoints
 """
@@ -54,15 +55,25 @@ function Assembly(points, start, stop;
         if isnothing(stiffness)
             compliance = fill((@SMatrix zeros(6,6)), nbeam)
         else
-            compliance = inv.(SMatrix{6,6}.(stiffness))
+            compliance = fill((@MMatrix zeros(6,6)), nbeam)
+            for i = 1:nbeam
+                filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), stiffness[i], dims = 1)))
+                compliance[i][filled_cols,filled_cols] .= inv(Matrix(stiffness[i][filled_cols, filled_cols]))
+            end
+            compliance = SMatrix.(compliance)
         end
     end
 
     if isnothing(minv)
         if isnothing(mass)
-            minv = fill(Diagonal((@SVector ones(6))), nbeam)
+            minv = fill(Diagonal(@SVector ones(6)), nbeam)
         else
-            minv = inv.(SMatrix{6,6}.(mass))
+            minv = fill(MMatrix{6,6}(Diagonal(@SVector ones(eltype(eltype(mass)), 6))), nbeam)
+            for i = 1:nbeam
+                filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), mass[i], dims = 1)))
+                minv[i][filled_cols,filled_cols] .= inv(Matrix(mass[i][filled_cols, filled_cols]))
+            end
+            minv = SMatrix{6,6}.(minv)
         end
     end
 
@@ -76,34 +87,35 @@ function Assembly(points, start, stop;
 end
 
 """
-    discretize_beam(L, r, d; Cab = Matrix(I,3,3)), k = zeros(3))
+    discretize_beam(L, start, discretization; frame = Matrix(I,3,3)), curvature = zeros(3))
 
-Discretize a beam according to the discretization provided in `d`, an array that
-ranges from 0 to 1, with 0 representing the beginning of the beam and 1 representing
-the end of the beam.
-
-If `d` is an integer, the beam is discretized into `d` uniformly spaced elements.
+Discretize a beam according to the discretization provided in `discretization`
+given the beam length (`L`), and starting point (`start`).
 
 Return the lengths, endpoints, midpoints, and rotation matrices of the beam elements.
 
 # Arguments
  - `L`: Beam length
- - `r`: Beam starting point
- - `d`: Discretization vector
- - `Cab`: 3x3 beam rotation matrix at the starting point
- - `k`: curvature vector
+ - `start`: Beam starting point
+ - `discretization`: May be either an integer, representing the number of
+        elements that the beam should be discretized into, or a vector containing
+        the normalized endpoints of each beam element, where 0 is the beginning
+        of the beam and 1 is the end of the beam.
+ - `frame`: 3x3 beam rotation matrix which transforms from the local beam
+        coordinate frame at the start of the beam to the global coordinate frame.
+ - `curvature`: curvature vector
 """
-function discretize_beam(L, r, ndiv::Integer; Cab = I3, k = (@SVector zeros(3)))
+discretize_beam(L, start, discretization::Integer; frame = I3, curvature = (@SVector zeros(3))) =
+    discretize_beam(L, start, range(0, 1, length=discretization+1); frame=frame, curvature=curvature)
 
-    d = range(0, 1, length=ndiv+1)
+function discretize_beam(L, start, discretization; frame = I3, curvature = (@SVector zeros(3)))
 
-    return discretize_beam(L, r, d; Cab=Cab, k=k)
-end
-
-function discretize_beam(L, r, d; Cab = I3, k = (@SVector zeros(3)))
+    r1 = SVector{3}(start)
+    Cab = SMatrix{3,3}(frame)
+    k = SVector{3}(curvature)
 
     # discretize beam
-    sp = L*d
+    sp = L*discretization
     sm = (sp[1:end-1] .+ sp[2:end])/2
     ΔL = (sp[2:end] .- sp[1:end-1])
 
@@ -112,14 +124,14 @@ function discretize_beam(L, r, d; Cab = I3, k = (@SVector zeros(3)))
     ktilde = tilde(k)
     kn = sqrt(k'*k)
 
-    if k == zero(k)
+    if curvature == zero(curvature)
         triads = fill(Cab, length(sm))
-        xp = [r + s*Cab*e1 for s in sp]
-        xm = [r + s*Cab*e1 for s in sm]
+        xp = [r1 + s*Cab*e1 for s in sp]
+        xm = [r1 + s*Cab*e1 for s in sm]
     else
         triads = curve_triad.(Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sm)
-        xp = curve_coordinates.(Ref(r), Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sp)
-        xm = curve_coordinates.(Ref(r), Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sm)
+        xp = curve_coordinates.(Ref(r1), Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sp)
+        xm = curve_coordinates.(Ref(r1), Ref(Cab), Ref(kkt), Ref(ktilde), Ref(kn), sm)
     end
 
     return ΔL, xp, xm, triads
@@ -127,11 +139,12 @@ end
 
 
 """
-    curve_length(r1, r2, k)
+    curve_length(start, stop, curvature)
 
 Calculate the length of a curve given its endpoints and its curvature vector
 """
-function curve_length(r1, r2, k)
+function curve_length(start, stop, curvature)
+    r1, r2, k = SVector{3}(start), SVector{3}(stop), SVector{3}(curvature)
     kn = sqrt(k'*k)
     r = r2 - r1
     rn = sqrt(r'*r)
@@ -150,9 +163,23 @@ function curve_length(r1, r2, k)
     return ΔL
 end
 
+"""
+    curve_triad(Cab, k, s)
+    curve_triad(Cab, kkt, ktilde, kn, s)
+
+Return the rotation matrix at `s` along the length of the beam given
+the curvature vector `k` and the initial rotation matrix `Cab`.
+"""
 @inline curve_triad(Cab, k, s) = curve_triad(Cab, k*k', tilde(k), sqrt(k'*k), s)
 @inline curve_triad(Cab, kkt, ktilde, kn, s) = SMatrix{3,3}(Cab*((I - kkt/kn^2)*cos(kn*s) +
     ktilde/kn*sin(kn*s) + kkt/kn^2))
 
+"""
+    curve_coordiantes(r, Cab, k, s)
+    curve_coordinates(r, Cab, kkt, ktilde, kn, s)
+
+Return the coordinates at `s` along the length of the beam given the starting
+point `r`, initial rotation matrix `Cab`, and curvature vector `k`.
+"""
 @inline curve_coordinates(r, Cab, k, s) = curve_coordinates(r, Cab, k*k', tilde(k), sqrt(k'*k), s)
 @inline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^2)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)

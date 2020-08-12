@@ -13,6 +13,7 @@ are used as state variables (e.g. prescribing F[2] would mean u[2] = x[icol+1])
     θ = SVector(x[icol+3], x[icol+4], x[icol+5])
     F = zero(u)
     M = zero(θ)
+
     return u, θ, F, M
 end
 
@@ -33,16 +34,16 @@ end
                 ifelse(force_dof[6], x[icol+5], value[6]))
 
     # get the rotation matrix for the point
-    Ct = get_C(θ)'
+    C = get_C(θ)
 
     # solve for the force applied at the point due to the prescribed loads
     Fp = zero(u)
     for i = 1:3
         if force_dof[i]
             # add dead force_dof
-            Fp += SVector(I3[1,i], I3[2,i], I3[3,i])*value[i]
+            Fp += SVector(I3[i,1], I3[i,2], I3[i,3])*value[i]
             # add follower force_dof
-            Fp += SVector(Ct[1,i], Ct[2,i], Ct[3,i])*follower[i]
+            Fp += SVector(C[i,1], C[i,2], C[i,3])*follower[i]
         end
     end
 
@@ -51,9 +52,9 @@ end
     for i = 4:6
         if force_dof[i]
             # add dead moment
-            Mp += SVector(I3[1,i-3], I3[2,i-3], I3[3,i-3])*value[i]
+            Mp += SVector(I3[i-3,1], I3[i-3,2], I3[i-3,3])*value[i]
             # add follower moment
-            Mp += SVector(Ct[1,i-3], Ct[2,i-3], Ct[3,i-3])*follower[i]
+            Mp += SVector(C[i-3,1], C[i-3,2], C[i-3,3])*follower[i]
         end
     end
 
@@ -183,16 +184,16 @@ Calculate the jacobians of the follower forces/moments with respect to θ
                 ifelse(force_dof[6], x[icol+5], value[6]))
 
     C = get_C(θ)
-    C_θ1, C_θ2, C_θ3 = get_C_c(C, θ)
+    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
 
     # solve for the jacobian wrt theta of the follower forces
     Fp_θ = @SMatrix zeros(TF, 3, 3)
     for i = 1:3
         if force_dof[i]
             rot_θ = @SMatrix [
-                C_θ1[1,i] C_θ2[1,i] C_θ3[1,i];
-                C_θ1[2,i] C_θ2[2,i] C_θ3[2,i];
-                C_θ1[3,i] C_θ2[3,i] C_θ3[3,i]
+                C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
+                C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
+                C_θ1[i,3] C_θ2[i,3] C_θ3[i,3]
                 ]
             Fp_θ += rot_θ*follower[i]
         end
@@ -203,9 +204,9 @@ Calculate the jacobians of the follower forces/moments with respect to θ
     for i = 1:3
         if force_dof[i+3]
             rot_θ = @SMatrix [
-                C_θ1[1,i] C_θ2[1,i] C_θ3[1,i];
-                C_θ1[2,i] C_θ2[2,i] C_θ3[2,i];
-                C_θ1[3,i] C_θ2[3,i] C_θ3[3,i]
+                C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
+                C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
+                C_θ1[i,3] C_θ2[i,3] C_θ3[i,3]
                 ]
             Mp_θ += rot_θ*follower[i+3]
         end

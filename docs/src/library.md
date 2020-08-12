@@ -26,6 +26,7 @@ DistributedLoads(assembly, ibeam)
 
 ```@docs
 System(assembly, points, static)
+reset_state!
 ```
 
 ### Performing an Analysis
@@ -60,13 +61,14 @@ write_vtk
 GEBT.tilde
 GEBT.get_C
 GEBT.get_C_t
-GEBT.get_C_c
-GEBT.get_C_cdot
+GEBT.get_C_θ
+GEBT.get_C_θdot
 GEBT.get_Q
-GEBT.get_Q_c
+GEBT.get_Q_θ
 GEBT.get_Qinv
-GEBT.get_Qinv_c
+GEBT.get_Qinv_θ
 GEBT.mul3
+GEBT.gauss_quadrature
 ```
 
 ### Points
@@ -115,6 +117,8 @@ GEBT.DistributedLoads
 
 ```@docs
 GEBT.Assembly
+GEBT.curve_triad
+GEBT.curve_coordinates
 GEBT.System
 GEBT.point_connections
 GEBT.system_indices

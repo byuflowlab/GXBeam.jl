@@ -4,10 +4,10 @@
 Holds the state variables for a point
 
 # Fields:
- - `u`: Displacement variables for the point
- - `theta`: Wiener-Milenkovic rotation variables for the point
- - `F`: Externally applied forces on the point
- - `M`: Externally applied moments on the point
+ - `u`: Displacement variables for the point (in the global coordinate frame)
+ - `theta`: Wiener-Milenkovic rotational displacement variables for the point
+ - `F`: Externally applied forces on the point (in the global coordinate frame)
+ - `M`: Externally applied moments on the point (in the global coordinate frame)
 """
 struct PointState{TF}
     u::SVector{3, TF}
@@ -22,12 +22,12 @@ end
 Holds the state variables for an element
 
 # Fields:
- - `u`: Displacement variables for the element
- - theta: Wiener-Milenkovic rotation variables for the element
- - `F`: Resultant forces for the element
- - `M`: Resultant moments for the element
- - `P`: Linear momenta of the element
- - `H`: Angular momenta of the element
+ - `u`: Displacement variables for the element (in the global coordinate frame)
+ - theta: Wiener-Milenkovic rotational displacement variables for the element
+ - `F`: Resultant forces for the element (in the deformed beam coordinate frame)
+ - `M`: Resultant moments for the element (in the deformed beam coordinate frame)
+ - `P`: Linear momenta of the element (in the deformed beam coordinate frame)
+ - `H`: Angular momenta of the element (in the deformed beam coordinate frame)
 """
 struct ElementState{TF}
     u::SVector{3, TF}
@@ -128,7 +128,11 @@ function AssemblyState(system, assembly, x = system.x;
             end
         end
 
-        points[ipoint] = PointState{TF}(u, theta, F, M)
+        # convert rotation parameter to Wiener-Milenkovic parameters
+        scaling = rotation_parameter_scaling(theta)
+        theta *= scaling
+
+        points[ipoint] = PointState{TF}(u, scaling*theta, F, M)
     end
 
     # all element variables are state variables
@@ -142,6 +146,11 @@ function AssemblyState(system, assembly, x = system.x;
         M = SVector{3, TF}(x[icol+9], x[icol+10], x[icol+11]) .* FORCE_SCALING
         P = ifelse(static, zero(u), SVector{3, TF}(x[icol+12], x[icol+13], x[icol+14]))
         H = ifelse(static, zero(u), SVector{3, TF}(x[icol+15], x[icol+16], x[icol+17]))
+
+        # convert rotation parameter to Wiener-Milenkovic parameters
+        scaling = rotation_parameter_scaling(theta)
+        theta *= scaling
+
         elements[ibeam] = ElementState{TF}(u, theta, F, M, P, H)
     end
 
@@ -191,7 +200,7 @@ function write_vtk(name, assembly; metadata=Dict())
         end
 
         # add local axis data
-        axis_name = ["x", "y", "z"]
+        axis_name = ["x-axis", "y-axis", "z-axis"]
         axis_vector = [e1, e2, e3]
         for i = 1:3
             data = Matrix{eltype(assembly)}(undef, 3, nbeam)
@@ -227,13 +236,15 @@ function write_vtk(name, assembly, state; scaling=1.0,
     # write vtk file
     vtk_grid(name, points, cells) do vtkfile
 
+        vtkfile["scaling"] = scaling
+
         # add metadata
         for (key, value) in pairs(metadata)
             vtkfile[string(key)] = value
         end
 
         # add local axis data
-        axis_name = ["x", "y", "z"]
+        axis_name = ["x-axis", "y-axis", "z-axis"]
         axis_vector = [e1, e2, e3]
         for i = 1:3
             data = Matrix{eltype(assembly)}(undef, 3, nbeam)
@@ -295,13 +306,14 @@ function write_vtk(name, assembly, history, dt; scaling=1.0,
             vtkfile = vtk_grid(name*"-step$current_step", points, cells)
 
             # add metadata
+            vtkfile["scaling"] = scaling
             vtkfile["time"] = t
             for (key, value) in pairs(metadata)
                 vtkfile[string(key)] = value
             end
 
             # add local axis data
-            axis_name = ["x", "y", "z"]
+            axis_name = ["x-axis", "y-axis", "z-axis"]
             axis_vector = [e1, e2, e3]
             for i = 1:3
                 data = Matrix{eltype(assembly)}(undef, 3, nbeam)
@@ -396,11 +408,12 @@ function write_vtk(name, assembly, state, λ, eigenstate;
             vtkfile = vtk_grid(name*"-step$(current_step)", points, cells)
 
             # add metadata
+            vtkfile["scaling"] = scaling
             vtkfile["time"] = t
             vtkfile["phase"] = 2*pi*t/period
 
             # add local axis data
-            axis_name = ["x", "y", "z"]
+            axis_name = ["x-axis", "y-axis", "z-axis"]
             axis_vector = [e1, e2, e3]
             for i = 1:3
                 data = Matrix{eltype(assembly)}(undef, 3, nbeam)
@@ -444,16 +457,17 @@ end
     left_eigenvectors(system, λ, V)
     left_eigenvectors(K, M, λ, V)
 
-Compute the left eigenvector matrix `Us` for the `system` using inverse power
+Compute the left eigenvector matrix `U` for the `system` using inverse power
 iteration given the eigenvalues `λ` and the corresponding right eigenvector
 matrix `V`.
 
 The complex conjugate of each left eigenvector is stored in each row of the
-matrix `Us`
+matrix `U`
 
 Left and right eigenvectors satisfy the following M-orthogonality condition:
  - u'*M*v = 1 if u and v correspond to the same eigenvalue
  - u'*M*v = 0 if u and v correspond to different eigenvalues
+This means that U*M*V = I
 
 This function assumes that `system` has not been modified since the eigenvalues
 and right eigenvectors were computed.
@@ -468,7 +482,7 @@ function left_eigenvectors(K, M, λ, V)
     nev = size(V,2)
 
     # allocate storage
-    Us = rand(TC, nev, nx)
+    U = rand(TC, nev, nx)
     u = Vector{TC}(undef, nx)
     tmp = Vector{TC}(undef, nx)
 
@@ -483,7 +497,7 @@ function left_eigenvectors(K, M, λ, V)
 
         # initialize left eigenvector
         for i = 1:nx
-            u[i] = Us[iλ,i]
+            u[i] = U[iλ,i]
         end
 
         # perform a few iterations to converge the left eigenvector
@@ -501,18 +515,18 @@ function left_eigenvectors(K, M, λ, V)
 
         # store conjugate of final eigenvector
         for i = 1:nx
-            Us[iλ,i] = conj(u[i])
+            U[iλ,i] = conj(u[i])
         end
     end
 
-    return Us
+    return U
 end
 
 """
     correlate_eigenmodes(C)
 
 Return the permutation and the associated corruption index vector which associates
-eigenmodes from the currrent iteration with those of the previous iteration given
+eigenmodes from the current iteration with those of the previous iteration given
 the correlation matrix `C`.
 
 The correlation matrix can take one of the following forms (in order of preference):
@@ -528,7 +542,7 @@ Note that the following two forms of the correlation matrix seem to be significa
 inferior to their counterparts listed above: `C = U*M*V_p` and `C = U_p*M_p*V`.
 This is likely due to the way in which the left eigenvector matrix is calculated.
 
-The corruption index is the largest magnitude in a given row/column of `C`
+The corruption index is the largest magnitude in a given row of `C`
 that was not chosen divided by the magnitude of the chosen eigenmode.  It is most
 meaningful when using one of the forms of the correlation matrix that uses left
 eigenvectors since correct eigenmodes will have magnitudes close to 1 and

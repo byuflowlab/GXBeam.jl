@@ -65,7 +65,7 @@ function PrescribedConditions(dt=0.0;
 
     force = Vector{Bool}(undef, 6)
 
-    t = range(0, step=dt, length=nstep)
+    t = range(0, dt*(nstep-1), length=nstep)
 
     # Set function for first slot
     if isnothing(ux)
@@ -196,15 +196,15 @@ Base.eltype(::DistributedLoads{T}) where T = T
 Integrates the specified distributed loads over the element for each time step.
 
 # Arguments
- - `ΔL`: The length of the beam element
+ - `assembly`: The beam element assembly
+ - `ibeam`: The index of the beam element which the distributed load is assigned to
  - `dt`: Time step size.  If omitted a single time step is assumed and specified
      functions become a function of `s` only.
- - `s1 = 0.0`: Start of beam element
- - `s2 = 1.0`: End of beam element
+ - `s1 = 0.0`: Start of beam element (used for integrating the distributed loads)
+ - `s2 = 1.0`: End of beam element (used for integrating the distributed loads)
  - `nstep`: The total length of the time vector
- - `method = (f, a, b) -> trapz(range(a, b, length=100), f.(range(a, b, length=100)))`:
-    Method to use for integrating over the elements.  Defaults to the trapezoidal
-    method with 100 points.
+ - `method = (f, a, b) -> gauss_quadrature(f, a, b)`: Method which integrates function
+    `f` from `a` to `b`. Defaults to the Gauss-Legendre quadrature with 4 points on each element.
  - `fx = (s, t) -> 0.0`: Distributed non-follower force on beam element in x-direction
  - `fy = (s, t) -> 0.0`: Distributed non-follower force on beam element in y-direction
  - `fz = (s, t) -> 0.0`: Distributed non-follower force on beam element in z-direction
@@ -221,7 +221,7 @@ Integrates the specified distributed loads over the element for each time step.
 function DistributedLoads(assembly, ibeam;
     s1 = 0.0,
     s2 = 1.0,
-    method = (f, a, b) -> trapz(range(a, b, length=100), f.(range(a, b, length=100))),
+    method = gauss_quadrature,
     fx = (s) -> 0.0,
     fy = (s) -> 0.0,
     fz = (s) -> 0.0,
@@ -261,7 +261,7 @@ function DistributedLoads(assembly, ibeam, dt;
     s1 = 0.0,
     s2 = 1.0,
     nstep = 1,
-    method = (f, a, b) -> trapz(range(a, b, length=100), f.(range(a, b, length=100))),
+    method = gauss_quadrature,
     fx = (s, t) -> 0.0,
     fy = (s, t) -> 0.0,
     fz = (s, t) -> 0.0,
