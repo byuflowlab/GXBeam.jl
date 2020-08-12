@@ -105,7 +105,6 @@ plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    yticks = 0.0:5e-7:3e-6,
     ylabel = "Deflection (m)",
     grid = false,
     overwrite_figure=false
@@ -248,8 +247,6 @@ plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    ylim = (0, 1.7e-7),
-    yticks = 0.0:5e-8:1.5e-7,
     ylabel = "Deflection (m)",
     grid = false,
     overwrite_figure=false
@@ -266,8 +263,6 @@ plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    ylim = (-6e-7,Inf),
-    yticks = -6e-7:2e-7:4e-7,
     ylabel = "Rotation Parameter \$\\theta_y\$",
     grid = false,
     overwrite_figure=false
@@ -284,7 +279,6 @@ plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    yticks = -60:20:20,
     ylabel = "Bending Moment (\$Nm\$)",
     grid = false,
     overwrite_figure=false
