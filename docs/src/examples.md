@@ -1362,7 +1362,7 @@ This plot matches the plot provided by Wenbin Yu in "GEBT: A general-purpose non
 
 We can also visualize the deformed geometry and inspect the associated point and element data for any of these operating conditions conditions using ParaView.  To demonstrate
 we will visualize the 70kN follower force condition and set the color gradient to
-match the magnitude of the deflections in the z-direction.
+match the magnitude of the deflections.
 
 ```@example static-joined-wing
 write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end])
