@@ -122,7 +122,6 @@ plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    yticks = 0.0:5e-7:3.5e-6,
     ylabel = "Rotation Parameter \$\\theta_y\$",
     grid = false,
     overwrite_figure=false
@@ -140,7 +139,6 @@ plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    yticks = 0.0:-50:-200,
     ylabel = "Bending Moment (\$Nm\$)",
     grid = false,
     overwrite_figure=false
