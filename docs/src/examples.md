@@ -1376,15 +1376,15 @@ In this example we use the same joined-wing model as used in the previous exampl
  - A piecewise-linear load $F_L$ in the x and y-directions defined as follows:
 ```math
 \begin{cases}
-    10^6t \text{ N} & 0 \leq t \leq 0.01 \\
-    -10^6(t-0.01) & 0.01 \leq t \leq 0.02 \\
+    t10^6 \text{ N} & 0 \leq t \leq 0.01 \\
+    (0.02-t)10^6 & 0.01 \leq t \leq 0.02 \\
     0 & \text{otherwise}
 \end{cases}
 ```
 - A sinusoidal load applied in the z-direction defined as follows:
 ```math
 \begin{cases}
-    0 & 0 \lt t \\
+    0 & t \lt 0 \\
     5 \times 10^3 (1-\cos(\pi t /0.02)) \text{ N} & 0 \leq t \lt 0.02 \\
     10^4 \text{ N} & 0.02 \leq t
 \end{cases}
@@ -1462,7 +1462,9 @@ F_L = function(t)
 end
 
 F_S = function(t)
-    if 0.0 <= t < 0.02
+    if t < 0.0
+        return zero(t)
+    elseif 0.0 <= t < 0.02
         return 5e3*(1-cos(pi*t/0.02))
     else
         return 1e4
