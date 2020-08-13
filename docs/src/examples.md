@@ -1375,15 +1375,15 @@ write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end])
 In this example we use the same joined-wing model as used in the previous example, but with the following time varying loads applied at the wingtip:
  - A piecewise-linear load $F_L$ in the x and y-directions defined as follows:
 ```math
-\begin{cases}
+F_L(t) = \begin{cases}
     t10^6 \text{ N} & 0 \leq t \leq 0.01 \\
     (0.02-t)10^6 & 0.01 \leq t \leq 0.02 \\
     0 & \text{otherwise}
 \end{cases}
 ```
-- A sinusoidal load applied in the z-direction defined as follows:
+- A sinusoidal load $F_S$ applied in the z-direction defined as follows:
 ```math
-\begin{cases}
+F_S(t) = \begin{cases}
     0 & t \lt 0 \\
     5 \times 10^3 (1-\cos(\pi t /0.02)) \text{ N} & 0 \leq t \lt 0.02 \\
     10^4 \text{ N} & 0.02 \leq t
