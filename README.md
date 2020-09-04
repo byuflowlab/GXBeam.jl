@@ -37,7 +37,7 @@ As a sample of one of the many things this package can do, here's a time domain 
 Enter the package manager by typing `]` and then run the following:
 
 ```julia
-pkg> add https://github.com/byuflowlab/GEBT.jl
+pkg> add GEBT
 ```
 
 ## Performance
