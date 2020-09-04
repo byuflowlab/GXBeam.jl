@@ -1,7 +1,6 @@
 # Examples
 
-These examples show how to use the various analysis capabilities of GEBT.jl.  Many of these examples also provide a verification/validation for the implementation of geometrically exact beam theory in GEBT.jl.
-
+These examples show how to use the various analysis capabilities of GEBT.jl.  Many of these examples also provide a verification/validation for the implementation of geometrically exact beam theory in GEBT.jl.  
 
 ```@contents
 Pages = ["examples.md"]
@@ -1178,36 +1177,30 @@ p6 = [7.1726, -12, 3.21539]
 # rotation about z in global frame
 tmp1 = sqrt(p1[1]^2 + p1[2]^2)
 c1, s1 = -p1[1]/tmp1, -p1[2]/tmp1
-rot1 = [c1 s1 0; -s1 c1 0; 0 0 1]
+rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
 # rotation about new y-axis to local frame
 tmp2 = sqrt(p1[1]^2 + p1[2]^2 + p1[3]^2)
 c2, s2 = tmp1/tmp2, -p1[3]/tmp2
-rot2 = [c2 0 s2; 0 1 0; -s2 0 c2]
-
-# compose rotations
-Cba_1 = rot2*rot1
+rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
 
 # get rotation matrix from local to global frame
-Cab_1 = Cba_1'
+Cab_1 = rot1*rot2
 
 # get rotation matrix for right beam
 
 # rotation about z in global frame
 tmp1 = sqrt(p6[1]^2 + p6[2]^2)
 c1, s1 = p6[1]/tmp1, p6[2]/tmp1
-rot1 = [c1 s1 0; -s1 c1 0; 0 0 1]
+rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
 # rotation about new y-axis to local frame
 tmp2 = sqrt(p6[1]^2 + p6[2]^2 + p6[3]^2)
 c2, s2 = tmp1/tmp2, p6[3]/tmp2
-rot2 = [c2 0 s2; 0 1 0; -s2 0 c2]
+rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
 
-# compose rotations
-Cba_2 = rot2*rot1
-
-# get rotation matrix from local to global frame
-Cab_2 = Cba_2'
+# get rotation matrix from global to local frame
+Cab_2 = rot1*rot2
 
 # beam 1
 L_b1 = norm(p2-p1)
@@ -1373,7 +1366,7 @@ write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end])
 ## Nonlinear Dynamic Analysis of a Joined-Wing
 
 In this example we use the same joined-wing model as used in the previous example, but with the following time varying loads applied at the wingtip:
- - A piecewise-linear load $F_L$ in the x and y-directions defined as follows:
+ - A piecewise-linear load ``F_L`` in the x and y-directions defined as follows:
 ```math
 F_L(t) = \begin{cases}
     t10^6 \text{ N} & 0 \leq t \leq 0.01 \\
@@ -1381,7 +1374,7 @@ F_L(t) = \begin{cases}
     0 & \text{otherwise}
 \end{cases}
 ```
-- A sinusoidal load $F_S$ applied in the z-direction defined as follows:
+- A sinusoidal load ``F_S`` applied in the z-direction defined as follows:
 ```math
 F_S(t) = \begin{cases}
     0 & t \lt 0 \\

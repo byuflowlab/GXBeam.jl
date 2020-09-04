@@ -20,6 +20,10 @@ conditions for a point at each time step.
 Prescribed conditions may be assigned as either a scalar parameter or as a
 function of time.
 
+Prescribed Wiener-Milenkovic parameters must satisfy the following inequality:
+sqrt(theta_x^2 + theta_y^2 + theta_z^2) <= 4.  Note that this restriction still
+allows all possible rotations to be represented.
+
 # Arguments
  - `dt`: Time step size.
  - `nstep`: The total length of the time vector

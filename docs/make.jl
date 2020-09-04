@@ -4,6 +4,7 @@ makedocs(;
     modules = [GEBT],
     pages = [
         "Home" => "index.md",
+        "Getting Started" => "guide.md",
         "Examples" => "examples.md",
         "Library" => "library.md"
     ],

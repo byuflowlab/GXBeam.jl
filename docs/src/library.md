@@ -15,11 +15,15 @@ discretize_beam
 Assembly(points, start, stop)
 ```
 
+### Defining Distributed Loads
+```@docs
+DistributedLoads(assembly, ibeam)
+```
+
 ### Defining Prescribed Conditions
 
 ```@docs
 PrescribedConditions()
-DistributedLoads(assembly, ibeam)
 ```
 
 ### Pre-Initializing Memory for an Analysis
