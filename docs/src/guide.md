@@ -159,9 +159,9 @@ We assume that our beam has a constant cross section with the following properti
  - 2.51 x 10^-4 lb sec^2/in^4 density
 
 We also assume the following shear and torsion correction factors:
- - ky = 1.2000001839588001
- - kz = 14.625127919304001
- - kt = 65.85255016982444
+ - ``k_y = 1.2000001839588001``
+ - ``k_z = 14.625127919304001``
+ - ``k_t = 65.85255016982444``
 
 ```@example guide
 # cross section
