@@ -6,7 +6,7 @@ using Plots
 pyplot()
 ```
 
-In this guide we introduce you to the functionality of this package in a step by step manner.  This is a good starting point for learning about how to use this package.  For more details about how to use a particular function the [Public API](@ref) is likely a better resource.  For more examples of how to use this package see the [examples](@ref Examples).
+In this guide we introduce you to the basic functionality of this package in a step by step manner.  This is a good starting point for learning about how to use this package.  For more details about how to use a particular function the [Public API](@ref) is likely a better resource.  For more examples of how to use this package see the [examples](@ref Examples).
 
 If you haven't yet, now would be a good time to install GEBT.  GEBT can be installed from the Julia REPL by typing `]` (to enter the package manager) and then running the following command.
 ```julia
@@ -274,7 +274,7 @@ nothing #hide
 
 It is worth noting that the distributed loads are integrated over each element when they are created using 4-point Gauss-Legendre quadrature.  If more control over the integration is desired one may specify a custom integration method as described in the documentation for `DistributedLoads`.
 
-### Defining Prescribed Conditions
+## Defining Prescribed Conditions
 
 Whereas distributed loads are applied to beam elements, prescribed conditions are forces and/or displacement boundary conditions applied to points. One instance of `PrescribedConditions` must be created for every point on which prescribed conditions are applied.  These instances of `PrescribedConditions` are then stored in a dictionary in which they are accessed by their point index.  
 
@@ -328,7 +328,7 @@ nothing #hide
 
 We could have also specified `ux`, `uy`, `uz`, `theta_x`, `theta_y`, and `theta_z` as functions of time.
 
-### Pre-Initializing Memory for an Analysis
+## Pre-Initializing Memory for an Analysis
 
 At this point we have everything we need to perform an analysis.  However, since we will be performing multiple analyses using the same assembly we can save computational time be preallocating memory for the analysis.  This can be done by constructing an object of type `System`.  The constructor for this object requires that we provide the assembly, a list of points upon which point conditions are applied, and a flag indicating whether the system is static.
 
@@ -339,7 +339,7 @@ system = System(assembly, prescribed_points, static)
 nothing #hide
 ```
 
-### Performing an Analysis
+## Performing a Steady State Analysis
 
 We're now ready to perform our steady state analyses.  This can be done by calling `steady_state_analysis` with the pre-allocated system storage, assembly, angular velocity, and the prescribed point conditions.  We can also perform a linear analysis instead of a nonlinear analysis by using the `linear` keyword argument.
 
@@ -385,7 +385,7 @@ end
 nothing #hide
 ```
 
-### Post Processing
+## Post Processing Results
 
 We can access the fields in each instance of `AssemblyState` in order to plot various quantities of interest.  This object stores an array of objects of type `PointState` in the field `points` and an array of objects of type `ElementState` in the field `elements`.  
 
@@ -486,258 +486,6 @@ nothing #hide
 ![](rotating-beam-uy.svg)
 ![](rotating-beam-theta_z.svg)
 
-We can also perform an eigenvalue analysis for the same problem. The setup is similar to that for a steady state simulation.
+## Other Capabilities
 
-In the following block of code we define a function that performs an eigenanalysis for any sweep angle and revolution rate.  The main difference between performing a steady state analysis versus an eigenvalue analysis is the use of the `eigenvalue_analysis` function.  This function returns the modified system, the eigenvalues, a matrix of eigenvectors, and a convergence flag.
-
-```@example guide
-
-eigenanalysis = function(sweep, rpm, nev)
-
-    # straight section of the beam
-    L_b1 = 31.5 # inch
-    r_b1 = [2.5, 0, 0]
-    nelem_b1 = 20
-    lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
-
-    # swept section of the beam
-    L_b2 = 6 # inch
-    r_b2 = [34, 0, 0]
-    nelem_b2 = 20
-    cs, ss = cos(sweep), sin(sweep)
-    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
-    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
-
-    # combine elements and points into one array
-    nelem = nelem_b1 + nelem_b2
-    points = vcat(xp_b1, xp_b2[2:end])
-    start = 1:nelem_b1 + nelem_b2
-    stop = 2:nelem_b1 + nelem_b2 + 1
-    lengths = vcat(lengths_b1, lengths_b2)
-    midpoints = vcat(xm_b1, xm_b2)
-    Cab = vcat(Cab_b1, Cab_b2)
-
-    # cross section
-    w = 1 # inch
-    h = 0.063 # inch
-
-    # material properties
-    E = 1.06e7 # lb/in^2
-    ν = 0.325
-    ρ = 2.51e-4 # lb sec^2/in^4
-
-    # shear and torsion correction factors
-    ky = 1.2000001839588001
-    kz = 14.625127919304001
-    kt = 65.85255016982444
-
-    A = h*w
-    Iyy = w*h^3/12
-    Izz = w^3*h/12
-    J = Iyy + Izz
-
-    # apply corrections
-    Ay = A/ky
-    Az = A/kz
-    Jx = J/kt
-
-    G = E/(2*(1+ν))
-
-    compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
-
-    mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
-
-    # create assembly
-    assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
-
-    prescribed_conditions = Dict(
-        # root section is fixed
-        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
-        )
-
-    w0 = [0, 0, rpm*(2*pi)/60]
-
-    # eigenvalues and right eigenvector matrix
-    system, λ, V, converged = eigenvalue_analysis(assembly,
-        angular_velocity = w0,
-        prescribed_conditions = prescribed_conditions,
-        nev=nev)
-
-    # process state
-    state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
-
-    # process eigenstates
-    eigenstates = [AssemblyState(system, assembly, V;
-        prescribed_conditions=prescribed_conditions) for k = 1:nev]
-
-    # corresponding left eigenvector matrix
-    U = left_eigenvectors(system, λ, V)
-
-    # save system mass matrix
-    M = copy(system.M)
-
-    return state, eigenstates, λ, U, M, V, converged
-end
-
-nothing #hide
-```
-
-Beyond simply calculating eigenvalues and (right) eigenvectors, we performed a couple additional post-processing steps in this function.  First, we constructed objects of type `AssemblyState`, which can help to interpret eigenvector data.  Second, we calculated a left eigenvector matrix which satisfies the following M-orthonormal relationship:
-```math
-UMV = I
-```
-Finally, we saved the mass matrix so that we can use it to establish mode-correlations.
-
-We'll now perform eigenvalue analyses on a variety of combinations of sweep angles and revolution rates to see how changing these parameters affects the natural frequencies of the structure.
-
-```@example guide
-
-sweep = (0:2.5:45) * pi/180
-rpm = [0, 500, 750]
-nev = 30
-
-state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
-eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
-λ = Matrix{Vector{ComplexF64}}(undef, length(sweep), length(rpm))
-U = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
-M = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
-V = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
-for j = 1:length(rpm)
-    for i = 1:length(sweep)
-        state[i,j], eigenstates[i,j], λ[i,j], U[i,j], M[i,j], V[i,j], converged = eigenanalysis(sweep[i], rpm[j], nev)
-    end
-end
-
-frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 2:2:nev]
-
-nothing #hide
-```
-
-To identify each of the modes, we can visualize them using ParaView using the `write_vtk` function. If we visualize the first mode for the 45 degree sweep/750 RPM case, we can see that it corresponds to the first bending mode.
-```@example guide
-write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end], λ[end,end][1],
-    eigenstates[end,end][1], mode_scaling=100.0)
-nothing #hide
-```
-The same process may be used to identify all the other modes.
-
-![](rotating-beam.gif)
-
-In addition to identifying modes manually, we can also correlate modes by using the M-orthonormal relationship between the left and right eigenvectors.  To do so, we'll use the function `correlate_eigenmodes`.  If modes are properly ordered, the correlation matrix (defined as ``U_{i-1}M_{i}V_{i}``) passed to `correlate_eigenmodes` will be diagonally dominant, otherwise `correlate_eigenmodes` will find a row/column permutation that will make the matrix diagonally dominant, if possible.  Here we'll do this for this our range of parameters.
-
-```@example guide
-
-U_p = copy(U[1,1])
-for j = 1:length(rpm)
-    for i = 1:length(sweep)
-        # construct correlation matrix
-        C = U_p*M[i,j]*V[i,j]
-
-        # correlate eigenmodes
-        perm, corruption = correlate_eigenmodes(C)
-
-        # fix ordering of modes
-        eigenstates[i,j] = eigenstates[i,j][perm]
-        λ[i,j] = λ[i,j][perm]
-        U[i,j] = U[i,j][perm,:]
-        V[i,j] = V[i,j][:,perm]
-
-        # update previous left eigenvector matrix
-        U_p .= U[i,j]
-    end
-    # update previous left eigenvector matrix
-    U_p .= U[1,j]
-end
-
-frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 2:2:nev]
-
-nothing #hide
-```
-
-In this case these eigenmode correlations work, but remember that large changes in the underlying parameters (or just drastic changes in the eigenvectors themselves due to a small perturbation) can cause these automatic eigenmode correlations to fail.
-
-To check our correlations, we can plot the frequency of the different eigenmodes against those found by Epps and Chandra in "The Natural Frequencies of Rotating Composite Beams With Tip Sweep".
-
-```@example guide
-names = ["First Bending Mode", "Second Bending Mode", "Third Bending Mode"]
-indices = [1, 2, 4]
-
-experiment_rpm = [0, 500, 750]
-experiment_sweep = [0, 15, 30, 45]
-experiment_frequencies = [
-    [1.4 1.8 1.7 1.6;
-     10.2 10.1 10.2 10.2;
-     14.8 14.4 14.9 14.7],
-    [10.3 10.2 10.4 10.4;
-     25.2 25.2 23.7 21.6;
-     36.1 34.8 30.7 26.1],
-    [27.7 27.2 26.6 24.8;
-     47.0 44.4 39.3 35.1;
-     62.9 55.9 48.6 44.8]
-]
-
-plot!([NaN, NaN], [NaN, NaN], color=:black, label="GEBT")
-scatter!([NaN, NaN], [NaN, NaN], color=:black, label="Experiment (Epps and Chandra)")
-
-for k = 1:length(indices)
-    plot(
-        title = names[k],
-        xticks = 0:15:45,
-        xlabel = "Sweep Angle (degrees)",
-        ylim = (0, Inf),
-        ylabel = "Frequency (Hz)",
-        grid = false,
-        overwrite_figure=false
-        )
-
-    for j = length(rpm):-1:1
-        plot!(sweep*180/pi, frequency[indices[k]][:,j], label="$(rpm[j]) RPM", color=j)
-        scatter!(experiment_sweep, experiment_frequencies[k][j,:],
-            label="", color=j)
-    end
-
-    plot!(show=true)
-    savefig("rotating-beam-frequencies-$(k).svg") #hide
-end
-
-names = ["1T/5B", "5B/1T", "4B/1T"]
-indices = [5, 7, 6]
-
-experiment_frequencies = [
-    132.7 147.3 166.2 162.0
-    106.6 120.1 122.6 117.7;
-    95.4 87.5 83.7 78.8;
-]
-
-plot(
-    title = "Coupled Torsion-Bending Modes at 750 RPM",
-    xticks = 0:15:45,
-    xlabel = "Sweep Angle (degrees)",
-    ylim = (0, Inf),
-    ylabel = "Frequency (Hz)",
-    grid = false,
-    overwrite_figure=false
-    )
-
-plot!([NaN, NaN], [NaN, NaN], color=:black, label="GEBT")
-scatter!([NaN, NaN], [NaN, NaN], color=:black, label="Experiment (Epps and Chandra)")
-
-for k = 1:length(indices)
-    plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
-    scatter!(experiment_sweep, experiment_frequencies[k,:],
-        label="", color=k)
-end
-
-plot!(show=true)
-
-savefig("rotating-beam-frequencies-4.svg"); nothing #hide
-
-nothing #hide
-```
-
-![](rotating-beam-frequencies-1.svg)
-![](rotating-beam-frequencies-2.svg)
-![](rotating-beam-frequencies-3.svg)
-![](rotating-beam-frequencies-4.svg)
-
-As you can see, the frequency results from the eigenmode analysis in this package compare well with experimental results.
+For information on how to use the other capabilities of this package see the [examples](@ref Examples) and/or the the [Public API](@ref).
