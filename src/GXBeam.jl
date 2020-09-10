@@ -1,4 +1,4 @@
-module GEBT
+module GXBeam
 
 using Arpack
 using FLOWMath

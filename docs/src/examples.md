@@ -1,6 +1,6 @@
 # Examples
 
-These examples show how to use the various analysis capabilities of GEBT.jl.  Many of these examples also provide a verification/validation for the implementation of geometrically exact beam theory in GEBT.jl.  
+These examples show how to use the various analysis capabilities of GXBeam.  Many of these examples also provide a verification/validation for the implementation of geometrically exact beam theory in GXBeam.  
 
 ```@contents
 Pages = ["examples.md"]
@@ -21,7 +21,7 @@ This example shows how to predict the behavior of a cantilever beam which is par
 
 ```@example linear-cantilever-pudl
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 nelem = 12
 
@@ -112,7 +112,7 @@ plot(
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
 deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, deflection_a, label="Analytical")
-scatter!(x, deflection, label="GEBT")
+scatter!(x, deflection, label="GXBeam")
 
 savefig("linear-cantilever-pudl-1.svg") #hide
 
@@ -129,7 +129,7 @@ plot(
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
 theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
-scatter!(x, theta, label="GEBT")
+scatter!(x, theta, label="GXBeam")
 
 savefig("linear-cantilever-pudl-2.svg") #hide
 
@@ -146,7 +146,7 @@ plot(
 x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
 M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
-scatter!(x, M, label="GEBT")
+scatter!(x, M, label="GXBeam")
 
 savefig("linear-cantilever-pudl-3.svg") #hide
 nothing #hide
@@ -168,7 +168,7 @@ This example shows how to predict the behavior of a beam which is clamped at one
 
 ```@example linear-overdetermined-ldl
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 nelem = 16
 
@@ -252,7 +252,7 @@ plot(
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
 deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, w_a, label="Analytical")
-scatter!(x, deflection, label="GEBT")
+scatter!(x, deflection, label="GXBeam")
 
 savefig("linear-overdetermined-ldl-1.svg") #hide
 
@@ -268,7 +268,7 @@ plot(
 x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
 theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
-scatter!(x, theta, label="GEBT")
+scatter!(x, theta, label="GXBeam")
 
 savefig("linear-overdetermined-ldl-2.svg") #hide
 
@@ -284,7 +284,7 @@ plot(
 x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
 M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
-scatter!(x, M, label="GEBT")
+scatter!(x, M, label="GXBeam")
 
 savefig("linear-overdetermined-ldl-3.svg") #hide
 nothing #hide
@@ -306,7 +306,7 @@ This example shows how to predict the behavior of a cantilever beam that is subj
 
 ```@example cantilever-tipforce
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 L = 1
 EI = 1e6
@@ -401,7 +401,7 @@ plot(
     )
 
 plot!([Inf], [Inf], color=:black, label="Analytical")
-scatter!([Inf], [Inf], color=:black, label="GEBT")
+scatter!([Inf], [Inf], color=:black, label="GXBeam")
 plot!([Inf], [Inf], color=1, label="Vertical \$\\left(w/L\\right)\$")
 plot!([Inf], [Inf], color=2, label="Horizontal \$\\left(-u/L\\right)\$")
 plot!([Inf], [Inf], color=3, label="\$ \\theta/(\\pi/2) \$")
@@ -428,7 +428,7 @@ This example shows how to predict the behavior of a cantilever beam that is subj
 
 ```@example cantilever-tipmoment
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 L = 12 # inches
 h = w = 1 # inches
@@ -517,14 +517,14 @@ plot(
     overwrite_figure=false
     )
 
-# create dummy legend entries for GEBT and Analytical
-scatter!([NaN, NaN], [NaN, NaN], color=:black, label="GEBT")
+# create dummy legend entries for GXBeam and Analytical
+scatter!([NaN, NaN], [NaN, NaN], color=:black, label="GXBeam")
 plot!([NaN, NaN], [NaN, NaN], color=:black, label="Analytical")
 
 # plot the data
 for i = 1:length(M)
     local x, y #hide
-    # GEBT
+    # GXBeam
     x = [assembly.points[ipoint][1] + states[i].points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
     y = [assembly.points[ipoint][2] + states[i].points[ipoint].u[2] for ipoint = 1:length(assembly.points)]
     scatter!(x/L, y/L, label="", color = i)
@@ -549,7 +549,7 @@ This example is also a common benchmark problem for the geometrically exact bend
 ![](cantilever-curved-drawing.svg)
 
 ```@example cantilever-curved
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 # problem constants
 R = 100
@@ -610,7 +610,7 @@ println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
 nothing #hide
 ```
 
-The calculated tip displacements match those reported by Bathe and Bolourch in "Large Displacement Analysis of Three-Dimensional Beam Structures" closely, thus verifying our GEBT implementation.
+The calculated tip displacements match those reported by Bathe and Bolourch in "Large Displacement Analysis of Three-Dimensional Beam Structures" closely, thus verifying our implementation of geometrically exact beam theory.
 
 We can visualize the deformed geometry and inspect the associated point and element data using ParaView.
 
@@ -629,7 +629,7 @@ In this example we analyze a rotating beam with a swept tip.  The parameters for
 
 ```@example rotating-beam
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 sweep = 45 * pi/180
 rpm = 0:25:750
@@ -948,7 +948,7 @@ experiment_frequencies = [
      62.9 55.9 48.6 44.8]
 ]
 
-plot!([NaN, NaN], [NaN, NaN], color=:black, label="GEBT")
+plot!([NaN, NaN], [NaN, NaN], color=:black, label="GXBeam")
 scatter!([NaN, NaN], [NaN, NaN], color=:black, label="Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
@@ -991,7 +991,7 @@ plot(
     overwrite_figure=false
     )
 
-plot!([NaN, NaN], [NaN, NaN], color=:black, label="GEBT")
+plot!([NaN, NaN], [NaN, NaN], color=:black, label="GXBeam")
 scatter!([NaN, NaN], [NaN, NaN], color=:black, label="Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
@@ -1028,7 +1028,7 @@ nothing #hide
 
 ```@example dynamic-wind-turbine
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 L = 60 # m
 
@@ -1162,7 +1162,7 @@ Coupling using Equivalent Static Loads".
 
 ```@example static-joined-wing
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 # Set endpoints of each beam
 p1 = [-7.1726, -12, -3.21539]
@@ -1389,7 +1389,7 @@ We will also use the same compliance and mass matrix for all beams, in order to 
 
 ```@example dynamic-joined-wing
 
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 
 # Set endpoints of each beam
 p1 = [0, 0, 0]

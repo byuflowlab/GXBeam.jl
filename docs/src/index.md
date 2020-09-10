@@ -1,13 +1,13 @@
-# GEBT.jl
+# GXBeam
 
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://flow.byu.edu/GEBT.jl/dev)
-![](https://github.com/byuflowlab/GEBT.jl/workflows/Run%20tests/badge.svg)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://flow.byu.edu/GXBeam.jl/dev)
+![](https://github.com/byuflowlab/GXBeam.jl/workflows/Run%20tests/badge.svg)
 
 *(Almost) Pure Julia Implementation of Geometrically Exact Beam Theory*
 
 Author: Taylor McDonnell
 
-**GEBT.jl** is an (almost) pure Julia implementation of Geometrically Exact Beam Theory, based on the similarly named open source [GEBT code by Wenbin Yu](https://cdmhub.org/resources/367) and its associated papers[[1]](@ref References)[[2]](@ref References).  The "almost" here refers to the fact that the Fortran library ARPACK is used for eigenvalue computations.  Otherwise the code is written with pure Julia and should work with custom types and automatic differentiation packages such as [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl).
+**GXBeam** is an (almost) pure Julia implementation of Geometrically Exact Beam Theory, based on the open source code [GEBT](https://cdmhub.org/resources/367) and its associated papers[[1]](@ref References)[[2]](@ref References).  The "almost" here refers to the fact that the Fortran library ARPACK is used for eigenvalue computations.  Otherwise the code is written with pure Julia and should work with custom types and automatic differentiation packages such as [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl).
 
 As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a joined wing subjected to a simulated gust, scaled up in order to visualize the deflections:
 ![](dynamic-joined-wing.gif)
@@ -37,12 +37,12 @@ As a sample of one of the many things this package can do, here's a time domain 
 Enter the package manager by typing `]` and then run the following:
 
 ```julia
-pkg> add GEBT
+pkg> add GXBeam
 ```
 
 ## Performance
 
-This code has been optimized to be highly performant, primarily by maintaining type stability and minimizing allocations.  As a result the performance of this package rivals (or even outperforms) that of the Fortran implementation of GEBT provided by Wenbin Yu.  At this point, differences in performance between the two codes can be primarily attributed to the performance of the sparse linear system solver in each.
+This code has been optimized to be highly performant, primarily by maintaining type stability and minimizing allocations.  As a result the performance of this package rivals (or even outperforms) that of the Fortran implementation in GEBT.  At this point, differences in performance between the two codes can be primarily attributed to the performance of the sparse linear system solver in each.
 
 ## Usage
 

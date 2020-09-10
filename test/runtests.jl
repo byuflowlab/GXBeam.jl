@@ -1,4 +1,4 @@
-using GEBT, Test, LinearAlgebra
+using GXBeam, Test, LinearAlgebra
 import Elliptic
 
 @testset "Linear Analysis of a Cantilever Partially Under a Uniform Distributed Load" begin

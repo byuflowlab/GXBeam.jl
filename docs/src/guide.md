@@ -8,15 +8,15 @@ pyplot()
 
 In this guide we introduce you to the basic functionality of this package in a step by step manner.  This is a good starting point for learning about how to use this package.  For more details about how to use a particular function the [Public API](@ref) is likely a better resource.  For more examples of how to use this package see the [examples](@ref Examples).
 
-If you haven't yet, now would be a good time to install GEBT.  GEBT can be installed from the Julia REPL by typing `]` (to enter the package manager) and then running the following command.
+If you haven't yet, now would be a good time to install GXBeam.  GXBeam can be installed from the Julia REPL by typing `]` (to enter the package manager) and then running the following command.
 ```julia
-pkg> add https://github.com/byuflowlab/GEBT.jl
+pkg> add GXBeam
 ```
 
 Now, that the package is installed we need to load it so that we can use it.  It's also often helpful to load the LinearAlgebra package.
 
 ```@example guide
-using GEBT, LinearAlgebra
+using GXBeam, LinearAlgebra
 nothing #hide
 ```
 

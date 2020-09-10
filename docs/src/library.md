@@ -62,74 +62,74 @@ write_vtk
 ### Math
 
 ```@docs
-GEBT.tilde
-GEBT.rotation_parameter_scaling
-GEBT.get_C
-GEBT.get_C_t
-GEBT.get_C_θ
-GEBT.get_C_θdot
-GEBT.get_Q
-GEBT.get_Q_θ
-GEBT.get_Qinv
-GEBT.get_Qinv_θ
-GEBT.mul3
-GEBT.gauss_quadrature
+GXBeam.tilde
+GXBeam.rotation_parameter_scaling
+GXBeam.get_C
+GXBeam.get_C_t
+GXBeam.get_C_θ
+GXBeam.get_C_θdot
+GXBeam.get_Q
+GXBeam.get_Q_θ
+GXBeam.get_Qinv
+GXBeam.get_Qinv_θ
+GXBeam.mul3
+GXBeam.gauss_quadrature
 ```
 
 ### Points
 
 ```@docs
-GEBT.point_variables
-GEBT.insert_point_residual!
-GEBT.point_residual!
-GEBT.point_follower_jacobians
-GEBT.insert_point_jacobian!
-GEBT.point_jacobian!
-GEBT.PointState
+GXBeam.point_variables
+GXBeam.insert_point_residual!
+GXBeam.point_residual!
+GXBeam.point_follower_jacobians
+GXBeam.insert_point_jacobian!
+GXBeam.point_jacobian!
+GXBeam.PointState
 ```
 
 ### Elements
 
 ```@docs
-GEBT.Element
-GEBT.element_strain
-GEBT.element_curvature
-GEBT.element_linear_velocity
-GEBT.element_angular_velocity
-GEBT.element_properties
-GEBT.dynamic_element_properties
-GEBT.element_equations
-GEBT.insert_element_residual!
-GEBT.element_residual!
-GEBT.element_jacobian_equations
-GEBT.insert_element_jacobian!
-GEBT.element_jacobian!
-GEBT.element_mass_matrix_properties
-GEBT.element_mass_matrix_equations
-GEBT.insert_element_mass_matrix!
-GEBT.element_mass_matrix!
-GEBT.ElementState
+GXBeam.Element
+GXBeam.element_strain
+GXBeam.element_curvature
+GXBeam.element_linear_velocity
+GXBeam.element_angular_velocity
+GXBeam.element_properties
+GXBeam.dynamic_element_properties
+GXBeam.element_equations
+GXBeam.insert_element_residual!
+GXBeam.element_residual!
+GXBeam.element_jacobian_equations
+GXBeam.insert_element_jacobian!
+GXBeam.element_jacobian!
+GXBeam.element_mass_matrix_properties
+GXBeam.element_mass_matrix_equations
+GXBeam.insert_element_mass_matrix!
+GXBeam.element_mass_matrix!
+GXBeam.ElementState
 ```
 
 ### Loads
 
 ```@docs
-GEBT.PrescribedConditions
-GEBT.DistributedLoads
+GXBeam.PrescribedConditions
+GXBeam.DistributedLoads
 ```
 
 ### System
 
 ```@docs
-GEBT.Assembly
-GEBT.curve_triad
-GEBT.curve_coordinates
-GEBT.System
-GEBT.point_connections
-GEBT.system_indices
-GEBT.system_residual!
-GEBT.system_jacobian!
-GEBT.system_mass_matrix!
+GXBeam.Assembly
+GXBeam.curve_triad
+GXBeam.curve_coordinates
+GXBeam.System
+GXBeam.point_connections
+GXBeam.system_indices
+GXBeam.system_residual!
+GXBeam.system_jacobian!
+GXBeam.system_mass_matrix!
 ```
 
 ## Index
