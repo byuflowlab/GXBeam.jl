@@ -4,11 +4,11 @@
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://flow.byu.edu/GXBeam.jl/dev)
 ![](https://github.com/byuflowlab/GXBeam.jl/workflows/Run%20tests/badge.svg)
 
-*(Almost) Pure Julia Implementation of Geometrically Exact Beam Theory*
+*Pure Julia Implementation of Geometrically Exact Beam Theory*
 
 Author: Taylor McDonnell
 
-**GXBeam** is an (almost) pure Julia implementation of Geometrically Exact Beam Theory, based on the open source code [GEBT](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2).  The "almost" here refers to the fact that the Fortran library ARPACK is used for eigenvalue computations.  Otherwise the code is written with pure Julia and should work with custom types and automatic differentiation packages such as [ForwardDiff](https://github.com/JuliaDiff/ForwardDiff.jl).  
+**GXBeam** is a pure Julia implementation of Geometrically Exact Beam Theory, based on the open source code [GEBT](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2).
 
 As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a joined wing subjected to a simulated gust, scaled up in order to visualize the deflections:
 ![](docs/src/dynamic-joined-wing.gif)

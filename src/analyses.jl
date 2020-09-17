@@ -271,8 +271,8 @@ end
     eigenvalue_analysis(assembly; kwargs...)
 
 Compute the eigenvalues and eigenvectors of the system of nonlinear beams
-contained in `assembly` by calling ARPACK.  Return the modified system,
-eigenvalues, eigenvectors, and a convergence flag indicating whether the corresponding steady-state analysis
+contained in `assembly`.  Return the modified system, eigenvalues, eigenvectors,
+and a convergence flag indicating whether the corresponding steady-state analysis
 converged.
 
 # Keyword Arguments
@@ -416,7 +416,12 @@ function eigenvalue_analysis!(system, assembly;
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
 
     # compute eigenvalues and eigenvectors
-    λ, V, _ = Arpack.eigs(A; nev=min(nx,nev), which=:LM)
+    λ, V = partialeigen(partialschur(A; nev=min(nx,nev), which=LM())[1])
+
+    # sort eigenvalues by magnitude
+    perm = sortperm(λ, by=(λ)->(abs(λ),imag(λ)), rev=true)
+    λ .= λ[perm]
+    V .= V[:,perm]
 
     # eigenvalues are actually 1/λ, no modification necessary for eigenvectors
     λ .= 1 ./ λ

@@ -1,6 +1,6 @@
 module GXBeam
 
-using Arpack
+using ArnoldiMethod
 using FLOWMath
 using LinearAlgebra
 using LinearMaps
