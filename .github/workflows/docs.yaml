@@ -16,10 +16,11 @@ jobs:
         with:
           version: '1.5'
       - name: Install dependencies
+        env:
+          PYTHON: ""
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Build and deploy
         env:
-          PYTHON: ""
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # For authentication with SSH deploy key
         run: julia --project=docs/ docs/make.jl
