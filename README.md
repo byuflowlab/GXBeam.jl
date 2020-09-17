@@ -1,5 +1,6 @@
 # GXBeam
 
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://flow.byu.edu/GXBeam.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://flow.byu.edu/GXBeam.jl/dev)
 ![](https://github.com/byuflowlab/GXBeam.jl/workflows/Run%20tests/badge.svg)
 
