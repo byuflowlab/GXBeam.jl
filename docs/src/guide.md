@@ -4,8 +4,6 @@
 # this is placed here to pre-install matplotlib so the documentation doesn't get cluttered with the installation print statements.
 using Plots
 pyplot()
-# make sure error messages and warnings aren't printed in final documentation
-err_rd, err_wr = redirect_stderr()
 ```
 
 In this guide we introduce you to the basic functionality of this package in a step by step manner.  This is a good starting point for learning about how to use this package.  For more details about how to use a particular function the [Public API](@ref) is likely a better resource.  For more examples of how to use this package see the [examples](@ref Examples).
@@ -409,6 +407,10 @@ To demonstrate how these fields can be accessed we will now plot the root moment
 
 ```@example guide
 
+using Suppressor #hide
+
+@suppress_err begin #hide
+
 using Plots
 pyplot()
 
@@ -479,6 +481,8 @@ theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4) for i = 1:length(rp
 
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
+
+end #hide
 
 nothing #hide
 ```
