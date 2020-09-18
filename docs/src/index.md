@@ -4,7 +4,7 @@
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://flow.byu.edu/GXBeam.jl/dev)
 ![](https://github.com/byuflowlab/GXBeam.jl/workflows/Run%20tests/badge.svg)
 
-*(Almost) Pure Julia Implementation of Geometrically Exact Beam Theory*
+*Pure Julia Implementation of Geometrically Exact Beam Theory*
 
 Author: Taylor McDonnell
 
