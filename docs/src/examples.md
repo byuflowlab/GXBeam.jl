@@ -627,6 +627,10 @@ In this example we analyze a rotating beam with a swept tip.  The parameters for
 
 ![](rotating-beam-drawing.svg)
 
+```@setup rotating-beam
+using Suppressor
+```
+
 ```@example rotating-beam
 
 using GXBeam, LinearAlgebra
@@ -931,6 +935,8 @@ In this case these eigenmode correlations work, but remember that large changes 
 We'll now plot the frequency of the different eigenmodes against those found by Epps and Chandra in "The Natural Frequencies of Rotating Composite Beams With Tip Sweep".
 
 ```@example rotating-beam
+@suppress_err begin #hide
+
 names = ["First Bending Mode", "Second Bending Mode", "Third Bending Mode"]
 indices = [1, 2, 4]
 
@@ -1004,6 +1010,8 @@ plot!(show=true)
 
 savefig("rotating-beam-frequencies-4.svg"); nothing #hide
 
+end #hide
+
 nothing #hide
 ```
 
@@ -1025,6 +1033,10 @@ nothing #hide
 ![](rotating-beam.gif)
 
 ## Nonlinear Dynamic Analysis of a Wind Turbine Blade
+
+```@setup dynamic-wind-turbine
+using Suppressor
+```
 
 ```@example dynamic-wind-turbine
 
@@ -1087,6 +1099,8 @@ nothing #hide
 We can visualize tip displacements and the resultant forces in the root by accessing the post-processed results for each time step contained in the variable `history`.  Note that  the root resultant forces for this case are equal to the external forces/moments, but with opposite sign.
 
 ```@example dynamic-wind-turbine
+@suppress_err begin #hide
+
 using Plots
 pyplot()
 
@@ -1125,6 +1139,10 @@ for i = 1:12
     plot!(show=true)
     savefig("dynamic-wind-turbine-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
 end
+
+end #hide
+
+nothing #hide
 ```
 
 ![](dynamic-wind-turbine-u1.svg)
@@ -1387,6 +1405,10 @@ We will also use the same compliance and mass matrix for all beams, in order to 
 
 ![](static-joined-wing-drawing.png)
 
+```@setup dynamic-joined-wing
+using Suppressor
+```
+
 ```@example dynamic-joined-wing
 
 using GXBeam, LinearAlgebra
@@ -1482,6 +1504,8 @@ nothing #hide
 We can visualize tip displacements and the resultant forces accessing the post-processed results for each time step contained in the variable `history`.  Note that the fore-root and rear-root resultant forces for this case are equal to the external forces/moments, but with opposite sign.
 
 ```@example dynamic-joined-wing
+@suppress_err begin #hide
+
 using Plots
 pyplot()
 
@@ -1519,6 +1543,9 @@ for i = 1:12
     savefig("dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
 end
 
+end #hide
+
+nothing #hide
 ```
 
 ![](dynamic-joined-wing-u1.svg)
