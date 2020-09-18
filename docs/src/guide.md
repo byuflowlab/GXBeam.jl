@@ -209,9 +209,8 @@ nothing #hide
 
 At this point this is probably a good time to check that the geometry of our assembly is correct.  We can do this by visualizing the geometry in ParaView.  We can use the `write_vtk` function to do this.  Note that in order to visualize the generated file yourself you will need to install ParaView separately.
 
-```@example guide
+```julia
 write_vtk("swept-tip", assembly)
-nothing #hide
 ```
 
 ![](swept-tip.png)

@@ -650,9 +650,8 @@ The calculated tip displacements match those reported by Bathe and Bolourch in "
 
 We can visualize the deformed geometry and inspect the associated point and element data using ParaView.
 
-```@example cantilever-curved
+```julia
 write_vtk("cantilever-curved", assembly, state)
-nothing #hide
 ```
 
 ![](cantilever-curved.png)
@@ -1069,10 +1068,9 @@ As you can see, the frequency results from the eigenmode analysis in this packag
 
 We can also visualize eigenmodes using ParaView.  Here we will visualize the first bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be helpful for identifying different eigenmodes.
 
-```@example rotating-beam
+```julia
 write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end], λ[end,end][1],
     eigenstates[end,end][1], mode_scaling=100.0)
-nothing #hide
 ```
 
 ![](rotating-beam.gif)
@@ -1206,9 +1204,8 @@ These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael 
 
 We can also visualize the time history of the system using ParaView.
 
-```@example dynamic-wind-turbine
+```julia
 write_vtk("dynamic-wind-turbine", assembly, history, dt)
-nothing #hide
 ```
 
 ![](dynamic-wind-turbine.gif)
@@ -1428,9 +1425,8 @@ We can also visualize the deformed geometry and inspect the associated point and
 we will visualize the 70kN follower force condition and set the color gradient to
 match the magnitude of the deflections.
 
-```@example static-joined-wing
+```julia
 write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end])
-nothing #hide
 ```
 
 ![](static-joined-wing.png)
@@ -1618,9 +1614,8 @@ These graphs are identical to those presented in "GEBT: A general-purpose nonlin
 
 We can also visualize the time history of the system using ParaView.  In order to view the small deflections we'll scale all the deflections up by a couple orders of magnitude.  We'll also set the color gradient to match the magnitude of the deflections at each point.
 
-```@example dynamic-joined-wing
+```julia
 write_vtk("dynamic-joined-wing", assembly, history, dt, scaling=1e2)
-nothing #hide
 ```
 
 ![](dynamic-joined-wing.gif)
