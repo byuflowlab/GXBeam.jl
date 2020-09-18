@@ -19,7 +19,14 @@ This example shows how to predict the behavior of a cantilever beam which is par
 
 ![](linear-cantilever-pudl-drawing.svg)
 
+```@setup linear-cantilever-pudl
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
+```
+
 ```@example linear-cantilever-pudl
+
+err_rd, err_wr = redirect_stderr() #nothing
 
 using GXBeam, LinearAlgebra
 
@@ -166,6 +173,11 @@ This example shows how to predict the behavior of a beam which is clamped at one
 
 ![](linear-overdetermined-ldl-drawing.svg)
 
+```@setup linear-overdetermined-ldl
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
+```
+
 ```@example linear-overdetermined-ldl
 
 using GXBeam, LinearAlgebra
@@ -304,6 +316,11 @@ This example shows how to predict the behavior of a cantilever beam that is subj
 
 ![](cantilever-tipforce-drawing.svg)
 
+```@setup cantilever-tipforce
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
+```
+
 ```@example cantilever-tipforce
 
 using GXBeam, LinearAlgebra
@@ -425,6 +442,11 @@ savefig("cantilever-tipforce.svg"); nothing #hide
 This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip moment.  This is a common benchmark problem for the geometrically nonlinear analysis of beams.
 
 ![](cantilever-tipmoment-drawing.svg)
+
+```@setup cantilever-tipmoment
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
+```
 
 ```@example cantilever-tipmoment
 
@@ -548,6 +570,11 @@ This example is also a common benchmark problem for the geometrically exact bend
 
 ![](cantilever-curved-drawing.svg)
 
+```@setup cantilever-curved
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
+```
+
 ```@example cantilever-curved
 using GXBeam, LinearAlgebra
 
@@ -628,7 +655,8 @@ In this example we analyze a rotating beam with a swept tip.  The parameters for
 ![](rotating-beam-drawing.svg)
 
 ```@setup rotating-beam
-using Suppressor
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
 ```
 
 ```@example rotating-beam
@@ -935,8 +963,6 @@ In this case these eigenmode correlations work, but remember that large changes 
 We'll now plot the frequency of the different eigenmodes against those found by Epps and Chandra in "The Natural Frequencies of Rotating Composite Beams With Tip Sweep".
 
 ```@example rotating-beam
-@suppress_err begin #hide
-
 names = ["First Bending Mode", "Second Bending Mode", "Third Bending Mode"]
 indices = [1, 2, 4]
 
@@ -1010,8 +1036,6 @@ plot!(show=true)
 
 savefig("rotating-beam-frequencies-4.svg"); nothing #hide
 
-end #hide
-
 nothing #hide
 ```
 
@@ -1035,7 +1059,8 @@ nothing #hide
 ## Nonlinear Dynamic Analysis of a Wind Turbine Blade
 
 ```@setup dynamic-wind-turbine
-using Suppressor
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
 ```
 
 ```@example dynamic-wind-turbine
@@ -1099,8 +1124,6 @@ nothing #hide
 We can visualize tip displacements and the resultant forces in the root by accessing the post-processed results for each time step contained in the variable `history`.  Note that  the root resultant forces for this case are equal to the external forces/moments, but with opposite sign.
 
 ```@example dynamic-wind-turbine
-@suppress_err begin #hide
-
 using Plots
 pyplot()
 
@@ -1140,8 +1163,6 @@ for i = 1:12
     savefig("dynamic-wind-turbine-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
 end
 
-end #hide
-
 nothing #hide
 ```
 
@@ -1177,6 +1198,11 @@ et al. in "Structural Optimization of Joined-Wing Beam Model with Bend-Twist
 Coupling using Equivalent Static Loads".
 
 ![](static-joined-wing-drawing.png)
+
+```@setup static-joined-wing
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
+```
 
 ```@example static-joined-wing
 
@@ -1406,7 +1432,8 @@ We will also use the same compliance and mass matrix for all beams, in order to 
 ![](static-joined-wing-drawing.png)
 
 ```@setup dynamic-joined-wing
-using Suppressor
+# make sure error messages and warnings aren't printed in final documentation
+err_rd, err_wr = redirect_stderr()
 ```
 
 ```@example dynamic-joined-wing
@@ -1504,8 +1531,6 @@ nothing #hide
 We can visualize tip displacements and the resultant forces accessing the post-processed results for each time step contained in the variable `history`.  Note that the fore-root and rear-root resultant forces for this case are equal to the external forces/moments, but with opposite sign.
 
 ```@example dynamic-joined-wing
-@suppress_err begin #hide
-
 using Plots
 pyplot()
 
@@ -1542,8 +1567,6 @@ for i = 1:12
     plot!(show=true)
     savefig("dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
 end
-
-end #hide
 
 nothing #hide
 ```
