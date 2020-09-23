@@ -19,14 +19,7 @@ This example shows how to predict the behavior of a cantilever beam which is par
 
 ![](linear-cantilever-pudl-drawing.svg)
 
-```@setup linear-cantilever-pudl
-# make sure error messages and warnings aren't printed in final documentation
-err_rd, err_wr = redirect_stderr()
-```
-
 ```@example linear-cantilever-pudl
-
-err_rd, err_wr = redirect_stderr() #nothing
 
 using GXBeam, LinearAlgebra
 
