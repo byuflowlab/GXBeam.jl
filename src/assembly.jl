@@ -55,7 +55,7 @@ function Assembly(points, start, stop;
         if isnothing(stiffness)
             compliance = fill((@SMatrix zeros(6,6)), nbeam)
         else
-            compliance = fill((@MMatrix zeros(6,6)), nbeam)
+            compliance = [(@MMatrix zeros(6,6)) for i=1:nbeam] #can't use fill because it copies the reference. Need a different value for every i.
             for i = 1:nbeam
                 filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), stiffness[i], dims = 1)))
                 compliance[i][filled_cols,filled_cols] .= inv(Matrix(stiffness[i][filled_cols, filled_cols]))
