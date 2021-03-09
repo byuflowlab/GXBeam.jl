@@ -12,7 +12,7 @@ iteration procedure converged.
      DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
+ - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
@@ -24,7 +24,7 @@ function static_analysis(assembly;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     linear = false,
     method = :newton,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1,
@@ -56,7 +56,7 @@ function static_analysis!(system, assembly;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     linear = false,
     method = :newton,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1)
@@ -133,7 +133,7 @@ iteration procedure converged.
      DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
+ - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
@@ -148,7 +148,7 @@ function steady_state_analysis(assembly;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     linear = false,
     method = :newton,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1,
@@ -187,7 +187,7 @@ function steady_state_analysis!(system, assembly;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     linear = false,
     method = :newton,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1,
@@ -282,7 +282,7 @@ converged.
      DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
+ - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `nstep = 1`: Number of time steps. May be used in conjunction with time varying
@@ -298,7 +298,7 @@ function eigenvalue_analysis(assembly;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     method = :newton,
     linear = false,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1,
@@ -339,7 +339,7 @@ function eigenvalue_analysis!(system, assembly;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     linear = false,
     method = :newton,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1,
@@ -443,7 +443,7 @@ convergence flag indicating whether the iterations converged for each time step.
      DistributedLoads composite types for the beam elements in `keys(distributed_loads)`
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.BackTracking()`: Line search used to solve nonlinear system of equations
+ - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `nstep = 1`: The total length of the time vector
@@ -461,7 +461,7 @@ function time_domain_analysis(assembly, dt;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     linear = false,
     method = :newton,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1,
@@ -510,7 +510,7 @@ function time_domain_analysis!(system, assembly, dt;
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     linear = false,
     method = :newton,
-    linesearch = BackTracking(),
+    linesearch = LineSearches.BackTracking(maxstep=1e6),
     ftol = 1e-9,
     iterations = 1000,
     nstep = 1,
