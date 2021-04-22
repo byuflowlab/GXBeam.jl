@@ -57,10 +57,9 @@ prescribed_conditions = Dict(
 
 # create distributed load
 q = 1000
-distributed_loads = Dict()
-for ielem in n1+1:n1+n2
-    distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz = (s) -> q)
-end
+distributed_loads = Dict(
+    ielem => DistributedLoads(assembly, ielem; fz = (s) -> q) for ielem in n1+1:n1+n2
+)
 
 system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
     distributed_loads=distributed_loads, linear=true)
@@ -417,11 +416,11 @@ plot(
     overwrite_figure=false
     )
 
-plot!([Inf], [Inf], color=:black, label="Analytical")
-scatter!([Inf], [Inf], color=:black, label="GXBeam")
-plot!([Inf], [Inf], color=1, label="Vertical \$\\left(w/L\\right)\$")
-plot!([Inf], [Inf], color=2, label="Horizontal \$\\left(-u/L\\right)\$")
-plot!([Inf], [Inf], color=3, label="\$ \\theta/(\\pi/2) \$")
+plot!([0], [0], color=:black, label="Analytical")
+scatter!([0], [0], markershape=:none, color=:black, label="GXBeam")
+plot!([0], [0], color=1, label="Vertical \$\\left(w/L\\right)\$")
+plot!([0], [0], color=2, label="Horizontal \$\\left(-u/L\\right)\$")
+plot!([0], [0], color=3, label="\$ \\theta/(\\pi/2) \$")
 
 plot!(λ_a, η_a, color=1, label="")
 scatter!(λ, w/L, color=1, label="")
@@ -542,8 +541,8 @@ plot(
     )
 
 # create dummy legend entries for GXBeam and Analytical
-scatter!([NaN, NaN], [NaN, NaN], color=:black, label="GXBeam")
-plot!([NaN, NaN], [NaN, NaN], color=:black, label="Analytical")
+scatter!([0.0], [0.0], markershape=:none, color=:black, label="GXBeam")
+plot!([0.0], [0.0], color=:black, label="Analytical")
 
 # plot the data
 for i = 1:length(M)
@@ -624,7 +623,7 @@ prescribed_conditions = Dict(
     # fixed left endpoint
     1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
     # force on right endpoint
-    nelem+1 => PrescribedConditions(Fz=P)
+    nelem+1 => PrescribedConditions(Fz = P)
 )
 
 # perform static analysis
@@ -916,7 +915,7 @@ for i = 1:length(sweep)
 
         # process state and eigenstates
         state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
-        eigenstates[i,j] = [AssemblyState(system, assembly, V;
+        eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
             prescribed_conditions=prescribed_conditions) for k = 1:nev]
     end
 end
@@ -991,8 +990,8 @@ experiment_frequencies = [
      62.9 55.9 48.6 44.8]
 ]
 
-plot!([NaN, NaN], [NaN, NaN], color=:black, label="GXBeam")
-scatter!([NaN, NaN], [NaN, NaN], color=:black, label="Experiment (Epps and Chandra)")
+plot!([0.0], [0.0], color=:black, label="GXBeam")
+scatter!([0.0], [0.0], markershape=:none, color=:black, label="Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
     plot(
@@ -1034,8 +1033,8 @@ plot(
     overwrite_figure=false
     )
 
-plot!([NaN, NaN], [NaN, NaN], color=:black, label="GXBeam")
-scatter!([NaN, NaN], [NaN, NaN], color=:black, label="Experiment (Epps and Chandra)")
+plot!([0.0], [0.0], color=:black, label="GXBeam")
+scatter!([0.0], [0.0], markershape=:none, color=:black, label="Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
     plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
@@ -1110,20 +1109,20 @@ mass = fill(
 # create assembly of interconnected nonlinear beams
 assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
 
-# simulation time
-dt = 0.001
-t = 0:dt:2.0
-nstep = length(t)
-
 # prescribed conditions
-prescribed_conditions = Dict(
-    # fixed left side
-    1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-    # force on right side
-    nelem+1 => PrescribedConditions(dt; nstep=nstep, Fz=(t)->1e5*sin.(20*t))
-)
+prescribed_conditions = (t) -> begin
+    Dict(
+        # fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force on right side
+        nelem+1 => PrescribedConditions(Fz = 1e5*sin(20*t))
+    )
+end
 
-system, history, converged = time_domain_analysis(assembly, dt; prescribed_conditions=prescribed_conditions, nstep=nstep)
+# simulation time
+t = 0:0.001:2.0
+
+system, history, converged = time_domain_analysis(assembly, t; prescribed_conditions=prescribed_conditions)
 
 nothing #hide
 ```
@@ -1198,7 +1197,7 @@ These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael 
 We can also visualize the time history of the system using ParaView.
 
 ```julia
-write_vtk("dynamic-wind-turbine", assembly, history, dt)
+write_vtk("dynamic-wind-turbine", assembly, history, t)
 ```
 
 ![](dynamic-wind-turbine.gif)
@@ -1224,34 +1223,32 @@ p4 = [-1.79315, -3, -0.803848]
 p5 = [0, 0, 0]
 p6 = [7.1726, -12, 3.21539]
 
-# get rotation matrix for left beams
+# get transformation matrix for left beams
 
-# rotation about z in global frame
+# rotation from intermediate frame to global frame
 tmp1 = sqrt(p1[1]^2 + p1[2]^2)
 c1, s1 = -p1[1]/tmp1, -p1[2]/tmp1
 rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
-# rotation about new y-axis to local frame
+# rotation from beam frame to intermediate frame
 tmp2 = sqrt(p1[1]^2 + p1[2]^2 + p1[3]^2)
 c2, s2 = tmp1/tmp2, -p1[3]/tmp2
 rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
 
-# get rotation matrix from local to global frame
 Cab_1 = rot1*rot2
 
-# get rotation matrix for right beam
+# get transformation matrix for right beam
 
-# rotation about z in global frame
+# rotation from intermediate frame to global frame
 tmp1 = sqrt(p6[1]^2 + p6[2]^2)
 c1, s1 = p6[1]/tmp1, p6[2]/tmp1
 rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
-# rotation about new y-axis to local frame
+# rotation from beam frame to intermediate frame
 tmp2 = sqrt(p6[1]^2 + p6[2]^2 + p6[3]^2)
 c2, s2 = tmp1/tmp2, p6[3]/tmp2
 rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
 
-# get rotation matrix from global to local frame
 Cab_2 = rot1*rot2
 
 # beam 1
@@ -1344,7 +1341,8 @@ for i = 1:length(Fz)
         nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
     )
 
-    static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions, reset_state=false)
 
     nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
@@ -1363,7 +1361,8 @@ for i = 1:length(Fz)
         nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
     )
 
-    static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions, reset_state=false)
 
     nonlinear_follower_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
@@ -1500,42 +1499,42 @@ mass = fill(Diagonal([4.86e-2, 4.86e-2, 4.86e-2,
 assembly = Assembly(points, start, stop; compliance=compliance, mass=mass,
     frames=Cab, lengths=lengths, midpoints=midpoints)
 
-# time
-t = range(0, 0.04, length=1001)
-dt = t[2] - t[1]
-nstep = length(t)
-
-F_L = function(t)
+F_L = (t) -> begin
     if 0.0 <= t < 0.01
-        return 1e6*t
+        1e6*t
     elseif 0.01 <= t < 0.02
-        return -1e6*(t-0.02)
+        -1e6*(t-0.02)
     else
-        return zero(t)
+        zero(t)
     end
 end
 
-F_S = function(t)
+F_S = (t) -> begin
     if t < 0.0
-        return zero(t)
+        zero(t)
     elseif 0.0 <= t < 0.02
-        return 5e3*(1-cos(pi*t/0.02))
+        5e3*(1-cos(pi*t/0.02))
     else
-        return 1e4
+        1e4
     end
 end
 
 # assign boundary conditions and point load
-prescribed_conditions = Dict(
-    # fixed endpoint on beam 1
-    1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-    # force applied on point 4
-    nelem_b1 + 1 => PrescribedConditions(dt; nstep=nstep, Fx=F_L, Fy=F_L, Fz=F_S),
-    # fixed endpoint on last beam
-    nelem+1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-)
+prescribed_conditions = (t) -> begin
+    Dict(
+        # fixed endpoint on beam 1
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force applied on point 4
+        nelem_b1 + 1 => PrescribedConditions(Fx=F_L(t), Fy=F_L(t), Fz=F_S(t)),
+        # fixed endpoint on last beam
+        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    )
+end
 
-system, history, converged = time_domain_analysis(assembly, dt; prescribed_conditions=prescribed_conditions, nstep=nstep)
+# time
+t = range(0, 0.04, length=1001)
+
+system, history, converged = time_domain_analysis(assembly, t; prescribed_conditions=prescribed_conditions)
 
 nothing #hide
 ```
@@ -1608,7 +1607,7 @@ These graphs are identical to those presented in "GEBT: A general-purpose nonlin
 We can also visualize the time history of the system using ParaView.  In order to view the small deflections we'll scale all the deflections up by a couple orders of magnitude.  We'll also set the color gradient to match the magnitude of the deflections at each point.
 
 ```julia
-write_vtk("dynamic-joined-wing", assembly, history, dt, scaling=1e2)
+write_vtk("dynamic-joined-wing", assembly, history, t, scaling=1e2)
 ```
 
 ![](dynamic-joined-wing.gif)

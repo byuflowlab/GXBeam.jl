@@ -6,6 +6,7 @@ makedocs(;
         "Home" => "index.md",
         "Getting Started" => "guide.md",
         "Examples" => "examples.md",
+        "Using GXBeam with DifferentialEquations.jl" => "diffeq.md",
         "Library" => "library.md"
     ],
     sitename = "GXBeam.jl",

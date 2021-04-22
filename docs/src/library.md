@@ -18,6 +18,7 @@ Assembly(points, start, stop)
 ### Defining Distributed Loads
 ```@docs
 DistributedLoads(assembly, ibeam)
+combine_loads
 ```
 
 ### Defining Prescribed Conditions
@@ -30,7 +31,19 @@ PrescribedConditions()
 
 ```@docs
 System(assembly, points, static)
+system_state
 reset_state!
+set_state!
+set_element_deflections!
+set_element_rotations!
+set_element_forces!
+set_element_moments!
+set_element_linear_momenta!
+set_element_angular_momenta!
+set_point_deflections!
+set_point_rotations!
+set_point_forces!
+set_point_moments!
 ```
 
 ### Performing an Analysis
@@ -42,6 +55,8 @@ steady_state_analysis
 steady_state_analysis!
 eigenvalue_analysis
 eigenvalue_analysis!
+initial_condition_analysis
+initial_condition_analysis!
 time_domain_analysis
 time_domain_analysis!
 ```
@@ -51,9 +66,18 @@ time_domain_analysis!
 ```@docs
 AssemblyState(system, assembly)
 AssemblyState
+PointState
+extract_element_state
+extract_element_states
+extract_element_states!
+extract_point_state
+extract_point_states
+extract_point_states!
 left_eigenvectors
 correlate_eigenmodes
 wiener_milenkovic
+deform_cross_section
+deform_cross_section!
 write_vtk
 ```
 
@@ -85,7 +109,6 @@ GXBeam.point_residual!
 GXBeam.point_follower_jacobians
 GXBeam.insert_point_jacobian!
 GXBeam.point_jacobian!
-GXBeam.PointState
 ```
 
 ### Elements
@@ -97,7 +120,7 @@ GXBeam.element_curvature
 GXBeam.element_linear_velocity
 GXBeam.element_angular_velocity
 GXBeam.element_properties
-GXBeam.dynamic_element_properties
+GXBeam.element_dynamic_properties
 GXBeam.element_equations
 GXBeam.insert_element_residual!
 GXBeam.element_residual!
@@ -126,6 +149,7 @@ GXBeam.curve_triad
 GXBeam.curve_coordinates
 GXBeam.System
 GXBeam.point_connections
+GXBeam.get_sparsity
 GXBeam.system_indices
 GXBeam.system_residual!
 GXBeam.system_jacobian!

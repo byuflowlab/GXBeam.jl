@@ -61,7 +61,7 @@ lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, disc_b1)
 nothing #hide
 ```
 
-We will now create the geometry for the swept portion of the wing.  To do so we use the same `discretize_beam` function, with an additional argument that allows us to specify a rotation matrix which transforms from the global frame to the undeformed frame of the starting point of this beam section.
+We will now create the geometry for the swept portion of the wing.  To do so we use the same `discretize_beam` function, with an additional argument that allows us to specify a transformation matrix which performs a coordinate transformation from the global frame to the undeformed frame of the starting point of this beam section.
 
 ```@example guide
 sweep = 45 * pi/180
@@ -235,9 +235,7 @@ To define a `DistributedLoad` the assembly, element number, and distributed load
 - `my_follower`: Distributed follower moment on beam element in y-direction
 - `mz_follower`: Distributed follower moment on beam element in z-direction
 
-By default these functions are specified as functions of the arbitrary coordinate `s` (``f(s)``), however, if more than one time step is used in the simulation these functions are specified as a function of the arbitrary coordinate `s` and time `t` (``f(s,t)``).
-
-One can specify the s-coordinate at the start and end of the beam element using the keyword arguments `s1` and `s2`.
+Each of these forces/moments are specified as functions of the arbitrary coordinate `s` (``f(s)``).  The s-coordinate at the start and end of the beam element can be specified using the keyword arguments `s1` and `s2`.
 
 For example, the following code applies a uniform 10 pound distributed load in the global z-direction on all beam elements:
 ```@example guide
@@ -259,25 +257,13 @@ nothing #hide
 
 The units are arbitrary, but must be consistent with the units used when constructing `assembly`.  Also note that both non-follower and follower forces may exist simultaneously.
 
-If we wanted to define the same follower force for a simulation with multiple time steps we would also need to provide temporal data.  Assuming a step size of 0.01 seconds and 101 steps in the simulation (including the step to find the solution at time t=0.0) this would be done as follows:
-
-```@example guide
-dt = 0.01
-nstep = 101
-distributed_loads_multistep = Dict()
-for ielem in 1:nelem
-    distributed_loads_multistep[ielem] = DistributedLoads(assembly, ielem, dt; nstep=101, fz = (s,t) -> 10)
-end
-nothing #hide
-```
-
 It is worth noting that the distributed loads are integrated over each element when they are created using 4-point Gauss-Legendre quadrature.  If more control over the integration is desired one may specify a custom integration method as described in the documentation for `DistributedLoads`.
 
 ## Defining Prescribed Conditions
 
 Whereas distributed loads are applied to beam elements, prescribed conditions are forces and/or displacement boundary conditions applied to points. One instance of `PrescribedConditions` must be created for every point on which prescribed conditions are applied.  These instances of `PrescribedConditions` are then stored in a dictionary in which they are accessed by their point index.  
 
-PrescribedConditions may be either specified as a constant or as a function of time.  Possible prescribed conditions include:
+Possible prescribed conditions include:
 - `ux`: Prescribed x-direction displacement of the point
 - `uy`: Prescribed y-direction displacement of the point
 - `uz`: Prescribed z-direction displacement of the point
@@ -311,25 +297,9 @@ prescribed_conditions = Dict(
 nothing #hide
 ```
 
-To do the same for a simulation with multiple time steps:
-
-```@example guide
-# create dictionary of prescribed conditions
-dt = 0.01
-nstep = 101
-prescribed_conditions_multistep = Dict(
-    # root section is fixed
-    1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
-    )
-
-nothing #hide
-```
-
-We could have also specified `ux`, `uy`, `uz`, `theta_x`, `theta_y`, and `theta_z` as functions of time.
-
 ## Pre-Initializing Memory for an Analysis
 
-At this point we have everything we need to perform an analysis.  However, since we will be performing multiple analyses using the same assembly we can save computational time be preallocating memory for the analysis.  This can be done by constructing an object of type `System`.  The constructor for this object requires that we provide the assembly, a list of points upon which point conditions are applied, and a flag indicating whether the system is static.
+At this point we have everything we need to perform an analysis.  However, since we will be performing multiple analyses using the same assembly we can save computational time be pre-allocating memory for the analysis.  This can be done by constructing an object of type `System`.  The constructor for this object requires that we provide the assembly, a list of points upon which point conditions are applied, and a flag indicating whether the system is static.
 
 ```@example guide
 prescribed_points = [1, nelem+1]
