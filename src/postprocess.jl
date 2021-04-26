@@ -693,7 +693,7 @@ function left_eigenvectors(K, M, λ, V)
     for iλ = 1:nev
 
         # factorize (K + λ*M)'
-        KmλMfact = factorize(K' - λ[iλ]'*M')
+        KmλMfact = factorize(K' + λ[iλ]'*M')
 
         # initialize left eigenvector
         for i = 1:nx
@@ -741,7 +741,7 @@ function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
     for iλ = 1:nev
 
         # factorize (K + λ*M)'
-        KmλMfact = factorize(K' - λ[iλ]'*M')
+        KmλMfact = factorize(K' + λ[iλ]'*M')
 
         # initialize left eigenvector
         for i = 1:nx
