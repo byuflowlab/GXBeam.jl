@@ -236,11 +236,67 @@ function extract_element_states!(elements, system, x = system.x)
 end
 
 """
+    rotate(xyz, r, theta)
+
+Rotate the vectors in `xyz` about point `r` using the Wiener-Milenkovic
+parameters in `theta`.
+"""
+rotate(xyz, r, theta) = rotate!(copy(xyz), r, theta)
+
+"""
+    rotate!(xyz, r, theta)
+
+Pre-allocated version of [`rotate`](@ref)
+"""
+function rotate!(xyz, r, theta)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    r = SVector{3}(r)
+    theta = SVector{3}(theta)
+    # create rotation matrix
+    Ct = wiener_milenkovic(theta)'
+    # rotate each point
+    for ipt = 1:size(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= Ct*(p - r) + r
+    end
+    # return the result
+    return xyz
+end
+
+"""
+    translate(xyz, u)
+
+Translate the points in `xyz` by the displacements in `u`.
+"""
+translate(xyz, u) = translate!(copy(xyz), u)
+
+"""
+    translate!(xyz, u)
+
+Pre-allocated version of [`translate`](@ref)
+"""
+function translate!(xyz, u)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    u = SVector{3}(u)
+    # translate each point
+    for ipt = 1:size(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= p .+ u
+    end
+    # return the result
+    return xyz
+end
+
+"""
     deform_cross_section(xyz, r, u, theta)
 
-Rotate the cross-section points in `xyz` (of shape (3, :)) about point `r` using
-the Wiener-Milenkovic parameters in `theta`, then translate the cross section
-points by the displacements in `u`.
+Rotate the points in `xyz` (of shape (3, :)) about point `r` using
+the Wiener-Milenkovic parameters in `theta`, then translate the points by the
+displacements in `u`.
 """
 deform_cross_section(xyz, r, u, theta) = deform_cross_section!(copy(xyz), r, u, theta)
 
@@ -249,22 +305,56 @@ deform_cross_section(xyz, r, u, theta) = deform_cross_section!(copy(xyz), r, u, 
 
 Pre-allocated version of [`deform_cross_section`](@ref)
 """
-function deform_cross_section!(xyz, r, u, theta)
+deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)
+
+"""
+    angular_velocities(theta, thetadot)
+
+Calculate the angular velocities given the Wiener-Milenkovic parameters in `theta`
+and their time derivatives
+"""
+function angular_velocities(theta, thetadot)
+    # get rotation matrices (rotation tensor, transposed)
+    Ct = get_C(theta)'
+    Ct_t = get_C_t(theta, thetadot)'
+    # get skew symmetric matrix with angular velocities
+    Sω = Ct_t * Ct'
+    # extract angular velocities
+    return SVector(Sω[3,2], Sω[1,3], Sω[2,1])
+end
+
+"""
+    cross_section_velocities(xyz, r, v, ω)
+
+Calculate the velocities of the points in `xyz` given the linear velocity `v`,
+and the angular velocity `ω` about point `r`.
+"""
+function cross_section_velocities(xyz, r, v, ω)
+    TF = promote_type(eltype(xyz), eltype(r), eltype(v), eltype(ω))
+    vxyz = similar(xyz, TF)
+    return cross_section_velocities!(vxyz, xyz, r, v, ω)
+end
+
+"""
+    cross_section_velocities!(vxyz, xyz, r, v, ω)
+
+Pre-allocated version of [`cross_section_velocities`](@ref)
+"""
+function cross_section_velocities!(vxyz, xyz, r, v, ω)
     # reshape cross section points (if necessary)
     rxyz = reshape(xyz, 3, :)
+    rvxyz = reshape(vxyz, 3, :)
     # convert inputs to static arrays
     r = SVector{3}(r)
-    u = SVector{3}(u)
-    theta = SVector{3}(theta)
-    # create rotation matrix
-    R = wiener_milenkovic(theta)'
-    # translate and rotate each point
+    v = SVector{3}(v)
+    ω = SVector{3}(ω)
+    # calculate velocities at each point
     for ipt = 1:size(rxyz, 2)
         p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
-        rxyz[:,ipt] .= R*(p - r) + r + u
+        rvxyz[:,ipt] .= v .+ cross(ω, p - r)
     end
     # return the result
-    return xyz
+    return vxyz
 end
 
 """
@@ -596,6 +686,54 @@ function left_eigenvectors(K, M, λ, V)
     u = Vector{TC}(undef, nx)
     tmp = Vector{TC}(undef, nx)
 
+    # # get entries in M
+    # iM, jM, valM = findnz(M)
+
+    # compute eigenvectors for each eigenvalue
+    for iλ = 1:nev
+
+        # factorize (K + λ*M)'
+        KmλMfact = factorize(K' - λ[iλ]'*M')
+
+        # initialize left eigenvector
+        for i = 1:nx
+            u[i] = U[iλ,i]
+        end
+
+        # perform a few iterations to converge the left eigenvector
+        for ipass = 1:3
+            # get updated u
+            mul!(tmp, M, u)
+            ldiv!(u, KmλMfact, tmp)
+            # normalize u
+            unorm = zero(TC)
+            for i in axes(M, 1), j in axes(M, 2)
+                unorm += conj(u[i])*M[i,j]*V[j,iλ]
+            end
+            rdiv!(u, conj(unorm))
+        end
+
+        # store conjugate of final eigenvector
+        for i = 1:nx
+            U[iλ,i] = conj(u[i])
+        end
+    end
+
+    return U
+end
+
+function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
+
+    # problem type and dimensions
+    TC = eltype(V)
+    nx = size(V,1)
+    nev = size(V,2)
+
+    # allocate storage
+    U = rand(TC, nev, nx)
+    u = Vector{TC}(undef, nx)
+    tmp = Vector{TC}(undef, nx)
+
     # get entries in M
     iM, jM, valM = findnz(M)
 
@@ -631,6 +769,7 @@ function left_eigenvectors(K, M, λ, V)
 
     return U
 end
+
 
 """
     correlate_eigenmodes(C)

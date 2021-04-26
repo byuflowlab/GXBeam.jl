@@ -492,8 +492,8 @@ function eigenvalue_analysis!(system, assembly;
     λ .= λ[perm]
     V .= V[:,perm]
 
-    # eigenvalues are actually 1/λ, no modification necessary for eigenvectors
-    λ .= 1 ./ λ
+    # eigenvalues are actually -1/λ, no modification necessary for eigenvectors
+    λ .= -1 ./ λ
 
     return system, λ, V, converged
 end
