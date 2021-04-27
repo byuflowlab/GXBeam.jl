@@ -31,6 +31,7 @@ As a sample of one of the many things this package can do, here's a time domain 
     - Follower forces/moments (which rotate as the point rotates)
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
+ - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface for time domain simulations. 
  - Extensively validated against published analytical and computational results.  See the [examples in the documentation](https://flow.byu.edu/GXBeam.jl/dev/examples/).
 
 ## Installation

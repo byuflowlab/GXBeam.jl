@@ -27,7 +27,13 @@ export time_domain_analysis, time_domain_analysis!
 export AssemblyState
 export PointState, extract_point_state, extract_point_states, extract_point_states!
 export ElementState, extract_element_state, extract_element_states, extract_element_states!
-export wiener_milenkovic, deform_cross_section, deform_cross_section!
+export wiener_milenkovic, angular_velocities
+export rotate, rotate!
+export translate, translate!
+export cross_section_velocities, cross_section_velocities!
+export deform_cross_section, deform_cross_section!
+
+
 export write_vtk
 export left_eigenvectors, correlate_eigenmodes
 

@@ -65,13 +65,15 @@ end
 Construct a `DAEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
 
-The parameters for this function are as follows:
- - `prescribed_conditions: A dictionary with keys corresponding to the points at
+The parameters associated with the resulting DAEFunction are defined by the tuple
+`(prescribed_conditions, distributed_loads, origin, linear_velocity, angular_velocity)`
+where each parameter is defined as follows:
+ - `prescribed_conditions`: A dictionary with keys corresponding to the points at
         which prescribed conditions are applied and elements of type
         [`PrescribedConditions`](@ref) which describe the prescribed conditions
         at those points.  If time varying, this input may be provided as a
         function of time.
- - `distributed_loads: A dictionary with keys corresponding to the elements to
+ - `distributed_loads`: A dictionary with keys corresponding to the elements to
         which distributed loads are applied and elements of type
         [`DistributedLoads`](@ref) which describe the distributed loads at those
         points.  If time varying, this input may be provided as a function of

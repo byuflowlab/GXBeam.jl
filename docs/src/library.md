@@ -76,8 +76,15 @@ extract_point_states!
 left_eigenvectors
 correlate_eigenmodes
 wiener_milenkovic
+angular_velocities
+rotate
+rotate!
+translate
+translate!
 deform_cross_section
 deform_cross_section!
+cross_section_velocities
+cross_section_velocities!
 write_vtk
 ```
 

@@ -80,7 +80,8 @@ At this point if we wanted to use GXBeam's internal solver, we would choose a ti
 # simulation time
 t = 0:0.001:2.0
 
-system, gxbeam_history, converged = time_domain_analysis(assembly, t; prescribed_conditions=prescribed_conditions)
+system, gxbeam_history, converged = time_domain_analysis(assembly, t;
+    prescribed_conditions = prescribed_conditions)
 
 nothing #hide
 ```
@@ -109,7 +110,8 @@ We can extract the outputs from the solution in a easy to understand format usin
 
 ```@example diffeq
 
-diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions) for it in eachindex(sol)]
+diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions)
+    for it in eachindex(sol)]
 
 nothing #hide
 ```
@@ -124,7 +126,9 @@ point = vcat(fill(nelem+1, 6), fill(1, 6))
 field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
 direction = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]
 ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
-    "Rodriguez Parameter \$\\theta_x\$ (degree)", "Rodriguez Parameter \$\\theta_y\$ (degree)", "Rodriguez Parameter \$\\theta_z\$ (degree)",
+    "Rodriguez Parameter \$\\theta_x\$ (degree)",
+    "Rodriguez Parameter \$\\theta_y\$ (degree)",
+    "Rodriguez Parameter \$\\theta_z\$ (degree)",
     "\$F_x\$ (\$N\$)", "\$F_y\$ (\$N\$)", "\$F_z\$ (\$N\$)",
     "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
 
@@ -138,9 +142,11 @@ for i = 1:12
         grid = false,
         overwrite_figure=false
         )
-    y_gxbeam = [getproperty(state.points[point[i]], field[i])[direction[i]] for state in gxbeam_history]
+    y_gxbeam = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in gxbeam_history]
 
-    y_diffeq = [getproperty(state.points[point[i]], field[i])[direction[i]] for state in diffeq_history]
+    y_diffeq = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in diffeq_history]
 
     if field[i] == :theta
         # convert to Rodriguez parameter

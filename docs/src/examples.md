@@ -95,6 +95,12 @@ nothing #hide
 Plotting the results reveals that the analytical and computational solutions show excellent agreement.
 
 ```@example linear-cantilever-pudl
+using Suppressor #hide
+
+@suppress_err begin #hide
+
+global x #hide
+
 using Plots
 pyplot()
 
@@ -108,7 +114,8 @@ plot(
     overwrite_figure=false
     )
 
-x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
+    1:length(assembly.points)]
 deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, deflection_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
@@ -125,8 +132,10 @@ plot(
     overwrite_figure=false
     )
 
-x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
-theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1]
+    for ipoint = 1:length(assembly.points)]
+theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint =
+    1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
 
@@ -142,12 +151,16 @@ plot(
     overwrite_figure=false
     )
 
-x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
+x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for
+    ielem = 1:length(assembly.elements)]
 M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
 
 savefig("linear-cantilever-pudl-3.svg") #hide
+
+end #hide
+
 nothing #hide
 ```
 
@@ -206,11 +219,14 @@ for i = 1:nelem
 end
 
 # perform a static analysis
-system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
-    distributed_loads=distributed_loads, linear=true)
+system, converged = static_analysis(assembly;
+    prescribed_conditions = prescribed_conditions,
+    distributed_loads = distributed_loads,
+    linear = true)
 
 # post-process the results
-state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+state = AssemblyState(system, assembly;
+    prescribed_conditions = prescribed_conditions)
 
 nothing #hide
 ```
@@ -241,6 +257,8 @@ using Suppressor #hide
 
 @suppress_err begin #hide
 
+global x #hide
+
 using Plots
 pyplot()
 
@@ -254,7 +272,8 @@ plot(
     overwrite_figure=false
     )
 
-x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
+    1:length(assembly.points)]
 deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, w_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
@@ -270,7 +289,8 @@ plot(
     overwrite_figure=false
     )
 
-x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
+    1:length(assembly.points)]
 theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
@@ -286,7 +306,8 @@ plot(
     overwrite_figure=false
     )
 
-x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem = 1:length(assembly.elements)]
+x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem =
+    1:length(assembly.elements)]
 M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
@@ -343,7 +364,7 @@ assembly = Assembly(points, start, stop, compliance=compliance)
 
 # pre-initialize system storage
 static = true
-keep_points = [1, nelem+1] # points that we request are included in the system of equations
+keep_points = [1, nelem+1] # points that should be included in the system of equations
 system = System(assembly, keep_points, static)
 
 # run an analysis for each prescribed tip load
@@ -359,10 +380,12 @@ for i = 1:length(P)
     )
 
     # perform a static analysis
-    static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions)
 
     # post-process the results
-    states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    states[i] = AssemblyState(system, assembly;
+        prescribed_conditions=prescribed_conditions)
 
 end
 
@@ -397,6 +420,8 @@ using Suppressor #hide
 
 @suppress_err begin #hide
 
+global x #hide
+
 using Plots
 pyplot()
 
@@ -417,7 +442,7 @@ plot(
     )
 
 plot!([0], [0], color=:black, label="Analytical")
-scatter!([0], [0], markershape=:none, color=:black, label="GXBeam")
+scatter!([0], [0], color=:black, label="GXBeam")
 plot!([0], [0], color=1, label="Vertical \$\\left(w/L\\right)\$")
 plot!([0], [0], color=2, label="Horizontal \$\\left(-u/L\\right)\$")
 plot!([0], [0], color=3, label="\$ \\theta/(\\pi/2) \$")
@@ -482,7 +507,7 @@ assembly = Assembly(points, start, stop, compliance=compliance)
 
 # pre-initialize system storage
 static = true
-keep_points = [1, nelem+1] # points that we request are included in the system of equations
+keep_points = [1, nelem+1] # points that should be included in the system of equations
 system = System(assembly, keep_points, static)
 
 # run an analysis for each prescribed bending moment
@@ -498,10 +523,12 @@ for i = 1:length(M)
     )
 
     # perform a static analysis
-    static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions)
 
     # post-process the results
-    states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    states[i] = AssemblyState(system, assembly;
+        prescribed_conditions=prescribed_conditions)
 
 end
 
@@ -524,6 +551,8 @@ using Suppressor #hide
 
 @suppress_err begin #hide
 
+global x #hide
+
 using Plots
 pyplot()
 
@@ -541,15 +570,17 @@ plot(
     )
 
 # create dummy legend entries for GXBeam and Analytical
-scatter!([0.0], [0.0], markershape=:none, color=:black, label="GXBeam")
-plot!([0.0], [0.0], color=:black, label="Analytical")
+scatter!([], [], color=:black, label="GXBeam")
+plot!([], [], color=:black, label="Analytical")
 
 # plot the data
 for i = 1:length(M)
     local x, y #hide
     # GXBeam
-    x = [assembly.points[ipoint][1] + states[i].points[ipoint].u[1] for ipoint = 1:length(assembly.points)]
-    y = [assembly.points[ipoint][2] + states[i].points[ipoint].u[2] for ipoint = 1:length(assembly.points)]
+    x = [assembly.points[ipoint][1] + states[i].points[ipoint].u[1] for ipoint =
+        1:length(assembly.points)]
+    y = [assembly.points[ipoint][2] + states[i].points[ipoint].u[2] for ipoint =
+        1:length(assembly.points)]
     scatter!(x/L, y/L, label="", color = i)
 
     # Analytical
@@ -602,7 +633,9 @@ J = Iyy + Izz
 
 # discretize the beam
 nelem = 16
-ΔL, xp, xm, Cab = discretize_beam(L, start, nelem; frame=frame, curvature=curvature)
+ΔL, xp, xm, Cab = discretize_beam(L, start, nelem;
+    frame = frame,
+    curvature = curvature)
 
 # force
 P = 600 # lbs
@@ -612,7 +645,8 @@ pt1 = 1:nelem
 pt2 = 2:nelem+1
 
 # compliance matrix for each beam element
-compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*J), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*J), 1/(E*Iyy),
+    1/(E*Izz)]), nelem)
 
 # create assembly of interconnected nonlinear beams
 assembly = Assembly(xp, pt1, pt2, compliance=compliance, frames=Cab,
@@ -627,10 +661,12 @@ prescribed_conditions = Dict(
 )
 
 # perform static analysis
-system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
+system, converged = static_analysis(assembly;
+    prescribed_conditions = prescribed_conditions)
 
 # post-process results
-state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+state = AssemblyState(system, assembly;
+    prescribed_conditions = prescribed_conditions)
 
 println("Tip Displacement: ", state.points[end].u)
 println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
@@ -673,7 +709,8 @@ r_b2 = [34, 0, 0]
 nelem_b2 = 3
 cs, ss = cos(sweep), sin(sweep)
 frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
-lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+    frame = frame_b2)
 
 # combine elements and points into one array
 nelem = nelem_b1 + nelem_b2
@@ -710,12 +747,18 @@ Jx = J/kt
 
 G = E/(2*(1+ν))
 
-compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
+    1/(E*Izz)]), nelem)
 
 mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
 
 # create assembly
-assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab,
+    lengths = lengths,
+    midpoints = midpoints)
 
 # create dictionary of prescribed conditions
 prescribed_conditions = Dict(
@@ -734,7 +777,8 @@ for i = 1:length(rpm)
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions)
 
-    nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    nonlinear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
 
     # perform linear steady state analysis
     system, converged = steady_state_analysis(assembly,
@@ -742,7 +786,8 @@ for i = 1:length(rpm)
         prescribed_conditions = prescribed_conditions,
         linear = true)
 
-    linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    linear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
 end
 
 nothing #hide
@@ -755,6 +800,8 @@ To visualize the solutions we will plot the root moment and tip deflections agai
 using Suppressor #hide
 
 @suppress_err begin #hide
+
+global x #hide
 
 using Plots
 pyplot()
@@ -874,7 +921,8 @@ for i = 1:length(sweep)
     nelem_b2 = 20
     cs, ss = cos(sweep[i]), sin(sweep[i])
     frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
-    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
+    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+        frame = frame_b2)
 
     # combine elements and points into one array
     nelem = nelem_b1 + nelem_b2
@@ -885,15 +933,21 @@ for i = 1:length(sweep)
     midpoints = vcat(xm_b1, xm_b2)
     Cab = vcat(Cab_b1, Cab_b2)
 
-    compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+    compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx),
+        1/(E*Iyy), 1/(E*Izz)]), nelem)
 
     mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
 
     # create assembly
-    assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
+    assembly = Assembly(points, start, stop;
+        compliance = compliance,
+        mass = mass,
+        frames = Cab,
+        lengths = lengths,
+        midpoints = midpoints)
 
     # create system
-    keep_points = [1, nelem_b1+1, nelem+1] # points that we request are included in the system of equations
+    keep_points = [1, nelem_b1+1, nelem+1]
     system = System(assembly, keep_points, false)
 
     for j = 1:length(rpm)
@@ -901,10 +955,10 @@ for i = 1:length(sweep)
         w0 = [0, 0, rpm[j]*(2*pi)/60]
 
         # eigenvalues and (right) eigenvectors
-        system, λ[i,j], V, converged = eigenvalue_analysis!(system, assembly,
+        system, λ[i,j], V, converged = eigenvalue_analysis!(system, assembly;
             angular_velocity = w0,
             prescribed_conditions = prescribed_conditions,
-            nev=nev)
+            nev = nev)
 
         # corresponding left eigenvectors
         U[i,j] = left_eigenvectors(system, λ[i,j], V)
@@ -914,9 +968,10 @@ for i = 1:length(sweep)
         MV[i,j] = system.M * V
 
         # process state and eigenstates
-        state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
+        state[i,j] = AssemblyState(system, assembly;
+            prescribed_conditions = prescribed_conditions)
         eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
-            prescribed_conditions=prescribed_conditions) for k = 1:nev]
+            prescribed_conditions = prescribed_conditions) for k = 1:nev]
     end
 end
 
@@ -958,7 +1013,8 @@ for j = 1:length(rpm)
     U_p .= U[1,j]
 end
 
-frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 2:2:nev]
+frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)]
+    for k = 1:2:nev]
 
 nothing #hide
 ```
@@ -972,6 +1028,8 @@ We'll now plot the frequency of the different eigenmodes against those found by 
 using Suppressor #hide
 
 @suppress_err begin #hide
+
+global x #hide
 
 names = ["First Bending Mode", "Second Bending Mode", "Third Bending Mode"]
 indices = [1, 2, 4]
@@ -990,8 +1048,8 @@ experiment_frequencies = [
      62.9 55.9 48.6 44.8]
 ]
 
-plot!([0.0], [0.0], color=:black, label="GXBeam")
-scatter!([0.0], [0.0], markershape=:none, color=:black, label="Experiment (Epps and Chandra)")
+plot!([], [], color=:black, label="GXBeam")
+scatter!([], [], color=:black, label = "Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
     plot(
@@ -1005,7 +1063,8 @@ for k = 1:length(indices)
         )
 
     for j = length(rpm):-1:1
-        plot!(sweep*180/pi, frequency[indices[k]][:,j], label="$(rpm[j]) RPM", color=j)
+        plot!(sweep*180/pi, frequency[indices[k]][:,j],
+            label="$(rpm[j]) RPM", color=j)
         scatter!(experiment_sweep, experiment_frequencies[k][j,:],
             label="", color=j)
     end
@@ -1029,12 +1088,14 @@ plot(
     xlabel = "Sweep Angle (degrees)",
     ylim = (0, Inf),
     ylabel = "Frequency (Hz)",
+    legend = :bottomleft,
     grid = false,
     overwrite_figure=false
     )
 
-plot!([0.0], [0.0], color=:black, label="GXBeam")
-scatter!([0.0], [0.0], markershape=:none, color=:black, label="Experiment (Epps and Chandra)")
+plot!([], [], color=:black, label="GXBeam")
+scatter!([], [], color=:black,
+    label="Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
     plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
@@ -1122,7 +1183,8 @@ end
 # simulation time
 t = 0:0.001:2.0
 
-system, history, converged = time_domain_analysis(assembly, t; prescribed_conditions=prescribed_conditions)
+system, history, converged = time_domain_analysis(assembly, t;
+    prescribed_conditions = prescribed_conditions)
 
 nothing #hide
 ```
@@ -1135,6 +1197,8 @@ using Suppressor #hide
 
 @suppress_err begin #hide
 
+global x #hide
+
 using Plots
 pyplot()
 
@@ -1142,7 +1206,9 @@ point = vcat(fill(nelem+1, 6), fill(1, 6))
 field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
 direction = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]
 ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
-    "Rodriguez Parameter \$\\theta_x\$ (degree)", "Rodriguez Parameter \$\\theta_y\$ (degree)", "Rodriguez Parameter \$\\theta_z\$ (degree)",
+    "Rodriguez Parameter \$\\theta_x\$ (degree)",
+    "Rodriguez Parameter \$\\theta_y\$ (degree)",
+    "Rodriguez Parameter \$\\theta_z\$ (degree)",
     "\$F_x\$ (\$N\$)", "\$F_y\$ (\$N\$)", "\$F_z\$ (\$N\$)",
     "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
 
@@ -1156,7 +1222,8 @@ for i = 1:12
         grid = false,
         overwrite_figure=false
         )
-    y = [getproperty(state.points[point[i]], field[i])[direction[i]] for state in history]
+    y = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in history]
 
     if field[i] == :theta
         # convert to Rodriguez parameter
@@ -1255,36 +1322,46 @@ Cab_2 = rot1*rot2
 L_b1 = norm(p2-p1)
 r_b1 = p1
 nelem_b1 = 5
-lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1, frame=Cab_1)
-compliance_b1 = fill(Diagonal([1.05204e-9, 3.19659e-9, 2.13106e-8, 1.15475e-7, 1.52885e-7, 7.1672e-9]), nelem_b1)
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1;
+    frame = Cab_1)
+compliance_b1 = fill(Diagonal([1.05204e-9, 3.19659e-9, 2.13106e-8, 1.15475e-7,
+    1.52885e-7, 7.1672e-9]), nelem_b1)
 
 # beam 2
 L_b2 = norm(p3-p2)
 r_b2 = p2
 nelem_b2 = 5
-lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=Cab_1)
-compliance_b2 = fill(Diagonal([1.24467e-9, 3.77682e-9, 2.51788e-8, 1.90461e-7, 2.55034e-7, 1.18646e-8]), nelem_b2)
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+    frame = Cab_1)
+compliance_b2 = fill(Diagonal([1.24467e-9, 3.77682e-9, 2.51788e-8, 1.90461e-7,
+    2.55034e-7, 1.18646e-8]), nelem_b2)
 
 # beam 3
 L_b3 = norm(p4-p3)
 r_b3 = p3
 nelem_b3 = 5
-lengths_b3, xp_b3, xm_b3, Cab_b3 = discretize_beam(L_b3, r_b3, nelem_b3, frame=Cab_1)
-compliance_b3 = fill(Diagonal([1.60806e-9, 4.86724e-9, 3.24482e-8, 4.07637e-7, 5.57611e-7, 2.55684e-8]), nelem_b3)
+lengths_b3, xp_b3, xm_b3, Cab_b3 = discretize_beam(L_b3, r_b3, nelem_b3;
+    frame = Cab_1)
+compliance_b3 = fill(Diagonal([1.60806e-9, 4.86724e-9, 3.24482e-8, 4.07637e-7,
+    5.57611e-7, 2.55684e-8]), nelem_b3)
 
 # beam 4
 L_b4 = norm(p5-p4)
 r_b4 = p4
 nelem_b4 = 5
-lengths_b4, xp_b4, xm_b4, Cab_b4 = discretize_beam(L_b4, r_b4, nelem_b4, frame=Cab_1)
-compliance_b4 = fill(Diagonal([2.56482e-9, 7.60456e-9, 5.67609e-8, 1.92171e-6, 2.8757e-6, 1.02718e-7]), nelem_b4)
+lengths_b4, xp_b4, xm_b4, Cab_b4 = discretize_beam(L_b4, r_b4, nelem_b4;
+    frame = Cab_1)
+compliance_b4 = fill(Diagonal([2.56482e-9, 7.60456e-9, 5.67609e-8, 1.92171e-6,
+    2.8757e-6, 1.02718e-7]), nelem_b4)
 
 # beam 5
 L_b5 = norm(p6-p5)
 r_b5 = p5
 nelem_b5 = 20
-lengths_b5, xp_b5, xm_b5, Cab_b5 = discretize_beam(L_b5, r_b5, nelem_b5, frame=Cab_2)
-compliance_b5 = fill(Diagonal([2.77393e-9, 7.60456e-9, 1.52091e-7, 1.27757e-5, 2.7835e-5, 1.26026e-7]), nelem_b5)
+lengths_b5, xp_b5, xm_b5, Cab_b5 = discretize_beam(L_b5, r_b5, nelem_b5;
+    frame = Cab_2)
+compliance_b5 = fill(Diagonal([2.77393e-9, 7.60456e-9, 1.52091e-7, 1.27757e-5,
+    2.7835e-5, 1.26026e-7]), nelem_b5)
 
 # combine elements and points into one array
 nelem = nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + nelem_b5
@@ -1294,11 +1371,15 @@ stop = 2:nelem + 1
 lengths = vcat(lengths_b1, lengths_b2, lengths_b3, lengths_b4, lengths_b5)
 midpoints = vcat(xm_b1, xm_b2, xm_b3, xm_b4, xm_b5)
 Cab = vcat(Cab_b1, Cab_b2, Cab_b3, Cab_b4, Cab_b5)
-compliance = vcat(compliance_b1, compliance_b2, compliance_b3, compliance_b4, compliance_b5)
+compliance = vcat(compliance_b1, compliance_b2, compliance_b3, compliance_b4,
+    compliance_b5)
 
 # create assembly
-assembly = Assembly(points, start, stop, compliance=compliance,
-    frames=Cab, lengths=lengths, midpoints=midpoints)
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    frames = Cab,
+    lengths = lengths,
+    midpoints = midpoints)
 
 Fz = range(0, 70e3, length=141)
 
@@ -1321,9 +1402,12 @@ for i = 1:length(Fz)
         nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
     )
 
-    static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions, linear=true)
+    static_analysis!(system, assembly;
+        prescribed_conditions = prescribed_conditions,
+        linear = true)
 
-    linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    linear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -1344,7 +1428,8 @@ for i = 1:length(Fz)
     static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions, reset_state=false)
 
-    nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    nonlinear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -1356,7 +1441,8 @@ for i = 1:length(Fz)
         # fixed endpoint on beam 1
         1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         # force applied on point 4
-        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 => PrescribedConditions(Fz_follower = Fz[i]),
+        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 =>
+            PrescribedConditions(Fz_follower = Fz[i]),
         # fixed endpoint on last beam
         nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
     )
@@ -1364,7 +1450,8 @@ for i = 1:length(Fz)
     static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions, reset_state=false)
 
-    nonlinear_follower_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    nonlinear_follower_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -1380,6 +1467,8 @@ To visualize the differences between the different types of analyses we can plot
 using Suppressor #hide
 
 @suppress_err begin #hide
+
+global x #hide
 
 using Plots
 pyplot()
@@ -1490,14 +1579,19 @@ midpoints = vcat(xm_b1, xm_b2)
 Cab = vcat(Cab_b1, Cab_b2)
 
 # assign all beams the same compliance and mass matrix
-compliance = fill(Diagonal([2.93944738387698e-10, 8.42991725049126e-10, 3.38313996669689e-08,
-    4.69246721094557e-08, 6.79584100559513e-08, 1.37068861370898e-09]), nelem)
-mass = fill(Diagonal([4.86e-2, 4.86e-2, 4.86e-2,
-    1.0632465e-2, 2.10195e-4, 1.042227e-2]), nelem)
+compliance = fill(Diagonal([2.93944738387698e-10, 8.42991725049126e-10,
+    3.38313996669689e-08, 4.69246721094557e-08, 6.79584100559513e-08,
+    1.37068861370898e-09]), nelem)
+mass = fill(Diagonal([4.86e-2, 4.86e-2, 4.86e-2, 1.0632465e-2, 2.10195e-4,
+    1.042227e-2]), nelem)
 
 # create assembly
-assembly = Assembly(points, start, stop; compliance=compliance, mass=mass,
-    frames=Cab, lengths=lengths, midpoints=midpoints)
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab,
+    lengths = lengths,
+    midpoints = midpoints)
 
 F_L = (t) -> begin
     if 0.0 <= t < 0.01
@@ -1534,7 +1628,8 @@ end
 # time
 t = range(0, 0.04, length=1001)
 
-system, history, converged = time_domain_analysis(assembly, t; prescribed_conditions=prescribed_conditions)
+system, history, converged = time_domain_analysis(assembly, t;
+    prescribed_conditions=prescribed_conditions)
 
 nothing #hide
 ```
@@ -1547,6 +1642,8 @@ using Suppressor #hide
 
 @suppress_err begin #hide
 
+global x #hide
+
 using Plots
 pyplot()
 
@@ -1554,9 +1651,11 @@ point = vcat(fill(nelem_b1+1, 6), fill(1, 6))
 field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
 direction = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]
 ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
-    "Rodriguez Parameter \$\\theta_x\$", "Rodriguez Parameter \$\\theta_y\$", "Rodriguez Parameter \$\\theta_z\$",
-    "\$F_x\$ at the forewing root (\$N\$)", "\$F_y\$ at the forewing root (\$N\$)", "\$F_z\$ at the forewing root (\$N\$)",
-    "\$M_x\$ at the forewing root (\$Nm\$)", "\$M_y\$ at the forewing root (\$Nm\$)", "\$M_z\$ at the forewing root (\$N\$)"]
+    "Rodriguez Parameter \$\\theta_x\$", "Rodriguez Parameter \$\\theta_y\$",
+    "Rodriguez Parameter \$\\theta_z\$", "\$F_x\$ at the forewing root (\$N\$)",
+    "\$F_y\$ at the forewing root (\$N\$)", "\$F_z\$ at the forewing root (\$N\$)",
+    "\$M_x\$ at the forewing root (\$Nm\$)", "\$M_y\$ at the forewing root (\$Nm\$)",
+    "\$M_z\$ at the forewing root (\$N\$)"]
 
 for i = 1:12
     local y #hide

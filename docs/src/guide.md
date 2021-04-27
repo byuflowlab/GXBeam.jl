@@ -190,7 +190,8 @@ Jx = J/kt
 
 G = E/(2*(1+ν))
 
-compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
+    1/(E*Izz)]), nelem)
 
 mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
 nothing #hide
@@ -203,7 +204,12 @@ Also note that any row/column of the stiffness and/or compliance matrix which is
 We are now ready to put together our assembly.
 
 ```@example guide
-assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
+assembly = Assembly(points, start, stop;
+   compliance = compliance,
+   mass = mass,
+   frames = Cab,
+   lengths = lengths,
+   midpoints = midpoints)
 nothing #hide
 ```
 
@@ -250,7 +256,8 @@ To instead make this a follower force (a force that rotates with the structure) 
 ```@example guide
 distributed_loads = Dict()
 for ielem in 1:nelem
-    distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz_follower = (s) -> 10)
+    distributed_loads[ielem] = DistributedLoads(assembly, ielem;
+        fz_follower = (s) -> 10)
 end
 nothing #hide
 ```
@@ -330,7 +337,8 @@ for i = 1:length(rpm)
         prescribed_conditions = prescribed_conditions,
         linear = true)
 
-    linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    linear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions=prescribed_conditions)
 
 end
 
@@ -347,7 +355,8 @@ for i = 1:length(rpm)
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions)
 
-     nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+     nonlinear_states[i] = AssemblyState(system, assembly;
+         prescribed_conditions=prescribed_conditions)
 
 end
 
