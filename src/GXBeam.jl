@@ -1,7 +1,6 @@
 module GXBeam
 
 using ArnoldiMethod
-using FLOWMath
 using LinearAlgebra
 using LinearMaps
 using NLsolve
