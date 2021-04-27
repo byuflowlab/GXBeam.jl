@@ -1,4 +1,7 @@
-using GXBeam, Test, LinearAlgebra
+using GXBeam
+using LinearAlgebra
+using DifferentialEquations
+using Test
 import Elliptic
 
 @testset "Linear Analysis of a Cantilever Partially Under a Uniform Distributed Load" begin
@@ -163,7 +166,6 @@ end
         @test isapprox(state.points[i].u[3], analytical_deflection(xi), atol=1e-8)
         @test isapprox(state.points[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-8)
     end
-
 end
 
 @testset "Nonlinear Analysis of a Cantilever Subjected to a Constant Tip Load" begin
@@ -237,7 +239,6 @@ end
         @test isapprox(states[i].points[end].u[3]/L, η_a[i_a], atol=1e-3)
         @test isapprox(states[i].points[end].theta[2], -4*tan(θ_a[i_a]/4), atol=1e-2)
     end
-
 end
 
 @testset "Nonlinear Analysis of a Cantilever Subjected to a Constant Moment" begin
@@ -318,7 +319,6 @@ end
             @test isapprox(states[i].points[ipoint].u[2], v_a, atol=5e-2)
         end
     end
-
 end
 
 @testset "Nonlinear Analysis of the Bending of a Curved Beam in 3D Space" begin
@@ -386,7 +386,6 @@ end
     @test isapprox(state.points[end].u[1], -13.4, atol=0.2) # -13.577383726758564
     @test isapprox(state.points[end].u[2], -23.5, atol=0.1) # -23.545303336988038
     @test isapprox(state.points[end].u[3],  53.4, atol=0.1) #  53.45800757548929
-
 end
 
 @testset "Rotating Beam with a Swept Tip" begin
@@ -549,7 +548,7 @@ end
 
             # process state and eigenstates
             state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
-            eigenstates[i,j] = [AssemblyState(system, assembly, V;
+            eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
                 prescribed_conditions=prescribed_conditions) for k = 1:nev]
         end
     end
@@ -579,7 +578,7 @@ end
         U_p .= U[1,j]
     end
 
-    frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 2:2:nev]
+    frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 1:2:nev]
 
     indices = [1, 2, 4]
     experiment_rpm = [0, 500, 750]
@@ -663,20 +662,21 @@ end
     assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
 
     # simulation time
-    dt = 0.001
-    t = 0:dt:2.0
-    nstep = length(t)
+    tvec = 0:0.001:2.0
 
     # prescribed conditions
-    prescribed_conditions = Dict(
-        # fixed left side
-        1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-        # force on right side
-        nelem+1 => PrescribedConditions(dt; nstep=nstep, Fz=(t)->1e5*sin.(20*t))
-    )
+    prescribed_conditions = (t) -> begin
+        Dict(
+            # fixed left side
+            1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+            # force on right side
+            nelem+1 => PrescribedConditions(Fz=1e5*sin(20*t))
+            )
+    end
 
-    system, history, converged = time_domain_analysis(assembly, dt; prescribed_conditions=prescribed_conditions, nstep=nstep)
+    system, history, converged = time_domain_analysis(assembly, tvec; prescribed_conditions=prescribed_conditions)
 
+    @test converged
 end
 
 @testset "Nonlinear Static Analysis of a Joined-Wing" begin
@@ -795,10 +795,11 @@ end
             nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         )
 
-        static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions, linear=true)
+        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions, linear=true)
 
         linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
+        @test converged
     end
 
     reset_state!(system)
@@ -815,10 +816,13 @@ end
             nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         )
 
-        static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions,
+            reset_state = false)
 
-        nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        nonlinear_states[i] = AssemblyState(system, assembly;
+            prescribed_conditions=prescribed_conditions)
 
+        @test converged
     end
 
     reset_state!(system)
@@ -834,10 +838,13 @@ end
             nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         )
 
-        static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
+        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions,
+            reset_state = false)
 
-        nonlinear_follower_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        nonlinear_follower_states[i] = AssemblyState(system, assembly;
+            prescribed_conditions=prescribed_conditions)
 
+        @test converged
     end
 end
 
@@ -892,38 +899,104 @@ end
         frames=Cab, lengths=lengths, midpoints=midpoints)
 
     # time
-    t = range(0, 0.04, length=1001)
-    dt = t[2] - t[1]
-    nstep = length(t)
+    tvec = range(0, 0.04, length=1001)
 
-    F_L = function(t)
+    F_L = (t) -> begin
         if 0.0 <= t < 0.01
-            return 1e6*t
+            1e6*t
         elseif 0.01 <= t < 0.02
-            return -1e6*(t-0.02)
+            -1e6*(t-0.02)
         else
-            return zero(t)
+            zero(t)
         end
     end
 
-    F_S = function(t)
+    F_S = (t) -> begin
         if 0.0 <= t < 0.02
-            return 5e3*(1-cos(pi*t/0.02))
+            5e3*(1-cos(pi*t/0.02))
         else
-            return 1e4
+            1e4
         end
     end
 
     # assign boundary conditions and point load
-    prescribed_conditions = Dict(
+    prescribed_conditions = (t) -> begin
+        Dict(
         # fixed endpoint on beam 1
-        1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         # force applied on point 4
-        nelem_b1 + 1 => PrescribedConditions(dt; nstep=nstep, Fx=F_L, Fy=F_L, Fz=F_S),
+        nelem_b1 + 1 => PrescribedConditions(Fx=F_L(t), Fy=F_L(t), Fz=F_S(t)),
         # fixed endpoint on last beam
-        nelem+1 => PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-    )
+        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        )
+    end
 
-    system, history, converged = time_domain_analysis(assembly, dt; prescribed_conditions=prescribed_conditions, nstep=nstep)
+    system, history, converged = time_domain_analysis(assembly, tvec;
+        prescribed_conditions=prescribed_conditions)
 
+    @test converged
+end
+
+@testset "DifferentialEquations" begin
+
+    L = 60 # m
+
+    # create points
+    nelem = 10
+    x = range(0, L, length=nelem+1)
+    y = zero(x)
+    z = zero(x)
+    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+    # index of endpoints of each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
+
+    # stiffness matrix for each beam element
+    stiffness = fill(
+        [2.389e9  1.524e6  6.734e6 -3.382e7 -2.627e7 -4.736e8
+         1.524e6  4.334e8 -3.741e6 -2.935e5  1.527e7  3.835e5
+         6.734e6 -3.741e6  2.743e7 -4.592e5 -6.869e5 -4.742e6
+        -3.382e7 -2.935e5 -4.592e5  2.167e7 -6.279e5  1.430e6
+        -2.627e7  1.527e7 -6.869e5 -6.279e5  1.970e7  1.209e7
+        -4.736e8  3.835e5 -4.742e6  1.430e6  1.209e7  4.406e8],
+        nelem)
+
+    # mass matrix for each beam element
+    mass = fill(
+        [258.053      0.0        0.0      0.0      7.07839  -71.6871
+           0.0      258.053      0.0     -7.07839  0.0        0.0
+           0.0        0.0      258.053   71.6871   0.0        0.0
+           0.0       -7.07839   71.6871  48.59     0.0        0.0
+           7.07839    0.0        0.0      0.0      2.172      0.0
+         -71.6871     0.0        0.0      0.0      0.0       46.418],
+         nelem)
+
+    # create assembly of interconnected nonlinear beams
+    assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
+
+    # prescribed conditions
+    prescribed_conditions = (t) -> begin
+        Dict(
+            # fixed left side
+            1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+            # force on right side
+            nelem+1 => PrescribedConditions(Fz=1e5*sin(20*t))
+            )
+    end
+
+    # define simulation time
+    tspan = (0.0, 2.0)
+
+    # run initial condition analysis to get consistent set of initial conditions
+    system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
+
+    # construct DAEProblem
+    prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
+
+    # solve DAEProblem
+    sol = solve(prob, DABDF2())
+
+    # test that solution worked
+    @test sol.t[end] == 2.0
 end

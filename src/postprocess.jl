@@ -67,94 +67,294 @@ analysis.
 function AssemblyState(system, assembly, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    points = extract_point_states(system, assembly, x; prescribed_conditions)
 
-    TF = eltype(x)
-
-    istep = system.current_step[]
-
-    npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
-
-    points = Vector{PointState{TF}}(undef, npoint)
-    for ipoint = 1:npoint
-
-        if icol_pt[ipoint] <= 0
-            # point variables are not state variables, solve for point variables
-
-            # find the first beam connected to the point, checking both sides
-            ibeam = findfirst(x -> x == ipoint, assembly.start)
-            if !isnothing(ibeam)
-                side = -1
-            else
-                ibeam = findfirst(x -> x == ipoint, assembly.stop)
-                side = 1
-            end
-
-            beam = assembly.elements[ibeam]
-
-            # get beam state variables
-            icol_b = icol_beam[ibeam]
-            u_b = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
-            θ_b = SVector(x[icol_b+3 ], x[icol_b+4 ], x[icol_b+5 ])
-            F_b = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* FORCE_SCALING
-            M_b = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* FORCE_SCALING
-
-            # get beam element properties
-            ΔL_b = beam.L
-            Ct_b = get_C(θ_b)'
-            Cab_b = beam.Cab
-            γ_b = element_strain(beam, F_b, M_b)
-            κ_b = element_curvature(beam, F_b, M_b)
-
-            # solve for the displacements/rotations of the point
-            u = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
-            theta = θ_b + side*ΔL_b/2*get_Qinv(θ_b)*Cab_b*κ_b
-            F = @SVector zeros(3)
-            M = @SVector zeros(3)
-        else
-            # point variables are state variables, extract point state variables
-            prescribed = haskey(prescribed_conditions, ipoint)
-            if prescribed
-                u, theta, F, M = point_variables(x, icol_pt[ipoint],
-                    prescribed_conditions[ipoint], istep)
-            else
-                u, theta, F, M = point_variables(x, icol_pt[ipoint])
-            end
-        end
-
-        # convert rotation parameter to Wiener-Milenkovic parameters
-        scaling = rotation_parameter_scaling(theta)
-        theta *= scaling
-
-        points[ipoint] = PointState{TF}(u, scaling*theta, F, M)
-    end
-
-    # all element variables are state variables
-    elements = Vector{ElementState{TF}}(undef, nbeam)
-    for ibeam = 1:nbeam
-        icol = icol_beam[ibeam]
-        static = irow_beam[ibeam] <= 0
-        u = SVector{3, TF}(x[icol], x[icol+1], x[icol+2])
-        theta = SVector{3, TF}(x[icol+3], x[icol+4], x[icol+5])
-        F = SVector{3, TF}(x[icol+6], x[icol+7], x[icol+8]) .* FORCE_SCALING
-        M = SVector{3, TF}(x[icol+9], x[icol+10], x[icol+11]) .* FORCE_SCALING
-        P = ifelse(static, zero(u), SVector{3, TF}(x[icol+12], x[icol+13], x[icol+14]))
-        H = ifelse(static, zero(u), SVector{3, TF}(x[icol+15], x[icol+16], x[icol+17]))
-
-        # convert rotation parameter to Wiener-Milenkovic parameters
-        scaling = rotation_parameter_scaling(theta)
-        theta *= scaling
-
-        elements[ibeam] = ElementState{TF}(u, theta, F, M, P, H)
-    end
+    elements = extract_element_states(system, x)
 
     return AssemblyState(points, elements)
+end
+
+"""
+    extract_point_state(system, assembly, ipoint, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+Return the state variables corresponding to point `ipoint` (see [`PointState`](@ref))
+given the solution vector `x`.
+
+If `prescribed_conditions` is not provided, all point state variables are assumed
+to be displacements/rotations, rather than their actual identities as used in the
+analysis.
+"""
+function extract_point_state(system, assembly, ipoint, x = system.x;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions :
+        prescribed_conditions(system.t)
+
+    force_scaling = system.force_scaling
+
+    icol_p = system.icol_pt[ipoint]
+
+    if icol_p <= 0
+        # point variables are not state variables, solve for point variables
+
+        # find the first beam connected to the point, checking both sides
+        ibeam = findfirst(x -> x == ipoint, assembly.start)
+        if !isnothing(ibeam)
+            side = -1
+        else
+            ibeam = findfirst(x -> x == ipoint, assembly.stop)
+            side = 1
+        end
+
+        beam = assembly.elements[ibeam]
+
+        # get beam state variables
+        icol_b = system.icol_beam[ibeam]
+        u_b = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
+        θ_b = SVector(x[icol_b+3 ], x[icol_b+4 ], x[icol_b+5 ])
+        F_b = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* force_scaling
+        M_b = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* force_scaling
+
+        # get beam element properties
+        ΔL_b = beam.L
+        Ct_b = get_C(θ_b)'
+        Cab_b = beam.Cab
+        γ_b = element_strain(beam, F_b, M_b)
+        κ_b = element_curvature(beam, F_b, M_b)
+
+        # solve for the displacements/rotations of the point
+        u = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
+        theta = θ_b + side*ΔL_b/2*get_Qinv(θ_b)*Cab_b*κ_b
+        F = zero(u)
+        M = zero(u)
+    else
+        # point variables are state variables, extract point state variables
+        prescribed = haskey(pc, ipoint)
+        if prescribed
+            u, theta, F, M = point_variables(x, icol_p, pc[ipoint], force_scaling)
+        else
+            u, theta, F, M = point_variables(x, icol_p)
+        end
+    end
+
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(theta)
+    theta *= scaling
+
+    # promote all variables to the same type
+    u, theta, F, M = promote(u, theta, F, M)
+
+    return PointState(u, theta, F, M)
+end
+
+"""
+    extract_point_states(system, assembly, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+Return the state variables corresponding to each point (see [`PointState`](@ref))
+given the solution vector `x`.
+
+If `prescribed_conditions` is not provided, all point state variables are assumed
+to be displacements/rotations, rather than their actual identities as used in the
+analysis.
+"""
+function extract_point_states(system, assembly, x = system.x; kwargs...)
+    TF = promote_type(eltype(system), eltype(x))
+    points = Vector{PointState{TF}}(undef, length(assembly.points))
+    return extract_point_states!(points, system, assembly, x; kwargs...)
+end
+
+"""
+    extract_point_states!(points, system, assembly, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+Pre-allocated version of [`extract_point_states`](@ref)
+"""
+function extract_point_states!(points, system, assembly, x = system.x;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+    for ipoint = 1:length(points)
+        points[ipoint] = extract_point_state(system, assembly, ipoint, x; prescribed_conditions)
+    end
+
+    return points
+end
+
+"""
+    extract_element_state(system, ielem, x = system.x)
+
+Return the state variables corresponding to element `ielem` (see [`ElementState`](@ref))
+given the solution vector `x`.
+"""
+function extract_element_state(system, ielem, x = system.x)
+
+    force_scaling = system.force_scaling
+    mass_scaling = system.mass_scaling
+
+    icol = system.icol_beam[ielem]
+    static = system.irow_beam[ielem] <= 0
+    u = SVector(x[icol], x[icol+1], x[icol+2])
+    theta = SVector(x[icol+3], x[icol+4], x[icol+5])
+    F = SVector(x[icol+6], x[icol+7], x[icol+8]) .* force_scaling
+    M = SVector(x[icol+9], x[icol+10], x[icol+11]) .* force_scaling
+    P = ifelse(static, zero(u), SVector(x[icol+12], x[icol+13], x[icol+14]) .* mass_scaling)
+    H = ifelse(static, zero(u), SVector(x[icol+15], x[icol+16], x[icol+17]) .* mass_scaling)
+
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(theta)
+    theta *= scaling
+
+    # promote all variables to the same type
+    u, theta, F, M, P, H = promote(u, theta, F, M, P, H)
+
+    return ElementState(u, theta, F, M, P, H)
+end
+
+"""
+    extract_element_states(system, x = system.x)
+
+Return the state variables corresponding to each element (see [`ElementState`](@ref))
+given the solution vector `x`.
+"""
+function extract_element_states(system, x = system.x)
+    TF = promote_type(eltype(system), eltype(x))
+    elements = Vector{ElementState{TF}}(undef, length(system.icol_beam))
+    return extract_element_states!(elements, system, x)
+end
+
+"""
+    extract_element_states!(elements, system, x = system.x)
+
+Pre-allocated version of [`extract_element_states`](@ref)
+"""
+function extract_element_states!(elements, system, x = system.x)
+    for ielem = 1:length(elements)
+        elements[ielem] = extract_element_state(system, ielem, x)
+    end
+    return elements
+end
+
+"""
+    rotate(xyz, r, theta)
+
+Rotate the vectors in `xyz` about point `r` using the Wiener-Milenkovic
+parameters in `theta`.
+"""
+rotate(xyz, r, theta) = rotate!(copy(xyz), r, theta)
+
+"""
+    rotate!(xyz, r, theta)
+
+Pre-allocated version of [`rotate`](@ref)
+"""
+function rotate!(xyz, r, theta)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    r = SVector{3}(r)
+    theta = SVector{3}(theta)
+    # create rotation matrix
+    Ct = wiener_milenkovic(theta)'
+    # rotate each point
+    for ipt = 1:size(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= Ct*(p - r) + r
+    end
+    # return the result
+    return xyz
+end
+
+"""
+    translate(xyz, u)
+
+Translate the points in `xyz` by the displacements in `u`.
+"""
+translate(xyz, u) = translate!(copy(xyz), u)
+
+"""
+    translate!(xyz, u)
+
+Pre-allocated version of [`translate`](@ref)
+"""
+function translate!(xyz, u)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    u = SVector{3}(u)
+    # translate each point
+    for ipt = 1:size(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= p .+ u
+    end
+    # return the result
+    return xyz
+end
+
+"""
+    deform_cross_section(xyz, r, u, theta)
+
+Rotate the points in `xyz` (of shape (3, :)) about point `r` using
+the Wiener-Milenkovic parameters in `theta`, then translate the points by the
+displacements in `u`.
+"""
+deform_cross_section(xyz, r, u, theta) = deform_cross_section!(copy(xyz), r, u, theta)
+
+"""
+    deform_cross_section!(xyz, r, u, theta)
+
+Pre-allocated version of [`deform_cross_section`](@ref)
+"""
+deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)
+
+"""
+    angular_velocities(theta, thetadot)
+
+Calculate the angular velocities given the Wiener-Milenkovic parameters in `theta`
+and their time derivatives
+"""
+function angular_velocities(theta, thetadot)
+    # get rotation matrices (rotation tensor, transposed)
+    Ct = get_C(theta)'
+    Ct_t = get_C_t(theta, thetadot)'
+    # get skew symmetric matrix with angular velocities
+    Sω = Ct_t * Ct'
+    # extract angular velocities
+    return SVector(Sω[3,2], Sω[1,3], Sω[2,1])
+end
+
+"""
+    cross_section_velocities(xyz, r, v, ω)
+
+Calculate the velocities of the points in `xyz` given the linear velocity `v`,
+and the angular velocity `ω` about point `r`.
+"""
+function cross_section_velocities(xyz, r, v, ω)
+    TF = promote_type(eltype(xyz), eltype(r), eltype(v), eltype(ω))
+    vxyz = similar(xyz, TF)
+    return cross_section_velocities!(vxyz, xyz, r, v, ω)
+end
+
+"""
+    cross_section_velocities!(vxyz, xyz, r, v, ω)
+
+Pre-allocated version of [`cross_section_velocities`](@ref)
+"""
+function cross_section_velocities!(vxyz, xyz, r, v, ω)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    rvxyz = reshape(vxyz, 3, :)
+    # convert inputs to static arrays
+    r = SVector{3}(r)
+    v = SVector{3}(v)
+    ω = SVector{3}(ω)
+    # calculate velocities at each point
+    for ipt = 1:size(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rvxyz[:,ipt] .= v .+ cross(ω, p - r)
+    end
+    # return the result
+    return vxyz
 end
 
 """
@@ -486,6 +686,54 @@ function left_eigenvectors(K, M, λ, V)
     u = Vector{TC}(undef, nx)
     tmp = Vector{TC}(undef, nx)
 
+    # # get entries in M
+    # iM, jM, valM = findnz(M)
+
+    # compute eigenvectors for each eigenvalue
+    for iλ = 1:nev
+
+        # factorize (K + λ*M)'
+        KmλMfact = factorize(K' + λ[iλ]'*M')
+
+        # initialize left eigenvector
+        for i = 1:nx
+            u[i] = U[iλ,i]
+        end
+
+        # perform a few iterations to converge the left eigenvector
+        for ipass = 1:3
+            # get updated u
+            mul!(tmp, M, u)
+            ldiv!(u, KmλMfact, tmp)
+            # normalize u
+            unorm = zero(TC)
+            for i in axes(M, 1), j in axes(M, 2)
+                unorm += conj(u[i])*M[i,j]*V[j,iλ]
+            end
+            rdiv!(u, conj(unorm))
+        end
+
+        # store conjugate of final eigenvector
+        for i = 1:nx
+            U[iλ,i] = conj(u[i])
+        end
+    end
+
+    return U
+end
+
+function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
+
+    # problem type and dimensions
+    TC = eltype(V)
+    nx = size(V,1)
+    nev = size(V,2)
+
+    # allocate storage
+    U = rand(TC, nev, nx)
+    u = Vector{TC}(undef, nx)
+    tmp = Vector{TC}(undef, nx)
+
     # get entries in M
     iM, jM, valM = findnz(M)
 
@@ -493,7 +741,7 @@ function left_eigenvectors(K, M, λ, V)
     for iλ = 1:nev
 
         # factorize (K + λ*M)'
-        KmλMfact = factorize(K' - λ[iλ]'*M')
+        KmλMfact = factorize(K' + λ[iλ]'*M')
 
         # initialize left eigenvector
         for i = 1:nx
@@ -521,6 +769,7 @@ function left_eigenvectors(K, M, λ, V)
 
     return U
 end
+
 
 """
     correlate_eigenmodes(C)
