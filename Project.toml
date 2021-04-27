@@ -1,12 +1,11 @@
 name = "GXBeam"
 uuid = "974624c9-1acb-4ad6-a627-8ac40fc27a3e"
 authors = ["Taylor McDonnell <taylor.golden.mcdonnell@gmail.com> and contributors"]
-version = "0.1.2"
+version = "0.2.0"
 
 [deps]
 ArnoldiMethod = "ec485272-7323-5ecc-a04f-4719b315124d"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
-FLOWMath = "6cb5d3fb-0fe8-4cc2-bd89-9fe0b19a99d3"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LinearMaps = "7a12625a-238d-50fd-b39a-03d52299707e"
 NLsolve = "2774e3e8-f4cf-5e23-947b-6d7e65073b56"
@@ -17,7 +16,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
 ArnoldiMethod = "0.0.4, 0.2"
-FLOWMath = "0.3"
+DifferentialEquations = "6.16"
 LinearMaps = "2.6, 3.2"
 NLsolve = "4.4"
 OffsetArrays = "1.1"
