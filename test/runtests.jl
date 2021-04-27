@@ -575,7 +575,7 @@ end
         U_p .= U[1,j]
     end
 
-    frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 2:2:nev]
+    frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 1:2:nev]
 
     indices = [1, 2, 4]
     experiment_rpm = [0, 500, 750]
