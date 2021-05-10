@@ -7,7 +7,7 @@ Pages = ["diffeq.md"]
 Depth = 3
 ```
 
-## GXBeam to DifferentialEquations Interface Functions
+## Interface Functions
 
 The following constructors are available for modeling the differential algebraic equations from GXBeam in DifferentialEquations.
 
@@ -18,11 +18,17 @@ GXBeam.DAEFunction(system::System, assembly; kwargs...)
 GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
 ```
 
-## Example Usage of GXBeam with DifferentialEquations
+## Example Usage
 
 For this example we demonstrate how to solve the [Nonlinear Dynamic Analysis of a Wind Turbine Blade](@ref) problem using DifferentialEquations.
 
 We start by setting up the problem as if we were solving the problem using GXBeam's internal solver.
+
+```@setup diffeq
+# this is placed here to pre-install matplotlib so the documentation doesn't get cluttered with the installation print statements.
+using Plots
+pyplot()
+```
 
 ```@example diffeq
 using GXBeam, LinearAlgebra
