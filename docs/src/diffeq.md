@@ -99,11 +99,11 @@ tspan = (0.0, 2.0)
 # run initial condition analysis to get consistent set of initial conditions
 system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
 
-# construct DAEProblem
-prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
+# construct DAE as ODEProblem with non-constant mass matrix
+prob = ODEProblem(system, assembly, tspan; prescribed_conditions)
 
-# solve DAEProblem
-sol = solve(prob, DABDF2())
+# solve ODEProblem
+sol = solve(prob, Rodas4())
 
 nothing #hide
 ```
@@ -118,7 +118,7 @@ diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions
 nothing #hide
 ```
 
-Let's now compare the solutions from GXBeam's internal solver and the default DAE solver from DifferentialEquations.
+Let's now compare the solutions from GXBeam's internal solver and the `Rodas4` solver from DifferentialEquations.
 
 ```@example diffeq
 using Plots
@@ -184,7 +184,7 @@ end
 ![](dynamic-wind-turbine-diffeq-M2.svg)
 ![](dynamic-wind-turbine-diffeq-M3.svg)
 
-The solutions provided by GXBeam and DifferentialEquations track closely with each other at first, then drift further apart as the dynamics become more and more chaotic.
+As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely with each other.
 
 ```julia
 write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, sol.t)
