@@ -12,6 +12,8 @@ Depth = 3
 The following constructors are available for modeling the differential algebraic equations from GXBeam in DifferentialEquations.
 
 ```@docs
+GXBeam.ODEFunction(system::System, assembly; kwargs...)
+GXBeam.ODEProblem(system::System, assembly; kwargs...)
 GXBeam.DAEFunction(system::System, assembly; kwargs...)
 GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
 ```
