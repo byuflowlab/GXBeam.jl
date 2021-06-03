@@ -68,7 +68,7 @@ function Assembly(points, start, stop;
         if isnothing(mass)
             minv = fill(Diagonal(@SVector ones(6)), nbeam)
         else
-            minv = fill(MMatrix{6,6}(Diagonal(@SVector ones(eltype(eltype(mass)), 6))), nbeam)
+            minv = [MMatrix{6,6}(Diagonal(@SVector ones(eltype(eltype(mass)), 6))) for i=1:nbeam] # can't use infill because it copies the reference. Need a different value for every i.
             for i = 1:nbeam
                 filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), mass[i], dims = 1)))
                 minv[i][filled_cols,filled_cols] .= inv(Matrix(mass[i][filled_cols, filled_cols]))
