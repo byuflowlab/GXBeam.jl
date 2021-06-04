@@ -54,5 +54,6 @@ include("analyses.jl")
 include("postprocess.jl")
 
 include("interfaces/differentialequations.jl")
+include("interfaces/forwarddiff.jl")
 
 end

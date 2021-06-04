@@ -119,13 +119,13 @@ function static_analysis!(system, assembly;
             x .= 0.0
             f!(F, x)
             j!(J, x)
-            x .-= J\F
+            x .-= safe_lu(J)\F
         else
             # nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
             result = NLsolve.nlsolve(df, x,
-                linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
+                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
@@ -286,13 +286,13 @@ function steady_state_analysis!(system, assembly;
             x .= 0.0
             f!(F, x)
             j!(J, x)
-            x .-= J\F
+            x .-= safe_lu(J)\F
         else
             # nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
             result = NLsolve.nlsolve(df, x,
-                linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
+                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
@@ -479,7 +479,7 @@ function eigenvalue_analysis!(system, assembly;
     # construct linear map
     T = eltype(system)
     nx = length(x)
-    Kfact = lu(K)
+    Kfact = safe_lu(K)
     f! = (b, x) -> ldiv!(b, Kfact, M*x)
     fc! = (b, x) -> mul!(b, M', Kfact'\x)
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
@@ -654,13 +654,13 @@ function initial_condition_analysis!(system, assembly, t0;
         x .= 0.0
         f!(F, x)
         j!(J, x)
-        x .-= J\F
+        x .-= safe_lu(J)\F
     else
         # nonlinear analysis
         df = OnceDifferentiable(f!, j!, x, F, J)
 
         result = NLsolve.nlsolve(df, x,
-            linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
+            linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
             method=method,
             linesearch=linesearch,
             ftol=ftol,
@@ -927,12 +927,12 @@ function time_domain_analysis!(system, assembly, tvec;
             x .= 0.0
             f!(F, x)
             j!(J, x)
-            x .-= J\F
+            x .-= safe_lu(J)\F
         else
             df = OnceDifferentiable(f!, j!, x, F, J)
 
             result = NLsolve.nlsolve(df, x,
-                linsolve=(x, A, b) -> ldiv!(x, lu(A), b),
+                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
