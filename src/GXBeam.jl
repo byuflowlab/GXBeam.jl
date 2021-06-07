@@ -1,6 +1,7 @@
 module GXBeam
 
 using ArnoldiMethod
+using ForwardDiff
 using LinearAlgebra
 using LinearMaps
 using NLsolve
