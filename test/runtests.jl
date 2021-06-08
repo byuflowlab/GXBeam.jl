@@ -704,28 +704,19 @@ end
 
     Cab_1 = rot1*rot2
 
-# get transformation matrix for right beam
+    # get transformation matrix for right beam
 
-    # get rotation matrix from local to global frame
-    Cab_1 = Cba_1'
-
-    # get rotation matrix for right beam
-
-    # rotation about z in global frame
+    # transformation from intermediate frame to global frame
     tmp1 = sqrt(p6[1]^2 + p6[2]^2)
     c1, s1 = p6[1]/tmp1, p6[2]/tmp1
-    rot1 = [c1 s1 0; -s1 c1 0; 0 0 1]
+    rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
-    # rotation about new y-axis to local frame
+    # transformation from local beam frame to intermediate frame
     tmp2 = sqrt(p6[1]^2 + p6[2]^2 + p6[3]^2)
     c2, s2 = tmp1/tmp2, p6[3]/tmp2
-    rot2 = [c2 0 s2; 0 1 0; -s2 0 c2]
+    rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
 
-    # compose rotations
-    Cba_2 = rot2*rot1
-
-    # get rotation matrix from local to global frame
-    Cab_2 = Cba_2'
+    Cab_2 = rot1*rot2
 
     # beam 1
     L_b1 = norm(p2-p1)
@@ -1024,7 +1015,7 @@ end
         x = collect(range(0, L, length=nelem+1))
         y = zero(x)
         z = zero(x)
-    
+
         points = [[x[i],y[i],z[i]] for i = 1:size(x,1)]
 
         # index of endpoints for each beam element
