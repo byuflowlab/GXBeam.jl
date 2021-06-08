@@ -1,13 +1,14 @@
 module GXBeam
 
 using ArnoldiMethod
+using ForwardDiff
 using LinearAlgebra
 using LinearMaps
 using NLsolve
 using SparseArrays
 using StaticArrays
 using WriteVTK
-import DifferentialEquations: DAEFunction, DAEProblem
+using DifferentialEquations
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads
@@ -54,5 +55,6 @@ include("analyses.jl")
 include("postprocess.jl")
 
 include("interfaces/differentialequations.jl")
+include("interfaces/forwarddiff.jl")
 
 end

@@ -1,5 +1,5 @@
 """
-    System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}, TTF<:AbstractVector{TF}}
+    System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
 
 Contains the system state, residual vector, and jacobian matrices as well as
 pointers to be able to access their contents.  Also contains additional storage
@@ -63,7 +63,7 @@ be able to access their contents.
 """
 System(assembly, points, static) = System(eltype(assembly), assembly, points, static)
 
-function System(TF::Type{<:AbstractFloat}, assembly, points, static)
+function System(TF, assembly, points, static)
 
     # get number of beams
     nbeam = length(assembly.elements)
