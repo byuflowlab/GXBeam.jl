@@ -55,6 +55,7 @@ end
     element_strain(element, F, M)
 
 Calculate the strain of a beam element given the resultant force and moments
+(in the deformed local beam frame)
 """
 @inline element_strain(element, F, M) = element.C11*F + element.C12*M
 
@@ -62,20 +63,23 @@ Calculate the strain of a beam element given the resultant force and moments
     element_curvature(element, F, M)
 
 Calculate the curvature of a beam element given the resultant force and moments
+(in the deformed local beam frame)
 """
 @inline element_curvature(element, F, M) = element.C12'*F + element.C22*M
 
 """
     element_linear_velocity(element, P, H)
 
-Calculate the linear velocity of a beam element given the linear and angular momenta
+Calculate the linear velocity (in the deformed local beam frame) of a beam
+element given the linear and angular momenta
 """
 @inline element_linear_velocity(element, P, H) = element.minv11*P + element.minv12*H
 
 """
     element_angular_velocity(element, P, H)
 
-Calculate the angular velocity of a beam element given the linear and angular momenta
+Calculate the angular velocity (in the deformed local beam frame) of a beam
+element given the linear and angular momenta
 """
 @inline element_angular_velocity(element, P, H) = element.minv12'*P + element.minv22*H
 
