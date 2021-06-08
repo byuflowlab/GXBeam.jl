@@ -35,8 +35,9 @@ straight.
  - `compliance`: Array of (6 x 6) compliance matrices for each beam element, defaults to `zeros(6,6)` for each beam element
  - `mass`: Array of (6 x 6) mass matrices for each beam element, alternative to providing `minv`
  - `minv`: Array of (6 x 6) mass matrices for each beam element, defaults to the identity matrix for each beam element
- - `frames`: Array of (3 x 3) rotation matrices for each beam element (to transform
-        to the global frame), defaults to the identity matrix for each beam element
+ - `frames`: Array of (3 x 3) tranformation matrices for each beam element, which
+        transform from the local undeformed beam frame to the global frame),
+        defaults to the identity matrix for each beam element
  - `lengths`: Array containing the length of each beam, defaults to the distance between beam endpoints
  - `midpoints`: Array containing the midpoint of each beam element, defaults to the average of the beam element endpoints
 """
@@ -92,7 +93,7 @@ end
 Discretize a beam according to the discretization provided in `discretization`
 given the beam length (`L`), and starting point (`start`).
 
-Return the lengths, endpoints, midpoints, and rotation matrices of the beam elements.
+Return the lengths, endpoints, midpoints, and trasformation matrices of the beam elements.
 
 # Arguments
  - `L`: Beam length
@@ -101,7 +102,7 @@ Return the lengths, endpoints, midpoints, and rotation matrices of the beam elem
         elements that the beam should be discretized into, or a vector containing
         the normalized endpoints of each beam element, where 0 is the beginning
         of the beam and 1 is the end of the beam.
- - `frame`: 3x3 beam rotation matrix which transforms from the local beam
+ - `frame`: 3x3 tranformation matrix which transforms from the local beam
         coordinate frame at the start of the beam to the global coordinate frame.
  - `curvature`: curvature vector
 """
@@ -167,8 +168,8 @@ end
     curve_triad(Cab, k, s)
     curve_triad(Cab, kkt, ktilde, kn, s)
 
-Return the rotation matrix at `s` along the length of the beam given
-the curvature vector `k` and the initial rotation matrix `Cab`.
+Return the transformation matrix at `s` along the length of the beam given
+the curvature vector `k` and the initial transformation matrix `Cab`.
 """
 @inline curve_triad(Cab, k, s) = curve_triad(Cab, k*k', tilde(k), sqrt(k'*k), s)
 @inline curve_triad(Cab, kkt, ktilde, kn, s) = SMatrix{3,3}(Cab*((I - kkt/kn^2)*cos(kn*s) +
@@ -179,7 +180,7 @@ the curvature vector `k` and the initial rotation matrix `Cab`.
     curve_coordinates(r, Cab, kkt, ktilde, kn, s)
 
 Return the coordinates at `s` along the length of the beam given the starting
-point `r`, initial rotation matrix `Cab`, and curvature vector `k`.
+point `r`, initial transformation matrix `Cab`, and curvature vector `k`.
 """
 @inline curve_coordinates(r, Cab, k, s) = curve_coordinates(r, Cab, k*k', tilde(k), sqrt(k'*k), s)
 @inline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^2)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)

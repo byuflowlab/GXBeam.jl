@@ -33,7 +33,7 @@ end
                 ifelse(force_dof[5], x[icol+4], value[5]),
                 ifelse(force_dof[6], x[icol+5], value[6]))
 
-    # get the rotation matrix for the point
+    # get the transformation matrix for the point
     C = get_C(θ)
 
     # solve for the force applied at the point due to the prescribed loads

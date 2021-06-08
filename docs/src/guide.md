@@ -61,7 +61,7 @@ lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, disc_b1)
 nothing #hide
 ```
 
-We will now create the geometry for the swept portion of the wing.  To do so we use the same `discretize_beam` function, with an additional argument that allows us to specify a transformation matrix which performs a coordinate transformation from the global frame to the undeformed frame of the starting point of this beam section.
+We will now create the geometry for the swept portion of the wing.  To do so we use the same `discretize_beam` function, with an additional argument that allows us to specify a transformation matrix which performs a coordinate transformation from the undeformed frame of the starting point of this beam section to the global frame.
 
 ```@example guide
 sweep = 45 * pi/180
@@ -71,7 +71,7 @@ L_b2 = 6 # length of swept section of the beam
 r_b2 = [34, 0, 0] # starting point of swept section of the beam
 nelem_b2 = 5 # number of elements in swept section of the beam
 cs, ss = cos(sweep), sin(sweep)
-frame_b2 = [cs ss 0; -ss cs 0; 0 0 1] # transformation matrix from global to local frame
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1] # transformation matrix from local to global frame
 lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
 nothing #hide
 ```

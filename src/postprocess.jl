@@ -314,7 +314,7 @@ Calculate the angular velocities given the Wiener-Milenkovic parameters in `thet
 and their time derivatives
 """
 function angular_velocities(theta, thetadot)
-    # get rotation matrices (rotation tensor, transposed)
+    # get rotation matrix (transformation matrix, transposed)
     Ct = get_C(theta)'
     Ct_t = get_C_t(theta, thetadot)'
     # get skew symmetric matrix with angular velocities

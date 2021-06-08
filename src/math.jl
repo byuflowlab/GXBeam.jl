@@ -14,10 +14,11 @@ Construct the cross product operator matrix
 """
     wiener_milenkovic(c)
 
-Construct a Wiener-Milenkovic rotation tensor, given the three Wiener-Milenkovic
+Construct a Wiener-Milenkovic transformation matrix, given the three Wiener-Milenkovic
 parameters in `c`.
 
-Note that the corresponding rotation matrix is the transpose of this rotation tensor.
+Note that the corresponding rotation matrix is the transpose of this
+transformation matrix.
 """
 @inline function wiener_milenkovic(c)
 
@@ -64,7 +65,7 @@ end
 """
     get_C(θ)
 
-Returns the rotation matrix `C` given the three angular parameters in `θ`.
+Returns the transformation matrix `C` given the three angular parameters in `θ`.
 """
 @inline function get_C(θ)
 
@@ -78,8 +79,8 @@ end
 """
     get_C_t([C, ] θ, θ_t)
 
-Calculate the derivative of the Wiener-Milenkovic rotation matrix `C` with respect
-to the scalar parameter `t`. `θ_t` is the derivative of the angular parameter
+Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
+respect to the scalar parameter `t`. `θ_t` is the derivative of the angular parameter
 `θ` with respect to `t`.
 """
 @inline get_C_t(θ, θ_t) = get_C_t(get_C(θ), θ, θ_t)
@@ -114,8 +115,8 @@ end
 """
     get_C_θ([C, ] θ)
 
-Calculate the derivative of the Wiener-Milenkovic rotation matrix `C` with respect
-to each of the rotation parameters in `θ`.
+Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
+respect to each of the rotation parameters in `θ`.
 """
 @inline get_C_θ(c) = get_C_θ(get_C(c), θ)
 
@@ -158,9 +159,9 @@ end
 """
     get_C_θdot([C, ] θ)
 
-Calculate the derivative of the time derivative of the Wiener-Milenkovic rotation
-matrix `C` with respect to each of the time derivatives of `θ`. Used for
-constructing the "mass" matrix for eigenvalue computations.
+Calculate the derivative of the time derivative of the Wiener-Milenkovic
+transformation matrix `C` with respect to each of the time derivatives of `θ`.
+Used for constructing the "mass" matrix for eigenvalue computations.
 """
 get_C_θdot
 

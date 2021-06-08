@@ -689,20 +689,21 @@ end
     p5 = [0, 0, 0]
     p6 = [7.1726, -12, 3.21539]
 
-    # get rotation matrix for left beams
+    # get transformation matrix for left beams
 
-    # rotation about z in global frame
+    # transformation from intermediate to global frame
     tmp1 = sqrt(p1[1]^2 + p1[2]^2)
     c1, s1 = -p1[1]/tmp1, -p1[2]/tmp1
-    rot1 = [c1 s1 0; -s1 c1 0; 0 0 1]
+    rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
-    # rotation about new y-axis to local frame
+    # transformation from local to intermediate frame
     tmp2 = sqrt(p1[1]^2 + p1[2]^2 + p1[3]^2)
     c2, s2 = tmp1/tmp2, -p1[3]/tmp2
-    rot2 = [c2 0 s2; 0 1 0; -s2 0 c2]
+    rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
 
-    # compose rotations
-    Cba_1 = rot2*rot1
+    Cab_1 = rot1*rot2
+
+# get transformation matrix for right beam
 
     # get rotation matrix from local to global frame
     Cab_1 = Cba_1'

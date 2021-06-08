@@ -1292,12 +1292,12 @@ p6 = [7.1726, -12, 3.21539]
 
 # get transformation matrix for left beams
 
-# rotation from intermediate frame to global frame
+# transformation from intermediate frame to global frame
 tmp1 = sqrt(p1[1]^2 + p1[2]^2)
 c1, s1 = -p1[1]/tmp1, -p1[2]/tmp1
 rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
-# rotation from beam frame to intermediate frame
+# transformation from local beam frame to intermediate frame
 tmp2 = sqrt(p1[1]^2 + p1[2]^2 + p1[3]^2)
 c2, s2 = tmp1/tmp2, -p1[3]/tmp2
 rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
@@ -1306,12 +1306,12 @@ Cab_1 = rot1*rot2
 
 # get transformation matrix for right beam
 
-# rotation from intermediate frame to global frame
+# transformation from intermediate frame to global frame
 tmp1 = sqrt(p6[1]^2 + p6[2]^2)
 c1, s1 = p6[1]/tmp1, p6[2]/tmp1
 rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
 
-# rotation from beam frame to intermediate frame
+# transformation from local beam frame to intermediate frame
 tmp2 = sqrt(p6[1]^2 + p6[2]^2 + p6[3]^2)
 c2, s2 = tmp1/tmp2, p6[3]/tmp2
 rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
