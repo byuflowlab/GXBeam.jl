@@ -76,7 +76,6 @@ extract_point_states!
 left_eigenvectors
 correlate_eigenmodes
 wiener_milenkovic
-angular_velocities
 rotate
 rotate!
 translate

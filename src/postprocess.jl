@@ -308,22 +308,6 @@ Pre-allocated version of [`deform_cross_section`](@ref)
 deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)
 
 """
-    angular_velocities(theta, thetadot)
-
-Calculate the angular velocities given the Wiener-Milenkovic parameters in `theta`
-and their time derivatives
-"""
-function angular_velocities(theta, thetadot)
-    # get rotation matrix (transformation matrix, transposed)
-    Ct = get_C(theta)'
-    Ct_t = get_C_t(theta, thetadot)'
-    # get skew symmetric matrix with angular velocities
-    Sω = Ct_t * Ct'
-    # extract angular velocities
-    return SVector(Sω[3,2], Sω[1,3], Sω[2,1])
-end
-
-"""
     cross_section_velocities(xyz, r, v, ω)
 
 Calculate the velocities of the points in `xyz` given the linear velocity `v`,
