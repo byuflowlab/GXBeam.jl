@@ -992,6 +992,15 @@ end
     # run initial condition analysis to get consistent set of initial conditions
     system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
 
+    # construct ODEProblem
+    prob = ODEProblem(system, assembly, tspan; prescribed_conditions)
+
+    # solve ODEProblem
+    sol = solve(prob, Rodas4())
+
+    # test that solution worked
+    @test sol.t[end] == 2.0
+
     # construct DAEProblem
     prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
 
@@ -1000,6 +1009,7 @@ end
 
     # test that solution worked
     @test sol.t[end] == 2.0
+
 end
 
 @testset "Dual numbers: Linear Analysis of a Beam Under a Linear Distributed Load" begin

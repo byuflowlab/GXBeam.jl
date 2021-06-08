@@ -1,5 +1,5 @@
 """
-    System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}, TTF<:AbstractVector{TF}}
+    System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
 
 Contains the system state, residual vector, and jacobian matrices as well as
 pointers to be able to access their contents.  Also contains additional storage
