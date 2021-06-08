@@ -268,8 +268,8 @@ end
 """
     get_Qinv_θ(θ)
 
-Calculate the derivative of the matrix inverse `Qinv` with respect to each of the rotation
-parameters in `θ`.
+Calculate the derivative of the matrix inverse `Qinv` with respect to each of the
+rotation parameters in `θ`.
 """
 @inline function get_Qinv_θ(θ)
 
