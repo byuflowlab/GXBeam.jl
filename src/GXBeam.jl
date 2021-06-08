@@ -1,6 +1,7 @@
 module GXBeam
 
 using ArnoldiMethod
+using ForwardDiff
 using LinearAlgebra
 using LinearMaps
 using NLsolve
@@ -54,5 +55,6 @@ include("analyses.jl")
 include("postprocess.jl")
 
 include("interfaces/differentialequations.jl")
+include("interfaces/forwarddiff.jl")
 
 end

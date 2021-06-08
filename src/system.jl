@@ -63,7 +63,7 @@ be able to access their contents.
 """
 System(assembly, points, static) = System(eltype(assembly), assembly, points, static)
 
-function System(TF::Type{<:AbstractFloat}, assembly, points, static)
+function System(TF, assembly, points, static)
 
     # get number of beams
     nbeam = length(assembly.elements)
