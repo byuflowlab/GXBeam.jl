@@ -235,11 +235,13 @@ end
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω = steady_state_element_properties(
         x, icol, beam, force_scaling, mass_scaling, x0, v0, ω0)
 
-    CtCabPdot = CtCab*Pdot
-    CtCabHdot = CtCab*Hdot
+    CtCabdot = get_C_t(Ct', θ, θdot)'*Cab
+
+    CtCabPdot = CtCabdot*P + CtCab*Pdot
+    CtCabHdot = CtCabdot*H + CtCab*Hdot
 
     return ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
-        CtCabPdot, CtCabHdot
+        CtCabPdot, CtCabHdot, CtCabdot
 end
 
 """
@@ -758,8 +760,9 @@ end
 
     # compute element properties
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
-        CtCabPdot, CtCabHdot = dynamic_element_properties(x, icol, ibeam, beam,
-        force_scaling, mass_scaling, x0, v0, ω0, udot, θdot, Pdot, Hdot)
+        CtCabPdot, CtCabHdot, CtCabdot = dynamic_element_properties(x, icol,
+        ibeam, beam, force_scaling, mass_scaling, x0, v0, ω0, udot, θdot, Pdot,
+        Hdot)
 
     # solve for element resultants
     f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_P, f_H =
@@ -1184,7 +1187,7 @@ end
 
 # dynamic - general
 @inline function dynamic_element_jacobian_equations(beam, ΔL, Cab, CtCab, θ, F, M, γ, κ,
-    ω, P, H, V, θdot, Pdot, Hdot, Ct_θ1, Ct_θ2, Ct_θ3)
+    ω, P, H, V, θdot, Pdot, Hdot, Ct_θ1, Ct_θ2, Ct_θ3, CtCabdot, Ctdot_θ1, Ctdot_θ2, Ctdot_θ3)
 
     f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
         f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_P, f_ψ2_P, f_ψ1_H, f_ψ2_H,
@@ -1197,16 +1200,26 @@ end
     # --- f_u1, f_u2 --- #
 
     # d_fu_dθ
-    tmp = ΔL/2*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Pdot)
+    tmp = ΔL/2*(mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*P) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Pdot))
     f_u1_θ += tmp
     f_u2_θ += tmp
+
+    # d_fu_dP
+    tmp = ΔL/2*CtCabdot
+    f_u1_P += tmp
+    f_u2_P += tmp
 
     # --- f_ψ1, f_ψ2 --- #
 
     # d_fψ_dθ
-    tmp = ΔL/2*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Hdot)
+    tmp = ΔL/2*(mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*H) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Hdot))
     f_ψ1_θ += tmp
     f_ψ2_θ += tmp
+
+    # d_fψ_dH
+    tmp = ΔL/2*CtCabdot
+    f_ψ1_H += tmp
+    f_ψ2_H += tmp
 
     # --- d_fH_dθ --- #
     Q = get_Q(θ)
@@ -1750,12 +1763,15 @@ end
 
     # compute element properties
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
-        CtCabPdot, CtCabHdot = dynamic_element_properties(x, icol, ibeam, beam,
+        CtCabPdot, CtCabHdot, CtCabdot = dynamic_element_properties(x, icol, ibeam, beam,
         force_scaling, mass_scaling, x0, v0, ω0, udot, θdot, Pdot, Hdot)
 
     # pre-calculate jacobian of rotation matrix wrt θ
     C_θ1, C_θ2, C_θ3 = get_C_θ(Ct', θ)
     Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
+
+    Cdot_θ1, Cdot_θ2, Cdot_θ3 = get_C_t_θ(θ, θdot)
+    Ctdot_θ1, Ctdot_θ2, Ctdot_θ3 = Cdot_θ1', Cdot_θ2', Cdot_θ3'
 
     # solve for the element resultants
     f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_P, f_u2_P,
@@ -1764,7 +1780,8 @@ end
         f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_P_u, f_P_θ, f_P_P, f_P_H,
         f_H_θ, f_H_P, f_H_H = dynamic_element_jacobian_equations(beam, ΔL, Cab, CtCab,
-        θ, F, M, γ, κ, ω, P, H, V, θdot, Pdot, Hdot, Ct_θ1, Ct_θ2, Ct_θ3)
+        θ, F, M, γ, κ, ω, P, H, V, θdot, Pdot, Hdot, Ct_θ1, Ct_θ2, Ct_θ3, CtCabdot,
+        Ctdot_θ1, Ctdot_θ2, Ctdot_θ3)
 
     # add jacobians for follower loads (if applicable)
     if haskey(distributed_loads, ibeam)

@@ -1137,6 +1137,8 @@ end
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
     irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
 
+    jacob .= 0
+
     npoint = length(assembly.points)
     nbeam = length(assembly.elements)
 
@@ -1180,6 +1182,8 @@ end
     irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
     x0, v0, ω0)
 
+    jacob .= 0
+
     npoint = length(assembly.points)
     nbeam = length(assembly.elements)
 
@@ -1221,6 +1225,8 @@ end
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
     irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
     x0, v0, ω0, u, θ, udot, θdot)
+
+    jacob .= 0
 
     npoint = length(assembly.points)
     nbeam = length(assembly.elements)
@@ -1264,6 +1270,8 @@ end
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
     irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+
+    jacob .= 0
 
     npoint = length(assembly.points)
     nbeam = length(assembly.elements)
@@ -1311,6 +1319,8 @@ end
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
     irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
     x0, v0, ω0)
+
+    jacob .= 0
 
     npoint = length(assembly.points)
     nbeam = length(assembly.elements)
@@ -1362,7 +1372,7 @@ end
     system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_pt, irow_beam,
         irow_beam1, irow_beam2, icol_pt, icol_beam)
 
-Add entries to the system "mass matrix", the jacobian of the residual vector
+Populate the system "mass matrix", the jacobian of the residual vector
 with respect to the time derivatives of the state variables.
 
 See "GEBT: A general-purpose nonlinear analysis tool for composite beams" by
@@ -1384,6 +1394,8 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 """
 function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_pt,
     irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+
+    jacob .= 0
 
     npoint = length(assembly.points)
     nbeam = length(assembly.elements)

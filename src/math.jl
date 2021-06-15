@@ -112,6 +112,16 @@ respect to the scalar parameter `t`. `θ_t` is the derivative of the angular par
     return Cdot
 end
 
+@inline function get_C_t_θ(θ, θ_t)
+
+    θ1, θ2, θ3 = θ
+    C_t_θ1 = ForwardDiff.derivative(θ1 -> get_C_t(SVector(θ1, θ2, θ3), θ_t), θ1)
+    C_t_θ2 = ForwardDiff.derivative(θ2 -> get_C_t(SVector(θ1, θ2, θ3), θ_t), θ2)
+    C_t_θ3 = ForwardDiff.derivative(θ3 -> get_C_t(SVector(θ1, θ2, θ3), θ_t), θ3)
+
+    return C_t_θ1, C_t_θ2, C_t_θ3
+end
+
 """
     get_C_θ([C, ] θ)
 

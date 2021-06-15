@@ -11,6 +11,10 @@ struct PrescribedConditions{T}
 end
 Base.eltype(::PrescribedConditions{T}) where T = T
 
+function PrescribedConditions{T}(p::PrescribedConditions) where T
+    PrescribedConditions{T}(p.force, p.value, p.follower)
+end
+
 PrescribedConditions(force, value, follower) = PrescribedConditions(force, promote(value, follower)...)
 
 """
@@ -178,6 +182,11 @@ struct DistributedLoads{T}
     m2_follower::SVector{3, T}
 end
 Base.eltype(::DistributedLoads{T}) where T = T
+
+function DistributedLoads{T}(d::DistributedLoads) where T
+    return DistributedLoads{T}(d.f1, d.f2, d.m1, d.m2, d.f1_follower, d.f2_follower,
+        d.m1_follower, d.m2_follower)
+end
 
 DistributedLoads(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower) =
     DistributedLoads(promote(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower)...)

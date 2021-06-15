@@ -1001,10 +1001,11 @@ end
 
     # test that solution worked
     @test sol.t[end] == 2.0
-
 end
 
-@testset "Dual numbers: Linear Analysis of a Beam Under a Linear Distributed Load" begin
+@testset "ForwardDiff" begin
+
+    # Linear Analysis of a Beam Under a Linear Distributed Load
 
     function linear_analysis_test_with_AD(length) # this should affect just about everything
 
@@ -1054,4 +1055,173 @@ end
 
     # run FrowardDiff - no specific test, just make sure it runs fine
     J = ForwardDiff.jacobian(linear_analysis_test_with_AD, [1.0]) #length=1
+end
+
+@testset "Jacobian and Mass Matrix Calculations" begin
+
+    L = 60 # m
+
+    # create points
+    nelem = 1
+    x = range(0, L, length=nelem+1)
+    y = zero(x)
+    z = zero(x)
+    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+    # index of endpoints of each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
+
+    # stiffness matrix for each beam element
+    stiffness = fill(
+        [2.389e9  1.524e6  6.734e6 -3.382e7 -2.627e7 -4.736e8
+         1.524e6  4.334e8 -3.741e6 -2.935e5  1.527e7  3.835e5
+         6.734e6 -3.741e6  2.743e7 -4.592e5 -6.869e5 -4.742e6
+        -3.382e7 -2.935e5 -4.592e5  2.167e7 -6.279e5  1.430e6
+        -2.627e7  1.527e7 -6.869e5 -6.279e5  1.970e7  1.209e7
+        -4.736e8  3.835e5 -4.742e6  1.430e6  1.209e7  4.406e8],
+        nelem)
+
+    # mass matrix for each beam element
+    mass = fill(
+        [258.053      0.0        0.0      0.0      7.07839  -71.6871
+           0.0      258.053      0.0     -7.07839  0.0        0.0
+           0.0        0.0      258.053   71.6871   0.0        0.0
+           0.0       -7.07839   71.6871  48.59     0.0        0.0
+           7.07839    0.0        0.0      0.0      2.172      0.0
+         -71.6871     0.0        0.0      0.0      0.0       46.418],
+         nelem)
+
+    # create assembly of interconnected nonlinear beams
+    assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
+
+    # prescribed conditions
+    pcond = Dict(
+        # fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        )
+
+    # distributed loads
+    dload = Dict()
+
+    # --- Static System --- #
+    static_system = System(assembly, keys(pcond), true)
+
+    force_scaling = static_system.force_scaling
+    mass_scaling = static_system.mass_scaling
+    irow_pt = static_system.irow_pt
+    irow_beam = static_system.irow_beam
+    irow_beam1 = static_system.irow_beam1
+    irow_beam2 = static_system.irow_beam2
+    icol_pt = static_system.icol_pt
+    icol_beam = static_system.icol_beam
+
+    x = rand(length(static_system.x))
+    J = similar(x, length(x), length(x))
+
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
+        icol_pt, icol_beam)
+
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+
+    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+
+    # --- Dynamic System --- #
+    system = System(assembly, keys(pcond), false)
+
+    force_scaling = system.force_scaling
+    mass_scaling = system.mass_scaling
+    irow_pt = system.irow_pt
+    irow_beam = system.irow_beam
+    irow_beam1 = system.irow_beam1
+    irow_beam2 = system.irow_beam2
+    icol_pt = system.icol_pt
+    icol_beam = system.icol_beam
+    x0 = rand(3)
+    v0 = rand(3)
+    ω0 = rand(3)
+
+    x = rand(length(system.x))
+    J = similar(x, length(x), length(x))
+
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
+        icol_pt, icol_beam, x0, v0, ω0)
+
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt,
+        icol_beam, x0, v0, ω0)
+
+    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+
+    # initial condition residual
+
+    u0 = [rand(3) for ielem = 1:length(assembly.elements)]
+    theta0 = [rand(3) for ielem = 1:length(assembly.elements)]
+    udot0 = [rand(3) for ielem = 1:length(assembly.elements)]
+    thetadot0 = [rand(3) for ielem = 1:length(assembly.elements)]
+
+    x = rand(length(system.x))
+    J = similar(x, length(x), length(x))
+
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
+        icol_pt, icol_beam, x0, v0, ω0, u0, theta0, udot0, thetadot0)
+
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt,
+        icol_beam, x0, v0, ω0, u0, theta0, udot0, thetadot0)
+
+    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+
+    # time domain residual
+
+    udot = [rand(3) for ielem = 1:length(assembly.elements)]
+    θdot = [rand(3) for ielem = 1:length(assembly.elements)]
+    Pdot = [rand(3) for ielem = 1:length(assembly.elements)]
+    Hdot = [rand(3) for ielem = 1:length(assembly.elements)]
+    dt = rand()
+
+    x = rand(length(system.x))
+    J = similar(x, length(x), length(x))
+
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
+        icol_pt, icol_beam, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt,
+        icol_beam, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+
+    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+
+    # system jacobian and mass matrix
+
+    x = rand(length(system.x))
+    dx = rand(length(x))
+    J = similar(x, length(x), length(x))
+    M = similar(x, length(x), length(x))
+
+    fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), x, dx, assembly, pcond, dload,
+        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
+        icol_pt, icol_beam, x0, v0, ω0)
+
+    fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), x, dx, assembly, pcond, dload,
+        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
+        icol_pt, icol_beam, x0, v0, ω0)
+
+    GXBeam.dynamic_system_jacobian!(J, x, dx, assembly,
+        pcond, dload, force_scaling, mass_scaling,
+        irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        x0, v0, ω0)
+
+    GXBeam.system_mass_matrix!(M, x, assembly, force_scaling, mass_scaling, irow_pt,
+        irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+
+    @test all(isapprox.(J, ForwardDiff.jacobian(fx, x), atol=1e-10))
+
+    @test all(isapprox.(M, ForwardDiff.jacobian(fdx, dx), atol=1e-10))
+
 end
