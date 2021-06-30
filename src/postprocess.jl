@@ -549,7 +549,7 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
     return nothing
 end
 
-function write_vtk(name, assembly, history, dt; sections=nothing, scaling=1.0,
+function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
     metadata=Dict())
 
     # get problem dimensions
@@ -558,8 +558,6 @@ function write_vtk(name, assembly, history, dt; sections=nothing, scaling=1.0,
     nbeam = length(assembly.elements)
 
     paraview_collection(name) do pvd
-
-        t = 0.0
 
         for (current_step, state) in enumerate(history)
 
@@ -622,7 +620,7 @@ function write_vtk(name, assembly, history, dt; sections=nothing, scaling=1.0,
 
             # add metadata
             vtkfile["scaling"] = scaling
-            vtkfile["time"] = t
+            vtkfile["time"] = t[current_step]
             for (key, value) in pairs(metadata)
                 vtkfile[string(key)] = value
             end
@@ -658,10 +656,7 @@ function write_vtk(name, assembly, history, dt; sections=nothing, scaling=1.0,
                 vtkfile[string(field), VTKCellData()] = data
             end
 
-            pvd[t] = vtkfile
-
-            # increment time
-            t += dt
+            pvd[t[current_step]] = vtkfile
         end
     end
 
@@ -791,7 +786,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
 
             # add point data
             for field in fieldnames(PointState)
-                data = Matrix{eltype(assembly)}(undef, 3, npoint)
+                data = Matrix{eltype(assembly)}(undef, 3, ncross*npoint)
                 li = LinearIndices((ncross, npoint))
                 for ip = 1:npoint
                     data[:, li[:,ip]] .= getproperty(state.points[ip], field) +
