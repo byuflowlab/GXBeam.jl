@@ -23,7 +23,7 @@ Keyword Arguments:
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function DifferentialEquations.ODEProblem(system::System, assembly, tspan;
+function DiffEqBase.ODEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     origin = (@SVector zeros(3)),
@@ -69,7 +69,7 @@ where each parameter is defined as follows:
  - `angular_velocity`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function DifferentialEquations.ODEFunction(system::System, assembly)
+function DiffEqBase.ODEFunction(system::System, assembly)
 
     # check to make sure the system isn't static
     @assert !system.static
@@ -187,7 +187,7 @@ Keyword Arguments:
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function DifferentialEquations.DAEProblem(system::System, assembly, tspan;
+function DiffEqBase.DAEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     origin = (@SVector zeros(3)),
@@ -245,7 +245,7 @@ where each parameter is defined as follows:
  - `angular_velocity`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function DifferentialEquations.DAEFunction(system::System, assembly)
+function DiffEqBase.DAEFunction(system::System, assembly)
 
     # check to make sure the system isn't static
     @assert !system.static

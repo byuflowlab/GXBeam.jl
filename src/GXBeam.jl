@@ -8,7 +8,7 @@ using NLsolve
 using SparseArrays
 using StaticArrays
 using WriteVTK
-using DifferentialEquations
+using DiffEqBase
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads
