@@ -52,19 +52,24 @@ assembly = Assembly(points, start, stop, compliance=compliance)
 
 # set prescribed conditions (fixed right endpoint)
 prescribed_conditions = Dict(
-    nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+    nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+    theta_z=0)
 )
 
 # create distributed load
 q = 1000
 distributed_loads = Dict(
-    ielem => DistributedLoads(assembly, ielem; fz = (s) -> q) for ielem in n1+1:n1+n2
+    ielem => DistributedLoads(assembly, ielem; fz = (s) -> q) for ielem in
+    n1+1:n1+n2
 )
 
-system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
-    distributed_loads=distributed_loads, linear=true)
+system, converged = static_analysis(assembly;       
+    prescribed_conditions = prescribed_conditions,
+    distributed_loads = distributed_loads,
+    linear = true)
 
-state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+state = AssemblyState(system, assembly;
+    prescribed_conditions = prescribed_conditions)
 
 nothing #hide
 ```
@@ -86,7 +91,7 @@ deflection_a .-= deflection_a[end] # apply boundary condition
 # get elastic twist angle
 theta_a = -atan.(slope_a)
 
-# adjust coordinate system of the analytical solution to match the computational solution
+# switch analytical system frame of reference
 M_a = -M_a
 
 nothing #hide
@@ -207,7 +212,8 @@ prescribed_conditions = Dict(
     # simply supported left endpoint
     1 => PrescribedConditions(uz=0),
     # clamped right endpoint
-    nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+    nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+        theta_z=0)
 )
 
 # create distributed load
@@ -289,9 +295,10 @@ plot(
     overwrite_figure=false
     )
 
-x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
-    1:length(assembly.points)]
-theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1]
+    for ipoint = 1:length(assembly.points)]
+theta = [4*atan.(state.points[ipoint].theta[2]/4)
+    for ipoint = 1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
 
@@ -364,8 +371,8 @@ assembly = Assembly(points, start, stop, compliance=compliance)
 
 # pre-initialize system storage
 static = true
-keep_points = [1, nelem+1] # points that should be included in the system of equations
-system = System(assembly, keep_points, static)
+prescribed_points = [1, nelem+1] # points with prescribed conditions
+system = System(assembly, prescribed_points, static)
 
 # run an analysis for each prescribed tip load
 states = Vector{AssemblyState{Float64}}(undef, length(P))
@@ -507,8 +514,8 @@ assembly = Assembly(points, start, stop, compliance=compliance)
 
 # pre-initialize system storage
 static = true
-keep_points = [1, nelem+1] # points that should be included in the system of equations
-system = System(assembly, keep_points, static)
+prescribed_points = [1, nelem+1] # points with prescribed conditions
+system = System(assembly, prescribed_points, static)
 
 # run an analysis for each prescribed bending moment
 states = Vector{AssemblyState{Float64}}(undef, length(M))
@@ -524,11 +531,11 @@ for i = 1:length(M)
 
     # perform a static analysis
     static_analysis!(system, assembly;
-        prescribed_conditions=prescribed_conditions)
+        prescribed_conditions = prescribed_conditions)
 
     # post-process the results
     states[i] = AssemblyState(system, assembly;
-        prescribed_conditions=prescribed_conditions)
+        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -868,8 +875,10 @@ plot(
     grid = false,
     overwrite_figure=false
     )
-theta_z_nl = [4*atan(nonlinear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
-theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
+theta_z_nl = [4*atan(nonlinear_states[i].points[end].theta[3]/4)
+    for i = 1:length(rpm)]
+theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
+    for i = 1:length(rpm)]
 
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
@@ -899,7 +908,8 @@ nev = 30
 U = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
 MV = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
 state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
-eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
+eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef,
+    length(sweep), length(rpm))
 for i = 1:length(sweep)
     local L_b1, r_b1, nelem_b1, lengths_b1 #hide
     local xp_b1, xm_b1, Cab_b1 #hide
@@ -1122,36 +1132,10 @@ As you can see, the frequency results from the eigenmode analysis in this packag
 We can also visualize eigenmodes using ParaView.  Here we will visualize the first bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be helpful for identifying different eigenmodes.
 
 ```julia
-# construct the cross section geometry for each point (optional)
-sections = zeros(3, 5, length(points))
-for ip = 1:length(points)
-    if ip < nelem_b1 + 1
-        # straight section
-        Ri = I
-        hi = h
-        wi = w
-    elseif ip > nelem_b1 + 1
-        # swept section
-        ss, cs = sincos(sweep[end])
-        Ri = [cs ss 0; -ss cs 0; 0 0 1]
-        hi = h
-        wi = w
-    else
-        # transition point
-        ss, cs = sincos(sweep[end]/2)
-        Ri = [cs ss 0; -ss cs 0; 0 0 1]
-        hi = h
-        wi = w/cs
-    end
-    sections[:, 1, ip] = Ri*[0, -wi/2, -hi/2]
-    sections[:, 2, ip] = Ri*[0, wi/2, -hi/2]
-    sections[:, 3, ip] = Ri*[0, wi/2, hi/2]
-    sections[:, 4, ip] = Ri*[0, -wi/2, hi/2]
-    sections[:, 5, ip] = Ri*[0, -wi/2, -hi/2]
-end
 # write the response to vtk files for visualization using ParaView
-write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end], λ[end,end][1],
-    eigenstates[end,end][1]; sections=sections, mode_scaling=100.0)
+write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end],
+    λ[end,end][1], eigenstates[end,end][1]; sections = sections,
+    mode_scaling = 100.0)
 ```
 
 ![](rotating-beam.gif)
@@ -1368,7 +1352,7 @@ sections = zeros(3, size(airfoil, 1), length(points))
 for ip = 1:length(points)
     chord = root_chord * (1 - x[ip]/L) + tip_chord * x[ip]/L
     sections[1, :, ip] .= 0
-    sections[2, :, ip] .= chord .* airfoil[:,1]
+    sections[2, :, ip] .= chord .* (airfoil[:,1] .- 0.5)
     sections[3, :, ip] .= chord .* airfoil[:,2]
 end
 
@@ -1503,11 +1487,16 @@ for i = 1:length(Fz)
     # create dictionary of prescribed conditions
     prescribed_conditions = Dict(
         # fixed endpoint on beam 1
-        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+            theta_z=0),
+
         # force applied on point 4
-        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 => PrescribedConditions(Fz = Fz[i]),
+        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 => PrescribedConditions(
+            Fz = Fz[i]),
+
         # fixed endpoint on last beam
-        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+            theta_z=0),
     )
 
     static_analysis!(system, assembly;
@@ -1526,11 +1515,16 @@ for i = 1:length(Fz)
     # create dictionary of prescribed conditions
     prescribed_conditions = Dict(
         # fixed endpoint on beam 1
-        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+            theta_z=0),
+
         # force applied on point 4
-        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 => PrescribedConditions(Fz = Fz[i]),
+        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 => PrescribedConditions(
+            Fz = Fz[i]),
+
         # fixed endpoint on last beam
-        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+            theta_z=0),
     )
 
     static_analysis!(system, assembly;
@@ -1547,12 +1541,16 @@ for i = 1:length(Fz)
     # create dictionary of prescribed conditions
     prescribed_conditions = Dict(
         # fixed endpoint on beam 1
-        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+            theta_z=0),
+
         # force applied on point 4
-        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 =>
-            PrescribedConditions(Fz_follower = Fz[i]),
+        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 => PrescribedConditions(
+            Fz_follower = Fz[i]),
+
         # fixed endpoint on last beam
-        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
+            theta_z=0),
     )
 
     static_analysis!(system, assembly;
@@ -1615,7 +1613,115 @@ we will visualize the 70kN follower force condition and set the color gradient t
 match the magnitude of the deflections.
 
 ```julia
-write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end])
+airfoil  = [ #FX 60-100 airfoil
+    0.0000000 0.0000000;
+    0.0010700 0.0057400;
+    0.0042800 0.0114400;
+    0.0096100 0.0177500;
+    0.0170400 0.0236800;
+    0.0265300 0.0294800;
+    0.0380600 0.0352300;
+    0.0515600 0.0405600;
+    0.0669900 0.0460900;
+    0.0842700 0.0508600;
+    0.1033200 0.0556900;
+    0.1240800 0.0598900;
+    0.1464500 0.0640400;
+    0.1703300 0.0675400;
+    0.1956200 0.0708100;
+    0.2222100 0.0733900;
+    0.2500000 0.0756500;
+    0.2788600 0.0772000;
+    0.3086600 0.0783800;
+    0.3392800 0.0788800;
+    0.3705900 0.0789800;
+    0.4024500 0.0784500;
+    0.4347400 0.0775000;
+    0.4673000 0.0759600;
+    0.5000000 0.0740900;
+    0.5327000 0.0717400;
+    0.5652600 0.0691100;
+    0.5975500 0.0660800;
+    0.6294100 0.0627500;
+    0.6607200 0.0590500;
+    0.6913400 0.0551100;
+    0.7211400 0.0508900;
+    0.7500000 0.0465200;
+    0.7777900 0.0420000;
+    0.8043801 0.0374700;
+    0.8296700 0.0329800;
+    0.8535500 0.0286400;
+    0.8759201 0.0244700;
+    0.8966800 0.0205300;
+    0.9157300 0.0168100;
+    0.9330100 0.0134200;
+    0.9484400 0.0103500;
+    0.9619400 0.0076600;
+    0.9734700 0.0053400;
+    0.9829600 0.0034100;
+    0.9903900 0.0019300;
+    0.9957200 0.0008600;
+    0.9989300 0.0002300;
+    1.0000000 0.0000000;
+    0.9989300 0.0001500;
+    0.9957200 0.0007000;
+    0.9903900 0.0015100;
+    0.9829600 0.00251;
+    0.9734700 0.00377;
+    0.9619400 0.00515;
+    0.9484400 0.00659;
+    0.9330100 0.00802;
+    0.9157300 0.00941;
+    0.8966800 0.01072;
+    0.8759201 0.01186;
+    0.8535500 0.0128;
+    0.8296700 0.01347;
+    0.8043801 0.01381;
+    0.7777900 0.01373;
+    0.7500000 0.01329;
+    0.7211400 0.01241;
+    0.6913400 0.01118;
+    0.6607200 0.00951;
+    0.6294100 0.00748;
+    0.5975500 0.00496;
+    0.5652600 0.00217;
+    0.532700  -0.00092;
+    0.500000  -0.00405;
+    0.467300  -0.00731;
+    0.434740  -0.01045;
+    0.402450  -0.01357;
+    0.370590  -0.01637;
+    0.339280  -0.01895;
+    0.308660  -0.021;
+    0.278860  -0.02275;
+    0.250000  -0.02389;
+    0.222210  -0.02475;
+    0.195620  -0.025;
+    0.170330  -0.02503;
+    0.146450  -0.02447;
+    0.124080  -0.02377;
+    0.103320  -0.02246;
+    0.084270  -0.0211;
+    0.066990  -0.01913;
+    0.051560  -0.0173;
+    0.038060  -0.01481;
+    0.026530  -0.01247;
+    0.017040  -0.0097;
+    0.009610  -0.00691;
+    0.004280  -0.00436;
+    0.001070  -0.002;
+    0.0        0.0;
+]
+
+section = zeros(3, size(airfoil, 1))
+for ic = 1:size(airfoil, 1)
+    section[1,ic] = airfoil[ic,1] - 0.5
+    section[2,ic] = 0
+    section[3,ic] = airfoil[ic,2]
+end
+
+write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end];
+    sections = section)
 ```
 
 ![](static-joined-wing.png)
@@ -1814,7 +1920,115 @@ These graphs are identical to those presented in "GEBT: A general-purpose nonlin
 We can also visualize the time history of the system using ParaView.  In order to view the small deflections we'll scale all the deflections up by a couple orders of magnitude.  We'll also set the color gradient to match the magnitude of the deflections at each point.
 
 ```julia
-write_vtk("dynamic-joined-wing", assembly, history, t, scaling=1e2)
+airfoil  = [ #FX 60-100 airfoil
+    0.0000000 0.0000000;
+    0.0010700 0.0057400;
+    0.0042800 0.0114400;
+    0.0096100 0.0177500;
+    0.0170400 0.0236800;
+    0.0265300 0.0294800;
+    0.0380600 0.0352300;
+    0.0515600 0.0405600;
+    0.0669900 0.0460900;
+    0.0842700 0.0508600;
+    0.1033200 0.0556900;
+    0.1240800 0.0598900;
+    0.1464500 0.0640400;
+    0.1703300 0.0675400;
+    0.1956200 0.0708100;
+    0.2222100 0.0733900;
+    0.2500000 0.0756500;
+    0.2788600 0.0772000;
+    0.3086600 0.0783800;
+    0.3392800 0.0788800;
+    0.3705900 0.0789800;
+    0.4024500 0.0784500;
+    0.4347400 0.0775000;
+    0.4673000 0.0759600;
+    0.5000000 0.0740900;
+    0.5327000 0.0717400;
+    0.5652600 0.0691100;
+    0.5975500 0.0660800;
+    0.6294100 0.0627500;
+    0.6607200 0.0590500;
+    0.6913400 0.0551100;
+    0.7211400 0.0508900;
+    0.7500000 0.0465200;
+    0.7777900 0.0420000;
+    0.8043801 0.0374700;
+    0.8296700 0.0329800;
+    0.8535500 0.0286400;
+    0.8759201 0.0244700;
+    0.8966800 0.0205300;
+    0.9157300 0.0168100;
+    0.9330100 0.0134200;
+    0.9484400 0.0103500;
+    0.9619400 0.0076600;
+    0.9734700 0.0053400;
+    0.9829600 0.0034100;
+    0.9903900 0.0019300;
+    0.9957200 0.0008600;
+    0.9989300 0.0002300;
+    1.0000000 0.0000000;
+    0.9989300 0.0001500;
+    0.9957200 0.0007000;
+    0.9903900 0.0015100;
+    0.9829600 0.00251;
+    0.9734700 0.00377;
+    0.9619400 0.00515;
+    0.9484400 0.00659;
+    0.9330100 0.00802;
+    0.9157300 0.00941;
+    0.8966800 0.01072;
+    0.8759201 0.01186;
+    0.8535500 0.0128;
+    0.8296700 0.01347;
+    0.8043801 0.01381;
+    0.7777900 0.01373;
+    0.7500000 0.01329;
+    0.7211400 0.01241;
+    0.6913400 0.01118;
+    0.6607200 0.00951;
+    0.6294100 0.00748;
+    0.5975500 0.00496;
+    0.5652600 0.00217;
+    0.532700  -0.00092;
+    0.500000  -0.00405;
+    0.467300  -0.00731;
+    0.434740  -0.01045;
+    0.402450  -0.01357;
+    0.370590  -0.01637;
+    0.339280  -0.01895;
+    0.308660  -0.021;
+    0.278860  -0.02275;
+    0.250000  -0.02389;
+    0.222210  -0.02475;
+    0.195620  -0.025;
+    0.170330  -0.02503;
+    0.146450  -0.02447;
+    0.124080  -0.02377;
+    0.103320  -0.02246;
+    0.084270  -0.0211;
+    0.066990  -0.01913;
+    0.051560  -0.0173;
+    0.038060  -0.01481;
+    0.026530  -0.01247;
+    0.017040  -0.0097;
+    0.009610  -0.00691;
+    0.004280  -0.00436;
+    0.001070  -0.002;
+    0.0        0.0;
+]
+
+section = zeros(3, size(airfoil, 1))
+for ic = 1:size(airfoil, 1)
+    section[1,ic] = airfoil[ic,1] - 0.5
+    section[2,ic] = 0
+    section[3,ic] = airfoil[ic,2]
+end
+
+write_vtk("dynamic-joined-wing", assembly, history, t, scaling=1e2;
+    sections = section)
 ```
 
 ![](dynamic-joined-wing.gif)

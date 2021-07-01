@@ -13,6 +13,9 @@ Author: Taylor McDonnell
 As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a joined wing subjected to a simulated gust, scaled up in order to visualize the deflections:
 ![](dynamic-joined-wing.gif)
 
+And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip load.
+![](dynamic-wind-turbine.gif)
+
 ## Package Features
  - Performs multiple types of analyses including:
     - Linear/Nonlinear static analyses
@@ -31,7 +34,7 @@ As a sample of one of the many things this package can do, here's a time domain 
     - Follower forces/moments (which rotate as the point rotates)
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
- - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface for time domain simulations. 
+ - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface for time domain simulations.
  - Extensively validated against published analytical and computational results. See the [examples](@ref Examples).
 
 ## Installation
