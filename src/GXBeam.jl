@@ -8,7 +8,7 @@ using NLsolve
 using SparseArrays
 using StaticArrays
 using WriteVTK
-import DiffEqBase: ODEFunction, ODEProblem, DAEFunction, DAEProblem
+using DiffEqBase
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads

@@ -23,7 +23,7 @@ Keyword Arguments:
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function ODEProblem(system::System, assembly, tspan;
+function DiffEqBase.ODEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     origin = (@SVector zeros(3)),
@@ -32,7 +32,7 @@ function ODEProblem(system::System, assembly, tspan;
     )
 
     # create ODEFunction
-    func = ODEFunction(system, assembly)
+    func = DiffEqBase.ODEFunction(system, assembly)
 
     # use initial state from `system`
     u0 = copy(system.x)
@@ -40,7 +40,7 @@ function ODEProblem(system::System, assembly, tspan;
     # set parameters
     p = (prescribed_conditions, distributed_loads, origin, linear_velocity, angular_velocity)
 
-    return ODEProblem{true}(func, u0, tspan, p)
+    return DiffEqBase.ODEProblem{true}(func, u0, tspan, p)
 end
 
 """
@@ -69,7 +69,7 @@ where each parameter is defined as follows:
  - `angular_velocity`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function ODEFunction(system::System, assembly)
+function DiffEqBase.ODEFunction(system::System, assembly)
 
     # check to make sure the system isn't static
     @assert !system.static
@@ -123,7 +123,7 @@ function ODEFunction(system::System, assembly)
         return M
     end
 
-    mass_matrix = DiffEqArrayOperator(copy(system.M), update_func = update_mass_matrix!)
+    mass_matrix = DiffEqBase.DiffEqArrayOperator(copy(system.M), update_func = update_mass_matrix!)
 
     # jacobian function with respect to states/state rates
     jac = function(J, u, p, t)
@@ -155,7 +155,7 @@ function ODEFunction(system::System, assembly)
     # TODO: figure out how to use a sparse matrix here.
     # It's failing with a singular exception during the LU factorization.
 
-    return ODEFunction{true,true}(f; mass_matrix, jac, jac_prototype, sparsity)
+    return DiffEqBase.ODEFunction{true,true}(f; mass_matrix, jac, jac_prototype, sparsity)
 end
 
 """
@@ -187,7 +187,7 @@ Keyword Arguments:
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function DAEProblem(system::System, assembly, tspan;
+function DiffEqBase.DAEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     origin = (@SVector zeros(3)),
@@ -195,8 +195,8 @@ function DAEProblem(system::System, assembly, tspan;
     angular_velocity = (@SVector zeros(3)),
     )
 
-    # create DAEFunction
-    func = DAEFunction(system, assembly)
+    # create DiffEqBase.DAEFunction
+    func = DiffEqBase.DAEFunction(system, assembly)
 
     # use initial state from `system`
     u0 = copy(system.x)
@@ -216,7 +216,7 @@ function DAEProblem(system::System, assembly, tspan;
     # get differential variables
     differential_vars = get_differential_vars(system)
 
-    return DAEProblem{true}(func, du0, u0, tspan, p; differential_vars)
+    return DiffEqBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars)
 end
 
 """
@@ -225,7 +225,7 @@ end
 Construct a `DAEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
 
-The parameters associated with the resulting DAEFunction are defined by the tuple
+The parameters associated with the resulting DiffEqBase.DAEFunction are defined by the tuple
 `(prescribed_conditions, distributed_loads, origin, linear_velocity, angular_velocity)`
 where each parameter is defined as follows:
  - `prescribed_conditions`: A dictionary with keys corresponding to the points at
@@ -245,7 +245,7 @@ where each parameter is defined as follows:
  - `angular_velocity`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
 """
-function DAEFunction(system::System, assembly)
+function DiffEqBase.DAEFunction(system::System, assembly)
 
     # check to make sure the system isn't static
     @assert !system.static
@@ -315,7 +315,7 @@ function DAEFunction(system::System, assembly)
     # It's failing with a singular exception during the LU factorization.
     # Using `jac_prototype` also causes errors
 
-    return DAEFunction{true,true}(f; jac, sparsity)
+    return DiffEqBase.DAEFunction{true,true}(f; jac, sparsity)
 end
 
 function get_differential_vars(system::System)
