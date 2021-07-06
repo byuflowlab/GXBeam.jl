@@ -13,7 +13,7 @@ The following constructors are available for modeling the differential algebraic
 
 ```@docs
 GXBeam.ODEFunction(system::System, assembly; kwargs...)
-GXBeam.ODEProblem(system::System, assembly; kwargs...)
+GXBeam.ODEProblem(system::System, assembly, tspan; kwargs...)
 GXBeam.DAEFunction(system::System, assembly; kwargs...)
 GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
 ```

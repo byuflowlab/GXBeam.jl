@@ -56,7 +56,9 @@ nothing #hide
 The lengths of each beam element is equal since we used the number of elements to define the discretization.  Alternatively we can manually specify the discretization of the section. The following is equivalent to the previous function call.
 
 ```@example guide
-disc_b1 = range(0, 1, length=nelem_b1+1) # normalized discretization in straight section of the beam
+# normalized element endpoints in straight section of the beam
+disc_b1 = range(0, 1, length=nelem_b1+1)
+# discretize straight beam section
 lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, disc_b1)
 nothing #hide
 ```
@@ -71,8 +73,9 @@ L_b2 = 6 # length of swept section of the beam
 r_b2 = [34, 0, 0] # starting point of swept section of the beam
 nelem_b2 = 5 # number of elements in swept section of the beam
 cs, ss = cos(sweep), sin(sweep)
-frame_b2 = [cs ss 0; -ss cs 0; 0 0 1] # transformation matrix from local to global frame
-lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1] # transformation from local to global frame
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+    frame = frame_b2)
 nothing #hide
 ```
 
@@ -455,8 +458,10 @@ plot(
     grid = false,
     overwrite_figure=false
     )
-theta_z_nl = [4*atan(nonlinear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
-theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
+theta_z_nl = [4*atan(nonlinear_states[i].points[end].theta[3]/4)
+    for i = 1:length(rpm)]
+theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
+    for i = 1:length(rpm)]
 
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
