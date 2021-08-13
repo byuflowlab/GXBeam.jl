@@ -98,7 +98,7 @@ nothing #hide
 
 Next we need to define the stiffness (or compliance) and mass (or inverse mass) matrices for each beam element.
 
-The compliance matrix is defined according to the following equation
+The compliance matrix is defined using the following equation
 ```math
 \begin{bmatrix}
 \gamma_{11} \\
@@ -137,7 +137,6 @@ with the variables defined as follows:
  - ``M_i``: resultant moment about axis i
 
 The elements of the mass matrix are defined as:
-
 ```math
 \begin{bmatrix}
    \mu & 0 & 0 & 0 & \mu x_{m3} & -\mu x_{m2} \\
@@ -308,14 +307,21 @@ prescribed_conditions = Dict(
 nothing #hide
 ```
 
-## Pre-Initializing Memory for an Analysis
+## Pre-Allocating Memory for an Analysis
 
-At this point we have everything we need to perform an analysis.  However, since we will be performing multiple analyses using the same assembly we can save computational time be pre-allocating memory for the analysis.  This can be done by constructing an object of type `System`.  The constructor for this object requires that we provide the assembly, a list of points upon which point conditions are applied, and a flag indicating whether the system is static.
+At this point we have everything we need to perform an analysis.  However, since we will be performing multiple analyses using the same assembly we can save computational time be pre-allocating memory for the analysis.  This can be done by constructing an object of type `System`.  The constructor for this object requires that we provide the assembly and a flag indicating whether the system is static.
 
 ```@example guide
-prescribed_points = [1, nelem+1]
-static = false
-system = System(assembly, prescribed_points, static)
+system = System(assembly, false)
+nothing #hide
+```
+
+## Eliminating Unnecessary State Variables
+
+The time needed to perform our analysis can be further reduced by removing unnecessary state variables and equations from the system of equations.  This optimization may be enabled by providing the identities of the points with prescribed conditions using the `include_points` keyword.  
+
+```@example guide
+system = System(assembly, static; include_points=[1, nelem+1])
 nothing #hide
 ```
 

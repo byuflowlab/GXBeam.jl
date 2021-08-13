@@ -50,14 +50,14 @@ function Assembly(points, start, stop;
     lengths = norm.(points[stop] - points[start]),
     midpoints = (points[stop] + points[start])/2)
 
-    nbeam = length(start)
+    nelem = length(start)
 
     if isnothing(compliance)
         if isnothing(stiffness)
-            compliance = fill((@SMatrix zeros(6,6)), nbeam)
+            compliance = fill((@SMatrix zeros(6,6)), nelem)
         else
-            compliance = [(@MMatrix zeros(eltype(eltype(stiffness)), 6,6)) for i=1:nbeam] #can't use fill because it copies the reference. Need a different value for every i.
-            for i = 1:nbeam
+            compliance = [(@MMatrix zeros(eltype(eltype(stiffness)), 6,6)) for i=1:nelem] #can't use fill because it copies the reference. Need a different value for every i.
+            for i = 1:nelem
                 filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), stiffness[i], dims = 1)))
                 compliance[i][filled_cols,filled_cols] .= inv(Matrix(stiffness[i][filled_cols, filled_cols]))
             end
@@ -67,10 +67,10 @@ function Assembly(points, start, stop;
 
     if isnothing(minv)
         if isnothing(mass)
-            minv = fill(Diagonal(@SVector ones(6)), nbeam)
+            minv = fill(Diagonal(@SVector ones(6)), nelem)
         else
-            minv = [MMatrix{6,6}(Diagonal(@SVector ones(eltype(eltype(mass)), 6))) for i=1:nbeam] # can't use infill because it copies the reference. Need a different value for every i.
-            for i = 1:nbeam
+            minv = [MMatrix{6,6}(Diagonal(@SVector ones(eltype(eltype(mass)), 6))) for i=1:nelem] # can't use infill because it copies the reference. Need a different value for every i.
+            for i = 1:nelem
                 filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), mass[i], dims = 1)))
                 minv[i][filled_cols,filled_cols] .= inv(Matrix(mass[i][filled_cols, filled_cols]))
             end
@@ -79,7 +79,7 @@ function Assembly(points, start, stop;
     end
 
     if isnothing(frames)
-        frames = fill(I3, nbeam)
+        frames = fill(I3, nelem)
     end
 
     elements = Element.(lengths, midpoints, compliance, minv, frames)

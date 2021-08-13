@@ -70,38 +70,40 @@ end
 end
 
 """
-    insert_point_residual!(resid, irow_b, irow_p, u, θ, F, M, side)
+    insert_point_residual!(resid, irow_elem, irow_point, u, θ, F, M, side)
 
 Modify the equilibrium and constitutive equations to account for the point
 variables given by u, θ, F, M
 
-If irow_b != irow_p, assume that the equilibrium equations have already been modified
+If `irow_elem != irow_point`, assume that the equilibrium equations have already
+been modified
 
 # Arguments
  - resid: Residual vector
- - irow_b: Row index of the first equilibrium/compatability equation for one side of the beam element
- - irow_p: Row index of the first equilibrium equation for the point
+ - irow_elem: Row index of the first equilibrium/compatability equation for one
+       side of the beam element
+ - irow_point: Row index of the first equilibrium equation for the point
  - u: Displacement of the point
  - θ: Rotation of the point
  - F: External forces imposed on the point
  - M: External moments imposed on the point
- - side: Side of beam (-1 (left) or 1 (right))
+ - side: Side of beam element (-1 (left) or 1 (right))
 """
-@inline function insert_point_residual!(resid, irow_b, irow_p, u, θ, F, M, side, force_scaling)
+@inline function insert_point_residual!(resid, irow_elem, irow_point, u, θ, F, M, side, force_scaling)
 
-    if irow_b == irow_p
+    if irow_elem == irow_point
         # add to equilibrium and compatability equations
         for i = 1:3
-            resid[irow_b+i-1] -= F[i] ./ force_scaling
-            resid[irow_b+i+2] -= M[i] ./ force_scaling
-            resid[irow_b+i+5] += side*u[i]
-            resid[irow_b+i+8] += side*θ[i]
+            resid[irow_elem+i-1] -= F[i] ./ force_scaling
+            resid[irow_elem+i+2] -= M[i] ./ force_scaling
+            resid[irow_elem+i+5] += side*u[i]
+            resid[irow_elem+i+8] += side*θ[i]
         end
     else
         # add to compatability equations
         for i = 1:3
-            resid[irow_b+i-1] += side*u[i]
-            resid[irow_b+i+2] += side*θ[i]
+            resid[irow_elem+i-1] += side*u[i]
+            resid[irow_elem+i+2] += side*θ[i]
         end
     end
 
@@ -110,7 +112,7 @@ end
 
 """
     point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-        force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+        force_scaling, icol, irow_point, irow_elem1, irow_elem2)
 
 Adds a points contributions to the residual vector
 
@@ -122,14 +124,14 @@ Adds a points contributions to the residual vector
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the point's state variables
- - `irow_p`: Row index of the first equilibrium equation for the point
- - `irow_beam1`: Row index of first equation for the left side of each beam
- - `irow_beam2`: Row index of first equation for the right side of each beam
+ - `irow_point`: Row index of the first equilibrium equation for the point
+ - `irow_elem1`: Row index of first equation for the left side of each beam element
+ - `irow_elem2`: Row index of first equation for the right side of each beam element
 """
 @inline function point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-    force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+    force_scaling, icol, irow_point, irow_elem1, irow_elem2)
 
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # incorporate prescribed condition if applicable
     prescribed = haskey(prescribed_conditions, ipoint)
@@ -139,21 +141,21 @@ Adds a points contributions to the residual vector
         u, θ, F, M = point_variables(x, icol)
     end
 
-    # search for beams that are connected to the specified point
-    for ibeam = 1:nbeam
-        # check left side of beam
-        if ipoint == assembly.start[ibeam]
-            # add to residual equations for the beam endpoint
+    # search for beam elements that are connected to the specified point
+    for ielem = 1:nelem
+        # check left side of beam element
+        if ipoint == assembly.start[ielem]
+            # add to residual equations for the beam element endpoint
             side = -1
-            irow_b = irow_beam1[ibeam]
-            insert_point_residual!(resid, irow_b, irow_p, u, θ, F, M, side, force_scaling)
+            irow_elem = irow_elem1[ielem]
+            insert_point_residual!(resid, irow_elem, irow_point, u, θ, F, M, side, force_scaling)
         end
-        # check right side of beam
-        if ipoint == assembly.stop[ibeam]
-            # add to residual equations for the beam endpoint
+        # check right side of beam element
+        if ipoint == assembly.stop[ielem]
+            # add to residual equations for the beam element endpoint
             side = 1
-            irow_b = irow_beam2[ibeam]
-            insert_point_residual!(resid, irow_b, irow_p, u, θ, F, M, side, force_scaling)
+            irow_elem = irow_elem2[ielem]
+            insert_point_residual!(resid, irow_elem, irow_point, u, θ, F, M, side, force_scaling)
         end
     end
 
@@ -228,24 +230,24 @@ Calculate the jacobians of the follower forces/moments with respect to θ
 end
 
 """
-    insert_point_jacobian!(jacob, irow_b, irow_p, icol, prescribed_conditions, side, F_θ, M_θ)
+    insert_point_jacobian!(jacob, irow_elem, irow_point, icol, prescribed_conditions, side, F_θ, M_θ)
 
 Modify the jacobian entries for the equilibrium and constitutive equations to
 account for the point variables at icol
 
-If irow_b != irow_p, assume that the equilibrium equations have already been modified
+If irow_elem != irow_point, assume that the equilibrium equations have already been modified
 
 # Arguments
  - jacob: Jacobian of residual vector with respect to state vectors
- - irow_b: Row index of the first equilibrium/compatability equation for one side of the beam element
- - irow_p: Row index of the first equilibrium equation for the point
+ - irow_elem: Row index of the first equilibrium/compatability equation for one side of the beam element
+ - irow_point: Row index of the first equilibrium equation for the point
  - icol: Row/Column index of the first state variable for the point
  - prescribed_conditions: Prescribed force/displacement and moment/rotation on point
- - side: Side of beam (-1 (left) or 1 (right))
+ - side: Side of beam element (-1 (left) or 1 (right))
 """
-@inline function insert_point_jacobian!(jacob, irow_b, irow_p, icol, side, prescribed_force, F_θ, M_θ, force_scaling)
+@inline function insert_point_jacobian!(jacob, irow_elem, irow_point, icol, side, prescribed_force, F_θ, M_θ, force_scaling)
 
-    if irow_b == irow_p
+    if irow_elem == irow_point
         # add jacobian entries for equilibrium and compatability equations
         for i = 1:3 # forces/displacements
             if prescribed_force[i]
@@ -254,16 +256,16 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
                     # check if θ[j-3] is a state variable
                     if prescribed_force[j]
                         # add equilibrium equation jacobian component
-                        jacob[irow_b+i-1, icol+j-1] = -F_θ[i,j-3] ./ force_scaling
+                        jacob[irow_elem+i-1, icol+j-1] = -F_θ[i,j-3] ./ force_scaling
                     end
                 end
                 # add compatability equation jacobian component
-                jacob[irow_b+i+5, icol+i-1] = side # u_u = I
+                jacob[irow_elem+i+5, icol+i-1] = side # u_u = I
             else
                 # u[i] is prescribed, F[i] is a state variable
 
                 # add equilibrium equation jacobian component
-                jacob[irow_b+i-1, icol+i-1] = -1 # F_F = I
+                jacob[irow_elem+i-1, icol+i-1] = -1 # F_F = I
             end
         end
         for i = 4:6 # moments/rotations
@@ -273,16 +275,16 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
                     # check if θ[j-3] is a state variable
                     if prescribed_force[j]
                         # add equilibrium equation jacobian component
-                        jacob[irow_b+i-1, icol+j-1] = -M_θ[i-3,j-3] ./ force_scaling
+                        jacob[irow_elem+i-1, icol+j-1] = -M_θ[i-3,j-3] ./ force_scaling
                     end
                 end
                 # add compatability equation jacobian component
-                jacob[irow_b+i+5, icol+i-1] = side # θ_θ = I
+                jacob[irow_elem+i+5, icol+i-1] = side # θ_θ = I
             else
                 # θ[i-3] is prescribed, M[i-3] is a state variable
 
                 # add equilibrium equation jacobian component
-                jacob[irow_b+i-1, icol+i-1] = -1 # M_M = I
+                jacob[irow_elem+i-1, icol+i-1] = -1 # M_M = I
             end
         end
     else
@@ -290,13 +292,13 @@ If irow_b != irow_p, assume that the equilibrium equations have already been mod
         for i = 1:3
             if prescribed_force[i]
                 # F[i] is prescribed, u[i] is a state variable
-                jacob[irow_b+i-1, icol+i-1] = side # u_u = I
+                jacob[irow_elem+i-1, icol+i-1] = side # u_u = I
             end
         end
         for i = 4:6
             if prescribed_force[i]
                 # M[i-3] is prescribed, θ[i-3] is a state variable
-                jacob[irow_b+i-1, icol+i-1] = side # θ_θ = I
+                jacob[irow_elem+i-1, icol+i-1] = side # θ_θ = I
             end
         end
     end
@@ -307,7 +309,7 @@ end
 
 """
     point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, icol,
-        irow_p, irow_beam1, irow_beam2)
+        irow_point, irow_elem1, irow_elem2)
 
 Adds a points contributions to the residual vector
 
@@ -319,14 +321,14 @@ Adds a points contributions to the residual vector
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the point's state variables
- - `irow_p`: Row index of the first equilibrium equation for the point
- - `irow_beam1`: Row index of first equation for the left side of each beam
- - `irow_beam2`: Row index of first equation for the right side of each beam
+ - `irow_point`: Row index of the first equilibrium equation for the point
+ - `irow_elem1`: Row index of first equation for the left side of each beam element
+ - `irow_elem2`: Row index of first equation for the right side of each beam element
 """
 @inline function point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-    force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+    force_scaling, icol, irow_point, irow_elem1, irow_elem2)
 
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # incorporate prescribed condition if applicable
     prescribed = haskey(prescribed_conditions, ipoint)
@@ -339,21 +341,21 @@ Adds a points contributions to the residual vector
         force_dof = @SVector ones(Bool, 6)
     end
 
-    # search for beams that are connected to the specified point
-    for ibeam = 1:nbeam
-        # check left side of beam
-        if ipoint == assembly.start[ibeam]
-            # add to residual equations for the beam endpoint
+    # search for beam elements that are connected to the specified point
+    for ielem = 1:nelem
+        # check left side of beam element
+        if ipoint == assembly.start[ielem]
+            # add to residual equations for the beam element endpoint
             side = -1
-            irow_b = irow_beam1[ibeam]
-            jacob = insert_point_jacobian!(jacob, irow_b, irow_p, icol, side, force_dof, F_θ, M_θ, force_scaling)
+            irow_elem = irow_elem1[ielem]
+            jacob = insert_point_jacobian!(jacob, irow_elem, irow_point, icol, side, force_dof, F_θ, M_θ, force_scaling)
         end
-        # check right side of beam
-        if ipoint == assembly.stop[ibeam]
-            # add to residual equations for the beam endpoint
+        # check right side of beam element
+        if ipoint == assembly.stop[ielem]
+            # add to residual equations for the beam element endpoint
             side = 1
-            irow_b = irow_beam2[ibeam]
-            jacob = insert_point_jacobian!(jacob, irow_b, irow_p, icol, side, force_dof, F_θ, M_θ, force_scaling)
+            irow_elem = irow_elem2[ielem]
+            jacob = insert_point_jacobian!(jacob, irow_elem, irow_point, icol, side, force_dof, F_θ, M_θ, force_scaling)
         end
     end
 

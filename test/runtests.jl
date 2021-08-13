@@ -197,9 +197,7 @@ end
     assembly = Assembly(points, start, stop, compliance=compliance)
 
     # pre-initialize system storage
-    static = true
-    keep_points = [1, nelem+1] # points that we request are included in the system of equations
-    system = System(assembly, keep_points, static)
+    system = System(assembly, true)
 
     # run an analysis for each prescribed tip load
     states = Vector{AssemblyState{Float64}}(undef, length(P))
@@ -276,9 +274,7 @@ end
     assembly = Assembly(points, start, stop, compliance=compliance)
 
     # pre-initialize system storage
-    static = true
-    keep_points = [1, nelem+1]
-    system = System(assembly, keep_points, static)
+    system = System(assembly, true)
 
     # run an analysis for each prescribed bending moment
     states = Vector{AssemblyState{Float64}}(undef, length(M))
@@ -527,8 +523,7 @@ end
         assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
 
         # create system
-        keep_points = [1, nelem_b1+1, nelem+1] # points that we request are included in the system of equations
-        system = System(assembly, keep_points, false)
+        system = System(assembly, false)
 
         for j = 1:length(rpm)
             # global frame rotation
@@ -770,10 +765,7 @@ end
     Fz = range(0, 70e3, length=141)
 
     # pre-allocate memory to reduce run-time
-    ijoint = nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1
-    points_to_keep = [1, ijoint, nelem+1]
-    static = true
-    system = System(assembly, points_to_keep, static)
+    system = System(assembly, true)
 
     linear_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
     for i = 1:length(Fz)
@@ -1105,40 +1097,40 @@ end
     dload = Dict()
 
     # --- Static System --- #
-    static_system = System(assembly, keys(pcond), true)
+    static_system = System(assembly, true)
 
     force_scaling = static_system.force_scaling
     mass_scaling = static_system.mass_scaling
-    irow_pt = static_system.irow_pt
-    irow_beam = static_system.irow_beam
-    irow_beam1 = static_system.irow_beam1
-    irow_beam2 = static_system.irow_beam2
-    icol_pt = static_system.icol_pt
-    icol_beam = static_system.icol_beam
+    irow_point = static_system.irow_point
+    irow_elem = static_system.irow_elem
+    irow_elem1 = static_system.irow_elem1
+    irow_elem2 = static_system.irow_elem2
+    icol_point = static_system.icol_point
+    icol_elem = static_system.icol_elem
 
     x = rand(length(static_system.x))
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
-        icol_pt, icol_beam)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem)
 
     GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
-        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
     # --- Dynamic System --- #
-    system = System(assembly, keys(pcond), false)
+    system = System(assembly, false)
 
     force_scaling = system.force_scaling
     mass_scaling = system.mass_scaling
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    irow_point = system.irow_point
+    irow_elem = system.irow_elem
+    irow_elem1 = system.irow_elem1
+    irow_elem2 = system.irow_elem2
+    icol_point = system.icol_point
+    icol_elem = system.icol_elem
     x0 = rand(3)
     v0 = rand(3)
     ω0 = rand(3)
@@ -1147,12 +1139,12 @@ end
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
-        icol_pt, icol_beam, x0, v0, ω0)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0)
 
     GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
-        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt,
-        icol_beam, x0, v0, ω0)
+        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
+        icol_elem, x0, v0, ω0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -1167,12 +1159,12 @@ end
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
-        icol_pt, icol_beam, x0, v0, ω0, u0, theta0, udot0, thetadot0)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
     GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
-        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt,
-        icol_beam, x0, v0, ω0, u0, theta0, udot0, thetadot0)
+        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
+        icol_elem, x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -1188,12 +1180,12 @@ end
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
-        icol_pt, icol_beam, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
     GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
-        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt,
-        icol_beam, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
+        icol_elem, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -1205,20 +1197,20 @@ end
     M = similar(x, length(x), length(x))
 
     fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), x, dx, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
-        icol_pt, icol_beam, x0, v0, ω0)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0)
 
     fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), x, dx, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2,
-        icol_pt, icol_beam, x0, v0, ω0)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0)
 
     GXBeam.dynamic_system_jacobian!(J, x, dx, assembly,
         pcond, dload, force_scaling, mass_scaling,
-        irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
 
-    GXBeam.system_mass_matrix!(M, x, assembly, force_scaling, mass_scaling, irow_pt,
-        irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+    GXBeam.system_mass_matrix!(M, x, assembly, force_scaling, mass_scaling, irow_point,
+        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(fx, x), atol=1e-10))
 

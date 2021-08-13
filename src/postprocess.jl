@@ -24,10 +24,11 @@ Holds the state variables for an element
 # Fields:
  - `u`: Displacement variables for the element (in the global coordinate frame)
  - theta: Wiener-Milenkovic rotational displacement variables for the element
- - `F`: Resultant forces for the element (in the deformed beam coordinate frame)
- - `M`: Resultant moments for the element (in the deformed beam coordinate frame)
- - `P`: Linear momenta of the element (in the deformed beam coordinate frame)
- - `H`: Angular momenta of the element (in the deformed beam coordinate frame)
+       (in the global coordinate frame)
+ - `F`: Resultant forces for the element (in the deformed local coordinate frame)
+ - `M`: Resultant moments for the element (in the deformed local coordinate frame)
+ - `P`: Linear momenta of the element (in the deformed local coordinate frame)
+ - `H`: Angular momenta of the element (in the deformed local coordinate frame)
 """
 struct ElementState{TF}
     u::SVector{3, TF}
@@ -93,35 +94,35 @@ function extract_point_state(system, assembly, ipoint, x = system.x;
 
     force_scaling = system.force_scaling
 
-    icol_p = system.icol_pt[ipoint]
+    icol_p = system.icol_point[ipoint]
 
     if icol_p <= 0
         # point variables are not state variables, solve for point variables
 
         # find the first beam connected to the point, checking both sides
-        ibeam = findfirst(x -> x == ipoint, assembly.start)
-        if !isnothing(ibeam)
+        ielem = findfirst(x -> x == ipoint, assembly.start)
+        if !isnothing(ielem)
             side = -1
         else
-            ibeam = findfirst(x -> x == ipoint, assembly.stop)
+            ielem = findfirst(x -> x == ipoint, assembly.stop)
             side = 1
         end
 
-        beam = assembly.elements[ibeam]
+        elem = assembly.elements[ielem]
 
         # get beam state variables
-        icol_b = system.icol_beam[ibeam]
+        icol_b = system.icol_elem[ielem]
         u_b = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
         θ_b = SVector(x[icol_b+3 ], x[icol_b+4 ], x[icol_b+5 ])
         F_b = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* force_scaling
         M_b = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* force_scaling
 
         # get beam element properties
-        ΔL_b = beam.L
+        ΔL_b = elem.L
         Ct_b = get_C(θ_b)'
-        Cab_b = beam.Cab
-        γ_b = element_strain(beam, F_b, M_b)
-        κ_b = element_curvature(beam, F_b, M_b)
+        Cab_b = elem.Cab
+        γ_b = element_strain(elem, F_b, M_b)
+        κ_b = element_curvature(elem, F_b, M_b)
 
         # solve for the displacements/rotations of the point
         u = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
@@ -192,8 +193,8 @@ function extract_element_state(system, ielem, x = system.x)
     force_scaling = system.force_scaling
     mass_scaling = system.mass_scaling
 
-    icol = system.icol_beam[ielem]
-    static = system.irow_beam[ielem] <= 0
+    icol = system.icol_elem[ielem]
+    static = system.irow_elem[ielem] <= 0
     u = SVector(x[icol], x[icol+1], x[icol+2])
     theta = SVector(x[icol+3], x[icol+4], x[icol+5])
     F = SVector(x[icol+6], x[icol+7], x[icol+8]) .* force_scaling
@@ -219,7 +220,7 @@ given the solution vector `x`.
 """
 function extract_element_states(system, x = system.x)
     TF = promote_type(eltype(system), eltype(x))
-    elements = Vector{ElementState{TF}}(undef, length(system.icol_beam))
+    elements = Vector{ElementState{TF}}(undef, length(system.icol_elem))
     return extract_element_states!(elements, system, x)
 end
 
@@ -367,7 +368,7 @@ function write_vtk(name, assembly; sections=nothing, metadata=Dict())
     # get problem dimensions
     npoint = length(assembly.points)
     ncross = isnothing(sections) ? 1 : size(sections, 2)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     if isnothing(sections)
         # extract point locations
@@ -379,7 +380,7 @@ function write_vtk(name, assembly; sections=nothing, metadata=Dict())
         end
 
         # create cells
-        cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+        cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nelem]
 
     else
 
@@ -402,19 +403,19 @@ function write_vtk(name, assembly; sections=nothing, metadata=Dict())
         end
 
         # construct triangle strip for each beam element
-        cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nbeam)
-        for ibeam = 1:nbeam
+        cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nelem)
+        for ielem = 1:nelem
             # index of key point corresponding to the start of the beam element
-            ipt1 = assembly.start[ibeam]
+            ipt1 = assembly.start[ielem]
             # index of key point corresponding to the end of the beam element
-            ipt2 = assembly.stop[ibeam]
+            ipt2 = assembly.stop[ielem]
             # triangle strip points
             connectivity = Vector{Int}(undef, ncross*2)
             for ic = 1:ncross
                 connectivity[2*ic-1] = li[ic, ipt1]
                 connectivity[2*ic] = li[ic, ipt2]
             end
-            cells[ibeam] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
+            cells[ielem] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
         end
 
     end
@@ -431,9 +432,9 @@ function write_vtk(name, assembly; sections=nothing, metadata=Dict())
         axis_name = ["x-axis", "y-axis", "z-axis"]
         axis_vector = [e1, e2, e3]
         for i = 1:3
-            data = Matrix{eltype(assembly)}(undef, 3, nbeam)
-            for ibeam = 1:nbeam
-                data[:, ibeam] .= assembly.elements[ibeam].Cab*axis_vector[i]
+            data = Matrix{eltype(assembly)}(undef, 3, nelem)
+            for ielem = 1:nelem
+                data[:, ielem] .= assembly.elements[ielem].Cab*axis_vector[i]
             end
             vtkfile[axis_name[i], VTKCellData()] = data
         end
@@ -448,7 +449,7 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
     # get problem dimensions
     npoint = length(assembly.points)
     ncross = isnothing(sections) ? 1 : size(sections, 2)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     if isnothing(sections)
         # extract point locations
@@ -460,7 +461,7 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
         end
 
         # create cells
-        cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+        cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nelem]
     else
         li = LinearIndices((ncross, npoint))
 
@@ -487,19 +488,19 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
         end
 
         # construct triangle strip for each beam element
-        cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nbeam)
-        for ibeam = 1:nbeam
+        cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nelem)
+        for ielem = 1:nelem
             # index of key point corresponding to the start of the beam element
-            ipt1 = assembly.start[ibeam]
+            ipt1 = assembly.start[ielem]
             # index of key point corresponding to the end of the beam element
-            ipt2 = assembly.stop[ibeam]
+            ipt2 = assembly.stop[ielem]
             # triangle strip points
             connectivity = Vector{Int}(undef, ncross*2)
             for ic = 1:ncross
                 connectivity[2*ic-1] = li[ic, ipt1]
                 connectivity[2*ic] = li[ic, ipt2]
             end
-            cells[ibeam] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
+            cells[ielem] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
         end
     end
 
@@ -517,10 +518,10 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
         axis_name = ["x-axis", "y-axis", "z-axis"]
         axis_vector = [e1, e2, e3]
         for i = 1:3
-            data = Matrix{eltype(assembly)}(undef, 3, nbeam)
-            for ibeam = 1:nbeam
-                CtCab = wiener_milenkovic(state.elements[ibeam].theta)'*assembly.elements[ibeam].Cab
-                data[:, ibeam] .= CtCab * axis_vector[i]
+            data = Matrix{eltype(assembly)}(undef, 3, nelem)
+            for ielem = 1:nelem
+                CtCab = wiener_milenkovic(state.elements[ielem].theta)'*assembly.elements[ielem].Cab
+                data[:, ielem] .= CtCab * axis_vector[i]
             end
             vtkfile[axis_name[i], VTKCellData()] = data
         end
@@ -537,9 +538,9 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
 
         # add cell data
         for field in fieldnames(ElementState)
-            data = Matrix{eltype(assembly)}(undef, 3, nbeam)
-            for ibeam = 1:nbeam
-                data[:, ibeam] .= getproperty(state.elements[ibeam], field)
+            data = Matrix{eltype(assembly)}(undef, 3, nelem)
+            for ielem = 1:nelem
+                data[:, ielem] .= getproperty(state.elements[ielem], field)
             end
             vtkfile[string(field), VTKCellData()] = data
         end
@@ -555,7 +556,7 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
     # get problem dimensions
     npoint = length(assembly.points)
     ncross = isnothing(sections) ? 1 : size(sections, 2)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     paraview_collection(name) do pvd
 
@@ -571,7 +572,7 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
                 end
 
                 # create cells
-                cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+                cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nelem]
             else
 
                 li = LinearIndices((ncross, npoint))
@@ -599,19 +600,19 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
                 end
 
                 # construct triangle strip for each beam element
-                cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nbeam)
-                for ibeam = 1:nbeam
+                cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nelem)
+                for ielem = 1:nelem
                     # index of key point corresponding to the start of the beam element
-                    ipt1 = assembly.start[ibeam]
+                    ipt1 = assembly.start[ielem]
                     # index of key point corresponding to the end of the beam element
-                    ipt2 = assembly.stop[ibeam]
+                    ipt2 = assembly.stop[ielem]
                     # triangle strip points
                     connectivity = Vector{Int}(undef, ncross*2)
                     for ic = 1:ncross
                         connectivity[2*ic-1] = li[ic, ipt1]
                         connectivity[2*ic] = li[ic, ipt2]
                     end
-                    cells[ibeam] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
+                    cells[ielem] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
                 end
             end
 
@@ -629,10 +630,10 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
             axis_name = ["x-axis", "y-axis", "z-axis"]
             axis_vector = [e1, e2, e3]
             for i = 1:3
-                data = Matrix{eltype(assembly)}(undef, 3, nbeam)
-                for ibeam = 1:nbeam
-                    CtCab = wiener_milenkovic(state.elements[ibeam].theta)' * assembly.elements[ibeam].Cab
-                    data[:, ibeam] .= CtCab * axis_vector[i]
+                data = Matrix{eltype(assembly)}(undef, 3, nelem)
+                for ielem = 1:nelem
+                    CtCab = wiener_milenkovic(state.elements[ielem].theta)' * assembly.elements[ielem].Cab
+                    data[:, ielem] .= CtCab * axis_vector[i]
                 end
                 vtkfile[axis_name[i], VTKCellData()] = data
             end
@@ -649,9 +650,9 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
 
             # add cell data
             for field in fieldnames(ElementState)
-                data = Matrix{eltype(assembly)}(undef, 3, nbeam)
-                for ibeam = 1:nbeam
-                    data[:, ibeam] .= getproperty(state.elements[ibeam], field)
+                data = Matrix{eltype(assembly)}(undef, 3, nelem)
+                for ielem = 1:nelem
+                    data[:, ielem] .= getproperty(state.elements[ielem], field)
                 end
                 vtkfile[string(field), VTKCellData()] = data
             end
@@ -685,7 +686,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
 
     npoint = length(assembly.points)
     ncross = isnothing(sections) ? 1 : size(sections, 2)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     damping = real(λ)
     period = 2*pi/imag(λ)
@@ -717,7 +718,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                 end
 
                 # create cells
-                cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nbeam]
+                cells = [MeshCell(PolyData.Lines(), [assembly.start[i], assembly.stop[i]]) for i = 1:nelem]
 
             else
 
@@ -746,19 +747,19 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                 end
 
                 # construct triangle strip for each beam element
-                cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nbeam)
-                for ibeam = 1:nbeam
+                cells = Vector{MeshCell{VTKCellType, Vector{Int64}}}(undef, nelem)
+                for ielem = 1:nelem
                     # index of key point corresponding to the start of the beam element
-                    ipt1 = assembly.start[ibeam]
+                    ipt1 = assembly.start[ielem]
                     # index of key point corresponding to the end of the beam element
-                    ipt2 = assembly.stop[ibeam]
+                    ipt2 = assembly.stop[ielem]
                     # triangle strip points
                     connectivity = Vector{Int}(undef, ncross*2)
                     for ic = 1:ncross
                         connectivity[2*ic-1] = li[ic, ipt1]
                         connectivity[2*ic] = li[ic, ipt2]
                     end
-                    cells[ibeam] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
+                    cells[ielem] = MeshCell(VTKCellTypes.VTK_TRIANGLE_STRIP, connectivity)
                 end
 
             end
@@ -775,11 +776,11 @@ function write_vtk(name, assembly, state, λ, eigenstate;
             axis_name = ["x-axis", "y-axis", "z-axis"]
             axis_vector = [e1, e2, e3]
             for i = 1:3
-                data = Matrix{eltype(assembly)}(undef, 3, nbeam)
-                for ibeam = 1:nbeam
-                    CtCab = wiener_milenkovic(real(state.elements[ibeam].theta .* exp(λ*t)))' *
-                        assembly.elements[ibeam].Cab
-                    data[:, ibeam] .= CtCab * axis_vector[i]
+                data = Matrix{eltype(assembly)}(undef, 3, nelem)
+                for ielem = 1:nelem
+                    CtCab = wiener_milenkovic(real(state.elements[ielem].theta .* exp(λ*t)))' *
+                        assembly.elements[ielem].Cab
+                    data[:, ielem] .= CtCab * axis_vector[i]
                 end
                 vtkfile[axis_name[i], VTKCellData()] = data
             end
@@ -797,10 +798,10 @@ function write_vtk(name, assembly, state, λ, eigenstate;
 
             # add cell data
             for field in fieldnames(ElementState)
-                data = Matrix{eltype(assembly)}(undef, 3, nbeam)
-                for ibeam = 1:nbeam
-                    data[:, ibeam] .= getproperty(state.elements[ibeam], field) +
-                         mode_scaling*real(getproperty(eigenstate.elements[ibeam], field).* exp(λ*t))
+                data = Matrix{eltype(assembly)}(undef, 3, nelem)
+                for ielem = 1:nelem
+                    data[:, ielem] .= getproperty(state.elements[ielem], field) +
+                         mode_scaling*real(getproperty(eigenstate.elements[ielem], field).* exp(λ*t))
                 end
                 vtkfile[string(field), VTKCellData()] = data
             end

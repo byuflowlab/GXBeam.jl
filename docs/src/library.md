@@ -30,7 +30,7 @@ PrescribedConditions()
 ### Pre-Initializing Memory for an Analysis
 
 ```@docs
-System(assembly, points, static)
+System(assembly, static)
 system_state
 reset_state!
 set_state!

@@ -192,13 +192,13 @@ DistributedLoads(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follo
     DistributedLoads(promote(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower)...)
 
 """
-    DistributedLoads(assembly, ibeam; kwargs...)
+    DistributedLoads(assembly, ielem; kwargs...)
 
 Return the integrated distributed loads at a point (as an object of type [`DistributedLoads`](@ref)).
 
 # Arguments
  - `assembly`: The beam element assembly
- - `ibeam`: The index of the beam element which the distributed load is assigned to
+ - `ielem`: The index of the beam element which the distributed load is assigned to
 
 # Keyword Arguments
  - `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
@@ -218,7 +218,7 @@ Return the integrated distributed loads at a point (as an object of type [`Distr
  - `my_follower = (s) -> 0.0`: Distributed follower moment on beam element in y-direction
  - `mz_follower = (s) -> 0.0`: Distributed follower moment on beam element in z-direction
 """
-function DistributedLoads(assembly, ibeam;
+function DistributedLoads(assembly, ielem;
     s1 = 0.0,
     s2 = 1.0,
     method = gauss_quadrature,
@@ -236,7 +236,7 @@ function DistributedLoads(assembly, ibeam;
     mz_follower = (s) -> 0.0,
     )
 
-    return DistributedLoads(assembly, ibeam, 0.0;
+    return DistributedLoads(assembly, ielem, 0.0;
         s1 = s1,
         s2 = s2,
         method = method,
@@ -256,14 +256,14 @@ function DistributedLoads(assembly, ibeam;
 end
 
 """
-    DistrubutedLoads(assembly, ibeam, t; kwargs...)
+    DistrubutedLoads(assembly, ielem, t; kwargs...)
 
 Return the integrated distributed loads on a beam element (as an object of type
 [`DistributedLoads`](@ref)) at time `t`.
 
 # Arguments
  - `assembly`: The beam element assembly
- - `ibeam`: The index of the beam element which the distributed load is assigned to
+ - `ielem`: The index of the beam element which the distributed load is assigned to
  - `t`: time at which to evaluate the distributed loads
 
 # Keyword Arguments
@@ -284,7 +284,7 @@ Return the integrated distributed loads on a beam element (as an object of type
  - `my_follower = (s, t) -> 0.0`: Distributed follower moment on beam element in y-direction
  - `mz_follower = (s, t) -> 0.0`: Distributed follower moment on beam element in z-direction
 """
-function DistributedLoads(assembly, ibeam, t;
+function DistributedLoads(assembly, ielem, t;
     s1 = 0.0,
     s2 = 1.0,
     method = gauss_quadrature,
@@ -303,7 +303,7 @@ function DistributedLoads(assembly, ibeam, t;
     )
 
     # get element length
-    ΔL = assembly.elements[ibeam].L
+    ΔL = assembly.elements[ielem].L
 
     # create function for general coordinate
     ξ = (s) -> (s-s1)/(s2-s1)

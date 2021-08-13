@@ -370,9 +370,7 @@ compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 # pre-initialize system storage
-static = true
-prescribed_points = [1, nelem+1] # points with prescribed conditions
-system = System(assembly, prescribed_points, static)
+system = System(assembly, true)
 
 # run an analysis for each prescribed tip load
 states = Vector{AssemblyState{Float64}}(undef, length(P))
@@ -513,9 +511,7 @@ compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 # pre-initialize system storage
-static = true
-prescribed_points = [1, nelem+1] # points with prescribed conditions
-system = System(assembly, prescribed_points, static)
+system = System(assembly, true)
 
 # run an analysis for each prescribed bending moment
 states = Vector{AssemblyState{Float64}}(undef, length(M))
@@ -957,8 +953,7 @@ for i = 1:length(sweep)
         midpoints = midpoints)
 
     # create system
-    keep_points = [1, nelem_b1+1, nelem+1]
-    system = System(assembly, keep_points, false)
+    system = System(assembly, false)
 
     for j = 1:length(rpm)
         # global frame rotation
@@ -1476,10 +1471,7 @@ assembly = Assembly(points, start, stop;
 Fz = range(0, 70e3, length=141)
 
 # pre-allocate memory to reduce run-time
-ijoint = nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1
-points_to_keep = [1, ijoint, nelem+1]
-static = true
-system = System(assembly, points_to_keep, static)
+system = System(assembly, true)
 
 linear_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
 for i = 1:length(Fz)

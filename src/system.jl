@@ -13,12 +13,12 @@ needed for time domain simulations.
  - `M`: System jacobian matrix with respect to the time derivative of the state variables
  - `force_scaling`: Scaling for state variables corresponding to forces/moments
  - `mass_scaling`: Scaling for state variables corresponding to masses/inertias
- - `irow_pt`: Row index of first equilibrium equation for each point
- - `irow_beam`: Row index of first equation for just this beam element
- - `irow_beam1`: Row index of first equation for the left side of each beam
- - `irow_beam2`: Row index of first equation for the right side of each beam
- - `icol_pt`: Row/Column index of first state variable for each point
- - `icol_beam`: Row/Column index of first state variable for each beam element
+ - `irow_point`: Row index of first equilibrium equation for each point
+ - `irow_elem`: Row index of first equation for just this beam element
+ - `irow_elem1`: Row index of first equation for the left side of each beam
+ - `irow_elem2`: Row index of first equation for the right side of each beam
+ - `icol_point`: Row/Column index of first state variable for each point
+ - `icol_elem`: Row/Column index of first state variable for each beam element
  - `udot`: `2/dt*u + udot` for each beam element from the previous time step
  - `θdot`: `2/dt*θ + θdot` for each beam element from the previous time step
  - `Pdot`: `2/dt*C'*Cab*P + C'*Cab*Pdot` for each beam element from the previous time step
@@ -33,12 +33,12 @@ mutable struct System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
     M::TM
     force_scaling::TF
     mass_scaling::TF
-    irow_pt::Vector{Int}
-    irow_beam::Vector{Int}
-    irow_beam1::Vector{Int}
-    irow_beam2::Vector{Int}
-    icol_pt::Vector{Int}
-    icol_beam::Vector{Int}
+    irow_point::Vector{Int}
+    irow_elem::Vector{Int}
+    irow_elem1::Vector{Int}
+    irow_elem2::Vector{Int}
+    icol_point::Vector{Int}
+    icol_elem::Vector{Int}
     udot::Vector{SVector{3,TF}}
     θdot::Vector{SVector{3,TF}}
     Pdot::Vector{SVector{3,TF}}
@@ -48,64 +48,59 @@ end
 Base.eltype(::System{TF, TV, TM}) where {TF, TV, TM} = TF
 
 """
-    System([TF=eltype(assembly),] assembly, points, static)
+    System([TF=eltype(assembly),] assembly, static; kwargs...)
 
-Initialize an object of type `System` which stores the system state, residual vector,
-current time function values,and jacobian matrices as well as pointers to
-be able to access their contents.
+Initialize an object of type `System` which stores the system state.
 
 # Arguments:
- - `TF:` (optional) Used to specify floating point type used by resulting `System` object
+ - `TF:`(optional) Floating point type, defaults to the floating point type of `assembly`
  - `assembly`: Assembly of rigidly connected nonlinear beam elements
- - `points`: Point indices which should be preserved in the system of equations.
-        All points with prescribed conditions should be included.
- - `static`: Flag indicating whether system matrices will be used for static simulations
+ - `static`: Flag indicating whether the system corresponds to a static system.
+
+# Keyword Arguments
+ - `included_points`: Point indices corresponding to the points whose equations
+    and state variables should be included in the system of equations.  By default,
+    all point indices are included in the system of equations.
+ - `force_scaling`: Factor used to scale system forces/moments internally.  If
+    not specified, a suitable default will be chosen based on the entries of the
+    compliance matrix.
+ - `mass_scaling`: Factor used to scale system mass/inertia internally.  If not
+    specified, a suitable default will be chosen based on the entries of the
+    mass matrix.
+
+Note that points with prescribed conditions must be included in the system of
+equations.
 """
-System(assembly, points, static) = System(eltype(assembly), assembly, points, static)
+function System(assembly, static; kwargs...)
 
-function System(TF, assembly, points, static)
+    return System(eltype(assembly), assembly, static; kwargs...)
+end
 
-    # get number of beams
-    nbeam = length(assembly.elements)
+function System(TF, assembly, static;
+    included_points = 1:length(assembly.points),
+    force_scaling = default_force_scaling(assembly),
+    mass_scaling = default_mass_scaling(assembly)
+    )
 
-    # get the number of beams connected to each point.
-    n_connections = point_connections(assembly)
+    # system dimensions
+    npoint = length(assembly.points)
+    nelem = length(assembly.elements)
 
-    # get the size and pointers into the system matrices
-    n, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam =
-        system_indices(assembly, points, n_connections, static)
-
-    # set the force scaling based on the average compliance matrix value
-    compliance_entries = vcat([vcat(beam.C11..., beam.C12..., beam.C22...) for beam in assembly.elements]...)
-    compliance_nonzero_indices = findall(xi -> abs(xi) > eps(TF), compliance_entries)
-    if isempty(compliance_nonzero_indices)
-        force_scaling = 1.0
-    else
-        nonzero_compliance_entries = compliance_entries[compliance_nonzero_indices]
-        force_scaling = nextpow(2.0, length(nonzero_compliance_entries)/sum(nonzero_compliance_entries)/100)
-    end
-
-    # set the mass scaling based on the average inverse mass matrix value
-    minv_entries = vcat([vcat(beam.minv11..., beam.minv12..., beam.minv22...) for beam in assembly.elements]...)
-    minv_nonzero_indices = findall(xi -> abs(xi) > eps(TF), minv_entries)
-    if isempty(minv_nonzero_indices)
-        mass_scaling = 1.0
-    else
-        nonzero_minv_entries = minv_entries[minv_nonzero_indices]
-        mass_scaling = nextpow(2.0, length(nonzero_minv_entries)/sum(nonzero_minv_entries))
-    end
+    # initialize system pointers
+    N, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem =
+        system_indices(assembly.start, assembly.stop, static; included_points)
 
     # initialize system matrices
-    x = zeros(TF, n)
-    r = zeros(TF, n)
-    K = spzeros(TF, n, n)
-    M = spzeros(TF, n, n)
+    x = zeros(TF, N)
+    r = zeros(TF, N)
+    K = spzeros(TF, N, N)
+    M = spzeros(TF, N, N)
 
     # initialize storage for time domain simulations
-    udot = [@SVector zeros(TF, 3) for i = 1:nbeam]
-    θdot = [@SVector zeros(TF, 3) for i = 1:nbeam]
-    Pdot = [@SVector zeros(TF, 3) for i = 1:nbeam]
-    Hdot = [@SVector zeros(TF, 3) for i = 1:nbeam]
+    udot = [@SVector zeros(TF, 3) for i = 1:nelem]
+    θdot = [@SVector zeros(TF, 3) for i = 1:nelem]
+    Pdot = [@SVector zeros(TF, 3) for i = 1:nelem]
+    Hdot = [@SVector zeros(TF, 3) for i = 1:nelem]
 
     # initialize current time
     t = 0.0
@@ -115,9 +110,217 @@ function System(TF, assembly, points, static)
     TM = promote_type(typeof(K), typeof(M))
 
     return System{TF, TV, TM}(static, x, r, K, M, force_scaling, mass_scaling,
-        irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, udot, θdot,
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, udot, θdot,
         Pdot, Hdot, t)
 end
+
+function default_force_scaling(assembly)
+
+    TF = eltype(assembly)
+
+    # create vector of all compliance entries
+    compliance_entries = vcat([vcat(elem.C11..., elem.C12..., elem.C22...) for elem in assembly.elements]...)
+
+    # get all nonzero entries
+    compliance_nonzero_indices = findall(xi -> abs(xi) > eps(TF), compliance_entries)
+
+    # set force scaling based on nonzero compliance matrix entries
+    if isempty(compliance_nonzero_indices)
+        force_scaling = 1.0
+    else
+        nonzero_compliance_entries = compliance_entries[compliance_nonzero_indices]
+        force_scaling = nextpow(2.0, length(nonzero_compliance_entries)/sum(nonzero_compliance_entries)/100)
+    end
+
+    return force_scaling
+end
+
+function default_mass_scaling(assembly)
+
+    TF = eltype(assembly)
+
+    # create vector of all inverse mass matrix entries
+    minv_entries = vcat([vcat(elem.minv11..., elem.minv12..., elem.minv22...) for elem in assembly.elements]...)
+
+    # get all nonzero entries
+    minv_nonzero_indices = findall(xi -> abs(xi) > eps(TF), minv_entries)
+
+    # set mass scaling based on nonzero inverse mass matrix entries
+    if isempty(minv_nonzero_indices)
+        mass_scaling = 1.0
+    else
+        nonzero_minv_entries = minv_entries[minv_nonzero_indices]
+        mass_scaling = nextpow(2.0, length(nonzero_minv_entries)/sum(nonzero_minv_entries))
+    end
+
+    return mass_scaling
+end
+
+"""
+    system_indices(start, stop; kwargs...)
+
+Return indices for accessing the equations and state variables associated with
+each point and beam element in a system given its connectivity.
+
+# Arguments:
+ - `start`: Vector containing the point indices where each beam element starts
+ - `stop`: Vector containing the point indices where each beam element stops
+
+# Keyword Arguments:
+ - `included_points`: Point indices corresponding to the points whose equations
+    and state variables should be included in the system of equations.  By default,
+    all point indices are included in the system of equations.
+ - `static`: Flag indicating whether the analysis is static (rather than dynamic).
+    Defaults to `false`.
+
+# Return Arguments:
+ - `N`: total number of equations and unknowns in the system
+ - `irow_point`: Row index of the first equation corresponding to each point
+ - `irow_elem`: Row index of the first equation corresponding to each beam element
+ - `irow_elem1`: Row index of the first equation corresponding to the start of
+        each beam element
+ - `irow_elem2`: Row index of the first equation corresponding to the end of
+        each beam element
+ - `icol_point`: Column index of the first state variable corresponding to each
+        point
+ - `icol_elem`: Column index of the first state variable corresponding to each
+        beam element
+
+Negative indices indicate that the equations and/or state variables associated
+with the point/beam element have been omitted from the system of equations.
+"""
+function system_indices(start, stop, static;
+    included_points = 1:max(maximum(start), maximum(stop)))
+
+    npoint = max(maximum(start), maximum(stop))
+    nelem = length(start)
+
+    keep = [i in included_points for i = 1:npoint]
+
+    add_necessary_points!(keep, start, stop)
+
+    # indicates whether a point has associated equations and state variables
+    assigned = fill(false, npoint)
+
+    # initialize pointers for equations
+    irow_point = Vector{Int}(undef, npoint)
+    irow_elem = Vector{Int}(undef, nelem)
+    irow_elem1 = Vector{Int}(undef, nelem)
+    irow_elem2 = Vector{Int}(undef, nelem)
+
+    # initialize pointers for state variables
+    icol_point = Vector{Int}(undef, npoint)
+    icol_elem = Vector{Int}(undef, nelem)
+
+    irow = 1
+    icol = 1
+    for ielem = 1:nelem
+        # add state variables/equations for the start of the beam element
+        ipt = start[ielem]
+
+        # check if the point has associated equations and state variables
+        if !assigned[ipt]
+            # add equations and state variables for this point
+            assigned[ipt] = true
+
+            # add 6 equilibrium equations + 6 compatability equations
+            irow_point[ipt] = irow
+            irow_elem1[ielem] = irow
+            irow += 12
+
+            # add 6 state variables for this point (if necessary)
+            if keep[ipt]
+                icol_point[ipt] = icol
+                icol += 6
+            else
+                icol_point[ipt] = -1
+            end
+        else
+            # add additional equations for this point
+
+            # add compatibility equations for this point (if necessary)
+            if keep[ipt]
+                irow_elem1[ielem] = irow
+                irow += 6
+            else
+                irow_elem1[ielem] = -1
+            end
+        end
+
+        # add state variables/equations for the beam element
+
+        # add 12 state variables for this element
+        icol_elem[ielem] = icol
+        icol += 12
+
+        # add an additional 6 state variables and equations for this element (if necessary)
+        if static
+            irow_elem[ielem] = -1
+        else
+            irow_elem[ielem] = irow
+            irow += 6
+            icol += 6
+        end
+
+        # add state variables/equations for the end of the beam element
+        ipt = stop[ielem]
+
+        # check if the point has associated equations and state variables
+        if !assigned[ipt]
+            # add equations and state variables for this point
+            assigned[ipt] = true
+
+            # add 6 equilibrium equations + 6 compatability equations
+            irow_point[ipt] = irow
+            irow_elem2[ielem] = irow
+            irow += 12
+
+            # add 6 state variables for this point (if necessary)
+            if keep[ipt]
+                icol_point[ipt] = icol
+                icol += 6
+            else
+                icol_point[ipt] = -1
+            end
+        else
+            # add additional equations for this point
+
+            # add compatibility equations for this point (if necessary)
+            if keep[ipt]
+                irow_elem2[ielem] = irow
+                irow += 6
+            else
+                irow_elem2[ielem] = -1
+            end
+        end
+    end
+
+    # number of state variables/equations
+    N = irow - 1
+
+    return N, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem
+end
+
+function add_necessary_points!(keep, start, stop)
+
+    npoint = length(keep)
+
+    for ipt = 1:npoint
+        # calculate number of connections to this point
+        ncon = count(x -> x == ipt, start) + count(x -> x == ipt, stop)
+
+        if ncon != 2
+            # this point must be preserved in the system of equations
+            if keep[ipt] != true
+                # only mutate if necessary
+                keep[ipt] = true
+            end
+        end
+    end
+
+    return keep
+end
+
 
 """
    system_state(system)
@@ -152,11 +355,16 @@ function set_state!(system; kwargs...)
     return system
 end
 
-function set_state!(x, system; u_b = nothing, theta_b = nothing,
+function set_state!(x, system; kwargs...)
+    nelem = length(system.icol_elem)
+    npoint = length(system.icol_point)
+    return set_state!(x, nelem, npoint; kwargs...)
+end
+
+function set_state!(x, nelem, npoint; u_b = nothing, theta_b = nothing,
     F_b = nothing, M_b = nothing, P_b = nothing, H_b = nothing,
     u_p = nothing, theta_p = nothing, F_p = nothing, M_p = nothing)
 
-    nelem = length(system.icol_beam)
     for ielem = 1:nelem
         if !isnothing(u_b)
             set_element_deflections!(x, system, u_b, ielem)
@@ -178,7 +386,6 @@ function set_state!(x, system; u_b = nothing, theta_b = nothing,
         end
     end
 
-    npoint = length(system.icol_point)
     for ipoint = 1:npoint
         if !isnothing(u_p)
             set_point_deflections!(x, system, u_p, ipoint, prescribed_conditions)
@@ -206,7 +413,7 @@ deflections of element `ielem` to the provided values.
 set_element_deflections!
 
 function set_element_deflections!(x, system, u_b, ielem)
-    icol = icol_beam[ielem]
+    icol = icol_elem[ielem]
     x[icol:icol+2] .= u_b
     return x
 end
@@ -225,7 +432,7 @@ rotations of element `ielem` to the provided values.
 set_element_rotations!
 
 function set_element_rotations!(x, system, theta_b, ielem)
-    icol = icol_beam[ielem]
+    icol = icol_elem[ielem]
     x[icol+3:icol+5] .= theta_b
     return x
 end
@@ -244,7 +451,7 @@ resultant forces of element `ielem` to the provided values.
 set_element_forces!
 
 function set_element_forces!(x, system, F_b, ielem)
-    icol = icol_beam[ielem]
+    icol = icol_elem[ielem]
     x[icol+6:icol+8] .= F_b ./ system.force_scaling
     return x
 end
@@ -263,7 +470,7 @@ resultant moments of element `ielem` to the provided values.
 set_element_moments!
 
 function set_element_moments!(x, system, M_b, ielem)
-    icol = icol_beam[ielem]
+    icol = icol_elem[ielem]
     x[icol+9:icol+11] .= M_b ./ system.force_scaling
     return x
 end
@@ -283,7 +490,7 @@ set_element_linear_momenta!
 
 function set_element_linear_momenta!(x, system, P_b, ielem)
     @assert !system.static
-    icol = icol_beam[ielem]
+    icol = icol_elem[ielem]
     x[icol+12:icol+14] .= P_b ./ system.mass_scaling
     return x
 end
@@ -303,7 +510,7 @@ set_element_angular_momenta!
 
 function set_element_angular_momenta!(x, system, H_b, ielem)
     @assert !system.static
-    icol = icol_beam[ielem]
+    icol = icol_elem[ielem]
     x[icol+15:icol+17] .= H_b ./ system.mass_scaling
     return x
 end
@@ -323,7 +530,7 @@ set_point_deflections!
 
 function set_point_deflections!(x, system, u_p, ipoint, prescribed_conditions)
     icol = icol_point[ipoint]
-    if icol_pt > 0
+    if icol_point > 0
         # point variables are state variables
         for k = 1:3
             if ipoint in keys(prescribed_conditions)
@@ -356,7 +563,7 @@ set_point_rotations!
 
 function set_point_rotations!(x, system, theta_p, ipoint, prescribed_conditions)
     icol = icol_point[ipoint]
-    if icol_pt > 0
+    if icol_point > 0
         # point variables are state variables
         for k = 1:3
             if ipoint in keys(prescribed_conditions)
@@ -389,7 +596,7 @@ set_point_forces!
 
 function set_point_forces!(x, system, F_p, ipoint, prescribed_conditions)
     icol = icol_point[ipoint]
-    if icol_pt > 0
+    if icol_point > 0
         # point variables are state variables
         for k = 1:3
             if ipoint in keys(prescribed_conditions)
@@ -419,7 +626,7 @@ set_point_moments!
 
 function set_point_moments!(x, system, M_p, ipoint, prescribed_conditions)
     icol = icol_point[ipoint]
-    if icol_pt > 0
+    if icol_point > 0
         # point variables are state variables
         for k = 1:3
             if ipoint in keys(prescribed_conditions)
@@ -450,177 +657,34 @@ function reset_state!(system)
 end
 
 """
-    point_connections(assembly)
-
-Count the number of beams connected to each point
-"""
-function point_connections(assembly)
-
-    npt = length(assembly.points)
-
-    n_connections = Array{Int, 1}(undef, npt)
-
-    for ipt = 1:npt
-        n_connections[ipt] = count(x -> x == ipt, assembly.start) + count(x -> x == ipt, assembly.stop)
-    end
-
-    return n_connections
-end
-
-"""
-    system_indices(assembly, points, n_connections, static)
-
-Solve for the row indices of the first equilibrium or compatability equations for
-each point and side of each beam element.  Also solve for the row/column index of
-each point and beam state variable.
-
-Note that this function includes the following logic which reduces the size of
-the system of equations where possible (without sacrificing any accuracy):
-
-If only two beams meet at a point, the 6 unknowns associated with that point as
-well as the 6 compatability equations are eliminated from the system, except if
-specified in the array `points`.  Points for which unknowns have been
-eliminated are assigned a column index of -1.  Beams for which the compatability
-equations have been eliminated are also assigned an index of -1
-
-# Arguments:
- - `assembly`: Assembly of rigidly connected nonlinear beam elements
- - `points`: Point indices which should be preserved in the system matrices
- - `n_connections`: Number of connections to each point
- - `static`: flag indicating whether analysis is static
-
-# Return Arguments:
- - `n`: total number of equations/unknowns in the system
- - `irow_pt`: Row index of first equilibrium equation for each point
- - `irow_beam`: Row index of first equation for just this beam element
- - `irow_beam1`: Row index of first equation for the left side of each beam
- - `irow_beam2`: Row index of first equation for the right side of each beam
- - `icol_pt`: Column index of first state variable for each point
- - `icol_beam`: Column index of first state variable for each beam element
-"""
-function system_indices(assembly, points, n_connections, static)
-
-    npt = length(assembly.points)
-    nbeam = length(assembly.elements)
-
-    assigned = fill(false, npt)
-
-    irow_pt = Array{Int, 1}(undef, npt)
-    irow_beam = Array{Int, 1}(undef, nbeam)
-    irow_beam1 = Array{Int, 1}(undef, nbeam)
-    irow_beam2 = Array{Int, 1}(undef, nbeam)
-
-    icol_pt = Array{Int, 1}(undef, npt)
-    icol_beam = Array{Int, 1}(undef, nbeam)
-
-    irow = 1
-    icol = 1
-    for ibeam = 1:nbeam
-        ipt = assembly.start[ibeam]
-        if !assigned[ipt]
-            assigned[ipt] = true
-            # 6 equilibrium equations + 6 compatability equations
-            irow_pt[ipt] = irow
-            irow_beam1[ibeam] = irow
-            irow += 12
-            # add unknowns for each point
-            if n_connections[ipt] == 2 && !(ipt in points)
-                # no additional unknowns when only two beams meet at a point
-                icol_pt[ipt] = -1
-            else
-                # 6 additional unknowns for each point
-                icol_pt[ipt] = icol
-                icol += 6
-            end
-        else
-            # add compatability equations
-            if n_connections[ipt] == 2 && !(ipt in points)
-                # no additional equations when only two beams meet at a point
-                irow_beam1[ibeam] = -1
-            else
-                # 6 additional compatibility equations
-                irow_beam1[ibeam] = irow
-                irow += 6
-            end
-        end
-
-        # 12 unknowns for each element
-        icol_beam[ibeam] = icol
-        icol += 12
-
-        if static
-            irow_beam[ibeam] = -1
-        else
-            # 6 linear and angular momentum residual equations for each element
-            irow_beam[ibeam] = irow
-            irow += 6
-            # 6 additional unknowns for each member for unsteady analyses
-            icol += 6
-        end
-
-        ipt = assembly.stop[ibeam]
-        if !assigned[ipt]
-            assigned[ipt] = true
-            # 6 equilibrium equations + 6 compatability equations
-            irow_pt[ipt] = irow
-            irow_beam2[ibeam] = irow
-            irow += 12
-            # add unknowns for each point
-            if n_connections[ipt] == 2 && !(ipt in points)
-                # no additional unknowns when only two beams meet at a point
-                icol_pt[ipt] = -1
-            else
-                # 6 additional unknowns for each point
-                icol_pt[ipt] = icol
-                icol += 6
-            end
-        else
-            if n_connections[ipt] == 2 && !(ipt in points)
-                # no additional compatability equations when only two beams meet at a point
-                irow_beam2[ibeam] = -1
-            else
-                # 6 additional compatibility equations
-                irow_beam2[ibeam] = irow
-                irow += 6
-            end
-        end
-    end
-
-    # number of unknowns/equations
-    n = irow - 1
-
-    return n, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam
-end
-
-"""
     get_sparsity(system, assembly)
 
 Return a matrix indicating the sparsity structure of the jacobian matrix.
 """
 function get_sparsity(system, assembly)
 
-    n = length(system.x)
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    N = length(system.x)
+    irow_point = system.irow_point
+    irow_elem = system.irow_elem
+    irow_elem1 = system.irow_elem1
+    irow_elem2 = system.irow_elem2
+    icol_point = system.icol_point
+    icol_elem = system.icol_elem
 
-    sparsity = spzeros(Bool, n, n)
+    sparsity = spzeros(Bool, N, N)
 
     # --- add constributions from beam element state variables --- #
 
-    nbeam = length(icol_beam)
+    nelem = length(icol_elem)
 
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
         # indices for this beam
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
         # --- static, beam element jacobian contributions --- #
 
@@ -657,23 +721,23 @@ function get_sparsity(system, assembly)
 
     # --- add constributions from point state variables --- #
 
-    npoint = length(icol_pt)
+    npoint = length(icol_point)
 
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
-        for ibeam = 1:nbeam
+        for ielem = 1:nelem
             # check left side of beam
-            if ipoint == assembly.start[ibeam]
+            if ipoint == assembly.start[ielem]
                 # add jacobian entries for the beam endpoint
-                irow_b = irow_beam1[ibeam]
+                irow_b = irow_elem1[ielem]
                 if irow_b == irow_p
                     for i = 1:6
                         for j = 4:6
@@ -689,9 +753,9 @@ function get_sparsity(system, assembly)
                 end
             end
             # check right side of beam
-            if ipoint == assembly.stop[ibeam]
+            if ipoint == assembly.stop[ielem]
                 # add jacobian entries for the beam endpoint
-                irow_b = irow_beam2[ibeam]
+                irow_b = irow_elem2[ielem]
                 if irow_b == irow_p
                     for i = 1:6
                         for j = 4:6
@@ -714,15 +778,15 @@ end
 
 """
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u, θ, udot, θdot)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
 Populate the residual vector `resid` with the results of the residual equations
@@ -746,12 +810,12 @@ There are four implementations corresponding to the following analysis types:
  - `distributed_loads`: Dictionary of distributed loads at all time steps
  - `force_scaling`: Scaling parameter for forces/moments
  - `mass_scaling`: Scaling parameter for masses/inertias
- - `irow_pt`: Row index of first equilibrium equation for each point
- - `irow_beam`: Row index of first equation for just this beam element
- - `irow_beam1`: Row index of first equation for the left side of each beam
- - `irow_beam2`: Row index of first equation for the right side of each beam
- - `icol_pt`: Column index of first state variable for each point
- - `icol_beam`: Column index of first state variable for each beam element
+ - `irow_point`: Row index of first equilibrium equation for each point
+ - `irow_elem`: Row index of first equation for just this beam element
+ - `irow_elem1`: Row index of first equation for the left side of each beam
+ - `irow_elem2`: Row index of first equation for the right side of each beam
+ - `icol_point`: Column index of first state variable for each point
+ - `icol_elem`: Column index of first state variable for each beam element
 
 # Additional Arguments for Dynamic Analyses
  - `x0`: Global frame origin (for the current time step)
@@ -775,62 +839,62 @@ system_residual!
 
 # static
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     return static_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 end
 
 # dynamic - steady state
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     return steady_state_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
 end
 
 # dynamic - initial step
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
     return initial_step_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 end
 
 # dynamic - newmark scheme time marching
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
     # dynamic - newmark scheme time marching
     return newmark_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 end
 
 # static
 function static_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
         # get pointers for element
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        resid = static_element_residual!(resid, x, ibeam, assembly.elements[ibeam],
+        resid = static_element_residual!(resid, x, ielem, assembly.elements[ielem],
              distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2)
     end
@@ -839,15 +903,15 @@ function static_system_residual!(resid, x, assembly, prescribed_conditions, dist
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return resid
@@ -855,24 +919,24 @@ end
 
 # dynamic - steady state
 function steady_state_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
         # get pointers for element
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        resid = steady_state_element_residual!(resid, x, ibeam, assembly.elements[ibeam],
+        resid = steady_state_element_residual!(resid, x, ielem, assembly.elements[ielem],
              distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2, x0, v0, ω0)
     end
@@ -881,15 +945,15 @@ function steady_state_system_residual!(resid, x, assembly, prescribed_conditions
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return resid
@@ -897,42 +961,42 @@ end
 
 # dynamic - initial step
 function initial_step_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
         # get pointers for element
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        resid = initial_step_element_residual!(resid, x, ibeam, assembly.elements[ibeam],
+        resid = initial_step_element_residual!(resid, x, ielem, assembly.elements[ielem],
              distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2, x0, v0, ω0,
-            u[ibeam], θ[ibeam], udot[ibeam], θdot[ibeam])
+            u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
 
     # add contributions to the residual equations from the prescribed point conditions
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return resid
@@ -940,43 +1004,43 @@ end
 
 # dynamic - newmark scheme time marching
 function newmark_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
     npoint = length(assembly.points)
 
     # add contributions to residual equations from the beam elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
         # get pointers for element
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        resid = newmark_element_residual!(resid, x, ibeam, assembly.elements[ibeam],
+        resid = newmark_element_residual!(resid, x, ielem, assembly.elements[ielem],
              distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2,
              x0, v0, ω0,
-             udot_init[ibeam], θdot_init[ibeam],
-             CtCabPdot_init[ibeam], CtCabHdot_init[ibeam], dt)
+             udot_init[ielem], θdot_init[ielem],
+             CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
     end
 
     # add contributions to the residual equations from the prescribed point conditions
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return resid
@@ -984,22 +1048,22 @@ end
 
 # dynamic - general
 function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
     npoint = length(assembly.points)
 
     # add contributions to residual equations from the beam elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
         # get pointers for element
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
         # set state rates for element
         udot = SVector(dx[icol], dx[icol+1], dx[icol+2])
@@ -1007,7 +1071,7 @@ function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions,
         Pdot = SVector(dx[icol+12], dx[icol+13], dx[icol+14]) .* mass_scaling
         Hdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17]) .* mass_scaling
 
-        resid = dynamic_element_residual!(resid, x, ibeam, assembly.elements[ibeam],
+        resid = dynamic_element_residual!(resid, x, ielem, assembly.elements[ielem],
              distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2,
              x0, v0, ω0, udot, θdot, Pdot, Hdot)
 
@@ -1017,15 +1081,15 @@ function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions,
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return resid
@@ -1033,15 +1097,15 @@ end
 
 """
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u, θ, udot, θdot)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
 Populate the jacobian matrix `jacob` with the jacobian of the residual vector
@@ -1065,12 +1129,12 @@ There are four implementations corresponding to the following analysis types:
  - `distributed_loads`: Dictionary of distributed loads at all time steps
  - `force_scaling`: Scaling parameter for forces/moments
  - `mass_scaling`: Scaling parameter for masses/inertia
- - `irow_pt`: Row index of first equilibrium equation for each point
- - `irow_beam`: Row index of first equation for just this beam element
- - `irow_beam1`: Row index of first equation for the left side of each beam
- - `irow_beam2`: Row index of first equation for the right side of each beam
- - `icol_pt`: Column index of first state variable for each point
- - `icol_beam`: Column index of first state variable for each beam element
+ - `irow_point`: Row index of first equilibrium equation for each point
+ - `irow_elem`: Row index of first equation for just this beam element
+ - `irow_elem1`: Row index of first equation for the left side of each beam
+ - `irow_elem2`: Row index of first equation for the right side of each beam
+ - `icol_point`: Column index of first state variable for each point
+ - `icol_elem`: Column index of first state variable for each beam element
 
 # Additional Arguments for Dynamic Analyses
  - `x0`: Global frame origin (for the current time step)
@@ -1094,65 +1158,65 @@ system_jacobian!
 
 # static
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     return static_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 end
 
 # dynamic - steady state
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     return steady_state_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
 end
 
 # dynamic - initial step
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-    force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
     return initial_step_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u, θ, udot, θdot)
 end
 
 # dynamic - newmark scheme time marching
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions,
     distributed_loads, force_scaling, mass_scaling,
-    irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
     return newmark_system_jacobian!(jacob, x, assembly, prescribed_conditions,
         distributed_loads, force_scaling, mass_scaling,
-        irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 end
 
 # static
 @inline function static_system_jacobian!(jacob, x, assembly,
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
-    irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     jacob .= 0
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        jacob = element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
+        jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2)
     end
@@ -1161,15 +1225,15 @@ end
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
 
     end
 
@@ -1179,25 +1243,25 @@ end
 # dynamic - steady state
 @inline function steady_state_system_jacobian!(jacob, x, assembly,
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
-    irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     jacob .= 0
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        jacob = element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
+        jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2, x0, v0, ω0)
     end
@@ -1206,15 +1270,15 @@ end
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return jacob
@@ -1223,43 +1287,43 @@ end
 # dynamic - initial step
 @inline function initial_step_system_jacobian!(jacob, x, assembly,
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
-    irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
     jacob .= 0
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        jacob = element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
+        jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2, x0, v0, ω0,
-            u[ibeam], θ[ibeam], udot[ibeam], θdot[ibeam])
+            u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
 
     # add contributions to the system jacobian matrix from the prescribed point conditions
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return jacob
@@ -1268,44 +1332,44 @@ end
 # dynamic - newmark scheme time marching
 @inline function newmark_system_jacobian!(jacob, x, assembly,
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
-    irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
     jacob .= 0
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        jacob = element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
+        jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2, x0, v0, ω0,
-            udot_init[ibeam], θdot_init[ibeam],
-            CtCabPdot_init[ibeam], CtCabHdot_init[ibeam], dt)
+            udot_init[ielem], θdot_init[ielem],
+            CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
     end
 
     # add contributions to the system jacobian matrix from the prescribed point conditions
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     # # zero out near-zero values ( < eps() )
@@ -1317,23 +1381,23 @@ end
 # dynamic - general
 @inline function dynamic_system_jacobian!(jacob, x, dx, assembly,
     prescribed_conditions, distributed_loads, force_scaling, mass_scaling,
-    irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     jacob .= 0
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to residual equations from the elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
         # set state rates for element
         udot = SVector(dx[icol], dx[icol+1], dx[icol+2])
@@ -1341,7 +1405,7 @@ end
         Pdot = SVector(dx[icol+12], dx[icol+13], dx[icol+14]) .* mass_scaling
         Hdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17]) .* mass_scaling
 
-        jacob = dynamic_element_jacobian!(jacob, x, ibeam, assembly.elements[ibeam],
+        jacob = dynamic_element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
             irow_p1, irow_b2, irow_p2, x0, v0, ω0,
             udot, θdot, Pdot, Hdot)
@@ -1351,15 +1415,15 @@ end
     for ipoint = 1:npoint
 
         # skip if the unknowns have been eliminated from the system of equations
-        if icol_pt[ipoint] <= 0
+        if icol_point[ipoint] <= 0
             continue
         end
 
-        icol = icol_pt[ipoint]
-        irow_p = irow_pt[ipoint]
+        icol = icol_point[ipoint]
+        irow_p = irow_point[ipoint]
 
         jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-            force_scaling, icol, irow_p, irow_beam1, irow_beam2)
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     # # zero out near-zero values ( < eps() )
@@ -1369,8 +1433,8 @@ end
 end
 
 """
-    system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_pt, irow_beam,
-        irow_beam1, irow_beam2, icol_pt, icol_beam)
+    system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_point, irow_elem,
+        irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Populate the system "mass matrix", the jacobian of the residual vector
 with respect to the time derivatives of the state variables.
@@ -1385,32 +1449,32 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `assembly`: Assembly of rigidly connected nonlinear beam elements
  - `force_scaling`: Scaling parameter for forces
  - `mass_scaling`: Scaling parameter for masses
- - `irow_pt`: Row index of first equilibrium equation for each point
- - `irow_beam`: Row index of first equation for just this beam element
- - `irow_beam1`: Row index of first equation for the left side of each beam
- - `irow_beam2`: Row index of first equation for the right side of each beam
- - `icol_pt`: Column index of first state variable for each point
- - `icol_beam`: Column index of first state variable for each beam element
+ - `irow_point`: Row index of first equilibrium equation for each point
+ - `irow_elem`: Row index of first equation for just this beam element
+ - `irow_elem1`: Row index of first equation for the left side of each beam
+ - `irow_elem2`: Row index of first equation for the right side of each beam
+ - `icol_point`: Column index of first state variable for each point
+ - `icol_elem`: Column index of first state variable for each beam element
 """
-function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_pt,
-    irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_point,
+    irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     jacob .= 0
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to "mass matrix" from the beam elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        element_mass_matrix!(jacob, x, assembly.elements[ibeam], force_scaling,
+        element_mass_matrix!(jacob, x, assembly.elements[ielem], force_scaling,
             mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
     end
 
@@ -1423,28 +1487,28 @@ function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, ir
 end
 
 """
-    system_mass_matrix!(jacob, gamma, x, dx, assembly, force_scaling, mass_scaling, irow_pt,
-        irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+    system_mass_matrix!(jacob, gamma, x, dx, assembly, force_scaling, mass_scaling, irow_point,
+        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Add the system mass matrix to `jacob`, scaled by the scaling parameter `gamma`.
 """
-function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, mass_scaling, irow_pt, irow_beam,
-    irow_beam1, irow_beam2, icol_pt, icol_beam)
+function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, mass_scaling, irow_point, irow_elem,
+    irow_elem1, irow_elem2, icol_point, icol_elem)
 
     npoint = length(assembly.points)
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # add contributions to "mass matrix" from the beam elements
-    for ibeam = 1:nbeam
+    for ielem = 1:nelem
 
-        icol = icol_beam[ibeam]
-        irow_b = irow_beam[ibeam]
-        irow_b1 = irow_beam1[ibeam]
-        irow_p1 = irow_pt[assembly.start[ibeam]]
-        irow_b2 = irow_beam2[ibeam]
-        irow_p2 = irow_pt[assembly.stop[ibeam]]
+        icol = icol_elem[ielem]
+        irow_b = irow_elem[ielem]
+        irow_b1 = irow_elem1[ielem]
+        irow_p1 = irow_point[assembly.start[ielem]]
+        irow_b2 = irow_elem2[ielem]
+        irow_p2 = irow_point[assembly.stop[ielem]]
 
-        element_mass_matrix!(jacob, gamma, x, assembly.elements[ibeam],
+        element_mass_matrix!(jacob, gamma, x, assembly.elements[ielem],
             force_scaling, mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
     end
 

@@ -44,7 +44,7 @@ function static_analysis(assembly;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, keys(pc), static)
+    system = System(assembly, static; included_points = keys(pc))
 
     return static_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
@@ -88,12 +88,12 @@ function static_analysis!(system, assembly;
     J = system.K
     force_scaling = system.force_scaling
     mass_scaling = system.mass_scaling
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    irow_point = system.irow_point
+    irow_elem = system.irow_elem
+    irow_elem1 = system.irow_elem1
+    irow_elem2 = system.irow_elem2
+    icol_point = system.icol_point
+    icol_elem = system.icol_elem
 
     converged = true
     for t in tvec
@@ -109,10 +109,10 @@ function static_analysis!(system, assembly;
 
         # solve the system of equations
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
-            mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
-            mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam)
+            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         if linear
             # linear analysis
@@ -198,7 +198,7 @@ function steady_state_analysis(assembly;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, keys(pc), static)
+    system = System(assembly, static; included_points = keys(pc))
 
     return steady_state_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
@@ -250,12 +250,12 @@ function steady_state_analysis!(system, assembly;
     J = system.K
     force_scaling = system.force_scaling
     mass_scaling = system.mass_scaling
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    irow_point = system.irow_point
+    irow_elem = system.irow_elem
+    irow_elem1 = system.irow_elem1
+    irow_elem2 = system.irow_elem2
+    icol_point = system.icol_point
+    icol_elem = system.icol_elem
 
     converged = true
     for t in tvec
@@ -273,12 +273,12 @@ function steady_state_analysis!(system, assembly;
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
         f! = (F, x) -> system_residual!(F, x, assembly, prescribed_conditions,
-            distributed_loads, force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1,
-            irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
+            distributed_loads, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, prescribed_conditions,
-            distributed_loads, force_scaling, mass_scaling, irow_pt, irow_beam, irow_beam1,
-            irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
+            distributed_loads, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         # solve the system of equations
         if linear
@@ -372,7 +372,7 @@ function eigenvalue_analysis(assembly;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, keys(pc), static)
+    system = System(assembly, static; included_points = keys(pc))
 
     return eigenvalue_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
@@ -449,12 +449,12 @@ function eigenvalue_analysis!(system, assembly;
     mass_scaling = system.mass_scaling
 
     # also unpack system indices
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    irow_point = system.irow_point
+    irow_elem = system.irow_elem
+    irow_elem1 = system.irow_elem1
+    irow_elem2 = system.irow_elem2
+    icol_point = system.icol_point
+    icol_elem = system.icol_elem
 
     # current time
     t = system.t
@@ -470,11 +470,11 @@ function eigenvalue_analysis!(system, assembly;
 
     # solve for the system stiffness matrix
     K = system_jacobian!(K, x, assembly, pcond, dload, force_scaling, mass_scaling,
-        irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam, x0, v0, ω0)
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
     # solve for the system mass matrix
-    M = system_mass_matrix!(M, x, assembly, force_scaling, mass_scaling, irow_pt, irow_beam,
-        irow_beam1, irow_beam2, icol_pt, icol_beam)
+    M = system_mass_matrix!(M, x, assembly, force_scaling, mass_scaling, irow_point, irow_elem,
+        irow_elem1, irow_elem2, icol_point, icol_elem)
 
     # construct linear map
     T = eltype(system)
@@ -557,7 +557,7 @@ function initial_condition_analysis(assembly, t0;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t0)
 
-    system = System(assembly, keys(pc), static)
+    system = System(assembly, static; included_points = keys(pc))
 
     return initial_condition_analysis!(system, assembly, t0;
         prescribed_conditions = prescribed_conditions,
@@ -614,18 +614,18 @@ function initial_condition_analysis!(system, assembly, t0;
     J = system.K
     force_scaling = system.force_scaling
     mass_scaling = system.mass_scaling
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    irow_point = system.irow_point
+    irow_elem = system.irow_elem
+    irow_elem1 = system.irow_elem1
+    irow_elem2 = system.irow_elem2
+    icol_point = system.icol_point
+    icol_elem = system.icol_elem
     udot = system.udot
     θdot = system.θdot
     Pdot = system.Pdot
     Hdot = system.Hdot
 
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # set current time step
     system.t = t0
@@ -641,11 +641,11 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # construct residual and jacobian functions
     f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
-        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
     j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
-        mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
     # solve system of equations
@@ -674,20 +674,20 @@ function initial_condition_analysis!(system, assembly, t0;
     converged = result.f_converged
 
     # save states and state rates
-    for ibeam = 1:nbeam
-        icol = icol_beam[ibeam]
+    for ielem = 1:nelem
+        icol = icol_elem[ielem]
         # extract rotation parameters for this beam element
-        C = get_C(theta0[ibeam])
-        Cab = assembly.elements[ibeam].Cab
+        C = get_C(theta0[ielem])
+        Cab = assembly.elements[ielem].Cab
         CtCab = C'*Cab
         # save states and state rates
-        udot[ibeam] = udot0[ibeam]
-        θdot[ibeam] = thetadot0[ibeam]
-        Pdot[ibeam] = CtCab'*SVector(x[icol], x[icol+1], x[icol+2]) .* mass_scaling
-        Hdot[ibeam] = CtCab'*SVector(x[icol+3], x[icol+4], x[icol+5]) .* mass_scaling
+        udot[ielem] = udot0[ielem]
+        θdot[ielem] = thetadot0[ielem]
+        Pdot[ielem] = CtCab'*SVector(x[icol], x[icol+1], x[icol+2]) .* mass_scaling
+        Hdot[ielem] = CtCab'*SVector(x[icol+3], x[icol+4], x[icol+5]) .* mass_scaling
         # restore original state vector
-        x[icol:icol+2] .= u0[ibeam]
-        x[icol+3:icol+5] .= theta0[ibeam]
+        x[icol:icol+2] .= u0[ielem]
+        x[icol+3:icol+5] .= theta0[ielem]
     end
 
     return system, converged
@@ -760,7 +760,7 @@ function time_domain_analysis(assembly, tvec;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, keys(pc), static)
+    system = System(assembly, static; included_points = keys(pc))
 
     return time_domain_analysis!(system, assembly, tvec;
         prescribed_conditions = prescribed_conditions,
@@ -845,19 +845,19 @@ function time_domain_analysis!(system, assembly, tvec;
     J = system.K
     force_scaling = system.force_scaling
     mass_scaling = system.mass_scaling
-    irow_pt = system.irow_pt
-    irow_beam = system.irow_beam
-    irow_beam1 = system.irow_beam1
-    irow_beam2 = system.irow_beam2
-    icol_pt = system.icol_pt
-    icol_beam = system.icol_beam
+    irow_point = system.irow_point
+    irow_elem = system.irow_elem
+    irow_elem1 = system.irow_elem1
+    irow_elem2 = system.irow_elem2
+    icol_point = system.icol_point
+    icol_elem = system.icol_elem
     udot = system.udot
     θdot = system.θdot
     Pdot = system.Pdot
     Hdot = system.Hdot
 
     # number of beam elements
-    nbeam = length(assembly.elements)
+    nelem = length(assembly.elements)
 
     # initialize storage for each time step
     isave = 1
@@ -891,8 +891,8 @@ function time_domain_analysis!(system, assembly, tvec;
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(tvec[it]))
 
         # current initialization parameters
-        for ibeam = 1:nbeam
-            icol = icol_beam[ibeam]
+        for ielem = 1:nelem
+            icol = icol_elem[ielem]
             # get beam element states
             u = SVector(x[icol], x[icol+1], x[icol+2])
             θ = SVector(x[icol+3], x[icol+4], x[icol+5])
@@ -900,25 +900,25 @@ function time_domain_analysis!(system, assembly, tvec;
             H = SVector(x[icol+15], x[icol+16], x[icol+17]) .* mass_scaling
             # extract rotation parameters
             C = get_C(θ)
-            Cab = assembly.elements[ibeam].Cab
+            Cab = assembly.elements[ielem].Cab
             CtCab = C'*Cab
             # store `udot_init` in `udot`
-            udot[ibeam] = 2/dt*u + udot[ibeam]
+            udot[ielem] = 2/dt*u + udot[ielem]
             # store `θdot_init` in `θdot`
-            θdot[ibeam] = 2/dt*θ + θdot[ibeam]
+            θdot[ielem] = 2/dt*θ + θdot[ielem]
             # store `CtCabPdot_init` in `Pdot`
-            Pdot[ibeam] = 2/dt*CtCab*P + CtCab*Pdot[ibeam]
+            Pdot[ielem] = 2/dt*CtCab*P + CtCab*Pdot[ielem]
             # store `CtCabHdot_init` in `Hdot`
-            Hdot[ibeam] = 2/dt*CtCab*H + CtCab*Hdot[ibeam]
+            Hdot[ielem] = 2/dt*CtCab*H + CtCab*Hdot[ielem]
         end
 
         # solve for the state variables at the next time step
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
-            mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
-            mass_scaling, irow_pt, irow_beam, irow_beam1, irow_beam2, icol_pt, icol_beam,
+            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
         # solve system of equations
@@ -943,8 +943,8 @@ function time_domain_analysis!(system, assembly, tvec;
         end
 
         # set new state rates
-        for ibeam = 1:nbeam
-            icol = icol_beam[ibeam]
+        for ielem = 1:nelem
+            icol = icol_elem[ielem]
             # get beam element states
             u = SVector(x[icol], x[icol+1], x[icol+2])
             θ = SVector(x[icol+3], x[icol+4], x[icol+5])
@@ -952,13 +952,13 @@ function time_domain_analysis!(system, assembly, tvec;
             H = SVector(x[icol+15], x[icol+16], x[icol+17]) .* mass_scaling
             # extract rotation parameters
             C = get_C(θ)
-            Cab = assembly.elements[ibeam].Cab
+            Cab = assembly.elements[ielem].Cab
             CtCab = C'*Cab
             # save state rates
-            udot[ibeam] = 2/dt*u - udot[ibeam]
-            θdot[ibeam] = 2/dt*θ - θdot[ibeam]
-            Pdot[ibeam] = 2/dt*P - CtCab'*Pdot[ibeam]
-            Hdot[ibeam] = 2/dt*H - CtCab'*Hdot[ibeam]
+            udot[ielem] = 2/dt*u - udot[ielem]
+            θdot[ielem] = 2/dt*θ - θdot[ielem]
+            Pdot[ielem] = 2/dt*P - CtCab'*Pdot[ielem]
+            Hdot[ielem] = 2/dt*H - CtCab'*Hdot[ielem]
         end
 
         # add state to history
