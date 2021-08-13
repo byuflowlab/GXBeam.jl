@@ -44,7 +44,7 @@ function static_analysis(assembly;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; included_points = keys(pc))
+    system = System(assembly, static; prescribed_points = keys(pc))
 
     return static_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
@@ -198,7 +198,7 @@ function steady_state_analysis(assembly;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; included_points = keys(pc))
+    system = System(assembly, static; prescribed_points = keys(pc))
 
     return steady_state_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
@@ -372,7 +372,7 @@ function eigenvalue_analysis(assembly;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; included_points = keys(pc))
+    system = System(assembly, static; prescribed_points = keys(pc))
 
     return eigenvalue_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
@@ -557,7 +557,7 @@ function initial_condition_analysis(assembly, t0;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t0)
 
-    system = System(assembly, static; included_points = keys(pc))
+    system = System(assembly, static; prescribed_points = keys(pc))
 
     return initial_condition_analysis!(system, assembly, t0;
         prescribed_conditions = prescribed_conditions,
@@ -760,7 +760,7 @@ function time_domain_analysis(assembly, tvec;
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; included_points = keys(pc))
+    system = System(assembly, static; prescribed_points = keys(pc))
 
     return time_domain_analysis!(system, assembly, tvec;
         prescribed_conditions = prescribed_conditions,

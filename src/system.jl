@@ -58,7 +58,7 @@ Initialize an object of type `System` which stores the system state.
  - `static`: Flag indicating whether the system corresponds to a static system.
 
 # Keyword Arguments
- - `included_points`: Point indices corresponding to the points whose equations
+ - `prescribed_points`: Point indices corresponding to the points whose equations
     and state variables should be included in the system of equations.  By default,
     all point indices are included in the system of equations.
  - `force_scaling`: Factor used to scale system forces/moments internally.  If
@@ -77,7 +77,7 @@ function System(assembly, static; kwargs...)
 end
 
 function System(TF, assembly, static;
-    included_points = 1:length(assembly.points),
+    prescribed_points = 1:length(assembly.points),
     force_scaling = default_force_scaling(assembly),
     mass_scaling = default_mass_scaling(assembly)
     )
@@ -88,7 +88,7 @@ function System(TF, assembly, static;
 
     # initialize system pointers
     N, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem =
-        system_indices(assembly.start, assembly.stop, static; included_points)
+        system_indices(assembly.start, assembly.stop, static; prescribed_points)
 
     # initialize system matrices
     x = zeros(TF, N)
@@ -167,7 +167,7 @@ each point and beam element in a system given its connectivity.
  - `stop`: Vector containing the point indices where each beam element stops
 
 # Keyword Arguments:
- - `included_points`: Point indices corresponding to the points whose equations
+ - `prescribed_points`: Point indices corresponding to the points whose equations
     and state variables should be included in the system of equations.  By default,
     all point indices are included in the system of equations.
  - `static`: Flag indicating whether the analysis is static (rather than dynamic).
@@ -190,12 +190,12 @@ Negative indices indicate that the equations and/or state variables associated
 with the point/beam element have been omitted from the system of equations.
 """
 function system_indices(start, stop, static;
-    included_points = 1:max(maximum(start), maximum(stop)))
+    prescribed_points = 1:max(maximum(start), maximum(stop)))
 
     npoint = max(maximum(start), maximum(stop))
     nelem = length(start)
 
-    keep = [i in included_points for i = 1:npoint]
+    keep = [i in prescribed_points for i = 1:npoint]
 
     add_necessary_points!(keep, start, stop)
 

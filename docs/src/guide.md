@@ -318,10 +318,10 @@ nothing #hide
 
 ## Eliminating Unnecessary State Variables
 
-The time needed to perform our analysis can be further reduced by removing unnecessary state variables and equations from the system of equations.  This optimization may be enabled by providing the identities of the points with prescribed conditions using the `include_points` keyword.  
+The time needed to perform our analysis can be further reduced by removing unnecessary state variables and equations from the system of equations.  This optimization may be enabled by providing the identities of the points with prescribed conditions using the `prescribed_points` keyword.  
 
 ```@example guide
-system = System(assembly, static; include_points=[1, nelem+1])
+system = System(assembly, false; prescribed_points=[1, nelem+1])
 nothing #hide
 ```
 

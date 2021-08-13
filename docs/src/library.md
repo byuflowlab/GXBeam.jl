@@ -154,7 +154,6 @@ GXBeam.Assembly
 GXBeam.curve_triad
 GXBeam.curve_coordinates
 GXBeam.System
-GXBeam.point_connections
 GXBeam.get_sparsity
 GXBeam.system_indices
 GXBeam.system_residual!
