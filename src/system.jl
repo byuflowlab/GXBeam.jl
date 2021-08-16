@@ -167,11 +167,11 @@ each point and beam element in a system given its connectivity.
  - `stop`: Vector containing the point indices where each beam element stops
  - `static`: Flag indicating whether the analysis is static (rather than dynamic).
     Defaults to `false`.
+
 # Keyword Arguments:
  - `prescribed_points`: Point indices corresponding to the points whose equations
     and state variables should be included in the system of equations.  By default,
     all point indices are included in the system of equations.
-
 
 # Return Arguments:
  - `N`: total number of equations and unknowns in the system
