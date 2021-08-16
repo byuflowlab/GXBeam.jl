@@ -157,7 +157,7 @@ function default_mass_scaling(assembly)
 end
 
 """
-    system_indices(start, stop; kwargs...)
+    system_indices(start, stop, static; kwargs...)
 
 Return indices for accessing the equations and state variables associated with
 each point and beam element in a system given its connectivity.
@@ -165,13 +165,13 @@ each point and beam element in a system given its connectivity.
 # Arguments:
  - `start`: Vector containing the point indices where each beam element starts
  - `stop`: Vector containing the point indices where each beam element stops
-
+ - `static`: Flag indicating whether the analysis is static (rather than dynamic).
+    Defaults to `false`.
 # Keyword Arguments:
  - `prescribed_points`: Point indices corresponding to the points whose equations
     and state variables should be included in the system of equations.  By default,
     all point indices are included in the system of equations.
- - `static`: Flag indicating whether the analysis is static (rather than dynamic).
-    Defaults to `false`.
+
 
 # Return Arguments:
  - `N`: total number of equations and unknowns in the system
