@@ -1,7 +1,7 @@
 name = "GXBeam"
 uuid = "974624c9-1acb-4ad6-a627-8ac40fc27a3e"
 authors = ["Taylor McDonnell <taylor.golden.mcdonnell@gmail.com> and contributors"]
-version = "0.2.2"
+version = "0.2.3"
 
 [deps]
 ArnoldiMethod = "ec485272-7323-5ecc-a04f-4719b315124d"
