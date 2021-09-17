@@ -112,20 +112,20 @@ function extract_point_state(system, assembly, ipoint, x = system.x;
 
         # get beam state variables
         icol_b = system.icol_elem[ielem]
-        u_b = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
+        u_e = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
         θ_b = SVector(x[icol_b+3 ], x[icol_b+4 ], x[icol_b+5 ])
-        F_b = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* force_scaling
-        M_b = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* force_scaling
+        F_e = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* force_scaling
+        M_e = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* force_scaling
 
         # get beam element properties
         ΔL_b = elem.L
         Ct_b = get_C(θ_b)'
         Cab_b = elem.Cab
-        γ_b = element_strain(elem, F_b, M_b)
-        κ_b = element_curvature(elem, F_b, M_b)
+        γ_b = element_strain(elem, F_e, M_e)
+        κ_b = element_curvature(elem, F_e, M_e)
 
         # solve for the displacements/rotations of the point
-        u = u_b + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
+        u = u_e + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
         theta = θ_b + side*ΔL_b/2*get_Qinv(θ_b)*Cab_b*κ_b
         F = zero(u)
         M = zero(u)

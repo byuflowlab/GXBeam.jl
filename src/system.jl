@@ -321,7 +321,6 @@ function add_necessary_points!(keep, start, stop)
     return keep
 end
 
-
 """
    system_state(system)
 
@@ -337,12 +336,12 @@ If values are not provided for a given keyword argument, then the state variable
 corresponding to the keyword argument are not updated.
 
 # Keyword Arguments
- - `u_b`: Vector containing initial displacements (in the global frame) for each beam element.
- - `theta_b`: Vector containing rotation variables (in the global frame) for each beam element.
- - `F_b`: Vector containing resultant forces (in the beam coordinate frame) for each beam element.
- - `M_b`: Vector containing resultant moments (in the beam coordinate frame) for each beam element.
- - `P_b`: Vector containing linear momenta (in the beam coordinate frame) for each beam element.
- - `H_b`: Vector containing angular momenta (in the beam coordinate frame) for each beam element.
+ - `u_e`: Vector containing initial displacements (in the global frame) for each beam element.
+ - `theta_e`: Vector containing rotation variables (in the global frame) for each beam element.
+ - `F_e`: Vector containing resultant forces (in the beam coordinate frame) for each beam element.
+ - `M_e`: Vector containing resultant moments (in the beam coordinate frame) for each beam element.
+ - `P_e`: Vector containing linear momenta (in the beam coordinate frame) for each beam element.
+ - `H_e`: Vector containing angular momenta (in the beam coordinate frame) for each beam element.
  - `u_p`: Vector containing initial displacements (in the global frame) for each point.
  - `theta_p`: Vector containing rotation variables (in the global frame) for each point.
  - `F_p`: Vector containing externally applied forces (in the global frame) for each point.
@@ -350,54 +349,58 @@ corresponding to the keyword argument are not updated.
 """
 set_state!
 
-function set_state!(system; kwargs...)
-    x = set_state!(system.x, system; kwargs...)
+function set_state!(system, prescribed_conditions; kwargs...)
+    x = set_state!(system.x, system, prescribed_conditions; kwargs...)
     return system
 end
 
-function set_state!(x, system; kwargs...)
-    nelem = length(system.icol_elem)
-    npoint = length(system.icol_point)
-    return set_state!(x, nelem, npoint; kwargs...)
+function set_state!(x, system, prescribed_conditions; kwargs...)
+    return set_state!(x, system.icol_elem, system.icol_point; kwargs...)
 end
 
-function set_state!(x, nelem, npoint; u_b = nothing, theta_b = nothing,
-    F_b = nothing, M_b = nothing, P_b = nothing, H_b = nothing,
+function set_state!(x, icol_elem, icol_point, force_scaling, mass_scaling,
+    prescribed_conditions; u_e = nothing, theta_e = nothing,
+    F_e = nothing, M_e = nothing, P_e = nothing, H_e = nothing,
     u_p = nothing, theta_p = nothing, F_p = nothing, M_p = nothing)
 
+    nelem = length(icol_elem)
+    npoint = length(icol_point)
+
     for ielem = 1:nelem
-        if !isnothing(u_b)
-            set_element_deflections!(x, system, u_b, ielem)
+        icol = icol_elem[ielem]
+        if !isnothing(u_e)
+            set_element_deflections!(x, icol, u_e)
         end
-        if !isnothing(theta_b)
-            set_element_rotations!(x, system, theta_b, ielem)
+        if !isnothing(theta_e)
+            set_element_rotations!(x, icol, theta_e)
         end
-        if !isnothing(F_b)
-            set_element_forces!(x, system, F_b, ielem)
+        if !isnothing(F_e)
+            set_element_forces!(x, icol, F_e, force_scaling)
         end
-        if !isnothing(M_b)
-            set_element_moments!(x, system, M_b, ielem)
+        if !isnothing(M_e)
+            set_element_moments!(x, icol, M_e, force_scaling)
         end
-        if !isnothing(P_b)
-            set_element_linear_momenta!(x, system, P_b, ielem)
+        if !isnothing(P_e)
+            set_element_linear_momenta!(x, icol, P_e, mass_scaling)
         end
-        if !isnothing(H_b)
-            set_element_angular_momenta!(x, system, H_b, ielem)
+        if !isnothing(H_e)
+            set_element_angular_momenta!(x, icol, H_e, mass_scaling)
         end
     end
 
     for ipoint = 1:npoint
+        icol = icol_point[ipoint]
         if !isnothing(u_p)
-            set_point_deflections!(x, system, u_p, ipoint, prescribed_conditions)
+            set_point_deflections!(x, icol, u_p, prescribed_conditions)
         end
         if !isnothing(theta_p)
-            set_point_rotations!(x, system, theta_p, ipoint, prescribed_conditions)
+            set_point_rotations!(x, icol, theta_p, prescribed_conditions)
         end
         if !isnothing(F_p)
-            set_point_forces!(x, system, F_p, ipoint, prescribed_conditions)
+            set_point_forces!(x, icol, F_p, force_scaling, prescribed_conditions)
         end
         if !isnothing(M_p)
-            set_point_moments!(x, system, M_p, ipoint, prescribed_conditions)
+            set_point_moments!(x, icol, M_p, force_scaling, prescribed_conditions)
         end
     end
 
@@ -405,186 +408,235 @@ function set_state!(x, nelem, npoint; u_b = nothing, theta_b = nothing,
 end
 
 """
-   set_element_deflections!([x,] system, u_b, ielem)
+    set_element_deflections!([x,] system, u_e, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 deflections of element `ielem` to the provided values.
 """
-set_element_deflections!
-
-function set_element_deflections!(x, system, u_b, ielem)
-    icol = icol_elem[ielem]
-    x[icol:icol+2] .= u_b
-    return x
-end
-
-function set_element_deflections!(system, u_b, ielem)
-    x = set_element_deflections!(system.x, system, u_b, ielem)
+function set_element_deflections!(system::System, u_e, ielem)
+    set_element_deflections!(system.x, system, u_e, ielem)
     return system
 end
 
+function set_element_deflections!(x, system::System, u_e, ielem)
+    icol = system.icol_elem[ielem]
+    set_element_deflections!(x, icol, u_e)
+    return x
+end
+
+function set_element_deflections!(x, icol, u_e)
+    x[icol:icol+2] .= u_e
+    return x
+end
+
 """
-   set_element_rotations!([x,] system, θ_b, ielem)
+    set_element_rotations!([x,] system, θ_b, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 rotations of element `ielem` to the provided values.
 """
-set_element_rotations!
-
-function set_element_rotations!(x, system, theta_b, ielem)
-    icol = icol_elem[ielem]
-    x[icol+3:icol+5] .= theta_b
-    return x
-end
-
-function set_element_rotations!(system, theta_b, ielem)
-    x = set_element_rotations!(system.x, system, theta_b, ielem)
+function set_element_rotations!(system::System, θ_e, ielem)
+    set_element_rotations!(system.x, system, θ_e, ielem)
     return system
 end
 
+function set_element_rotations!(x, system::System, θ_e, ielem)
+    icol = system.icol_elem[ielem]
+    set_element_rotations!(x, icol, θ_e)
+    return x
+end
+
+function set_element_rotations!(x, icol, θ_e)
+    x[icol+3:icol+5] .= θ_e
+    return x
+end
+
 """
-   set_element_forces!([x,] system, F_b, ielem)
+    set_element_forces!([x,] system, F_e, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 resultant forces of element `ielem` to the provided values.
 """
-set_element_forces!
-
-function set_element_forces!(x, system, F_b, ielem)
-    icol = icol_elem[ielem]
-    x[icol+6:icol+8] .= F_b ./ system.force_scaling
-    return x
-end
-
-function set_element_forces!(system, F_b, ielem)
-    x = set_element_forces!(system.x, system, F_b, ielem)
+function set_element_forces!(system::System, F_e, ielem)
+    set_element_forces!(system.x, system, F_e, ielem)
     return system
 end
 
+function set_element_forces!(x, system::System, F_e, ielem)
+    icol = system.icol_elem[ielem]
+    force_scaling = system.force_scaling
+    set_element_forces!(x, icol, F_e, force_scaling)
+    return x
+end
+
+function set_element_forces!(x, icol, F_e, force_scaling)
+    x[icol+6:icol+8] .= F_e ./ force_scaling
+    return x
+end
+
 """
-   set_element_moments!([x,] system, u_b, ielem)
+   set_element_moments!([x,] system, u_e, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 resultant moments of element `ielem` to the provided values.
 """
-set_element_moments!
-
-function set_element_moments!(x, system, M_b, ielem)
-    icol = icol_elem[ielem]
-    x[icol+9:icol+11] .= M_b ./ system.force_scaling
-    return x
-end
-
-function set_element_moments!(system, M_b, ielem)
-    x = set_element_moments!(system.x, system, M_b, ielem)
+function set_element_moments!(system::System, M_e, ielem)
+    set_element_moments!(system.x, system, M_e, ielem)
     return system
 end
 
+function set_element_moments!(x, system::System, M_e, ielem)
+    icol = system.icol_elem[ielem]
+    force_scaling = system.force_scaling
+    set_element_moments!(x, icol, M_e, force_scaling)
+    return x
+end
+
+function set_element_moments!(x, icol, M_e, force_scaling)
+    x[icol+9:icol+11] .= M_e ./ force_scaling
+    return x
+end
+
 """
-   set_element_linear_momenta!([x,] system, u_b, ielem)
+   set_element_linear_momenta!([x,] system, u_e, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 linear_momenta of element `ielem` to the provided values.
 """
-set_element_linear_momenta!
-
-function set_element_linear_momenta!(x, system, P_b, ielem)
-    @assert !system.static
-    icol = icol_elem[ielem]
-    x[icol+12:icol+14] .= P_b ./ system.mass_scaling
-    return x
-end
-
-function set_element_linear_momenta!(system, P_b, ielem)
-    x = set_element_linear_momenta!(system.x, system, P_b, ielem)
+function set_element_linear_momenta!(system::System, P_e, ielem)
+    set_element_linear_momenta!(x, system, P_e, ielem)
     return system
 end
 
+function set_element_linear_momenta!(x, system::System, P_e, ielem)
+    @assert !system.static
+    icol = system.icol_elem[ielem]
+    mass_scaling = system.mass_scaling
+    set_element_linear_momenta!(x, icol, P_e, mass_scaling)
+    return x
+end
+
+function set_element_linear_momenta!(x, icol, P_e, mass_scaling)
+    x[icol+12:icol+14] .= P_e ./ mass_scaling
+    return x
+end
+
 """
-   set_element_angular_momenta!([x,] system, u_b, ielem)
+   set_element_angular_momenta!([x,] system, u_e, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 angular_momenta of element `ielem` to the provided values.
 """
-set_element_angular_momenta!
-
-function set_element_angular_momenta!(x, system, H_b, ielem)
-    @assert !system.static
-    icol = icol_elem[ielem]
-    x[icol+15:icol+17] .= H_b ./ system.mass_scaling
-    return x
-end
-
-function set_element_angular_momenta!(system, H_b, ielem)
-    x = set_element_angular_momenta!(system.x, system, H_b, ielem)
+function set_element_angular_momenta!(system::System, H_e, ielem)
+    set_element_angular_momenta!(x, system, H_e, ielem)
     return system
 end
 
+function set_element_angular_momenta!(x, system::System, H_e, ielem)
+    @assert !system.static
+    icol = system.icol_elem[ielem]
+    mass_scaling = system.mass_scaling
+    set_element_angular_momenta!(x, icol, H_e, mass_scaling)
+    return x
+end
+
+function set_element_angular_momenta!(x, icol, H_e, mass_scaling)
+    x[icol+15:icol+17] .= H_e ./ mass_scaling
+    return x
+end
+
 """
-   set_point_deflections!([x,] system, u_b, ipoint, prescribed_conditions)
+   set_point_deflections!([x,] system, u_e, ipoint, prescribed_conditions)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 deflections (or externally applied forces) at point `ipoint` to the provided values.
 """
 set_point_deflections!
 
-function set_point_deflections!(x, system, u_p, ipoint, prescribed_conditions)
-    icol = icol_point[ipoint]
-    if icol_point > 0
-        # point variables are state variables
-        for k = 1:3
-            if ipoint in keys(prescribed_conditions)
-                # prescribed conditions exist for this point
-                if prescribed_conditions[ipoint].force_dof[k]
-                    # forces are prescribed
-                    x[icol+k-1] .= u_p[k]
-                end
-            else
-                # no prescribed condition for this point
-                x[icol+k-1] .= u_p[k]
-            end
-        end
-    end
-    return x
-end
-
-function set_point_deflections!(system, u_p, ipoint, prescribed_conditions)
+function set_point_deflections!(system::System, u_p, ipoint, prescribed_conditions)
     x = set_point_deflections!(system.x, system, u_p, ipoint, prescribed_conditions)
     return system
 end
 
+function set_point_deflections!(x, system::System, u_p, ipoint, prescribed_conditions)
+
+    icol = system.icol_point[ipoint]
+
+    if ipoint in keys(prescribed_conditions)
+        prescribed_forces = prescribed_conditions[ipoint].force
+    else
+        prescribed_forces = @SVector ones(Bool, 6)
+    end
+
+    set_point_deflections!(x, icol, u_p, prescribed_forces)
+
+    return x
+end
+
+function set_point_deflections!(x, icol, u_p, prescribed_forces)
+
+    if icol <= 0
+        # point variables are not state variables
+        return x
+    end
+
+    # point variables are state variables
+    for k = 1:3
+        if prescribed_forces[k]
+            # applied force is prescribed, deflection is a state variable
+            x[icol+k-1] = u_p[k]
+        end
+    end
+
+    return x
+end
+
 """
-   set_point_rotations!([x,] system, u_b, ipoint, prescribed_conditions)
+   set_point_rotations!([x,] system, θ_e, ipoint, prescribed_conditions)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 rotations (or externally applied moments) at point `ipoint` to the provided values.
 """
 set_point_rotations!
 
-function set_point_rotations!(x, system, theta_p, ipoint, prescribed_conditions)
-    icol = icol_point[ipoint]
-    if icol_point > 0
-        # point variables are state variables
-        for k = 1:3
-            if ipoint in keys(prescribed_conditions)
-                # prescribed conditions exist for this point
-                if prescribed_conditions[ipoint].force_dof[3+k]
-                    # forces are prescribed
-                    x[icol+k+2] .= theta_p[k]
-                end
-            else
-                # no prescribed condition for this point
-                x[icol+k+2] .= theta_p[k]
-            end
-        end
+function set_point_rotations!(system::System, θ_p, ipoint, prescribed_conditions)
+    set_point_rotations!(system.x, system, θ_p, ipoint, prescribed_conditions)
+    return system
+end
+
+function set_point_rotations!(x, system::System, θ_p, ipoint, prescribed_conditions)
+
+    icol = system.icol_point[ipoint]
+
+    if ipoint in keys(prescribed_conditions)
+        prescribed_forces = prescribed_conditions[ipoint].force
+    else
+        prescribed_forces = @SVector ones(Bool, 6)
     end
+
+    set_point_rotations!(x, icol, θ_p, prescribed_forces)
+
     return x
 end
 
-function set_point_rotations!(system, theta_p, ipoint, prescribed_conditions)
-    x = set_point_rotations!(system.x, system, theta_p, ipoint, prescribed_conditions)
-    return system
+function set_point_rotations!(x, icol, θ_p, prescribed_forces)
+
+    if icol <= 0
+        # point variables are not state variables
+        return x
+    end
+
+    # point variables are state variables
+    for k = 1:3
+        if prescribed_forces[3+k]
+            # applied moment is prescribed, rotation is a state variable
+            x[icol+k+2] = θ_p[k]
+        end
+    end
+
+    return x
 end
+
 
 """
    set_point_forces!([x,] system, F_p, ipoint, prescribed_conditions)
@@ -594,27 +646,45 @@ external forces applied on point `ipoint` to the provided values.
 """
 set_point_forces!
 
-function set_point_forces!(x, system, F_p, ipoint, prescribed_conditions)
+function set_point_forces!(system::System, F_p, ipoint, prescribed_conditions)
+    set_point_forces!(system.x, system, F_p, ipoint, prescribed_conditions)
+    return system
+end
+
+function set_point_forces!(x, system::System, F_p, ipoint, prescribed_conditions)
+
     icol = icol_point[ipoint]
-    if icol_point > 0
-        # point variables are state variables
-        for k = 1:3
-            if ipoint in keys(prescribed_conditions)
-                # prescribed conditions exist for this point
-                if !prescribed_conditions[ipoint].force_dof[k]
-                    # forces are prescribed
-                    x[icol+k-1] .= F_p[k] ./ system.force_scaling
-                end
-            end
-        end
+
+    if ipoint in keys(prescribed_conditions)
+        prescribed_forces = prescribed_conditions[ipoint].force
+    else
+        prescribed_forces = @SVector ones(Bool, 6)
     end
+
+    set_point_forces!(x, icol, F_p, prescribed_forces, force_scaling)
+
     return x
 end
 
-function set_point_forces!(system, F_p, ipoint, prescribed_conditions)
-    x = set_point_forces!(system.x, system, F_p, ipoint, prescribed_conditions)
-    return system
+function set_point_forces!(x, icol, F_p, prescribed_forces, force_scaling)
+
+    if icol <= 0
+        # point variables are not state variables
+        return x
+    end
+
+    # point variables are state variables
+    for k = 1:3
+        # prescribed conditions exist for this point
+        if !prescribed_forces[k]
+            # deflections are prescribed, applied force is a state variable
+            x[icol+k-1] = F_p[k] / force_scaling
+        end
+    end
+
+    return x
 end
+
 
 """
    set_point_moments!([x,] system, M_p, ipoint, prescribed_conditions)
@@ -622,28 +692,43 @@ end
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 external moments applied on point `ipoint` to the provided values.
 """
-set_point_moments!
+function set_point_moments!(system::System, M_p, ipoint, prescribed_conditions)
+    set_point_moments!(system.x, system, M_p, ipoint, prescribed_conditions)
+    return system
+end
 
-function set_point_moments!(x, system, M_p, ipoint, prescribed_conditions)
+function set_point_moments!(x, system::System, M_p, ipoint, prescribed_conditions)
+
     icol = icol_point[ipoint]
-    if icol_point > 0
-        # point variables are state variables
-        for k = 1:3
-            if ipoint in keys(prescribed_conditions)
-                # prescribed conditions exist for this point
-                if !prescribed_conditions[ipoint].force_dof[3+k]
-                    # forces are prescribed
-                    x[icol+k+2] .= M_p[k] ./ system.force_scaling
-                end
-            end
-        end
+
+    if ipoint in keys(prescribed_conditions)
+        prescribed_forces = prescribed_conditions[ipoint].force
+    else
+        prescribed_forces = @SVector ones(Bool, 6)
     end
+
+    set_point_moments!(x, icol, M_p, prescribed_forces, force_scaling)
+
     return x
 end
 
-function set_point_moments!(system, M_p, ipoint, prescribed_conditions)
-    x = set_point_moments!(system.x, system, M_p, ipoint, prescribed_conditions)
-    return system
+function set_point_moments!(x, icol, M_p, prescribed_forces, force_scaling)
+
+    if icol <= 0
+        # point variables are not state variables
+        return x
+    end
+
+    # point variables are state variables
+    for k = 1:3
+        # prescribed conditions exist for this point
+        if !prescribed_forces[3+k]
+            # rotations are prescribed, applied moment is a state variable
+            x[icol+k+2] = M_p[k] / force_scaling
+        end
+    end
+
+    return x
 end
 
 """
@@ -680,10 +765,10 @@ function get_sparsity(system, assembly)
     for ielem = 1:nelem
         # indices for this beam
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         # --- static, beam element jacobian contributions --- #
@@ -692,14 +777,14 @@ function get_sparsity(system, assembly)
         sparsity[irow_p1:irow_p1+2, icol:icol+8] .= true
         sparsity[irow_p1+3:irow_p1+5, icol+3:icol+11] .= true
         # left point compatability equations
-        irow = ifelse(irow_b1 == irow_p1 || irow_b1 <= 0, irow_p1+6, irow_b1)
+        irow = ifelse(irow_e1 == irow_p1 || irow_e1 <= 0, irow_p1+6, irow_e1)
         sparsity[irow:irow+2, icol:icol+11] .= true
         sparsity[irow+3:irow+5, icol+3:icol+11] .= true
         # right endpoint equilibrium equations
         sparsity[irow_p2:irow_p2+2, icol:icol+8] .= true
         sparsity[irow_p2+3:irow_p2+5, icol+3:icol+11] .= true
         # right point compatability equations
-        irow = ifelse(irow_b2 == irow_p2 || irow_b2 <= 0, irow_p2 + 6, irow_b2)
+        irow = ifelse(irow_e2 == irow_p2 || irow_e2 <= 0, irow_p2 + 6, irow_e2)
         sparsity[irow:irow+2, icol:icol+11] .= true
         sparsity[irow+3:irow+5, icol+3:icol+11] .= true
 
@@ -712,10 +797,10 @@ function get_sparsity(system, assembly)
             sparsity[irow_p2:irow_p2+2, icol+12:icol+14] .= true
             sparsity[irow_p2+3:irow_p2+5, icol+12:icol+17] .= true
             # element residual equations
-            sparsity[irow_b:irow_b+2, icol:icol+5] .= true
-            sparsity[irow_b:irow_b+2, icol+12:icol+17] .= true
-            sparsity[irow_b+3:irow_b+5, icol+3:icol+5] .= true
-            sparsity[irow_b+3:irow_b+5, icol+12:icol+17] .= true
+            sparsity[irow_e:irow_e+2, icol:icol+5] .= true
+            sparsity[irow_e:irow_e+2, icol+12:icol+17] .= true
+            sparsity[irow_e+3:irow_e+5, icol+3:icol+5] .= true
+            sparsity[irow_e+3:irow_e+5, icol+12:icol+17] .= true
         end
     end
 
@@ -737,36 +822,36 @@ function get_sparsity(system, assembly)
             # check left side of beam
             if ipoint == assembly.start[ielem]
                 # add jacobian entries for the beam endpoint
-                irow_b = irow_elem1[ielem]
-                if irow_b == irow_p
+                irow_e = irow_elem1[ielem]
+                if irow_e == irow_p
                     for i = 1:6
                         for j = 4:6
-                            sparsity[irow_b+i-1, icol+j-1] = true
+                            sparsity[irow_e+i-1, icol+j-1] = true
                         end
-                        sparsity[irow_b+i+5, icol+i-1] = true
-                        sparsity[irow_b+i-1, icol+i-1] = true
+                        sparsity[irow_e+i+5, icol+i-1] = true
+                        sparsity[irow_e+i-1, icol+i-1] = true
                     end
                 else
                     for i = 1:6
-                        sparsity[irow_b+i-1, icol+i-1] = true
+                        sparsity[irow_e+i-1, icol+i-1] = true
                     end
                 end
             end
             # check right side of beam
             if ipoint == assembly.stop[ielem]
                 # add jacobian entries for the beam endpoint
-                irow_b = irow_elem2[ielem]
-                if irow_b == irow_p
+                irow_e = irow_elem2[ielem]
+                if irow_e == irow_p
                     for i = 1:6
                         for j = 4:6
-                            sparsity[irow_b+i-1, icol+j-1] = true
+                            sparsity[irow_e+i-1, icol+j-1] = true
                         end
-                        sparsity[irow_b+i+5, icol+i-1] = true
-                        sparsity[irow_b+i-1, icol+i-1] = true
+                        sparsity[irow_e+i+5, icol+i-1] = true
+                        sparsity[irow_e+i-1, icol+i-1] = true
                     end
                 else
                     for i = 1:6
-                        sparsity[irow_b+i-1, icol+i-1] = true
+                        sparsity[irow_e+i-1, icol+i-1] = true
                     end
                 end
             end
@@ -888,15 +973,15 @@ function static_system_residual!(resid, x, assembly, prescribed_conditions, dist
 
         # get pointers for element
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = static_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2)
+             distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2)
     end
 
     # add contributions to the residual equations from the prescribed point conditions
@@ -930,15 +1015,15 @@ function steady_state_system_residual!(resid, x, assembly, prescribed_conditions
 
         # get pointers for element
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = steady_state_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2, x0, v0, ω0)
+             distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2, x0, v0, ω0)
     end
 
     # add contributions to the residual equations from the prescribed point conditions
@@ -972,15 +1057,15 @@ function initial_step_system_residual!(resid, x, assembly, prescribed_conditions
 
         # get pointers for element
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = initial_step_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2, x0, v0, ω0,
+             distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
 
@@ -1015,14 +1100,14 @@ function newmark_system_residual!(resid, x, assembly, prescribed_conditions, dis
 
         # get pointers for element
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = newmark_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2,
+             distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
              x0, v0, ω0,
              udot_init[ielem], θdot_init[ielem],
              CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
@@ -1059,10 +1144,10 @@ function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions,
 
         # get pointers for element
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         # set state rates for element
@@ -1072,7 +1157,7 @@ function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions,
         Hdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17]) .* mass_scaling
 
         resid = dynamic_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2,
+             distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
              x0, v0, ω0, udot, θdot, Pdot, Hdot)
 
     end
@@ -1210,15 +1295,15 @@ end
     for ielem = 1:nelem
 
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2)
+            distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2)
     end
 
     # add contributions to the system jacobian matrix from the prescribed point conditions
@@ -1255,15 +1340,15 @@ end
     for ielem = 1:nelem
 
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2, x0, v0, ω0)
+            distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2, x0, v0, ω0)
     end
 
     # add contributions to the system jacobian matrix from the prescribed point conditions
@@ -1299,15 +1384,15 @@ end
     for ielem = 1:nelem
 
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2, x0, v0, ω0,
+            distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
 
@@ -1344,15 +1429,15 @@ end
     for ielem = 1:nelem
 
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2, x0, v0, ω0,
+            distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             udot_init[ielem], θdot_init[ielem],
             CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
     end
@@ -1393,10 +1478,10 @@ end
     for ielem = 1:nelem
 
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         # set state rates for element
@@ -1406,8 +1491,8 @@ end
         Hdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17]) .* mass_scaling
 
         jacob = dynamic_element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, force_scaling, mass_scaling, icol, irow_b, irow_b1,
-            irow_p1, irow_b2, irow_p2, x0, v0, ω0,
+            distributed_loads, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             udot, θdot, Pdot, Hdot)
     end
 
@@ -1468,14 +1553,14 @@ function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, ir
     for ielem = 1:nelem
 
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         element_mass_matrix!(jacob, x, assembly.elements[ielem], force_scaling,
-            mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
+            mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 
     # no contributions to "mass matrix" from point state variables
@@ -1502,14 +1587,14 @@ function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, mass_scal
     for ielem = 1:nelem
 
         icol = icol_elem[ielem]
-        irow_b = irow_elem[ielem]
-        irow_b1 = irow_elem1[ielem]
+        irow_e = irow_elem[ielem]
+        irow_e1 = irow_elem1[ielem]
         irow_p1 = irow_point[assembly.start[ielem]]
-        irow_b2 = irow_elem2[ielem]
+        irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         element_mass_matrix!(jacob, gamma, x, assembly.elements[ielem],
-            force_scaling, mass_scaling, icol, irow_b, irow_b1, irow_p1, irow_b2, irow_p2)
+            force_scaling, mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 
     # no contributions to "mass matrix" from point state variables
