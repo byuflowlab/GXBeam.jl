@@ -33,14 +33,8 @@ export translate, translate!
 export cross_section_velocities, cross_section_velocities!
 export deform_cross_section, deform_cross_section!
 
-
 export write_vtk
 export left_eigenvectors, correlate_eigenmodes
-
-# Constant used for scaling forces/moments
-# this is needed because sparse arrays don't seem to be able to handle
-# mismatched units very well
-const FORCE_SCALING = nextpow(2, 1e3)
 
 const GAUSS_NODES = SVector(-0.8611363115940526, -0.3399810435848563, 0.3399810435848563, 0.8611363115940526)
 const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451548625462, 0.34785484513745385)
