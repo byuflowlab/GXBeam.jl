@@ -89,7 +89,8 @@ function Assembly(points, start, stop;
 end
 
 """
-    discretize_beam(L, start, discretization; frame = Matrix(I,3,3)), curvature = zeros(3))
+    discretize_beam(L, start, discretization; frame = Matrix(I,3,3)),
+        curvature = zeros(3))
 
 Discretize a beam according to the discretization provided in `discretization`
 given the beam length (`L`), and starting point (`start`).
