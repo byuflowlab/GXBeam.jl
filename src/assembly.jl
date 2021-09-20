@@ -1,5 +1,6 @@
 """
-    Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
+    Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}},
+        TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
 
 Composite type that defines an assembly of connected nonlinear beam elements for
 analysis.

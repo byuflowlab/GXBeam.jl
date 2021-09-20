@@ -40,7 +40,8 @@ struct ElementState{TF}
 end
 
 """
-    AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
+    AssemblyState{TF, TP<:AbstractVector{PointState{TF}},
+        TE<:AbstractVector{ElementState{TF}}}
 
 Struct for storing state variables for the points and elements in an assembly.
 
@@ -345,7 +346,8 @@ end
 """
     write_vtk(name, assembly::Assembly; kwargs...)
     write_vtk(name, assembly::Assembly, state::AssemblyState; kwargs...)
-    write_vtk(name, assembly::Assembly, history::Vector{<:AssemblyState}], dt; kwargs...)
+    write_vtk(name, assembly::Assembly, history::Vector{<:AssemblyState}], dt;
+        kwargs...)
 
 Write the deformed geometry (and associated data) to a VTK file for visualization
 using ParaView.
@@ -665,8 +667,9 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
 end
 
 """
-    write_vtk(name, assembly::Assembly, [state::AssemblyState, ]λ::Number, eigenstate::AssemblyState;
-    scaling=1.0, mode_scaling=1.0, cycles=1, steps=100)
+    write_vtk(name, assembly::Assembly, [state::AssemblyState, ]λ::Number,
+        eigenstate::AssemblyState; scaling=1.0, mode_scaling=1.0, cycles=1,
+        steps=100)
 
 Write a series of files corresponding to the elastic motion of the `assembly`
 about the deformed state encoded in `state` defined by the eigenvalue `λ` and

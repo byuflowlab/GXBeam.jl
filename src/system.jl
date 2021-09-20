@@ -322,14 +322,14 @@ function add_necessary_points!(keep, start, stop)
 end
 
 """
-   system_state(system)
+    system_state(system)
 
 Return a vector containing the state variables of `system`.
 """
 system_state(system) = system.x
 
 """
-   set_state!([x,] system, prescribed_conditions; kwargs...)
+    set_state!([x,] system, prescribed_conditions; kwargs...)
 
 Set the state variables in `system` (or in the vector `x`) to the provided values.
 If values are not provided for a given keyword argument, then the state variables
@@ -475,7 +475,7 @@ function set_element_forces!(x, icol, F_e, force_scaling)
 end
 
 """
-   set_element_moments!([x,] system, u_e, ielem)
+    set_element_moments!([x,] system, u_e, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 resultant moments of element `ielem` to the provided values.
@@ -498,7 +498,7 @@ function set_element_moments!(x, icol, M_e, force_scaling)
 end
 
 """
-   set_element_linear_momenta!([x,] system, u_e, ielem)
+    set_element_linear_momenta!([x,] system, u_e, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 linear_momenta of element `ielem` to the provided values.
@@ -546,7 +546,7 @@ function set_element_angular_momenta!(x, icol, H_e, mass_scaling)
 end
 
 """
-   set_point_deflections!([x,] system, u_e, ipoint, prescribed_conditions)
+    set_point_deflections!([x,] system, u_e, ipoint, prescribed_conditions)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 deflections (or externally applied forces) at point `ipoint` to the provided values.
@@ -592,7 +592,7 @@ function set_point_deflections!(x, icol, u_p, prescribed_forces)
 end
 
 """
-   set_point_rotations!([x,] system, θ_e, ipoint, prescribed_conditions)
+    set_point_rotations!([x,] system, θ_e, ipoint, prescribed_conditions)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 rotations (or externally applied moments) at point `ipoint` to the provided values.
@@ -639,7 +639,7 @@ end
 
 
 """
-   set_point_forces!([x,] system, F_p, ipoint, prescribed_conditions)
+    set_point_forces!([x,] system, F_p, ipoint, prescribed_conditions)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 external forces applied on point `ipoint` to the provided values.
@@ -687,7 +687,7 @@ end
 
 
 """
-   set_point_moments!([x,] system, M_p, ipoint, prescribed_conditions)
+    set_point_moments!([x,] system, M_p, ipoint, prescribed_conditions)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 external moments applied on point `ipoint` to the provided values.
@@ -732,7 +732,7 @@ function set_point_moments!(x, icol, M_p, prescribed_forces, force_scaling)
 end
 
 """
-   reset_state!(system)
+    reset_state!(system)
 
 Reset the state variables in `system` (stored in `system.x`).
 """
@@ -863,16 +863,18 @@ end
 
 """
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, u, θ, udot, θdot)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, u, θ, udot, θdot)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init,
+        CtCabHdot_init, dt)
 
 Populate the residual vector `resid` with the results of the residual equations
 for the system.
@@ -1182,16 +1184,18 @@ end
 
 """
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, u, θ, udot, θdot)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, u, θ, udot, θdot)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init,
+        CtCabHdot_init, dt)
 
 Populate the jacobian matrix `jacob` with the jacobian of the residual vector
 with respect to the state variables.
@@ -1518,8 +1522,8 @@ end
 end
 
 """
-    system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_point, irow_elem,
-        irow_elem1, irow_elem2, icol_point, icol_elem)
+    system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling,
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Populate the system "mass matrix", the jacobian of the residual vector
 with respect to the time derivatives of the state variables.
@@ -1572,8 +1576,8 @@ function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, ir
 end
 
 """
-    system_mass_matrix!(jacob, gamma, x, dx, assembly, force_scaling, mass_scaling, irow_point,
-        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    system_mass_matrix!(jacob, gamma, x, dx, assembly, force_scaling, mass_scaling,
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Add the system mass matrix to `jacob`, scaled by the scaling parameter `gamma`.
 """

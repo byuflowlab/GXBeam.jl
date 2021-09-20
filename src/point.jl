@@ -230,7 +230,8 @@ Calculate the jacobians of the follower forces/moments with respect to θ
 end
 
 """
-    insert_point_jacobian!(jacob, irow_elem, irow_point, icol, prescribed_conditions, side, F_θ, M_θ)
+    insert_point_jacobian!(jacob, irow_elem, irow_point, icol,
+        prescribed_conditions, side, F_θ, M_θ)
 
 Modify the jacobian entries for the equilibrium and constitutive equations to
 account for the point variables at icol
