@@ -30,32 +30,32 @@ iteration procedure converged.
     for the pre-allocated version of this function.
 """
 function static_analysis(assembly;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    tvec = 0.0,
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    tvec=0.0,
     )
 
     static = true
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; prescribed_points = keys(pc))
+    system = System(assembly, static; prescribed_points=keys(pc))
 
     return static_analysis!(system, assembly;
-        prescribed_conditions = prescribed_conditions,
-        distributed_loads = distributed_loads,
-        linear = linear,
-        method = method,
-        linesearch = linesearch,
-        ftol = ftol,
-        iterations = iterations,
-        tvec = tvec,
-        reset_state = false)
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        linear=linear,
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations,
+        tvec=tvec,
+        reset_state=false)
 end
 
 """
@@ -64,15 +64,15 @@ end
 Pre-allocated version of `static_analysis`.
 """
 function static_analysis!(system, assembly;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    tvec = 0.0,
-    reset_state = true)
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    tvec=0.0,
+    reset_state=true)
 
     # check to make sure system is static
     @assert system.static == true
@@ -119,7 +119,7 @@ function static_analysis!(system, assembly;
             x .= 0.0
             f!(F, x)
             j!(J, x)
-            x .-= safe_lu(J)\F
+            x .-= safe_lu(J) \ F
         else
             # nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
@@ -181,38 +181,38 @@ iteration procedure converged.
     for the pre-allocated version of this function.
 """
 function steady_state_analysis(assembly;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    tvec = 0.0,
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    origin=(@SVector zeros(3)),
+linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    tvec=0.0,
     )
 
     static = false
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; prescribed_points = keys(pc))
+    system = System(assembly, static; prescribed_points=keys(pc))
 
     return steady_state_analysis!(system, assembly;
-        prescribed_conditions = prescribed_conditions,
-        distributed_loads = distributed_loads,
-        linear = linear,
-        method = method,
-        linesearch = linesearch,
-        ftol = ftol,
-        iterations = iterations,
-        origin = origin,
-        linear_velocity = linear_velocity,
-        angular_velocity = angular_velocity,
-        tvec = tvec,
-        reset_state = false,
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        linear=linear,
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations,
+        origin=origin,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        tvec=tvec,
+        reset_state=false,
         )
 end
 
@@ -222,18 +222,18 @@ end
 Pre-allocated version of `steady_state_analysis`.
 """
 function steady_state_analysis!(system, assembly;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    tvec = 0.0,
-    reset_state = true,
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    tvec=0.0,
+    reset_state=true,
     )
 
     # check to make sure the simulation is dynamic
@@ -286,12 +286,12 @@ function steady_state_analysis!(system, assembly;
             x .= 0.0
             f!(F, x)
             j!(J, x)
-            x .-= safe_lu(J)\F
+            x .-= safe_lu(J) \ F
         else
             # nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
-            result = NLsolve.nlsolve(df, x,
+    result = NLsolve.nlsolve(df, x,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
@@ -353,42 +353,42 @@ converged.
  - `nev = 6`: Number of eigenvalues to compute
 """
 function eigenvalue_analysis(assembly;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    method = :newton,
-    linear = false,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    find_steady_state = !linear,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    tvec = 0.0,
-    nev = 6
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    method=:newton,
+    linear=false,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    find_steady_state=!linear,
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    tvec=0.0,
+    nev=6
     )
 
     static = false
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; prescribed_points = keys(pc))
+    system = System(assembly, static; prescribed_points=keys(pc))
 
     return eigenvalue_analysis!(system, assembly;
-        prescribed_conditions = prescribed_conditions,
-        distributed_loads = distributed_loads,
-        linear = linear,
-        method = method,
-        linesearch = linesearch,
-        ftol = ftol,
-        iterations = iterations,
-        reset_state = false,
-        find_steady_state = find_steady_state,
-        origin = origin,
-        linear_velocity = linear_velocity,
-        angular_velocity = angular_velocity,
-        tvec = tvec,
-        nev = nev,
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        linear=linear,
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations,
+        reset_state=false,
+        find_steady_state=find_steady_state,
+        origin=origin,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        tvec=tvec,
+        nev=nev,
         )
 end
 
@@ -399,20 +399,20 @@ Pre-allocated version of `eigenvalue_analysis`.  Uses the state variables stored
 `system` as an initial guess for iterating to find the steady state solution.
 """
 function eigenvalue_analysis!(system, assembly;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    reset_state = true,
-    find_steady_state = !linear && reset_state,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    tvec = 0.0,
-    nev = 6,
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    reset_state=true,
+    find_steady_state=!linear && reset_state,
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    tvec=0.0,
+    nev=6,
     )
 
     if reset_state
@@ -422,17 +422,17 @@ function eigenvalue_analysis!(system, assembly;
     # perform steady state analysis (if nonlinear)
     if find_steady_state
         system, converged = steady_state_analysis!(system, assembly;
-            prescribed_conditions = prescribed_conditions,
-            distributed_loads = distributed_loads,
-            linear = linear,
-            method = method,
-            linesearch = linesearch,
-            ftol = ftol,
-            iterations = iterations,
-            origin = origin,
-            linear_velocity = linear_velocity,
-            angular_velocity = angular_velocity,
-            tvec = tvec,
+            prescribed_conditions=prescribed_conditions,
+            distributed_loads=distributed_loads,
+            linear=linear,
+            method=method,
+            linesearch=linesearch,
+            ftol=ftol,
+            iterations=iterations,
+            origin=origin,
+            linear_velocity=linear_velocity,
+            angular_velocity=angular_velocity,
+            tvec=tvec,
             )
     else
         # converged by default
@@ -480,15 +480,15 @@ function eigenvalue_analysis!(system, assembly;
     T = eltype(system)
     nx = length(x)
     Kfact = safe_lu(K)
-    f! = (b, x) -> ldiv!(b, Kfact, M*x)
-    fc! = (b, x) -> mul!(b, M', Kfact'\x)
+    f! = (b, x) -> ldiv!(b, Kfact, M * x)
+    fc! = (b, x) -> mul!(b, M', Kfact' \ x)
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
 
     # compute eigenvalues and eigenvectors
-    λ, V = partialeigen(partialschur(A; nev=min(nx,nev), which=LM())[1])
+    λ, V = partialeigen(partialschur(A; nev=min(nx, nev), which=LM())[1])
 
     # sort eigenvalues by magnitude
-    perm = sortperm(λ, by=(λ)->(abs(λ),imag(λ)), rev=true)
+    perm = sortperm(λ, by=(λ) -> (abs(λ), imag(λ)), rev=true)
     λ .= λ[perm]
     V .= V[:,perm]
 
@@ -537,44 +537,44 @@ final system with the new initial conditions.
  - `save=1:length(tvec)`: Steps at which to save the time history
 """
 function initial_condition_analysis(assembly, t0;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    u0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    theta0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    udot0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    thetadot0 = fill((@SVector zeros(3)), length(assembly.elements)),
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    u0=fill((@SVector zeros(3)), length(assembly.elements)),
+    theta0=fill((@SVector zeros(3)), length(assembly.elements)),
+    udot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
     )
 
     static = false
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t0)
 
-    system = System(assembly, static; prescribed_points = keys(pc))
+    system = System(assembly, static; prescribed_points=keys(pc))
 
     return initial_condition_analysis!(system, assembly, t0;
-        prescribed_conditions = prescribed_conditions,
-        distributed_loads = distributed_loads,
-        linear = linear,
-        method = method,
-        linesearch = linesearch,
-        ftol = ftol,
-        iterations = iterations,
-        reset_state = false,
-        origin = origin,
-        linear_velocity = linear_velocity,
-        angular_velocity = angular_velocity,
-        u0 = u0,
-        theta0 = theta0,
-        udot0 = udot0,
-        thetadot0 = thetadot0,
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        linear=linear,
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations,
+        reset_state=false,
+        origin=origin,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        u0=u0,
+        theta0=theta0,
+        udot0=udot0,
+        thetadot0=thetadot0,
         )
 end
 
@@ -584,21 +584,21 @@ end
 Pre-allocated version of `initial_condition_analysis`.
 """
 function initial_condition_analysis!(system, assembly, t0;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    reset_state = true,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    u0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    theta0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    udot0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    thetadot0 = fill((@SVector zeros(3)), length(assembly.elements)),
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    reset_state=true,
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    u0=fill((@SVector zeros(3)), length(assembly.elements)),
+    theta0=fill((@SVector zeros(3)), length(assembly.elements)),
+    udot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
     )
 
     # check to make sure the simulation is dynamic
@@ -654,7 +654,7 @@ function initial_condition_analysis!(system, assembly, t0;
         x .= 0.0
         f!(F, x)
         j!(J, x)
-        x .-= safe_lu(J)\F
+        x .-= safe_lu(J) \ F
     else
         # nonlinear analysis
         df = OnceDifferentiable(f!, j!, x, F, J)
@@ -679,15 +679,15 @@ function initial_condition_analysis!(system, assembly, t0;
         # extract rotation parameters for this beam element
         C = get_C(theta0[ielem])
         Cab = assembly.elements[ielem].Cab
-        CtCab = C'*Cab
+        CtCab = C' * Cab
         # save states and state rates
         udot[ielem] = udot0[ielem]
         θdot[ielem] = thetadot0[ielem]
-        Pdot[ielem] = CtCab'*SVector(x[icol], x[icol+1], x[icol+2]) .* mass_scaling
-        Hdot[ielem] = CtCab'*SVector(x[icol+3], x[icol+4], x[icol+5]) .* mass_scaling
-        # restore original state vector
-        x[icol:icol+2] .= u0[ielem]
-        x[icol+3:icol+5] .= theta0[ielem]
+        Pdot[ielem] = CtCab' * SVector(x[icol], x[icol + 1], x[icol + 2]) .* mass_scaling
+        Hdot[ielem] = CtCab' * SVector(x[icol + 3], x[icol + 4], x[icol + 5]) .* mass_scaling
+# restore original state vector
+        x[icol:icol + 2] .= u0[ielem]
+        x[icol + 3:icol + 5] .= theta0[ielem]
     end
 
     return system, converged
@@ -738,74 +738,74 @@ converged for each time step.
  - `save=1:length(tvec)`: Steps at which to save the time history
 """
 function time_domain_analysis(assembly, tvec;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    initialize = true,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    u0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    theta0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    udot0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    thetadot0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    save = 1:length(tvec)
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    initialize=true,
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    u0=fill((@SVector zeros(3)), length(assembly.elements)),
+    theta0=fill((@SVector zeros(3)), length(assembly.elements)),
+    udot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    save=1:length(tvec)
     )
 
     static = false
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[1])
 
-    system = System(assembly, static; prescribed_points = keys(pc))
+    system = System(assembly, static; prescribed_points=keys(pc))
 
     return time_domain_analysis!(system, assembly, tvec;
-        prescribed_conditions = prescribed_conditions,
-        distributed_loads = distributed_loads,
-        linear = linear,
-        method = method,
-        linesearch = linesearch,
-        ftol = ftol,
-        iterations = iterations,
-        reset_state = false,
-        initialize = initialize,
-        origin = origin,
-        linear_velocity = linear_velocity,
-        angular_velocity = angular_velocity,
-        u0 = u0,
-        theta0 = theta0,
-        udot0 = udot0,
-        thetadot0 = thetadot0,
-        save = save,
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        linear=linear,
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations,
+        reset_state=false,
+        initialize=initialize,
+        origin=origin,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        u0=u0,
+        theta0=theta0,
+        udot0=udot0,
+        thetadot0=thetadot0,
+        save=save,
         )
 end
 
-"""
+    """
     time_domain_analysis!(system, assembly, tvec; kwargs...)
 
 Pre-allocated version of `time_domain_analysis`.
 """
 function time_domain_analysis!(system, assembly, tvec;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
-    linear = false,
-    method = :newton,
-    linesearch = LineSearches.BackTracking(maxstep=1e6),
-    ftol = 1e-9,
-    iterations = 1000,
-    reset_state = true,
-    initialize = true,
-    origin = (@SVector zeros(3)),
-    linear_velocity = (@SVector zeros(3)),
-    angular_velocity = (@SVector zeros(3)),
-    u0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    theta0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    udot0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    thetadot0 = fill((@SVector zeros(3)), length(assembly.elements)),
-    save = 1:length(tvec)
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    linear=false,
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    reset_state=true,
+    initialize=true,
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    u0=fill((@SVector zeros(3)), length(assembly.elements)),
+    theta0=fill((@SVector zeros(3)), length(assembly.elements)),
+    udot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    save=1:length(tvec)
     )
 
     # check to make sure the simulation is dynamic
@@ -818,21 +818,21 @@ function time_domain_analysis!(system, assembly, tvec;
     # perform initial condition analysis
     if initialize
         system, converged = initial_condition_analysis!(system, assembly, tvec[1];
-            prescribed_conditions = prescribed_conditions,
-            distributed_loads = distributed_loads,
-            linear = linear,
-            method = method,
-            linesearch = linesearch,
-            ftol = ftol,
-            iterations = iterations,
-            reset_state = false,
-            origin = origin,
-            linear_velocity = linear_velocity,
-            angular_velocity = angular_velocity,
-            u0 = u0,
-            theta0 = theta0,
-            udot0 = udot0,
-            thetadot0 = thetadot0,
+            prescribed_conditions=prescribed_conditions,
+            distributed_loads=distributed_loads,
+            linear=linear,
+            method=method,
+            linesearch=linesearch,
+            ftol=ftol,
+            iterations=iterations,
+            reset_state=false,
+            origin=origin,
+            linear_velocity=linear_velocity,
+            angular_velocity=angular_velocity,
+            u0=u0,
+            theta0=theta0,
+            udot0=udot0,
+            thetadot0=thetadot0,
             )
     else
         # converged by default
@@ -867,7 +867,7 @@ function time_domain_analysis!(system, assembly, tvec;
     if isave in save
         pcond = typeof(prescribed_conditions) <: AbstractDict ?
             prescribed_conditions : prescribed_conditions(tvec[1])
-        history[isave] = AssemblyState(system, assembly, prescribed_conditions = pcond)
+        history[isave] = AssemblyState(system, assembly, prescribed_conditions=pcond)
         isave += 1
     end
 
@@ -879,7 +879,7 @@ function time_domain_analysis!(system, assembly, tvec;
         system.t = tvec[it]
 
         # current time step size
-        dt = tvec[it] - tvec[it-1]
+        dt = tvec[it] - tvec[it - 1]
 
         # current parameters
         pcond = typeof(prescribed_conditions) <: AbstractDict ?
@@ -894,26 +894,26 @@ function time_domain_analysis!(system, assembly, tvec;
         for ielem = 1:nelem
             icol = icol_elem[ielem]
             # get beam element states
-            u = SVector(x[icol], x[icol+1], x[icol+2])
-            θ = SVector(x[icol+3], x[icol+4], x[icol+5])
-            P = SVector(x[icol+12], x[icol+13], x[icol+14]) .* mass_scaling
-            H = SVector(x[icol+15], x[icol+16], x[icol+17]) .* mass_scaling
+            u = SVector(x[icol], x[icol + 1], x[icol + 2])
+            θ = SVector(x[icol + 3], x[icol + 4], x[icol + 5])
+            P = SVector(x[icol + 12], x[icol + 13], x[icol + 14]) .* mass_scaling
+            H = SVector(x[icol + 15], x[icol + 16], x[icol + 17]) .* mass_scaling
             # extract rotation parameters
             C = get_C(θ)
             Cab = assembly.elements[ielem].Cab
-            CtCab = C'*Cab
+            CtCab = C' * Cab
             # store `udot_init` in `udot`
-            udot[ielem] = 2/dt*u + udot[ielem]
+            udot[ielem] = 2 / dt * u + udot[ielem]
             # store `θdot_init` in `θdot`
-            θdot[ielem] = 2/dt*θ + θdot[ielem]
+            θdot[ielem] = 2 / dt * θ + θdot[ielem]
             # store `CtCabPdot_init` in `Pdot`
-            Pdot[ielem] = 2/dt*CtCab*P + CtCab*Pdot[ielem]
+            Pdot[ielem] = 2 / dt * CtCab * P + CtCab * Pdot[ielem]
             # store `CtCabHdot_init` in `Hdot`
-            Hdot[ielem] = 2/dt*CtCab*H + CtCab*Hdot[ielem]
+            Hdot[ielem] = 2 / dt * CtCab * H + CtCab * Hdot[ielem]
         end
 
         # solve for the state variables at the next time step
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
+            f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
@@ -927,7 +927,7 @@ function time_domain_analysis!(system, assembly, tvec;
             x .= 0.0
             f!(F, x)
             j!(J, x)
-            x .-= safe_lu(J)\F
+            x .-= safe_lu(J) \ F
         else
             df = OnceDifferentiable(f!, j!, x, F, J)
 
@@ -946,29 +946,29 @@ function time_domain_analysis!(system, assembly, tvec;
         for ielem = 1:nelem
             icol = icol_elem[ielem]
             # get beam element states
-            u = SVector(x[icol], x[icol+1], x[icol+2])
-            θ = SVector(x[icol+3], x[icol+4], x[icol+5])
-            P = SVector(x[icol+12], x[icol+13], x[icol+14]) .* mass_scaling
-            H = SVector(x[icol+15], x[icol+16], x[icol+17]) .* mass_scaling
+            u = SVector(x[icol], x[icol + 1], x[icol + 2])
+            θ = SVector(x[icol + 3], x[icol + 4], x[icol + 5])
+            P = SVector(x[icol + 12], x[icol + 13], x[icol + 14]) .* mass_scaling
+            H = SVector(x[icol + 15], x[icol + 16], x[icol + 17]) .* mass_scaling
             # extract rotation parameters
             C = get_C(θ)
             Cab = assembly.elements[ielem].Cab
-            CtCab = C'*Cab
+            CtCab = C' * Cab
             # save state rates
-            udot[ielem] = 2/dt*u - udot[ielem]
-            θdot[ielem] = 2/dt*θ - θdot[ielem]
-            Pdot[ielem] = 2/dt*P - CtCab'*Pdot[ielem]
-            Hdot[ielem] = 2/dt*H - CtCab'*Hdot[ielem]
+            udot[ielem] = 2 / dt * u - udot[ielem]
+            θdot[ielem] = 2 / dt * θ - θdot[ielem]
+            Pdot[ielem] = 2 / dt * P - CtCab' * Pdot[ielem]
+            Hdot[ielem] = 2 / dt * H - CtCab' * Hdot[ielem]
         end
 
         # add state to history
         if it in save
-            history[isave] = AssemblyState(system, assembly, prescribed_conditions = prescribed_conditions)
+            history[isave] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
             isave += 1
         end
 
         # stop early if unconverged
-        if !result.f_converged
+        if !linear && !result.f_converged
             converged = false
             break
         end
