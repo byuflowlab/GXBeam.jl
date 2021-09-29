@@ -189,7 +189,7 @@ function steady_state_analysis(assembly;
     ftol=1e-9,
     iterations=1000,
     origin=(@SVector zeros(3)),
-linear_velocity=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     tvec=0.0,
     )
@@ -291,7 +291,7 @@ function steady_state_analysis!(system, assembly;
             # nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
 
-    result = NLsolve.nlsolve(df, x,
+            result = NLsolve.nlsolve(df, x,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
@@ -913,7 +913,7 @@ function time_domain_analysis!(system, assembly, tvec;
         end
 
         # solve for the state variables at the next time step
-            f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
