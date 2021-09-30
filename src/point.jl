@@ -122,14 +122,16 @@ Adds a points contributions to the residual vector
  - `ipoint`: index of point
  - `assembly`: assembly of interconnected beam elements
  - `prescribed_conditions`: dictionary of prescribed conditions
+ - `point_masses`: dictionary of point masses
+ - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the point's state variables
  - `irow_point`: Row index of the first equilibrium equation for the point
  - `irow_elem1`: Row index of first equation for the left side of each beam element
  - `irow_elem2`: Row index of first equation for the right side of each beam element
 """
-@inline function point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
-    force_scaling, icol, irow_point, irow_elem1, irow_elem2)
+@inline function point_residual!(resid, x, ipoint, assembly, prescribed_conditions, 
+    point_masses, gvec, force_scaling, icol, irow_point, irow_elem1, irow_elem2)
 
     nelem = length(assembly.elements)
 
@@ -320,14 +322,16 @@ Adds a points contributions to the residual vector
  - `ipoint`: index of point
  - `assembly`: assembly of interconnected beam elements
  - `prescribed_conditions`: dictionary of prescribed conditions
+ - `point_masses`: dictionary of point masses
+ - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the point's state variables
  - `irow_point`: Row index of the first equilibrium equation for the point
  - `irow_elem1`: Row index of first equation for the left side of each beam element
  - `irow_elem2`: Row index of first equation for the right side of each beam element
 """
-@inline function point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
-    force_scaling, icol, irow_point, irow_elem1, irow_elem2)
+@inline function point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, 
+    point_masses, gvec, force_scaling, icol, irow_point, irow_elem1, irow_elem2)
 
     nelem = length(assembly.elements)
 
