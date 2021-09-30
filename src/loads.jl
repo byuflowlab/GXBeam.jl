@@ -371,6 +371,22 @@ function DistributedLoads(assembly, ielem, t;
 end
 
 """
+    PointMass{T}
+
+Describes the inertial properties of a mass attached at a point.
+"""
+struct PointMass{T}
+    m::T
+    r::SVector{3,T}
+    I::SMatrix{3,3,T,9}
+end
+Base.eltype(::PointMass{T}) where T = T
+
+function PointMass{T}(p::PointMass) where T
+    PointMass{T}(p.m, p.r, p.I)
+end
+
+"""
     element_gravitational_loads(CtCab, elem, gvec)
 
 Calculate the distributed loads on the element due to gravity.
