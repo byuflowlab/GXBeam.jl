@@ -272,12 +272,12 @@ function steady_state_analysis!(system, assembly;
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
-        f! = (F, x) -> system_residual!(F, x, assembly, prescribed_conditions,
-            distributed_loads, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond,
+            dload, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
             irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, prescribed_conditions,
-            distributed_loads, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
+        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond,
+            dload, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
             irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         # solve the system of equations
