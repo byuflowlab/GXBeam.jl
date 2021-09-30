@@ -32,17 +32,35 @@ straight.
  - `stop`: Array containing point indices where each beam element stops
 
 # Keyword Arguments
- - `stiffness`: Array of (6 x 6) stiffness matrices for each beam element, alternative to providing `compliance`
- - `compliance`: Array of (6 x 6) compliance matrices for each beam element, defaults to `zeros(6,6)` for each beam element
- - `mass`: Array of (6 x 6) mass matrices for each beam element, alternative to providing `minv`
- - `minv`: Array of (6 x 6) mass matrices for each beam element, defaults to the identity matrix for each beam element
- - `frames`: Array of (3 x 3) tranformation matrices for each beam element, which
-        transform from the local undeformed beam frame to the global frame),
+ - `mu`: Mass per unit length used for gravitational loads (if applicable). Will be derived 
+        from the mass matrix or inverse mass matrix if not specified, or set to zero if 
+        `mass` or `minv` are not provided.
+ - `xm2`: Mass center location along axis 2 used for gravitational loads (if applicable). 
+        Will be derived from the mass matrix or inverse mass matrix if not specified, 
+        or set to zero if `mass` or `minv` are not provided.
+ - `xm3`: Mass center location along axis 3 used for gravitational loads (if applicable). 
+        Will be derived from the mass matrix or inverse mass matrix if not specified, 
+        or set to zero if `mass` or `minv` are not provided.
+ - `stiffness`: Array of (6 x 6) stiffness matrices for each beam element, 
+        acts as an alternative to providing `compliance`
+ - `compliance`: Array of (6 x 6) compliance matrices for each beam element, 
+        defaults to `zeros(6,6)` for each beam element
+ - `mass`: Array of (6 x 6) mass matrices for each beam element, 
+        acts as an alternative to providing `minv`
+ - `minv`: Array of (6 x 6) mass matrices for each beam element, 
         defaults to the identity matrix for each beam element
- - `lengths`: Array containing the length of each beam, defaults to the distance between beam endpoints
- - `midpoints`: Array containing the midpoint of each beam element, defaults to the average of the beam element endpoints
+ - `frames`: Array of (3 x 3) tranformation matrices for each beam element.
+        Transforms from the local undeformed beam frame to the global frame) and defaults
+        to the identity matrix for each beam element
+ - `lengths`: Array containing the length of each beam, defaults to the distance between 
+        beam endpoints
+ - `midpoints`: Array containing the midpoint of each beam element, defaults to the average 
+        of the beam element endpoints
 """
 function Assembly(points, start, stop;
+    mu = nothing, 
+    xm2 = nothing,
+    xm3 = nothing,
     stiffness = nothing,
     compliance = nothing,
     mass = nothing,
@@ -52,6 +70,41 @@ function Assembly(points, start, stop;
     midpoints = (points[stop] + points[start])/2)
 
     nelem = length(start)
+
+    if isnothing(mu)
+        if isnothing(mass) && isnothing(minv)
+            μ = zeros(nelem)
+        else
+            if isnothing(mass)
+                mass = inv.(minv)
+            end
+            μ = getindex.(mass, 1, 1)
+        end
+    end
+
+    if isnothing(xm2)
+        if isnothing(mass) && isnothing(minv)
+            xm2 = zeros(nelem)
+        else 
+            if isnothing(mass)
+                xm2 = -getindex.(minv,2,3)./getindex.(minv,2,4)
+            else
+                xm2 = -getindex.(mass,1,6)./getindex.(mass,1,1)
+            end 
+        end
+    end
+
+    if isnothing(xm3)
+        if isnothing(mass) && isnothing(minv)
+            xm3 = zeros(nelem)
+        else 
+            if isnothing(mass)
+                xm3 = getindex.(minv,2,3)./getindex.(minv,4,3)
+            else
+                xm3 = getindex.(mass,1,5)./getindex.(mass,1,1)
+            end 
+        end
+    end
 
     if isnothing(compliance)
         if isnothing(stiffness)
@@ -83,7 +136,7 @@ function Assembly(points, start, stop;
         frames = fill(I3, nelem)
     end
 
-    elements = Element.(lengths, midpoints, compliance, minv, frames)
+    elements = Element.(lengths, midpoints, μ, xm2, xm3, compliance, minv, frames)
 
     return Assembly(points, promote(start, stop)..., elements)
 end

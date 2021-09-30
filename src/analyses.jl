@@ -17,6 +17,8 @@ iteration procedure converged.
        applied and elements of type [`DistributedLoads`](@ref) which describe
        the distributed loads at those points.  If time varying, this input may
        be provided as a function of time.
+ - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
+        function of time.
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
@@ -32,6 +34,7 @@ iteration procedure converged.
 function static_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -49,6 +52,7 @@ function static_analysis(assembly;
     return static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        gravity=gravity,
         linear=linear,
         method=method,
         linesearch=linesearch,
@@ -66,6 +70,7 @@ Pre-allocated version of `static_analysis`.
 function static_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -102,16 +107,15 @@ function static_analysis!(system, assembly;
         system.t = t
 
         # current parameters
-        pcond = typeof(prescribed_conditions) <: AbstractDict ?
-            prescribed_conditions : prescribed_conditions(t)
-        dload = typeof(distributed_loads) <: AbstractDict ?
-            distributed_loads : distributed_loads(t)
+        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+        dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+        gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
 
         # solve the system of equations
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         if linear
@@ -162,6 +166,8 @@ iteration procedure converged.
         applied and elements of type [`DistributedLoads`](@ref) which describe
         the distributed loads at those points.  If time varying, this input may
         be provided as a function of time.
+ - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
+        function of time.            
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
@@ -183,6 +189,7 @@ iteration procedure converged.
 function steady_state_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -203,6 +210,7 @@ function steady_state_analysis(assembly;
     return steady_state_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        gravity=gravity,
         linear=linear,
         method=method,
         linesearch=linesearch,
@@ -224,6 +232,7 @@ Pre-allocated version of `steady_state_analysis`.
 function steady_state_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -264,21 +273,20 @@ function steady_state_analysis!(system, assembly;
         system.t = t
 
         # current parameters
-        pcond = typeof(prescribed_conditions) <: AbstractDict ?
-            prescribed_conditions : prescribed_conditions(t)
-        dload = typeof(distributed_loads) <: AbstractDict ?
-            distributed_loads : distributed_loads(t)
+        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+        dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+        gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
         x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
-        f! = (F, x) -> system_residual!(F, x, assembly, prescribed_conditions,
-            distributed_loads, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling, 
+            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
+            icol_elem, x0, v0, ω0)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, prescribed_conditions,
-            distributed_loads, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling, 
+            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
+            icol_elem, x0, v0, ω0)
 
         # solve the system of equations
         if linear
@@ -330,6 +338,8 @@ converged.
         applied and elements of type [`DistributedLoads`](@ref) which describe
         the distributed loads at those points.  If time varying, this input may
         be provided as a function of time.
+ - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
+        function of time.            
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
@@ -355,6 +365,7 @@ converged.
 function eigenvalue_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     method=:newton,
     linear=false,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -377,6 +388,7 @@ function eigenvalue_analysis(assembly;
     return eigenvalue_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        gravity=gravity,
         linear=linear,
         method=method,
         linesearch=linesearch,
@@ -401,6 +413,7 @@ Pre-allocated version of `eigenvalue_analysis`.  Uses the state variables stored
 function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -424,6 +437,7 @@ function eigenvalue_analysis!(system, assembly;
         system, converged = steady_state_analysis!(system, assembly;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
+            gravity=gravity,
             linear=linear,
             method=method,
             linesearch=linesearch,
@@ -460,16 +474,15 @@ function eigenvalue_analysis!(system, assembly;
     t = system.t
 
     # current parameters
-    pcond = typeof(prescribed_conditions) <: AbstractDict ?
-        prescribed_conditions : prescribed_conditions(t)
-    dload = typeof(distributed_loads) <: AbstractDict ?
-        distributed_loads : distributed_loads(t)
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
     x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
     v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
     ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
     # solve for the system stiffness matrix
-    K = system_jacobian!(K, x, assembly, pcond, dload, force_scaling, mass_scaling,
+    K = system_jacobian!(K, x, assembly, pcond, dload, gvec, force_scaling, mass_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
     # solve for the system mass matrix
@@ -515,6 +528,8 @@ final system with the new initial conditions.
         [`DistributedLoads`](@ref) which describe the distributed loads at those
         points.  If time varying, this input may be provided as a function of
         time.
+ - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
+        function of time.
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
@@ -539,6 +554,7 @@ final system with the new initial conditions.
 function initial_condition_analysis(assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -562,6 +578,7 @@ function initial_condition_analysis(assembly, t0;
     return initial_condition_analysis!(system, assembly, t0;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        gravity=gravity,
         linear=linear,
         method=method,
         linesearch=linesearch,
@@ -586,6 +603,7 @@ Pre-allocated version of `initial_condition_analysis`.
 function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -631,20 +649,19 @@ function initial_condition_analysis!(system, assembly, t0;
     system.t = t0
 
     # set current parameters
-    pcond = typeof(prescribed_conditions) <: AbstractDict ?
-        prescribed_conditions : prescribed_conditions(t0)
-    dload = typeof(distributed_loads) <: AbstractDict ?
-        distributed_loads : distributed_loads(t0)
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t0)
+    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t0)
+    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
     x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t0))
     v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t0))
     ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t0))
 
     # construct residual and jacobian functions
-    f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
+    f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
         mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
-    j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+    j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
         mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
@@ -712,6 +729,8 @@ converged for each time step.
         [`DistributedLoads`](@ref) which describe the distributed loads at those
         points.  If time varying, this input may be provided as a function of
         time.
+ - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
+        function of time.
  - `linear = false`: Set to `true` for a linear analysis
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
@@ -740,6 +759,7 @@ converged for each time step.
 function time_domain_analysis(assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -765,6 +785,7 @@ function time_domain_analysis(assembly, tvec;
     return time_domain_analysis!(system, assembly, tvec;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        gravity=gravity,
         linear=linear,
         method=method,
         linesearch=linesearch,
@@ -791,6 +812,7 @@ Pre-allocated version of `time_domain_analysis`.
 function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    gravity=SVector(0,0,0),
     linear=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
@@ -820,6 +842,7 @@ function time_domain_analysis!(system, assembly, tvec;
         system, converged = initial_condition_analysis!(system, assembly, tvec[1];
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
+            gravity=gravity,
             linear=linear,
             method=method,
             linesearch=linesearch,
@@ -882,10 +905,9 @@ function time_domain_analysis!(system, assembly, tvec;
         dt = tvec[it] - tvec[it - 1]
 
         # current parameters
-        pcond = typeof(prescribed_conditions) <: AbstractDict ?
-            prescribed_conditions : prescribed_conditions(tvec[it])
-        dload = typeof(distributed_loads) <: AbstractDict ?
-            distributed_loads : distributed_loads(tvec[it])
+        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[it])
+        dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(tvec[it])
+        gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
         x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(tvec[it]))
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(tvec[it]))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(tvec[it]))
@@ -913,11 +935,11 @@ function time_domain_analysis!(system, assembly, tvec;
         end
 
         # solve for the state variables at the next time step
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, force_scaling,
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 

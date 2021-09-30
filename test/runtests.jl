@@ -1096,6 +1096,9 @@ end
     # distributed loads
     dload = Dict()
 
+    # gravity vector
+    gvec = rand(3)
+
     # --- Static System --- #
     static_system = System(assembly, true)
 
@@ -1111,11 +1114,11 @@ end
     x = rand(length(static_system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload, gvec,
         force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem)
 
-    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
         mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
@@ -1138,11 +1141,11 @@ end
     x = rand(length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload, gvec,
         force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0)
 
-    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
         mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
         icol_elem, x0, v0, ω0)
 
@@ -1158,11 +1161,11 @@ end
     x = rand(length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload, gvec,
         force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
-    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
         mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
         icol_elem, x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
@@ -1179,11 +1182,11 @@ end
     x = rand(length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload,
+    f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload, gvec,
         force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
-    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, force_scaling,
+    GXBeam.system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
         mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
         icol_elem, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
 
@@ -1196,17 +1199,16 @@ end
     J = similar(x, length(x), length(x))
     M = similar(x, length(x), length(x))
 
-    fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), x, dx, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+    fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), x, dx, assembly, pcond, dload, 
+        gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0)
 
-    fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), x, dx, assembly, pcond, dload,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+    fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), x, dx, assembly, pcond, dload, 
+        gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0)
 
-    GXBeam.dynamic_system_jacobian!(J, x, dx, assembly,
-        pcond, dload, force_scaling, mass_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    GXBeam.dynamic_system_jacobian!(J, x, dx, assembly, pcond, dload, gvec, force_scaling, 
+        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
 
     GXBeam.system_mass_matrix!(M, x, assembly, force_scaling, mass_scaling, irow_point,

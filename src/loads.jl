@@ -371,6 +371,32 @@ function DistributedLoads(assembly, ielem, t;
 end
 
 """
+    element_gravitational_loads(CtCab, elem, gvec)
+
+Calculate the distributed loads on the element due to gravity.
+"""
+@inline function element_gravitational_loads(ΔL, CtCab, elem, gvec)
+    # calculate force and moment per unit length
+    f = elem.mu*gvec
+    m = cross(CtCab*SVector(0, elem.xm2, elem.xm3), f)
+    # calculate integrated force and moment per unit length
+    f1 = f2 = ΔL*f/2
+    m1 = m2 = ΔL*m/2
+    # return result
+    return f1, f2, m1, m2
+end
+
+@inline function element_gravitational_loads_jacobian(ΔL, Ct_θ1, Ct_θ2, Ct_θ3, Cab, elem, gvec)
+    # d_m/d_θ
+    tmp1_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab * SVector(0, elem.xm2, elem.xm3))
+    m_θ = -elem.mu*tilde(gvec)*tmp1_θ
+    # d_m1/d_θ, d_m2/d_θ
+    m1_θ = m2_θ = ΔL*m_θ/2
+    # return result
+    return m1_θ, m2_θ
+end
+
+"""
     combine_loads(l1, l2)
 
 Combine the distributed loads in `l1` and `l2`
