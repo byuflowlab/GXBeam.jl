@@ -11,7 +11,7 @@ using WriteVTK
 using DiffEqBase
 
 export curve_length, discretize_beam
-export System, Assembly, PrescribedConditions, DistributedLoads
+export System, Assembly, PrescribedConditions, DistributedLoads, PointMass
 export combine_loads
 export system_state, reset_state!, set_state!
 export set_element_deflections!, set_element_rotations!
