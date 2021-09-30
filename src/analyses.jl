@@ -280,7 +280,6 @@ function steady_state_analysis!(system, assembly;
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
-<<<<<<< HEAD
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling, 
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0)
@@ -288,15 +287,6 @@ function steady_state_analysis!(system, assembly;
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling, 
             mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0)
-=======
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond,
-            dload, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
-
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond,
-            dload, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
->>>>>>> 810399fe66842529c34067edb6317a6f39a1fd93
 
         # solve the system of equations
         if linear
