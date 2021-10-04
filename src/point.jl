@@ -136,8 +136,8 @@ Adds a points contributions to the residual vector
     nelem = length(assembly.elements)
 
     # incorporate prescribed condition if applicable
-    prescribed = haskey(prescribed_conditions, ipoint)
-    if prescribed
+    has_prescribed = haskey(prescribed_conditions, ipoint)
+    if has_prescribed
         u, θ, F, M = point_variables(x, icol, prescribed_conditions[ipoint], force_scaling)
     else
         u, θ, F, M = point_variables(x, icol)
