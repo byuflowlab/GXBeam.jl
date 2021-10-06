@@ -18,6 +18,9 @@ iteration procedure converged.
        the distributed loads at those points.  If time varying, this input may
        be provided as a function of time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the instantaneous state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -33,6 +36,8 @@ function static_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -50,6 +55,8 @@ function static_analysis(assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -67,6 +74,8 @@ function static_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -116,7 +125,13 @@ function static_analysis!(system, assembly;
 
         if linear
             # linear analysis
-            x .= 0.0
+            if !update_linearization_state
+                if isnothing(linearization_state)
+                    x .= 0
+                else
+                    x .= linearization_state
+                end
+            end
             f!(F, x)
             j!(J, x)
             x .-= safe_lu(J) \ F
@@ -163,6 +178,9 @@ iteration procedure converged.
         the distributed loads at those points.  If time varying, this input may
         be provided as a function of time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -184,6 +202,8 @@ function steady_state_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -204,6 +224,8 @@ function steady_state_analysis(assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -225,6 +247,8 @@ function steady_state_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -283,7 +307,13 @@ function steady_state_analysis!(system, assembly;
         # solve the system of equations
         if linear
             # linear analysis
-            x .= 0.0
+            if !update_linearization_state
+                if isnothing(linearization_state)
+                    x .= 0
+                else
+                    x .= linearization_state
+                end
+            end
             f!(F, x)
             j!(J, x)
             x .-= safe_lu(J) \ F
@@ -331,6 +361,9 @@ converged.
         the distributed loads at those points.  If time varying, this input may
         be provided as a function of time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -357,6 +390,8 @@ function eigenvalue_analysis(assembly;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     method=:newton,
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
     iterations=1000,
@@ -378,6 +413,8 @@ function eigenvalue_analysis(assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -402,6 +439,8 @@ function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -425,6 +464,8 @@ function eigenvalue_analysis!(system, assembly;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             linear=linear,
+            linearization_state=linearization_state,
+            update_linearization_state=update_linearization_state,
             method=method,
             linesearch=linesearch,
             ftol=ftol,
@@ -435,6 +476,14 @@ function eigenvalue_analysis!(system, assembly;
             tvec=tvec,
             )
     else
+        # set linearization state variables
+        if linear && !update_linearization_state
+            if isnothing(linearization_state)
+                system.x .= 0
+            else
+                system.x .= linearization_state
+            end
+        end
         # converged by default
         converged = true
     end
@@ -516,6 +565,7 @@ final system with the new initial conditions.
         points.  If time varying, this input may be provided as a function of
         time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -540,6 +590,7 @@ function initial_condition_analysis(assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -563,6 +614,7 @@ function initial_condition_analysis(assembly, t0;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         linear=linear,
+        linearization_state=linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -587,6 +639,7 @@ function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -651,7 +704,11 @@ function initial_condition_analysis!(system, assembly, t0;
     # solve system of equations
     if linear
         # linear analysis
-        x .= 0.0
+        if isnothing(linearization_state)
+            x .= 0
+        else
+            x .= linearization_state
+        end
         f!(F, x)
         j!(J, x)
         x .-= safe_lu(J) \ F
@@ -713,6 +770,9 @@ converged for each time step.
         points.  If time varying, this input may be provided as a function of
         time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -741,6 +801,8 @@ function time_domain_analysis(assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -766,6 +828,8 @@ function time_domain_analysis(assembly, tvec;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -783,7 +847,7 @@ function time_domain_analysis(assembly, tvec;
         )
 end
 
-    """
+"""
     time_domain_analysis!(system, assembly, tvec; kwargs...)
 
 Pre-allocated version of `time_domain_analysis`.
@@ -792,6 +856,8 @@ function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -821,6 +887,7 @@ function time_domain_analysis!(system, assembly, tvec;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             linear=linear,
+            linearization_state=linearization_state,
             method=method,
             linesearch=linesearch,
             ftol=ftol,
@@ -924,7 +991,13 @@ function time_domain_analysis!(system, assembly, tvec;
         # solve system of equations
         if linear
             # linear analysis
-            x .= 0.0
+            if !update_linearization_state
+                if isnothing(linearization_state)
+                    x .= 0
+                else
+                    x .= linearization_state
+                end
+            end
             f!(F, x)
             j!(J, x)
             x .-= safe_lu(J) \ F
