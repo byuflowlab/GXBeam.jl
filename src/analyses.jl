@@ -134,7 +134,7 @@ function static_analysis!(system, assembly;
             end
             f!(F, x)
             j!(J, x)
-            x .= -safe_lu(J) \ F
+            x .-= safe_lu(J) \ F
         else
             # nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
@@ -316,7 +316,7 @@ function steady_state_analysis!(system, assembly;
             end
             f!(F, x)
             j!(J, x)
-            x .= -safe_lu(J) \ F
+            x .-= safe_lu(J) \ F
         else
             # nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
@@ -711,7 +711,7 @@ function initial_condition_analysis!(system, assembly, t0;
         end
         f!(F, x)
         j!(J, x)
-        x .= -safe_lu(J) \ F
+        x .-= safe_lu(J) \ F
     else
         # nonlinear analysis
         df = OnceDifferentiable(f!, j!, x, F, J)
@@ -1000,7 +1000,7 @@ function time_domain_analysis!(system, assembly, tvec;
             end
             f!(F, x)
             j!(J, x)
-            x .= -safe_lu(J) \ F
+            x .-= safe_lu(J) \ F
         else
             df = OnceDifferentiable(f!, j!, x, F, J)
 
