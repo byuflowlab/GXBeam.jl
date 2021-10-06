@@ -143,6 +143,12 @@ Adds a points contributions to the residual vector
         u, θ, F, M = point_variables(x, icol)
     end
 
+    # # calculate point velocities and accelerations in the global frame
+    # CtCabV, CtCabΩ, CtCabVdot, CtCabΩdot = point_properties()
+
+    # # calculate additional loads due to the presence of point masses
+    # Fpt, Mpt = point_mass_loads()
+
     # search for beam elements that are connected to the specified point
     for ielem = 1:nelem
         # check left side of beam element
