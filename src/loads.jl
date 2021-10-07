@@ -389,12 +389,15 @@ end
 """
     element_gravitational_loads(CtCab, elem, gvec)
 
-Calculate the distributed loads on the element due to gravity.
+Calculate the integrated distributed loads on an element due to gravity.
 """
-@inline function element_gravitational_loads(ΔL, CtCab, elem, gvec)
-    # calculate force and moment per unit length
-    f = elem.mu*gvec
-    m = cross(CtCab*SVector(0, elem.xm2, elem.xm3), f)
+@inline function element_gravitational_loads(ΔL, CtCab, mass, gvec)
+    # extract mass matrix submatrices
+    M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
+    M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
+    # calculate force and moment per unit length due to graviational forces
+    f = CtCab*M11*CtCab'*gvec
+    m = -CtCab*M12*CtCab'*gvec
     # calculate integrated force and moment per unit length
     f1 = f2 = ΔL*f/2
     m1 = m2 = ΔL*m/2
@@ -402,14 +405,19 @@ Calculate the distributed loads on the element due to gravity.
     return f1, f2, m1, m2
 end
 
-@inline function element_gravitational_loads_jacobian(ΔL, Ct_θ1, Ct_θ2, Ct_θ3, Cab, elem, gvec)
-    # d_m/d_θ
-    tmp1_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab * SVector(0, elem.xm2, elem.xm3))
-    m_θ = -elem.mu*tilde(gvec)*tmp1_θ
-    # d_m1/d_θ, d_m2/d_θ
+@inline function element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, elem, gvec)   
+    C_θ1, C_θ2, C_θ3 = Ct_θ1', Ct_θ2', Ct_θ3'
+    # extract mass matrix submatrices
+    M11 = elem.mass[SVector{3}(1:3), SVector{3}(1:3)]
+    M12 = elem.mass[SVector{3}(1:3), SVector{3}(4:6)]
+    # calculate force and moment per unit length due to gravitational forces
+    f_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M11*CtCab'*gvec) + CtCab*M11*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M12*CtCab'*gvec) + CtCab*M12*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    # calculate integrated force and moment per unit length
+    f1_θ = f2_θ = ΔL*f_θ/2
     m1_θ = m2_θ = ΔL*m_θ/2
     # return result
-    return m1_θ, m2_θ
+    return f1_θ, f2_θ, m1_θ, m2_θ
 end
 
 """

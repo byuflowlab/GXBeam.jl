@@ -123,8 +123,8 @@ GXBeam.point_jacobian!
 GXBeam.Element
 GXBeam.element_strain
 GXBeam.element_curvature
-GXBeam.element_linear_velocity
-GXBeam.element_angular_velocity
+GXBeam.element_linear_momentum
+GXBeam.element_angular_momentum
 GXBeam.element_properties
 GXBeam.element_dynamic_properties
 GXBeam.element_equations

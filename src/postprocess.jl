@@ -27,16 +27,16 @@ Holds the state variables for an element
        (in the global coordinate frame)
  - `F`: Resultant forces for the element (in the deformed local coordinate frame)
  - `M`: Resultant moments for the element (in the deformed local coordinate frame)
- - `P`: Linear momenta of the element (in the deformed local coordinate frame)
- - `H`: Angular momenta of the element (in the deformed local coordinate frame)
+ - `V`: Linear velocity of the element (in the deformed local coordinate frame)
+ - `Omega`: Angular velocity of the element (in the deformed local coordinate frame)
 """
 struct ElementState{TF}
     u::SVector{3, TF}
     theta::SVector{3, TF}
     F::SVector{3, TF}
     M::SVector{3, TF}
-    P::SVector{3, TF}
-    H::SVector{3, TF}
+    V::SVector{3, TF}
+    Omega::SVector{3, TF}
 end
 
 """
@@ -192,7 +192,6 @@ given the solution vector `x`.
 function extract_element_state(system, ielem, x = system.x)
 
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
 
     icol = system.icol_elem[ielem]
     static = system.irow_elem[ielem] <= 0
@@ -200,17 +199,17 @@ function extract_element_state(system, ielem, x = system.x)
     theta = SVector(x[icol+3], x[icol+4], x[icol+5])
     F = SVector(x[icol+6], x[icol+7], x[icol+8]) .* force_scaling
     M = SVector(x[icol+9], x[icol+10], x[icol+11]) .* force_scaling
-    P = ifelse(static, zero(u), SVector(x[icol+12], x[icol+13], x[icol+14]) .* mass_scaling)
-    H = ifelse(static, zero(u), SVector(x[icol+15], x[icol+16], x[icol+17]) .* mass_scaling)
+    V = ifelse(static, zero(u), SVector(x[icol+12], x[icol+13], x[icol+14]))
+    Ω = ifelse(static, zero(u), SVector(x[icol+15], x[icol+16], x[icol+17]))
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(theta)
     theta *= scaling
 
     # promote all variables to the same type
-    u, theta, F, M, P, H = promote(u, theta, F, M, P, H)
+    u, theta, F, M, V, Ω = promote(u, theta, F, M, V, Ω)
 
-    return ElementState(u, theta, F, M, P, H)
+    return ElementState(u, theta, F, M, V, Ω)
 end
 
 """

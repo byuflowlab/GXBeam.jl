@@ -98,7 +98,7 @@ nothing #hide
 
 Next we need to define the stiffness (or compliance) and mass (or inverse mass) matrices for each beam element.
 
-The compliance matrix is defined using the following equation
+The compliance matrix is defined by the following equation
 ```math
 \begin{bmatrix}
 \gamma_{11} \\
@@ -136,8 +136,17 @@ with the variables defined as follows:
  - ``F_i``: resultant force about axis i
  - ``M_i``: resultant moment about axis i
 
-The elements of the mass matrix are defined as:
+The mass matrix is defined using the following equation
 ```math
+\begin{bmatrix}
+   P_{1} \\
+   P_{2} \\
+   P_{3} \\
+   H_{1} \\
+   H_{2} \\
+   H_{3}
+\end{bmatrix}
+=
 \begin{bmatrix}
    \mu & 0 & 0 & 0 & \mu x_{m3} & -\mu x_{m2} \\
    0 & \mu & 0 & -\mu x_{m3} & 0 & 0 \\
@@ -146,10 +155,22 @@ The elements of the mass matrix are defined as:
    \mu x_{m3}  & 0 & 0 & 0 & i_{22} & -i_{23} \\
    -\mu x_{m2} & 0 & 0 & 0 & -i_{23} & i_{33}
 \end{bmatrix}
+\begin{bmatrix}
+   V_{1} \\
+   V_{2} \\
+   V_{3} \\
+   \Omega_{1} \\
+   \Omega_{2} \\
+   \Omega_{3}
+\end{bmatrix}
 ```
 with the variables defined as follows:
+ - ``P``: linear momentum per unit length
+ - ``H``: angular momentum per unit length
+ - ``V``: linear velocity
+ - ``\Omega``: angular velocity
  - ``\mu``: mass per unit length
- - ``(x_{m2}, x_{m3})``: location of mass center
+ - ``(x_{m2}, x_{m3})``: mass center location
  - ``i_{22}``: mass moment of inertia about axis 2
  - ``i_{33}``: mass moment of inertia about axis 3
  - ``i_{23}``: product of inertia
@@ -200,7 +221,7 @@ mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
 nothing #hide
 ```
 
-Our case is simple enough that we can analytically calculate most values for the compliance and mass matrices, but this is not generally the case.  For more complex geometries/structures it may be necessary to use a cross-sectional property solver such as PreComp or VABS.
+Our case is simple enough that we can analytically calculate most values for the compliance and mass matrices, but this is not generally the case.  For more complex geometries/structures it may be necessary to use a cross-sectional property solver such as [VABS](https://www.altair.com/vabs/#:~:text=VABS%20by%20AnalySwift%2C%20is%20a%20general-purpose%20cross-sectional%20analysis,3D%20stresses%20and%20strains%20of%20slender%20composite%20structures.), [BECAS](https://becas.dtu.dk/), [NuMAD/BPE](https://energy.sandia.gov/programs/renewable-energy/wind-power/rotor-innovation/numerical-manufacturing-and-design-tool-numad/), or [PreComp](https://www.nrel.gov/wind/nwtc/precomp.html).
 
 Also note that any row/column of the stiffness and/or compliance matrix which is zero will be interpreted as infinitely stiff in that degree of freedom.  This corresponds to a row/column of zeros in the compliance matrix.
 
@@ -378,18 +399,18 @@ nothing #hide
 We can access the fields in each instance of `AssemblyState` in order to plot various quantities of interest.  This object stores an array of objects of type `PointState` in the field `points` and an array of objects of type `ElementState` in the field `elements`.  
 
 The fields of `PointState` are the following:
- - `u`: displacement
- - `theta`: angular displacement
- - `F`: externally applied forces
- - `M`: externally applied moments
+ - `u`: point linear displacement (in the global frame)
+ - `theta`: point angular displacement (in the global frame)
+ - `F`: externally applied forces on the point (in the global frame)
+ - `M`: externally applied moments on the point (in the global frame)
 
 The fields of `ElementState` are the following:
- - `u`: displacement
- - `theta`: angular displacement
- - `F`: resultant forces
- - `M`: resultant moments
- - `P`: linear momenta
- - `H`: angular momenta
+ - `u`: element displacement (in the global frame )
+ - `theta`: angular displacement (in the global frame)
+ - `F`: resultant forces (in the deformed element coordinate frame)
+ - `M`: resultant moments (in the deformed element coordinate frame)
+ - `V`: linear velocity (in the deformed element coordinate frame)
+ - `Omega`: angular velocity (in the deformed element coordinate frame)
 
 To demonstrate how these fields can be accessed we will now plot the root moment and tip deflections.
 

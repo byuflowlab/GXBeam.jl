@@ -12,17 +12,18 @@ needed for time domain simulations.
  - `K`: System jacobian matrix with respect to the state variables
  - `M`: System jacobian matrix with respect to the time derivative of the state variables
  - `force_scaling`: Scaling for state variables corresponding to forces/moments
- - `mass_scaling`: Scaling for state variables corresponding to masses/inertias
  - `irow_point`: Row index of first equilibrium equation for each point
  - `irow_elem`: Row index of first equation for just this beam element
  - `irow_elem1`: Row index of first equation for the left side of each beam
  - `irow_elem2`: Row index of first equation for the right side of each beam
  - `icol_point`: Row/Column index of first state variable for each point
  - `icol_elem`: Row/Column index of first state variable for each beam element
- - `udot`: `2/dt*u + udot` for each beam element from the previous time step
- - `θdot`: `2/dt*θ + θdot` for each beam element from the previous time step
- - `Pdot`: `2/dt*C'*Cab*P + C'*Cab*Pdot` for each beam element from the previous time step
- - `Hdot`: `2/dt*C'*Cab*H + C'*Cab*Hdot` for each beam element from the previous time step
+ - `udot`: Time derivative of state variable `u` for each beam element
+ - `θdot`: Time derivative of state variable `θ` for each beam element
+ - `Vdot`: Time derivative of state variable `V` for each beam element
+ - `Ωdot`: Time derivative of state variable `Ω` for each beam element
+ - `CtCabPdot`: Time derivative of `CtCab*P` for each beam element
+ - `CtCabHdot`: Time derivative of `CtCab*H` for each beam element
  - `t`: Current system time
 """
 mutable struct System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
@@ -32,7 +33,6 @@ mutable struct System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
     K::TM
     M::TM
     force_scaling::TF
-    mass_scaling::TF
     irow_point::Vector{Int}
     irow_elem::Vector{Int}
     irow_elem1::Vector{Int}
@@ -41,8 +41,10 @@ mutable struct System{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
     icol_elem::Vector{Int}
     udot::Vector{SVector{3,TF}}
     θdot::Vector{SVector{3,TF}}
-    Pdot::Vector{SVector{3,TF}}
-    Hdot::Vector{SVector{3,TF}}
+    Vdot::Vector{SVector{3,TF}}
+    Ωdot::Vector{SVector{3,TF}}
+    CtCabPdot::Vector{SVector{3,TF}}
+    CtCabHdot::Vector{SVector{3,TF}}
     t::TF
 end
 Base.eltype(::System{TF, TV, TM}) where {TF, TV, TM} = TF
@@ -64,9 +66,6 @@ Initialize an object of type `System` which stores the system state.
  - `force_scaling`: Factor used to scale system forces/moments internally.  If
     not specified, a suitable default will be chosen based on the entries of the
     compliance matrix.
- - `mass_scaling`: Factor used to scale system mass/inertia internally.  If not
-    specified, a suitable default will be chosen based on the entries of the
-    mass matrix.
 
 Note that points with prescribed conditions must be included in the system of
 equations.
@@ -78,8 +77,7 @@ end
 
 function System(TF, assembly, static;
     prescribed_points = 1:length(assembly.points),
-    force_scaling = default_force_scaling(assembly),
-    mass_scaling = default_mass_scaling(assembly)
+    force_scaling = default_force_scaling(assembly)
     )
 
     # system dimensions
@@ -99,8 +97,10 @@ function System(TF, assembly, static;
     # initialize storage for time domain simulations
     udot = [@SVector zeros(TF, 3) for i = 1:nelem]
     θdot = [@SVector zeros(TF, 3) for i = 1:nelem]
-    Pdot = [@SVector zeros(TF, 3) for i = 1:nelem]
-    Hdot = [@SVector zeros(TF, 3) for i = 1:nelem]
+    Vdot = [@SVector zeros(TF, 3) for i = 1:nelem]
+    Ωdot = [@SVector zeros(TF, 3) for i = 1:nelem]
+    CtCabPdot = [@SVector zeros(TF, 3) for i = 1:nelem]
+    CtCabHdot = [@SVector zeros(TF, 3) for i = 1:nelem]
 
     # initialize current time
     t = 0.0
@@ -109,9 +109,9 @@ function System(TF, assembly, static;
     TV = promote_type(typeof(x), typeof(r))
     TM = promote_type(typeof(K), typeof(M))
 
-    return System{TF, TV, TM}(static, x, r, K, M, force_scaling, mass_scaling,
+    return System{TF, TV, TM}(static, x, r, K, M, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, udot, θdot,
-        Pdot, Hdot, t)
+        Vdot, Ωdot, CtCabPdot, CtCabHdot, t)
 end
 
 function default_force_scaling(assembly)
@@ -119,7 +119,7 @@ function default_force_scaling(assembly)
     TF = eltype(assembly)
 
     # create vector of all compliance entries
-    compliance_entries = vcat([vcat(elem.C11..., elem.C12..., elem.C22...) for elem in assembly.elements]...)
+    compliance_entries = vcat([elem.compliance for elem in assembly.elements]...)
 
     # get all nonzero entries
     compliance_nonzero_indices = findall(xi -> abs(xi) > eps(TF), compliance_entries)
@@ -133,27 +133,6 @@ function default_force_scaling(assembly)
     end
 
     return force_scaling
-end
-
-function default_mass_scaling(assembly)
-
-    TF = eltype(assembly)
-
-    # create vector of all inverse mass matrix entries
-    minv_entries = vcat([vcat(elem.minv11..., elem.minv12..., elem.minv22...) for elem in assembly.elements]...)
-
-    # get all nonzero entries
-    minv_nonzero_indices = findall(xi -> abs(xi) > eps(TF), minv_entries)
-
-    # set mass scaling based on nonzero inverse mass matrix entries
-    if isempty(minv_nonzero_indices)
-        mass_scaling = 1.0
-    else
-        nonzero_minv_entries = minv_entries[minv_nonzero_indices]
-        mass_scaling = nextpow(2.0, length(nonzero_minv_entries)/sum(nonzero_minv_entries))
-    end
-
-    return mass_scaling
 end
 
 """
@@ -358,7 +337,7 @@ function set_state!(x, system, prescribed_conditions; kwargs...)
     return set_state!(x, system.icol_elem, system.icol_point; kwargs...)
 end
 
-function set_state!(x, icol_elem, icol_point, force_scaling, mass_scaling,
+function set_state!(x, icol_elem, icol_point, force_scaling,
     prescribed_conditions; u_e = nothing, theta_e = nothing,
     F_e = nothing, M_e = nothing, P_e = nothing, H_e = nothing,
     u_p = nothing, theta_p = nothing, F_p = nothing, M_p = nothing)
@@ -381,10 +360,10 @@ function set_state!(x, icol_elem, icol_point, force_scaling, mass_scaling,
             set_element_moments!(x, icol, M_e, force_scaling)
         end
         if !isnothing(P_e)
-            set_element_linear_momenta!(x, icol, P_e, mass_scaling)
+            set_element_linear_momenta!(x, icol, P_e)
         end
         if !isnothing(H_e)
-            set_element_angular_momenta!(x, icol, H_e, mass_scaling)
+            set_element_angular_momenta!(x, icol, H_e)
         end
     end
 
@@ -511,13 +490,12 @@ end
 function set_element_linear_momenta!(x, system::System, P_e, ielem)
     @assert !system.static
     icol = system.icol_elem[ielem]
-    mass_scaling = system.mass_scaling
-    set_element_linear_momenta!(x, icol, P_e, mass_scaling)
+    set_element_linear_momenta!(x, icol, P_e)
     return x
 end
 
-function set_element_linear_momenta!(x, icol, P_e, mass_scaling)
-    x[icol+12:icol+14] .= P_e ./ mass_scaling
+function set_element_linear_momenta!(x, icol, P_e)
+    x[icol+12:icol+14] .= P_e
     return x
 end
 
@@ -535,13 +513,12 @@ end
 function set_element_angular_momenta!(x, system::System, H_e, ielem)
     @assert !system.static
     icol = system.icol_elem[ielem]
-    mass_scaling = system.mass_scaling
-    set_element_angular_momenta!(x, icol, H_e, mass_scaling)
+    set_element_angular_momenta!(x, icol, H_e)
     return x
 end
 
-function set_element_angular_momenta!(x, icol, H_e, mass_scaling)
-    x[icol+15:icol+17] .= H_e ./ mass_scaling
+function set_element_angular_momenta!(x, icol, H_e)
+    x[icol+15:icol+17] .= H_e
     return x
 end
 
@@ -863,17 +840,17 @@ end
 
 """
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, 
-        point_masses, gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, 
-        irow_elem2, icol_point, icol_elem)
+        point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, 
-        point_masses, gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, 
-        irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+        point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, 
-        point_masses, gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, 
-        irow_elem2, icol_point, icol_elem, x0, v0, ω0, u, θ, udot, θdot)
+        point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, u, θ, udot, θdot)
     system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, 
-        point_masses, gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, 
-        irow_elem2, icol_point, icol_elem, x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init,
+        point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        icol_point, icol_elem, x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init,
         CtCabHdot_init, dt)
 
 Populate the residual vector `resid` with the results of the residual equations
@@ -898,7 +875,6 @@ There are four implementations corresponding to the following analysis types:
  - `point_masses`: Dictionary of point masses 
  - `gvec`: Gravity vector
  - `force_scaling`: Scaling parameter for forces/moments
- - `mass_scaling`: Scaling parameter for masses/inertias
  - `irow_point`: Row index of first equilibrium equation for each point
  - `irow_elem`: Row index of first equation for just this beam element
  - `irow_elem1`: Row index of first equation for the left side of each beam
@@ -920,54 +896,54 @@ There are four implementations corresponding to the following analysis types:
 # Additional Arguments for Time Marching Analyses
  - `udot_init`: `-2/dt*u - udot` for each beam element from the previous time step
  - `θdot_init`: `-2/dt*θ - θdot` for each beam element from the previous time step
- - `CtCabPdot_init`: `-2/dt*C'*Cab*P - C'*Cab*Pdot` for each beam element from the previous time step
- - `CtCabHdot_init`: `-2/dt*C'*Cab*H - C'*Cab*Hdot` for each beam element from the previous time step
+ - `CtCabPdot_init`: `-2/dt*C'*Cab*P - C'*Cab*Vdot` for each beam element from the previous time step
+ - `CtCabHdot_init`: `-2/dt*C'*Cab*H - C'*Cab*Ωdot` for each beam element from the previous time step
  - `dt`: Time step size. If set to `nothing`, `udot_init`,
 """
 system_residual!
 
 # static
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     return static_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 end
 
 # dynamic - steady state
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     return steady_state_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
 end
 
 # dynamic - initial step
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
     return initial_step_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 end
 
 # dynamic - newmark scheme time marching
 function system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
     # dynamic - newmark scheme time marching
     return newmark_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 end
 
 # static
 function static_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     npoint = length(assembly.points)
     nelem = length(assembly.elements)
@@ -984,7 +960,7 @@ function static_system_residual!(resid, x, assembly, prescribed_conditions, dist
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = static_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2)
     end
 
@@ -1008,7 +984,7 @@ end
 
 # dynamic - steady state
 function steady_state_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     npoint = length(assembly.points)
@@ -1026,7 +1002,7 @@ function steady_state_system_residual!(resid, x, assembly, prescribed_conditions
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = steady_state_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0)
     end
 
@@ -1050,7 +1026,7 @@ end
 
 # dynamic - initial step
 function initial_step_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
     npoint = length(assembly.points)
@@ -1068,7 +1044,7 @@ function initial_step_system_residual!(resid, x, assembly, prescribed_conditions
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = initial_step_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
@@ -1093,7 +1069,7 @@ end
 
 # dynamic - newmark scheme time marching
 function newmark_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
     nelem = length(assembly.elements)
@@ -1111,7 +1087,7 @@ function newmark_system_residual!(resid, x, assembly, prescribed_conditions, dis
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = newmark_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
+             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
              x0, v0, ω0,
              udot_init[ielem], θdot_init[ielem],
              CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
@@ -1137,7 +1113,7 @@ end
 
 # dynamic - general
 function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     nelem = length(assembly.elements)
@@ -1157,12 +1133,12 @@ function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions,
         # set state rates for element
         udot = SVector(dx[icol], dx[icol+1], dx[icol+2])
         θdot = SVector(dx[icol+3], dx[icol+4], dx[icol+5])
-        Pdot = SVector(dx[icol+12], dx[icol+13], dx[icol+14]) .* mass_scaling
-        Hdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17]) .* mass_scaling
+        Vdot = SVector(dx[icol+12], dx[icol+13], dx[icol+14])
+        Ωdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17])
 
         resid = dynamic_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
-             x0, v0, ω0, udot, θdot, Pdot, Hdot)
+             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
+             x0, v0, ω0, udot, θdot, Vdot, Ωdot)
 
     end
 
@@ -1186,16 +1162,16 @@ end
 
 """
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0, u, θ, udot, θdot)
     system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init,
         CtCabHdot_init, dt)
 
@@ -1221,7 +1197,6 @@ There are four implementations corresponding to the following analysis types:
  - `point_masses`: Dictionary of point masses 
  - `gvec`: Gravity vector
  - `force_scaling`: Scaling parameter for forces/moments
- - `mass_scaling`: Scaling parameter for masses/inertia
  - `irow_point`: Row index of first equilibrium equation for each point
  - `irow_elem`: Row index of first equation for just this beam element
  - `irow_elem1`: Row index of first equation for the left side of each beam
@@ -1243,55 +1218,55 @@ There are four implementations corresponding to the following analysis types:
 # Additional Arguments for Time Marching Analyses
  - `udot`: `-2/dt*u - udot` for each beam element from the previous time step
  - `θdot_init`: `-2/dt*θ - θdot` for each beam element from the previous time step
- - `CtCabPdot`: `-2/dt*C'*Cab*P - C'*Cab*Pdot` for each beam element from the previous time step
- - `CtCabHdot`: `-2/dt*C'*Cab*H - C'*Cab*Hdot` for each beam element from the previous time step
+ - `CtCabPdot`: `-2/dt*C'*Cab*P - C'*Cab*Vdot` for each beam element from the previous time step
+ - `CtCabHdot`: `-2/dt*C'*Cab*H - C'*Cab*Ωdot` for each beam element from the previous time step
  - `dt`: time step size
 """
 system_jacobian!
 
 # static
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     return static_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 end
 
 # dynamic - steady state
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
     return steady_state_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0)
 end
 
 # dynamic - initial step
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
     return initial_step_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u, θ, udot, θdot)
 end
 
 # dynamic - newmark scheme time marching
 @inline function system_jacobian!(jacob, x, assembly, prescribed_conditions,
-    distributed_loads, point_masses, gvec, force_scaling, mass_scaling,
+    distributed_loads, point_masses, gvec, force_scaling,
     irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
     return newmark_system_jacobian!(jacob, x, assembly, prescribed_conditions,
-        distributed_loads, point_masses, gvec, force_scaling, mass_scaling,
+        distributed_loads, point_masses, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 end
 
 # static
 @inline function static_system_jacobian!(jacob, x, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling, mass_scaling,
+    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
     irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     jacob .= 0
@@ -1310,7 +1285,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2)
     end
 
@@ -1335,7 +1310,7 @@ end
 
 # dynamic - steady state
 @inline function steady_state_system_jacobian!(jacob, x, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling, mass_scaling,
+    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
     irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
@@ -1355,7 +1330,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0)
     end
 
@@ -1379,7 +1354,7 @@ end
 
 # dynamic - initial step
 @inline function initial_step_system_jacobian!(jacob, x, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling, mass_scaling,
+    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
     irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, u, θ, udot, θdot)
 
@@ -1399,7 +1374,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
@@ -1424,7 +1399,7 @@ end
 
 # dynamic - newmark scheme time marching
 @inline function newmark_system_jacobian!(jacob, x, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling, mass_scaling,
+    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
     irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
@@ -1444,7 +1419,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             udot_init[ielem], θdot_init[ielem],
             CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
@@ -1473,7 +1448,7 @@ end
 
 # dynamic - general
 @inline function dynamic_system_jacobian!(jacob, x, dx, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling, mass_scaling,
+    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
     irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0)
 
@@ -1495,13 +1470,13 @@ end
         # set state rates for element
         udot = SVector(dx[icol], dx[icol+1], dx[icol+2])
         θdot = SVector(dx[icol+3], dx[icol+4], dx[icol+5])
-        Pdot = SVector(dx[icol+12], dx[icol+13], dx[icol+14]) .* mass_scaling
-        Hdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17]) .* mass_scaling
+        Vdot = SVector(dx[icol+12], dx[icol+13], dx[icol+14])
+        Ωdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17])
 
         jacob = dynamic_element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, mass_scaling, icol, irow_e, irow_e1,
+            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
-            udot, θdot, Pdot, Hdot)
+            udot, θdot, Vdot, Ωdot)
     end
 
     # add contributions to the system jacobian matrix from the prescribed point conditions
@@ -1526,7 +1501,7 @@ end
 end
 
 """
-    system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling,
+    system_mass_matrix!(jacob, x, assembly, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Populate the system "mass matrix", the jacobian of the residual vector
@@ -1541,7 +1516,6 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `x`: Vector containing current state variables of the system
  - `assembly`: Assembly of rigidly connected nonlinear beam elements
  - `force_scaling`: Scaling parameter for forces
- - `mass_scaling`: Scaling parameter for masses
  - `irow_point`: Row index of first equilibrium equation for each point
  - `irow_elem`: Row index of first equation for just this beam element
  - `irow_elem1`: Row index of first equation for the left side of each beam
@@ -1549,7 +1523,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `icol_point`: Column index of first state variable for each point
  - `icol_elem`: Column index of first state variable for each beam element
 """
-function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, irow_point,
+function system_mass_matrix!(jacob, x, assembly, force_scaling, irow_point,
     irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     jacob .= 0
@@ -1568,7 +1542,7 @@ function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, ir
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         element_mass_matrix!(jacob, x, assembly.elements[ielem], force_scaling,
-            mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
+            icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 
     # no contributions to "mass matrix" from point state variables
@@ -1580,12 +1554,12 @@ function system_mass_matrix!(jacob, x, assembly, force_scaling, mass_scaling, ir
 end
 
 """
-    system_mass_matrix!(jacob, gamma, x, dx, assembly, force_scaling, mass_scaling,
+    system_mass_matrix!(jacob, gamma, x, dx, assembly, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Add the system mass matrix to `jacob`, scaled by the scaling parameter `gamma`.
 """
-function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, mass_scaling, irow_point, irow_elem,
+function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, irow_point, irow_elem,
     irow_elem1, irow_elem2, icol_point, icol_elem)
 
     npoint = length(assembly.points)
@@ -1602,7 +1576,7 @@ function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, mass_scal
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         element_mass_matrix!(jacob, gamma, x, assembly.elements[ielem],
-            force_scaling, mass_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
+            force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 
     # no contributions to "mass matrix" from point state variables
