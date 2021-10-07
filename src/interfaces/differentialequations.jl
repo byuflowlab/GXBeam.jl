@@ -89,7 +89,6 @@ function DiffEqBase.ODEFunction(system::System, assembly)
 
     # unpack scaling parameters
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
 
     # DAE function
     f = function(resid, u, p, t)
@@ -104,7 +103,7 @@ function DiffEqBase.ODEFunction(system::System, assembly)
 
         # calculate residual
         steady_state_system_residual!(resid, u, assembly, prescribed_conditions,
-            distributed_loads, gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
+            distributed_loads, gvec, force_scaling, irow_point, irow_elem, irow_elem1,
             irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         return resid
@@ -116,7 +115,7 @@ function DiffEqBase.ODEFunction(system::System, assembly)
         M .= 0.0
 
         # calculate mass matrix
-        system_mass_matrix!(M, u, assembly, force_scaling, mass_scaling,
+        system_mass_matrix!(M, u, assembly, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         return M
@@ -140,7 +139,7 @@ function DiffEqBase.ODEFunction(system::System, assembly)
 
         # calculate jacobian
         steady_state_system_jacobian!(J, u, assembly, prescribed_conditions,
-            distributed_loads, gvec, force_scaling, mass_scaling, irow_point, irow_elem, irow_elem1,
+            distributed_loads, gvec, force_scaling, irow_point, irow_elem, irow_elem1,
             irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         return J
@@ -209,8 +208,8 @@ function DiffEqBase.DAEProblem(system::System, assembly, tspan;
     for (ielem, icol) in enumerate(system.icol_elem)
         du0[icol:icol+2] = system.udot[ielem]
         du0[icol+3:icol+5] = system.θdot[ielem]
-        du0[icol+12:icol+14] = system.Pdot[ielem]
-        du0[icol+15:icol+17] = system.Hdot[ielem]
+        du0[icol+12:icol+14] = system.Vdot[ielem]
+        du0[icol+15:icol+17] = system.Ωdot[ielem]
     end
 
     # set parameters
@@ -263,7 +262,6 @@ function DiffEqBase.DAEFunction(system::System, assembly)
 
     # unpack scaling parameters
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
 
     # DAE function
     f = function(resid, du, u, p, t)
@@ -278,7 +276,7 @@ function DiffEqBase.DAEFunction(system::System, assembly)
 
         # calculate residual
         dynamic_system_residual!(resid, u, du, assembly, prescribed_conditions,
-            distributed_loads, gvec, force_scaling, mass_scaling, irow_point, irow_elem, 
+            distributed_loads, gvec, force_scaling, irow_point, irow_elem, 
             irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         return resid
@@ -300,11 +298,11 @@ function DiffEqBase.DAEFunction(system::System, assembly)
 
         # calculate jacobian
         dynamic_system_jacobian!(J, u, du, assembly, prescribed_conditions,
-            distributed_loads, gvec, force_scaling, mass_scaling, irow_point, irow_elem, 
+            distributed_loads, gvec, force_scaling, irow_point, irow_elem, 
             irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         # add gamma multiplied by the mass matrix
-        system_mass_matrix!(J, gamma, u, assembly, force_scaling, mass_scaling,
+        system_mass_matrix!(J, gamma, u, assembly, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         return J
@@ -328,8 +326,8 @@ function get_differential_vars(system::System)
     for icol in system.icol_elem
         differential_vars[icol:icol+2] .= true # u (for the beam element)
         differential_vars[icol+3:icol+5] .= true # θ (for the beam element)
-        differential_vars[icol+12:icol+14] .= true # P (for the beam element)
-        differential_vars[icol+15:icol+17] .= true # H (for the beam element)
+        differential_vars[icol+12:icol+14] .= true # V (for the beam element)
+        differential_vars[icol+15:icol+17] .= true # Ω (for the beam element)
     end
     return differential_vars
 end

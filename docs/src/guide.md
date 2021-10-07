@@ -378,18 +378,18 @@ nothing #hide
 We can access the fields in each instance of `AssemblyState` in order to plot various quantities of interest.  This object stores an array of objects of type `PointState` in the field `points` and an array of objects of type `ElementState` in the field `elements`.  
 
 The fields of `PointState` are the following:
- - `u`: displacement
- - `theta`: angular displacement
- - `F`: externally applied forces
- - `M`: externally applied moments
+ - `u`: point linear displacement (in the global frame)
+ - `theta`: point angular displacement (in the global frame)
+ - `F`: externally applied forces on the point (in the global frame)
+ - `M`: externally applied moments on the point (in the global frame)
 
 The fields of `ElementState` are the following:
- - `u`: displacement
- - `theta`: angular displacement
- - `F`: resultant forces
- - `M`: resultant moments
- - `P`: linear momenta
- - `H`: angular momenta
+ - `u`: element displacement (in the global frame )
+ - `theta`: angular displacement (in the global frame)
+ - `F`: resultant forces (in the deformed element coordinate frame)
+ - `M`: resultant moments (in the deformed element coordinate frame)
+ - `V`: linear velocity (in the deformed element coordinate frame)
+ - `Omega`: angular velocity (in the deformed element coordinate frame)
 
 To demonstrate how these fields can be accessed we will now plot the root moment and tip deflections.
 
