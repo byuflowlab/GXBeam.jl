@@ -37,7 +37,7 @@ straight.
  - `compliance`: Array of (6 x 6) compliance matrices for each beam element, 
         defaults to `zeros(6,6)` for each beam element
  - `mass`: Array of (6 x 6) mass matrices for each beam element, 
-        acts as an alternative to providing `minv`
+        defaults to `zeros(6,6)` for each beam element
  - `frames`: Array of (3 x 3) tranformation matrices for each beam element.
         Transforms from the local undeformed beam frame to the global frame) and defaults
         to the identity matrix for each beam element
