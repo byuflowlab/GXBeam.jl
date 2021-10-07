@@ -687,7 +687,7 @@ end
     end
 
     # add gravitational loads to the element equations
-    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem, gvec)
+    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem.mass, gvec)
 
     f_u1 -= fg1
     f_u2 -= fg2
@@ -722,7 +722,7 @@ end
     end
 
     # add gravitational loads to the element equations
-    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem, gvec)
+    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem.mass, gvec)
 
     f_u1 -= fg1
     f_u2 -= fg2
@@ -760,7 +760,7 @@ end
     end
 
     # add gravitational loads to the element equations
-    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem, gvec)
+    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem.mass, gvec)
 
     f_u1 -= fg1
     f_u2 -= fg2
@@ -799,7 +799,7 @@ end
     end
 
     # add gravitational loads to the element equations
-    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem, gvec)
+    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem.mass, gvec)
 
     f_u1 -= fg1
     f_u2 -= fg2
@@ -838,7 +838,7 @@ end
     end
 
     # add gravitational loads to the element equations
-    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem, gvec)
+    fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem.mass, gvec)
 
     f_u1 -= fg1
     f_u2 -= fg2

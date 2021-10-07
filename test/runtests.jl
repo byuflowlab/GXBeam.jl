@@ -1296,3 +1296,47 @@ end
     # test convergence
     @test converged
 end
+
+@testset "Element Gravitational Loads" begin
+
+    # use arbitrary length
+    ΔL = rand()
+
+    # use random rotation matrix  
+    CtCab = GXBeam.get_C(rand(3))
+
+    # create random mass matrix
+    μ = rand()
+    xm2 = rand()
+    xm3 = rand()
+    i22 = rand()
+    i33 = rand()
+    i23 = rand()
+
+    mass = [
+        μ 0 0 0 μ*xm3 -μ*xm2; 
+        0 μ 0 -μ*xm3 0 0; 
+        0 0 μ μ*xm2 0 0; 
+        0 -μ*xm3 μ*xm2 i22+i33 0 0; 
+        μ*xm3 0 0 0 i22 0; 
+        -μ*xm2 0 0 0 0 i33
+        ]
+
+    # use random gravity vector
+    gvec = rand(3)
+
+    # calculate integrated force and moment per unit length
+    f = μ*gvec
+    m = cross(CtCab*[0, xm2, xm3], f)
+    f1 = f2 = ΔL*f/2
+    m1 = m2 = ΔL*m/2
+
+    # test against gravitational load functions results
+    f1t, f2t, m1t, m2t = GXBeam.element_gravitational_loads(ΔL, CtCab, mass, gvec)
+
+    @test isapprox(f1, f1t)
+    @test isapprox(f2, f2t)
+    @test isapprox(m1, m1t)
+    @test isapprox(m2, m2t)
+
+end
