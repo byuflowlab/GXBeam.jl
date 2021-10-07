@@ -1082,9 +1082,9 @@ names = ["1T/5B", "5B/1T", "4B/1T"]
 indices = [5, 7, 6]
 
 experiment_frequencies = [
-    132.7 147.3 166.2 162.0
-    106.6 120.1 122.6 117.7;
     95.4 87.5 83.7 78.8;
+    106.6 120.1 122.6 117.7;
+    132.7 147.3 166.2 162.0
 ]
 
 plot(
@@ -1104,8 +1104,7 @@ scatter!([], [], color=:black,
 
 for k = 1:length(indices)
     plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
-    scatter!(experiment_sweep, experiment_frequencies[k,:],
-        label="", color=k)
+    scatter!(experiment_sweep, experiment_frequencies[k,:], label="", color=k)
 end
 
 plot!(show=true)

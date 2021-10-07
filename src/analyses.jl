@@ -20,6 +20,9 @@ iteration procedure converged.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the instantaneous state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -36,6 +39,8 @@ function static_analysis(assembly;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -54,6 +59,8 @@ function static_analysis(assembly;
         distributed_loads=distributed_loads,
         gravity=gravity,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -72,6 +79,8 @@ function static_analysis!(system, assembly;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -92,7 +101,6 @@ function static_analysis!(system, assembly;
     F = system.r
     J = system.K
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
     irow_elem1 = system.irow_elem1
@@ -113,14 +121,20 @@ function static_analysis!(system, assembly;
 
         # solve the system of equations
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
-            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
-            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         if linear
             # linear analysis
-            x .= 0.0
+            if !update_linearization_state
+                if isnothing(linearization_state)
+                    x .= 0
+                else
+                    x .= linearization_state
+                end
+            end
             f!(F, x)
             j!(J, x)
             x .-= safe_lu(J) \ F
@@ -169,6 +183,9 @@ iteration procedure converged.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -191,6 +208,8 @@ function steady_state_analysis(assembly;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -212,6 +231,8 @@ function steady_state_analysis(assembly;
         distributed_loads=distributed_loads,
         gravity=gravity,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -234,6 +255,8 @@ function steady_state_analysis!(system, assembly;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -258,7 +281,6 @@ function steady_state_analysis!(system, assembly;
     F = system.r
     J = system.K
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
     irow_elem1 = system.irow_elem1
@@ -281,17 +303,23 @@ function steady_state_analysis!(system, assembly;
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling, 
-            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling, 
-            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0)
 
         # solve the system of equations
         if linear
             # linear analysis
-            x .= 0.0
+            if !update_linearization_state
+                if isnothing(linearization_state)
+                    x .= 0
+                else
+                    x .= linearization_state
+                end
+            end
             f!(F, x)
             j!(J, x)
             x .-= safe_lu(J) \ F
@@ -341,6 +369,9 @@ converged.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -368,6 +399,8 @@ function eigenvalue_analysis(assembly;
     gravity=SVector(0,0,0),
     method=:newton,
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
     iterations=1000,
@@ -390,6 +423,8 @@ function eigenvalue_analysis(assembly;
         distributed_loads=distributed_loads,
         gravity=gravity,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -415,6 +450,8 @@ function eigenvalue_analysis!(system, assembly;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -439,6 +476,8 @@ function eigenvalue_analysis!(system, assembly;
             distributed_loads=distributed_loads,
             gravity=gravity,
             linear=linear,
+            linearization_state=linearization_state,
+            update_linearization_state=update_linearization_state,
             method=method,
             linesearch=linesearch,
             ftol=ftol,
@@ -449,6 +488,14 @@ function eigenvalue_analysis!(system, assembly;
             tvec=tvec,
             )
     else
+        # set linearization state variables
+        if linear && !update_linearization_state
+            if isnothing(linearization_state)
+                system.x .= 0
+            else
+                system.x .= linearization_state
+            end
+        end
         # converged by default
         converged = true
     end
@@ -460,7 +507,6 @@ function eigenvalue_analysis!(system, assembly;
 
     # unpack scaling parameter
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
 
     # also unpack system indices
     irow_point = system.irow_point
@@ -482,11 +528,11 @@ function eigenvalue_analysis!(system, assembly;
     ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
     # solve for the system stiffness matrix
-    K = system_jacobian!(K, x, assembly, pcond, dload, gvec, force_scaling, mass_scaling,
+    K = system_jacobian!(K, x, assembly, pcond, dload, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
     # solve for the system mass matrix
-    M = system_mass_matrix!(M, x, assembly, force_scaling, mass_scaling, irow_point, irow_elem,
+    M = system_mass_matrix!(M, x, assembly, force_scaling, irow_point, irow_elem,
         irow_elem1, irow_elem2, icol_point, icol_elem)
 
     # construct linear map
@@ -531,6 +577,7 @@ final system with the new initial conditions.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -556,6 +603,7 @@ function initial_condition_analysis(assembly, t0;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -580,6 +628,7 @@ function initial_condition_analysis(assembly, t0;
         distributed_loads=distributed_loads,
         gravity=gravity,
         linear=linear,
+        linearization_state=linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -605,6 +654,7 @@ function initial_condition_analysis!(system, assembly, t0;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -631,7 +681,6 @@ function initial_condition_analysis!(system, assembly, t0;
     F = system.r
     J = system.K
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
     irow_elem1 = system.irow_elem1
@@ -640,8 +689,10 @@ function initial_condition_analysis!(system, assembly, t0;
     icol_elem = system.icol_elem
     udot = system.udot
     θdot = system.θdot
-    Pdot = system.Pdot
-    Hdot = system.Hdot
+    Vdot = system.Vdot
+    Ωdot = system.Ωdot
+    CtCabPdot = system.CtCabPdot
+    CtCabHdot = system.CtCabHdot
 
     nelem = length(assembly.elements)
 
@@ -658,17 +709,21 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # construct residual and jacobian functions
     f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
-        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
     j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
-        mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
     # solve system of equations
     if linear
         # linear analysis
-        x .= 0.0
+        if isnothing(linearization_state)
+            x .= 0
+        else
+            x .= linearization_state
+        end
         f!(F, x)
         j!(J, x)
         x .-= safe_lu(J) \ F
@@ -693,18 +748,33 @@ function initial_condition_analysis!(system, assembly, t0;
     # save states and state rates
     for ielem = 1:nelem
         icol = icol_elem[ielem]
-        # extract rotation parameters for this beam element
-        C = get_C(theta0[ielem])
-        Cab = assembly.elements[ielem].Cab
-        CtCab = C' * Cab
-        # save states and state rates
+        # extract beam element state variables
+        u = u0[ielem]
+        θ = theta0[ielem]
+        V = SVector(x[icol+12], x[icol+13], x[icol+14])
+        Ω = SVector(x[icol+15], x[icol+16], x[icol+17])
+        # save state rates
         udot[ielem] = udot0[ielem]
         θdot[ielem] = thetadot0[ielem]
-        Pdot[ielem] = CtCab' * SVector(x[icol], x[icol + 1], x[icol + 2]) .* mass_scaling
-        Hdot[ielem] = CtCab' * SVector(x[icol + 3], x[icol + 4], x[icol + 5]) .* mass_scaling
-# restore original state vector
-        x[icol:icol + 2] .= u0[ielem]
-        x[icol + 3:icol + 5] .= theta0[ielem]
+        Vdot[ielem] = SVector(x[icol], x[icol+1], x[icol+2])
+        Ωdot[ielem] = SVector(x[icol+3], x[icol+4], x[icol+5])
+        # calculate transformation matrix from global to local frame
+        C = get_C(θ)
+        Cab = assembly.elements[ielem].Cab
+        CtCab = C' * Cab
+        CtCabdot = get_C_t(C, θ, θdot[ielem])'*Cab
+        # calculate linear and angular momentum
+        P = element_linear_momentum(assembly.elements[ielem], V, Ω)
+        H = element_angular_momentum(assembly.elements[ielem], V, Ω)
+        # calculate time derivative of linear and angular momentum
+        Pdot = element_linear_momentum(assembly.elements[ielem], Vdot[ielem], Ωdot[ielem])
+        Hdot = element_angular_momentum(assembly.elements[ielem], Vdot[ielem], Ωdot[ielem])  
+        # calculate and save CtCabPdot and CtCabHdot     
+        CtCabPdot[ielem] = CtCabdot*P + CtCab*Pdot
+        CtCabHdot[ielem] = CtCabdot*H + CtCab*Hdot
+        # restore original state vector
+        x[icol:icol+2] .= u0[ielem]
+        x[icol+3:icol+5] .= theta0[ielem]
     end
 
     return system, converged
@@ -732,6 +802,9 @@ converged for each time step.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization_state`: Flag indicating whether to update the linearization state 
+    variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
@@ -761,6 +834,8 @@ function time_domain_analysis(assembly, tvec;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -787,6 +862,8 @@ function time_domain_analysis(assembly, tvec;
         distributed_loads=distributed_loads,
         gravity=gravity,
         linear=linear,
+        linearization_state=linearization_state,
+        update_linearization_state=update_linearization_state,
         method=method,
         linesearch=linesearch,
         ftol=ftol,
@@ -804,7 +881,7 @@ function time_domain_analysis(assembly, tvec;
         )
 end
 
-    """
+"""
     time_domain_analysis!(system, assembly, tvec; kwargs...)
 
 Pre-allocated version of `time_domain_analysis`.
@@ -814,6 +891,8 @@ function time_domain_analysis!(system, assembly, tvec;
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
+    linearization_state=nothing,
+    update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
@@ -844,6 +923,7 @@ function time_domain_analysis!(system, assembly, tvec;
             distributed_loads=distributed_loads,
             gravity=gravity,
             linear=linear,
+            linearization_state=linearization_state,
             method=method,
             linesearch=linesearch,
             ftol=ftol,
@@ -867,7 +947,6 @@ function time_domain_analysis!(system, assembly, tvec;
     F = system.r
     J = system.K
     force_scaling = system.force_scaling
-    mass_scaling = system.mass_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
     irow_elem1 = system.irow_elem1
@@ -876,8 +955,10 @@ function time_domain_analysis!(system, assembly, tvec;
     icol_elem = system.icol_elem
     udot = system.udot
     θdot = system.θdot
-    Pdot = system.Pdot
-    Hdot = system.Hdot
+    Vdot = system.Vdot
+    Ωdot = system.Ωdot
+    CtCabPdot = system.CtCabPdot
+    CtCabHdot = system.CtCabHdot
 
     # number of beam elements
     nelem = length(assembly.elements)
@@ -912,41 +993,50 @@ function time_domain_analysis!(system, assembly, tvec;
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(tvec[it]))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(tvec[it]))
 
-        # current initialization parameters
+        # set current initialization parameters
         for ielem = 1:nelem
             icol = icol_elem[ielem]
-            # get beam element states
+            # extract beam element state variables
             u = SVector(x[icol], x[icol + 1], x[icol + 2])
             θ = SVector(x[icol + 3], x[icol + 4], x[icol + 5])
-            P = SVector(x[icol + 12], x[icol + 13], x[icol + 14]) .* mass_scaling
-            H = SVector(x[icol + 15], x[icol + 16], x[icol + 17]) .* mass_scaling
-            # extract rotation parameters
+            V = SVector(x[icol + 12], x[icol + 13], x[icol + 14])
+            Ω = SVector(x[icol + 15], x[icol + 16], x[icol + 17])
+            # calculate state rate terms, use storage for state rates
+            udot[ielem] = 2 / dt * u + udot[ielem]
+            θdot[ielem] = 2 / dt * θ + θdot[ielem]
+            Vdot[ielem] = 2 / dt * V + Vdot[ielem]
+            Ωdot[ielem] = 2 / dt * Ω + Ωdot[ielem]
+            # calculate transformation matrix from global to local frame
             C = get_C(θ)
             Cab = assembly.elements[ielem].Cab
             CtCab = C' * Cab
-            # store `udot_init` in `udot`
-            udot[ielem] = 2 / dt * u + udot[ielem]
-            # store `θdot_init` in `θdot`
-            θdot[ielem] = 2 / dt * θ + θdot[ielem]
-            # store `CtCabPdot_init` in `Pdot`
-            Pdot[ielem] = 2 / dt * CtCab * P + CtCab * Pdot[ielem]
-            # store `CtCabHdot_init` in `Hdot`
-            Hdot[ielem] = 2 / dt * CtCab * H + CtCab * Hdot[ielem]
+            # calculate linear and angular momentum
+            P = element_linear_momentum(assembly.elements[ielem], V, Ω)
+            H = element_angular_momentum(assembly.elements[ielem], V, Ω)
+            # calculate CtCabPdot and CtCabHdot initialization terms
+            CtCabPdot[ielem] = 2/dt*CtCab*P + CtCabPdot[ielem]
+            CtCabHdot[ielem] = 2/dt*CtCab*H + CtCabHdot[ielem]
         end
 
         # solve for the state variables at the next time step
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
-            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+            x0, v0, ω0, udot, θdot, CtCabPdot, CtCabHdot, dt)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
-            mass_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+            x0, v0, ω0, udot, θdot, CtCabPdot, CtCabHdot, dt)
 
         # solve system of equations
         if linear
             # linear analysis
-            x .= 0.0
+            if !update_linearization_state
+                if isnothing(linearization_state)
+                    x .= 0
+                else
+                    x .= linearization_state
+                end
+            end
             f!(F, x)
             j!(J, x)
             x .-= safe_lu(J) \ F
@@ -967,20 +1057,26 @@ function time_domain_analysis!(system, assembly, tvec;
         # set new state rates
         for ielem = 1:nelem
             icol = icol_elem[ielem]
-            # get beam element states
+            # extract beam element state variables
             u = SVector(x[icol], x[icol + 1], x[icol + 2])
             θ = SVector(x[icol + 3], x[icol + 4], x[icol + 5])
-            P = SVector(x[icol + 12], x[icol + 13], x[icol + 14]) .* mass_scaling
-            H = SVector(x[icol + 15], x[icol + 16], x[icol + 17]) .* mass_scaling
-            # extract rotation parameters
+            V = SVector(x[icol + 12], x[icol + 13], x[icol + 14])
+            Ω = SVector(x[icol + 15], x[icol + 16], x[icol + 17])
+            # calculate current state rates
+            udot[ielem] = 2/dt*u - udot[ielem]
+            θdot[ielem] = 2/dt*θ - θdot[ielem]
+            Vdot[ielem] = 2/dt*V - Vdot[ielem]
+            Ωdot[ielem] = 2/dt*Ω - Ωdot[ielem]
+            # calculate transformation matrix from global to local frame
             C = get_C(θ)
             Cab = assembly.elements[ielem].Cab
             CtCab = C' * Cab
-            # save state rates
-            udot[ielem] = 2 / dt * u - udot[ielem]
-            θdot[ielem] = 2 / dt * θ - θdot[ielem]
-            Pdot[ielem] = 2 / dt * P - CtCab' * Pdot[ielem]
-            Hdot[ielem] = 2 / dt * H - CtCab' * Hdot[ielem]
+            # calculate linear and angular momentum
+            P = element_linear_momentum(assembly.elements[ielem], V, Ω)
+            H = element_angular_momentum(assembly.elements[ielem], V, Ω)
+            # calculate CtCabPdot and CtCabHdot
+            CtCabPdot[ielem] = 2/dt*CtCab*P - CtCabPdot[ielem]
+            CtCabHdot[ielem] = 2/dt*CtCab*H - CtCabHdot[ielem]
         end
 
         # add state to history
