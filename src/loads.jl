@@ -376,18 +376,16 @@ end
 Describes the inertial properties of a mass attached at a point.
 """
 struct PointMass{T}
-    m::T
-    r::SVector{3,T}
-    I::SMatrix{3,3,T,9}
+    mass::SMatrix{6,6,T,36}
 end
 Base.eltype(::PointMass{T}) where T = T
 
 function PointMass{T}(p::PointMass) where T
-    PointMass{T}(p.m, p.r, p.I)
+    PointMass{T}(p.mass)
 end
 
 """
-    element_gravitational_loads(CtCab, elem, gvec)
+    element_gravitational_loads(CtCab, mass, gvec)
 
 Calculate the integrated distributed loads on an element due to gravity.
 """
@@ -416,6 +414,41 @@ end
     # calculate integrated force and moment per unit length
     f1_θ = f2_θ = ΔL*f_θ/2
     m1_θ = m2_θ = ΔL*m_θ/2
+    # return result
+    return f1_θ, f2_θ, m1_θ, m2_θ
+end
+
+"""
+    point_mass_gravitational_loads(Ct, mass, gvec)
+
+Calculate the loads experienced by an element due to gravitational loads acting on attached 
+point masses.
+"""
+@inline function point_mass_gravitational_loads(Ct, mass, gvec)
+    # extract mass matrix submatrices
+    M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
+    M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
+    # calculate force and moment due to gravitionatl forces on point masses 
+    F = Ct*M11*Ct'*gvec
+    M = -Ct*M12*Ct'*gvec
+    # divide force and moment between both ends of the beam element
+    f1 = f2 = F/2
+    m1 = m2 = M/2
+    # return result
+    return f1, f2, m1, m2
+end
+
+@inline function point_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec)
+    C_θ1, C_θ2, C_θ3 = Ct_θ1', Ct_θ2', Ct_θ3'
+    # extract mass matrix submatrices
+    M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
+    M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
+    # calculate force and moment due to gravitational forces on point masses
+    F_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, M11*Ct'*gvec) + Ct*M11*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    M_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, M12*Ct'*gvec) - Ct*M12*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    # divide force and moment between both ends of the beam element
+    f1_θ = f2_θ = F_θ/2
+    m1_θ = m2_θ = M_θ/2
     # return result
     return f1_θ, f2_θ, m1_θ, m2_θ
 end

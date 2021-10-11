@@ -6,22 +6,21 @@ Perform a static analysis of the system of nonlinear beams contained in
 iteration procedure converged.
 
 # Keyword Arguments
-- `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
-       A dictionary with keys corresponding to the points at
-       which prescribed conditions are applied and values of type
-       [`PrescribedConditions`](@ref) which describe the prescribed conditions
-       at those points.  If time varying, this input may be provided as a
-       function of time.
-- `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
-       with keys corresponding to the elements to which distributed loads are
-       applied and values of type [`DistributedLoads`](@ref) which describe
-       the distributed loads on those elements.  If time varying, this input may
-       be provided as a function of time.
- - `point_masses = Dict{Int,Vector{PointMass{Float64}}}()`: A dictionary with keys 
-        corresponding to the points at which point masses are attached and values 
-        containing vectors of objects of type [`PointMass`](@ref) which describe 
-        the point masses attached at those points.  If time varying, this input may
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
+        A dictionary with keys corresponding to the points at
+        which prescribed conditions are applied and values of type
+        [`PrescribedConditions`](@ref) which describe the prescribed conditions
+        at those points.  If time varying, this input may be provided as a
+        function of time.
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
+        with keys corresponding to the elements to which distributed loads are
+        applied and values of type [`DistributedLoads`](@ref) which describe
+        the distributed loads on those elements.  If time varying, this input may
         be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -43,7 +42,7 @@ iteration procedure converged.
 function static_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -85,7 +84,7 @@ Pre-allocated version of `static_analysis`.
 function static_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -190,11 +189,10 @@ iteration procedure converged.
         applied and values of type [`DistributedLoads`](@ref) which describe
         the distributed loads on those elements.  If time varying, this input may
         be provided as a function of time.
- - `point_masses = Dict{Int,Vector{PointMass{Float64}}}()`: A dictionary with keys 
-        corresponding to the points at which point masses are attached and values 
-        containing vectors of objects of type [`PointMass`](@ref) which describe 
-        the point masses attached at those points.  If time varying, this input may
-        be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
@@ -221,7 +219,7 @@ iteration procedure converged.
 function steady_state_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -270,7 +268,7 @@ Pre-allocated version of `steady_state_analysis`.
 function steady_state_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -385,11 +383,10 @@ converged.
         applied and values of type [`DistributedLoads`](@ref) which describe
         the distributed loads on those elements.  If time varying, this input may
         be provided as a function of time.
- - `point_masses = Dict{Int,Vector{PointMass{Float64}}}()`: A dictionary with keys 
-        corresponding to the points at which point masses are attached and values 
-        containing vectors of objects of type [`PointMass`](@ref) which describe 
-        the point masses attached at those points.  If time varying, this input may
-        be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
@@ -420,7 +417,7 @@ converged.
 function eigenvalue_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     method=:newton,
     linear=false,
@@ -474,7 +471,7 @@ Pre-allocated version of `eigenvalue_analysis`.  Uses the state variables stored
 function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -603,11 +600,10 @@ final system with the new initial conditions.
         [`DistributedLoads`](@ref) which describe the distributed loads at those
         points.  If time varying, this input may be provided as a function of
         time.
- - `point_masses = Dict{Int,Vector{PointMass{Float64}}}()`: A dictionary with keys 
-        corresponding to the points at which point masses are attached and values 
-        containing vectors of objects of type [`PointMass`](@ref) which describe 
-        the point masses attached at those points.  If time varying, this input may
-        be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -635,7 +631,7 @@ final system with the new initial conditions.
 function initial_condition_analysis(assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -688,7 +684,7 @@ Pre-allocated version of `initial_condition_analysis`.
 function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -837,11 +833,10 @@ converged for each time step.
         [`DistributedLoads`](@ref) which describe the distributed loads at those
         points.  If time varying, this input may be provided as a function of
         time.
- - `point_masses = Dict{Int,Vector{PointMass{Float64}}}()`: A dictionary with keys 
-        corresponding to the points at which point masses are attached and values 
-        containing vectors of objects of type [`PointMass`](@ref) which describe 
-        the point masses attached at those points.  If time varying, this input may
-        be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -875,7 +870,7 @@ converged for each time step.
 function time_domain_analysis(assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -934,7 +929,7 @@ Pre-allocated version of `time_domain_analysis`.
 function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,Vector{PointMass{Float64}}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,

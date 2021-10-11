@@ -1326,14 +1326,14 @@ end
 
     # combine elements and points into one array
     nelem = nelem_b1 + nelem_b12 + nelem_b2
-    points = vcat(xp_b1, xp_b12[2:end], xp_b2[2:end])
+    points = vcat(xp_b1, xp_b2[2:end]) # don't duplicate points
     lengths = vcat(lengths_b1, lengths_b12, lengths_b2)
     midpoints = vcat(xm_b1, xm_b12, xm_b2)
     Cab = vcat(Cab_b1, Cab_b12, Cab_b2)
 
     # specify connectivity
-    start = 1:nelem
-    stop = 2:nelem + 1
+    start = vcat(1:nelem_b1+1, nelem_b1+1:nelem_b1+nelem_b2)
+    stop = vcat(2:nelem_b1+1, nelem_b1+1:nelem_b1+nelem_b2+1)
 
     # cross section
     w = 1 # inch

@@ -960,7 +960,7 @@ function static_system_residual!(resid, x, assembly, prescribed_conditions, dist
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = static_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2)
     end
 
@@ -975,7 +975,7 @@ function static_system_residual!(resid, x, assembly, prescribed_conditions, dist
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions, point_masses, gvec,
+        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
             force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
@@ -1002,7 +1002,7 @@ function steady_state_system_residual!(resid, x, assembly, prescribed_conditions
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = steady_state_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+             distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0)
     end
 
@@ -1017,7 +1017,7 @@ function steady_state_system_residual!(resid, x, assembly, prescribed_conditions
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions, point_masses, gvec,
+        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
             force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
@@ -1044,7 +1044,7 @@ function initial_step_system_residual!(resid, x, assembly, prescribed_conditions
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = initial_step_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
@@ -1060,7 +1060,7 @@ function initial_step_system_residual!(resid, x, assembly, prescribed_conditions
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions, point_masses, gvec,
+        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
             force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
@@ -1087,10 +1087,10 @@ function newmark_system_residual!(resid, x, assembly, prescribed_conditions, dis
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         resid = newmark_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
-             x0, v0, ω0,
-             udot_init[ielem], θdot_init[ielem],
-             CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
+            x0, v0, ω0,
+            udot_init[ielem], θdot_init[ielem],
+            CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
     end
 
     # add contributions to the residual equations from the prescribed point conditions
@@ -1104,7 +1104,7 @@ function newmark_system_residual!(resid, x, assembly, prescribed_conditions, dis
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions, point_masses, gvec,
+        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
             force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
@@ -1137,7 +1137,7 @@ function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions,
         Ωdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17])
 
         resid = dynamic_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
+             distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
              x0, v0, ω0, udot, θdot, Vdot, Ωdot)
 
     end
@@ -1153,7 +1153,7 @@ function dynamic_system_residual!(resid, x, dx, assembly, prescribed_conditions,
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions, point_masses, gvec,
+        resid = point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
             force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
@@ -1285,7 +1285,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2)
     end
 
@@ -1300,8 +1300,8 @@ end
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, point_masses,
-            gvec, force_scaling, icol, irow_p, irow_elem1, irow_elem2)
+        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
 
     end
 
@@ -1330,7 +1330,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0)
     end
 
@@ -1345,8 +1345,8 @@ end
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, point_masses,
-             gvec, force_scaling, icol, irow_p, irow_elem1, irow_elem2)
+        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
+             force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return jacob
@@ -1374,7 +1374,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem])
     end
@@ -1390,8 +1390,8 @@ end
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, point_masses,
-            gvec, force_scaling, icol, irow_p, irow_elem1, irow_elem2)
+        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     return jacob
@@ -1419,7 +1419,7 @@ end
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         jacob = element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             udot_init[ielem], θdot_init[ielem],
             CtCabPdot_init[ielem], CtCabHdot_init[ielem], dt)
@@ -1436,8 +1436,8 @@ end
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, point_masses,
-            gvec, force_scaling, icol, irow_p, irow_elem1, irow_elem2)
+        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     # # zero out near-zero values ( < eps() )
@@ -1474,7 +1474,7 @@ end
         Ωdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17])
 
         jacob = dynamic_element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, gvec, force_scaling, icol, irow_e, irow_e1,
+            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
             irow_p1, irow_e2, irow_p2, x0, v0, ω0,
             udot, θdot, Vdot, Ωdot)
     end
@@ -1490,8 +1490,8 @@ end
         icol = icol_point[ipoint]
         irow_p = irow_point[ipoint]
 
-        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, point_masses,
-            gvec, force_scaling, icol, irow_p, irow_elem1, irow_elem2)
+        jacob = point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
+            force_scaling, icol, irow_p, irow_elem1, irow_elem2)
     end
 
     # # zero out near-zero values ( < eps() )

@@ -570,15 +570,15 @@ end
 end
 
 """
-    element_residual!(resid, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
-    element_residual!(resid, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
         ω0)
-    element_residual!(resid, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
         ω0, u0, θ0, udot0, θdot0)
-    element_residual!(resid, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
         ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
@@ -600,6 +600,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `ielem`: beam element index
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
+ - `point_masses`: dictionary with all point masses
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the beam's state variables
@@ -631,44 +632,44 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 element_residual!
 
 # static
-@inline function element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 
-    return static_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+    return static_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 end
 
 # dynamic - steady state
-@inline function element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0)
 
-    return steady_state_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+    return steady_state_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0)
 end
 
 # dynamic - initial step
-@inline function element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
     x0, v0, ω0, u0, θ0, udot0, θdot0)
 
-    return initial_step_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+    return initial_step_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
         x0, v0, ω0, u0, θ0, udot0, θdot0)
 end
 
 # time marching - Newmark scheme
-@inline function element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
     CtCabPdot_init, CtCabHdot_init, dt)
 
     # time marching - Newmark scheme
-    return newmark_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+    return newmark_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
         CtCabPdot_init, CtCabHdot_init, dt)
 end
 
 # static
-@inline function static_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function static_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,)
 
     # compute element properties
@@ -686,13 +687,23 @@ end
         f_ψ2 -= distributed_loads[ielem].m2 + Ct*distributed_loads[ielem].m2_follower
     end
 
-    # add gravitational loads to the element equations
+    # add element gravitational loads to the element equations
     fg1, fg2, mg1, mg2 = element_gravitational_loads(ΔL, CtCab, elem.mass, gvec)
 
     f_u1 -= fg1
     f_u2 -= fg2
     f_ψ1 -= mg1
     f_ψ2 -= mg2
+
+    # add point mass gravitational loads to the element equations
+    if haskey(point_masses, ielem)
+        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+    end
 
     # insert element resultants into residual vector
     resid = insert_static_element_residual!(resid, force_scaling, irow_e, irow_e1, irow_p1,
@@ -702,7 +713,7 @@ end
 end
 
 # dynamic - steady state
-@inline function steady_state_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function steady_state_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0)
 
     # compute element properties
@@ -729,6 +740,16 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
+    # add point mass gravitational loads to the element equations
+    if haskey(point_masses, ielem)
+        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+    end
+
     # insert element resultants into the residual vector
     resid = insert_dynamic_element_residual!(resid, force_scaling, irow_e, irow_e1, irow_p1,
         irow_e2, irow_p2, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω)
@@ -737,7 +758,7 @@ end
 end
 
 # dynamic - initial step
-@inline function initial_step_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function initial_step_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
     x0, v0, ω0, u0, θ0, udot0, θdot0)
 
@@ -767,6 +788,16 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
+    # add point mass gravitational loads to the element equations
+    if haskey(point_masses, ielem)
+        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+    end
+
     # insert element resultants into the residual vector
     resid = insert_dynamic_element_residual!(resid, force_scaling, irow_e, irow_e1, irow_p1,
         irow_e2, irow_p2, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω)
@@ -775,7 +806,7 @@ end
 end
 
 # time marching - Newmark scheme
-@inline function newmark_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function newmark_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
     CtCabPdot_init, CtCabHdot_init, dt)
 
@@ -806,6 +837,16 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
+    # add point mass gravitational loads to the element equations
+    if haskey(point_masses, ielem)
+        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+    end
+
     # insert element resultants into the residual vector
     resid = insert_dynamic_element_residual!(resid, force_scaling, irow_e,
         irow_e1, irow_p1, irow_e2, irow_p2, f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2,
@@ -815,7 +856,7 @@ end
 end
 
 # dynamic - general
-@inline function dynamic_element_residual!(resid, x, ielem, elem, distributed_loads, gvec,
+@inline function dynamic_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0,
     udot, θdot, Vdot, Ωdot)
 
@@ -844,6 +885,16 @@ end
     f_u2 -= fg2
     f_ψ1 -= mg1
     f_ψ2 -= mg2
+
+    # add point mass gravitational loads to the element equations
+    if haskey(point_masses, ielem)
+        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+    end
 
     # insert element resultants into the residual vector
     resid = insert_dynamic_element_residual!(resid, force_scaling, irow_e,
@@ -1626,15 +1677,15 @@ end
 end
 
 """
-    element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
-    element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
         ω0)
-    element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
         ω0, u0, θ0, udot0, θdot0)
-    element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec, force_scaling,
+    element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
         ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
@@ -1656,6 +1707,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `ielem`: beam element index
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
+ - `point_masses`: dictionary with all point masses
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `icol`: starting index for the beam's state variables
@@ -1687,44 +1739,44 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 element_jacobian!
 
 # static
-@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 
     # static
-    return static_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+    return static_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 end
 
 # dynamic - steady state
-@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0)
 
-    return steady_state_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+    return steady_state_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0)
 end
 
 # dynamic - initial step
-@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, u0, θ0,
     udot0, θdot0)
 
-    return initial_step_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+    return initial_step_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, u0, θ0,
         udot0, θdot0)
 end
 
 # dynamic - time marching
-@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0,
     udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
-    return newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+    return newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0,
         udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 end
 
 # static
-@inline function static_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function static_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 
     # compute element properties
@@ -1749,12 +1801,22 @@ end
         f_ψ2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ielem].m2_follower)
     end
 
-    # add jacobians for gravitational forces
+    # add jacobians for distributed gravitational loads
     fg1_θ, fg2_θ, mg1_θ, mg2_θ = element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, elem, gvec)
     f_u1_θ -= fg1_θ
     f_u2_θ -= fg2_θ
     f_ψ1_θ -= mg1_θ
     f_ψ2_θ -= mg2_θ
+
+    # add jacobians for point mass gravitational loads
+    if haskey(point_masses, ielem)
+        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1_θ
+        f_u2 -= fp2_θ
+        f_ψ1 -= mp1_θ
+        f_ψ2 -= mp2_θ
+    end
 
     # insert element resultants into the jacobian matrix
     jacob = insert_static_element_jacobian!(jacob, force_scaling, irow_e1,
@@ -1768,7 +1830,7 @@ end
 end
 
 # dynamic - steady state
-@inline function steady_state_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function steady_state_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0)
 
     # compute element properties
@@ -1796,12 +1858,22 @@ end
         f_ψ2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ielem].m2_follower)
     end
 
-    # add jacobians for gravitational forces
+    # add jacobians for distributed gravitational loads
     fg1_θ, fg2_θ, mg1_θ, mg2_θ = element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, elem, gvec)
     f_u1_θ -= fg1_θ
     f_u2_θ -= fg2_θ
     f_ψ1_θ -= mg1_θ
     f_ψ2_θ -= mg2_θ
+
+    # add jacobians for point mass gravitational loads
+    if haskey(point_masses, ielem)
+        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1_θ
+        f_u2 -= fp2_θ
+        f_ψ1 -= mp1_θ
+        f_ψ2 -= mp2_θ
+    end
 
     # insert element resultants into the jacobian matrix
     jacob = insert_dynamic_element_jacobian!(jacob, force_scaling, irow_e,
@@ -1817,7 +1889,7 @@ end
 end
 
 # dynamic - initial step
-@inline function initial_step_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function initial_step_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, u0, θ0,
     udot0, θdot0)
 
@@ -1847,7 +1919,7 @@ end
 end
 
 # dynamic - newmark scheme time marching
-@inline function newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0,
     udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
 
@@ -1878,12 +1950,22 @@ end
         f_ψ2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ielem].m2_follower)
     end
 
-    # add jacobians for gravitational forces
+    # add jacobians for distributed gravitational loads
     fg1_θ, fg2_θ, mg1_θ, mg2_θ = element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, elem, gvec)
     f_u1_θ -= fg1_θ
     f_u2_θ -= fg2_θ
     f_ψ1_θ -= mg1_θ
     f_ψ2_θ -= mg2_θ
+
+    # add jacobians for point mass gravitational loads
+    if haskey(point_masses, ielem)
+        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1_θ
+        f_u2 -= fp2_θ
+        f_ψ1 -= mp1_θ
+        f_ψ2 -= mp2_θ
+    end
 
     # insert element resultants into the jacobian matrix
     jacob = insert_dynamic_element_jacobian!(jacob, force_scaling, irow_e,
@@ -1899,7 +1981,7 @@ end
 end
 
 # dynamic - general
-@inline function dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, gvec,
+@inline function dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, udot, θdot,
     Vdot, Ωdot)
 
@@ -1936,12 +2018,22 @@ end
         f_ψ2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, distributed_loads[ielem].m2_follower)
     end
 
-    # add jacobians for gravitational forces
+    # add jacobians for distributed gravitational loads
     fg1_θ, fg2_θ, mg1_θ, mg2_θ = element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, elem, gvec)
     f_u1_θ -= fg1_θ
     f_u2_θ -= fg2_θ
     f_ψ1_θ -= mg1_θ
     f_ψ2_θ -= mg2_θ
+
+    # add jacobians for point mass gravitational loads
+    if haskey(point_masses, ielem)
+        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1_θ
+        f_u2 -= fp2_θ
+        f_ψ1 -= mp1_θ
+        f_ψ2 -= mp2_θ
+    end
 
     # insert element resultants into the jacobian matrix
     jacob = insert_dynamic_element_jacobian!(jacob, force_scaling, irow_e,
