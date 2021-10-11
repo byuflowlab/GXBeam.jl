@@ -724,8 +724,6 @@ function initial_condition_analysis!(system, assembly, t0;
     θdot = system.θdot
     Vdot = system.Vdot
     Ωdot = system.Ωdot
-    CtCabPdot = system.CtCabPdot
-    CtCabHdot = system.CtCabHdot
 
     nelem = length(assembly.elements)
 
@@ -782,30 +780,11 @@ function initial_condition_analysis!(system, assembly, t0;
     # save states and state rates
     for ielem = 1:nelem
         icol = icol_elem[ielem]
-        # extract beam element state variables
-        u = u0[ielem]
-        θ = theta0[ielem]
-        V = SVector(x[icol+12], x[icol+13], x[icol+14])
-        Ω = SVector(x[icol+15], x[icol+16], x[icol+17])
         # save state rates
         udot[ielem] = udot0[ielem]
         θdot[ielem] = thetadot0[ielem]
         Vdot[ielem] = SVector(x[icol], x[icol+1], x[icol+2])
         Ωdot[ielem] = SVector(x[icol+3], x[icol+4], x[icol+5])
-        # calculate transformation matrix from global to local frame
-        C = get_C(θ)
-        Cab = assembly.elements[ielem].Cab
-        CtCab = C' * Cab
-        CtCabdot = get_C_t(C, θ, θdot[ielem])'*Cab
-        # calculate linear and angular momentum
-        P = element_linear_momentum(assembly.elements[ielem], V, Ω)
-        H = element_angular_momentum(assembly.elements[ielem], V, Ω)
-        # calculate time derivative of linear and angular momentum
-        Pdot = element_linear_momentum(assembly.elements[ielem], Vdot[ielem], Ωdot[ielem])
-        Hdot = element_angular_momentum(assembly.elements[ielem], Vdot[ielem], Ωdot[ielem])  
-        # calculate and save CtCabPdot and CtCabHdot     
-        CtCabPdot[ielem] = CtCabdot*P + CtCab*Pdot
-        CtCabHdot[ielem] = CtCabdot*H + CtCab*Hdot
         # restore original state vector
         x[icol:icol+2] .= u0[ielem]
         x[icol+3:icol+5] .= theta0[ielem]
@@ -999,8 +978,6 @@ function time_domain_analysis!(system, assembly, tvec;
     θdot = system.θdot
     Vdot = system.Vdot
     Ωdot = system.Ωdot
-    CtCabPdot = system.CtCabPdot
-    CtCabHdot = system.CtCabHdot
 
     # number of beam elements
     nelem = length(assembly.elements)
@@ -1049,26 +1026,16 @@ function time_domain_analysis!(system, assembly, tvec;
             θdot[ielem] = 2 / dt * θ + θdot[ielem]
             Vdot[ielem] = 2 / dt * V + Vdot[ielem]
             Ωdot[ielem] = 2 / dt * Ω + Ωdot[ielem]
-            # calculate transformation matrix from global to local frame
-            C = get_C(θ)
-            Cab = assembly.elements[ielem].Cab
-            CtCab = C' * Cab
-            # calculate linear and angular momentum
-            P = element_linear_momentum(assembly.elements[ielem], V, Ω)
-            H = element_angular_momentum(assembly.elements[ielem], V, Ω)
-            # calculate CtCabPdot and CtCabHdot initialization terms
-            CtCabPdot[ielem] = 2/dt*CtCab*P + CtCabPdot[ielem]
-            CtCabHdot[ielem] = 2/dt*CtCab*H + CtCabHdot[ielem]
         end
 
         # solve for the state variables at the next time step
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, CtCabPdot, CtCabHdot, dt)
+            x0, v0, ω0, udot, θdot, Vdot, Ωdot, dt)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, CtCabPdot, CtCabHdot, dt)
+            x0, v0, ω0, udot, θdot, Vdot, Ωdot, dt)
 
         # solve system of equations
         if linear
@@ -1110,16 +1077,6 @@ function time_domain_analysis!(system, assembly, tvec;
             θdot[ielem] = 2/dt*θ - θdot[ielem]
             Vdot[ielem] = 2/dt*V - Vdot[ielem]
             Ωdot[ielem] = 2/dt*Ω - Ωdot[ielem]
-            # calculate transformation matrix from global to local frame
-            C = get_C(θ)
-            Cab = assembly.elements[ielem].Cab
-            CtCab = C' * Cab
-            # calculate linear and angular momentum
-            P = element_linear_momentum(assembly.elements[ielem], V, Ω)
-            H = element_angular_momentum(assembly.elements[ielem], V, Ω)
-            # calculate CtCabPdot and CtCabHdot
-            CtCabPdot[ielem] = 2/dt*CtCab*P - CtCabPdot[ielem]
-            CtCabHdot[ielem] = 2/dt*CtCab*H - CtCabHdot[ielem]
         end
 
         # add state to history

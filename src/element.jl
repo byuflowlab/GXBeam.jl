@@ -107,7 +107,7 @@ end
     element_properties(x, icol, elem, force_scaling, x0, v0, ω0)
     element_properties(x, icol, elem, force_scaling, x0, v0, ω0, u0, θ0, udot0, θdot0)
     element_properties(x, icol, elem, force_scaling, x0, v0, ω0, udot_init, 
-        θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+        θdot_init, Vdot_init, Ωdot_init, dt)
 
 Extract/calculate the properties of a specific beam element.
 
@@ -142,9 +142,9 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 # Additional Arguments for Time Marching Analyses
  - `udot_init`: `2/dt*u + udot` for each beam element from the previous time step
  - `θdot_init`: `2/dt*θ + θdot` for each beam element from the previous time step
- - `CtCabPdot_init`: `2/dt*C'*Cab*P + C'*Cab*Pdot` for each beam element from the 
+ - `Vdot_init`: `2/dt*C'*Cab*P + C'*Cab*Pdot` for each beam element from the 
     previous time step
- - `CtCabHdot_init`: `2/dt*C'*Cab*H + C'*Cab*Hdot` for each beam element from the 
+ - `Ωdot_init`: `2/dt*C'*Cab*H + C'*Cab*Hdot` for each beam element from the 
     previous time step
  - `dt`: time step size
 """
@@ -170,10 +170,10 @@ end
 
 # dynamic - newmark scheme time-marching
 @inline function element_properties(x, icol, elem, force_scaling, x0, v0, ω0, udot_init,
-    θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+    θdot_init, Vdot_init, Ωdot_init, dt)
 
     return newmark_element_properties(x, icol, elem, force_scaling, x0, v0, ω0, udot_init,
-        θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+        θdot_init, Vdot_init, Ωdot_init, dt)
 end
 
 # static
@@ -226,13 +226,13 @@ end
     udot = udot0
     θdot = θdot0
 
-    CtCabdot = get_C_t(Ct', θ, θdot)'*Cab
-
     Vdot = SVector(x[icol   ], x[icol+1 ], x[icol+2 ])
     Ωdot = SVector(x[icol+3 ], x[icol+4 ], x[icol+5 ])
-    
+
     Pdot = element_linear_momentum(elem, Vdot, Ωdot)
     Hdot = element_angular_momentum(elem, Vdot, Ωdot)
+
+    CtCabdot = get_C_t(Ct', θ, θdot)'*Cab
 
     CtCabPdot = CtCabdot*P + CtCab*Pdot
     CtCabHdot = CtCabdot*H + CtCab*Hdot
@@ -243,15 +243,24 @@ end
 
 # dynamic - newmark scheme time-marching
 @inline function newmark_element_properties(x, icol, elem, force_scaling, x0, v0, ω0, 
-    udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+    udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω = steady_state_element_properties(
         x, icol, elem, force_scaling, x0, v0, ω0)
 
     udot = 2/dt*u - udot_init
     θdot = 2/dt*θ - θdot_init
-    CtCabPdot = 2/dt*CtCab*P - CtCabPdot_init
-    CtCabHdot = 2/dt*CtCab*H - CtCabHdot_init
+
+    Vdot = 2/dt*V - Vdot_init
+    Ωdot = 2/dt*Ω - Ωdot_init
+
+    Pdot = element_linear_momentum(elem, Vdot, Ωdot)
+    Hdot = element_angular_momentum(elem, Vdot, Ωdot)
+
+    CtCabdot = get_C_t(Ct', θ, θdot)'*Cab
+
+    CtCabPdot = CtCabdot*P + CtCab*Pdot
+    CtCabHdot = CtCabdot*H + CtCab*Hdot
 
     return ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
         CtCabPdot, CtCabHdot
@@ -465,8 +474,8 @@ There are two implementations corresponding to the following analysis types:
  - `f_M1`, `f_M2`: Resultant moments for the left and right side of the beam element, respectively
 
 # Additional Arguments for Dynamic Analyses
- - `f_V`: Resultant linear momenta of the beam element
- - `f_Ω`: Resultant angular momenta of the beam element
+ - `f_V`: Resultant linear velocity of the beam element
+ - `f_Ω`: Resultant angular velocity of the beam element
 """
 insert_element_residual!
 
@@ -580,7 +589,7 @@ end
         ω0, u0, θ0, udot0, θdot0)
     element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
-        ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+        ω0, udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
 Compute and add a beam element's contributions to the residual vector
 
@@ -625,8 +634,8 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 # Additional Arguments for Time Marching Analyses
  - `udot_init`: `2/dt*u + udot` for each beam element from the previous time step
  - `θdot_init`: `2/dt*θ + θdot` for each beam element from the previous time step
- - `CtCabPdot_init`: `2/dt*C'*Cab*P + C'*Cab*Pdot` for each beam element from the previous time step
- - `CtCabHdot_init`: `2/dt*C'*Cab*H + C'*Cab*Hdot` for each beam element from the previous time step
+ - `Vdot_init`: `2/dt*V + Vdot` for each beam element from the previous time step
+ - `Ωdot_init`: `2/dt*Ω + Ωdot` for each beam element from the previous time step
  - `dt`: time step size
 """
 element_residual!
@@ -660,12 +669,12 @@ end
 # time marching - Newmark scheme
 @inline function element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
-    CtCabPdot_init, CtCabHdot_init, dt)
+    Vdot_init, Ωdot_init, dt)
 
     # time marching - Newmark scheme
     return newmark_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
-        CtCabPdot_init, CtCabHdot_init, dt)
+        Vdot_init, Ωdot_init, dt)
 end
 
 # static
@@ -695,8 +704,8 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
-    # add point mass gravitational loads to the element equations
     if haskey(point_masses, ielem)
+        # add point mass gravitational loads to the element equations
         fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
 
         f_u1 -= fp1
@@ -740,9 +749,17 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
-    # add point mass gravitational loads to the element equations
     if haskey(point_masses, ielem)
+        # add point mass gravitational loads to the element equations
         fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+
+        # add point mass acceleration loads to the element equations 
+        fp1, fp2, mp1, mp2 = steady_state_point_loads(Ct, point_masses[ielem].mass, V, Ω)
 
         f_u1 -= fp1
         f_u2 -= fp2
@@ -796,6 +813,14 @@ end
         f_u2 -= fp2
         f_ψ1 -= mp1
         f_ψ2 -= mp2
+
+        # add point mass acceleration loads to the element equations 
+        fp1, fp2, mp1, mp2 = dynamic_point_loads(Ct, point_masses[ielem].mass, V, Ω)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
     end
 
     # insert element resultants into the residual vector
@@ -808,13 +833,13 @@ end
 # time marching - Newmark scheme
 @inline function newmark_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, udot_init, θdot_init,
-    CtCabPdot_init, CtCabHdot_init, dt)
+    Vdot_init, Ωdot_init, dt)
 
     # compute element properties
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
         CtCabPdot, CtCabHdot = newmark_element_properties(x, icol,
-        elem, force_scaling, x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init,
-        CtCabHdot_init, dt)
+        elem, force_scaling, x0, v0, ω0, udot_init, θdot_init, Vdot_init,
+        Ωdot_init, dt)
 
     # solve for element resultants
     f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω =
@@ -837,9 +862,17 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
-    # add point mass gravitational loads to the element equations
     if haskey(point_masses, ielem)
+        # add point mass gravitational loads to the element equations
         fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+
+        # add point mass acceleration loads to the element equations 
+        fp1, fp2, mp1, mp2 = dynamic_point_loads(Ct, point_masses[ielem].mass, V, Ω)
 
         f_u1 -= fp1
         f_u2 -= fp2
@@ -886,9 +919,17 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
-    # add point mass gravitational loads to the element equations
     if haskey(point_masses, ielem)
+        # add point mass gravitational loads to the element equations
         fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+
+        f_u1 -= fp1
+        f_u2 -= fp2
+        f_ψ1 -= mp1
+        f_ψ2 -= mp2
+
+        # add point mass acceleration loads to the element equations 
+        fp1, fp2, mp1, mp2 = dynamic_point_loads(Ct, point_masses[ielem].mass, V, Ω)
 
         f_u1 -= fp1
         f_u2 -= fp2
@@ -1295,22 +1336,37 @@ end
 
     # --- f_u1, f_u2 --- #
 
-    # d_fu_dθ
-    tmp = ΔL/dt*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*P)
-    f_u1_θ += tmp
-    f_u2_θ += tmp
+    tmp = ΔL/2*(CtCabdot*(M11*V + M12*Ω) + Ct*Cab*(M11*Vdot + M12*Ωdot))
+    f_u1 += tmp
+    f_u2 += tmp
 
-    # d_fu_dV
-    tmp = ΔL/dt*CtCab*M11
+    # d_fu_dθ
+    tmp = ΔL/2*(
+        mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*P) +
+        2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*P) + 
+        mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Pdot)
+    )
+    f_u1_θ += tmp1 + tmp2 + tmp3
+    f_u2_θ += tmp1 + tmp2 + tmp3
+
+    # d_fu_dV      
+    tmp = ΔL/2*(CtCabdot*M11 + 2/dt*CtCab*M11)
     f_u1_V += tmp
     f_u2_V += tmp
 
-    # d_fu_dP
-    tmp = ΔL/dt*CtCab*M12
+    # d_fu_dΩ
+    tmp = ΔL/2*(CtCabdot*M12 + 2/dt*CtCab*M12)
     f_u1_Ω += tmp
     f_u2_Ω += tmp
 
     # --- f_ψ1, f_ψ2 --- #
+    tmp = ΔL/2*(
+        mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*H) +
+        2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*H) +
+        mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Hdot)
+    )
+    f_ψ1 += tmp
+    f_ψ2 += tmp
 
     # d_fψ_dθ
     tmp = ΔL/dt*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*H)
@@ -1318,12 +1374,12 @@ end
     f_ψ2_θ += tmp
 
     # d_fψ_dV
-    tmp = ΔL/dt*CtCab*M21
+    tmp = ΔL/2*(CtCabdot*M21 + 2/dt*CtCab*M21)
     f_ψ1_V += tmp
     f_ψ2_V += tmp
 
     # d_fψ_dΩ
-    tmp = ΔL/dt*CtCab*M22
+    tmp = ΔL/2*(CtCabdot*M22 + 2/dt*CtCab*M22)
     f_ψ1_Ω += tmp
     f_ψ2_Ω += tmp
 
@@ -1687,7 +1743,7 @@ end
         ω0, u0, θ0, udot0, θdot0)
     element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0,
-        ω0, udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+        ω0, udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
 Adds a beam element's contributions to the jacobian matrix
 
@@ -1732,8 +1788,8 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 # Additional Arguments for Time Marching Analyses
  - `udot_init`: `2/dt*u + udot` for each beam element from the previous time step
  - `θdot_init`: `2/dt*θ + θdot` for each beam element from the previous time step
- - `CtCabPdot_init`: `2/dt*C'*Cab*P + C'*Cab*Pdot` for each beam element from the previous time step
- - `CtCabHdot_init`: `2/dt*C'*Cab*H + C'*Cab*Hdot` for each beam element from the previous time step
+ - `Vdot_init`: `2/dt*V + Vdot` for each beam element from the previous time step
+ - `Ωdot_init`: `2/dt*Ω + Ωdot` for each beam element from the previous time step
  - `dt`: time step size
 """
 element_jacobian!
@@ -1768,11 +1824,11 @@ end
 # dynamic - time marching
 @inline function element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0,
-    udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+    udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     return newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
         force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0,
-        udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+        udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 end
 
 # static
@@ -1921,13 +1977,13 @@ end
 # dynamic - newmark scheme time marching
 @inline function newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0,
-    udot_init, θdot_init, CtCabPdot_init, CtCabHdot_init, dt)
+    udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     # compute element properties
     ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
         CtCabPdot, CtCabHdot = newmark_element_properties(x, icol, elem,
-        force_scaling, x0, v0, ω0, udot_init, θdot_init, CtCabPdot_init,
-        CtCabHdot_init, dt)
+        force_scaling, x0, v0, ω0, udot_init, θdot_init, Vdot_init,
+        Ωdot_init, dt)
 
     # pre-calculate jacobian of rotation matrix wrt θ
     C_θ1, C_θ2, C_θ3 = get_C_θ(Ct', θ)

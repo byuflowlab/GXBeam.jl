@@ -385,6 +385,40 @@ function PointMass{T}(p::PointMass) where T
 end
 
 """
+    mass_linear_momentum(element, V, Ω)
+
+Calculate the linear momentum (in the deformed local beam frame) of a point mass which is 
+rigidly attached to an element given the element's linear and angular velocity
+"""
+@inline function mass_linear_momentum(point_mass, V, Ω)
+    M = mass.mass
+    M11 = M[SVector{3}(1:3), SVector{3}(1:3)]
+    M12 = M[SVector{3}(1:3), SVector{3}(4:6)]
+    return M11*V + M12*Ω
+end
+
+@inline mass_linear_momentum_V(point_mass) = point_mass.mass[SVector{3}(1:3), SVector{3}(1:3)]
+
+@inline mass_linear_momentum_Ω(point_mass) = point_mass.mass[SVector{3}(1:3), SVector{3}(4:6)]
+
+"""
+    mass_angular_momentum(element, V, Ω)
+
+Calculate the angular momentum (in the deformed local beam frame) of a point mass which is 
+rigidly attached to an element given the element's linear and angular velocity
+"""
+@inline function mass_angular_momentum(point_mass, V, Ω)
+    M = point_mass.mass
+    M21 = M[SVector{3}(4:6), SVector{3}(1:3)]
+    M22 = M[SVector{3}(4:6), SVector{3}(4:6)]
+    return M21*V + M22*Ω
+end
+
+@inline mass_angular_momentum_V(point_mass) = point_mass.mass[SVector{3}(4:6), SVector{3}(1:3)]
+
+@inline mass_angular_momentum_Ω(point_mass) = point_mass.mass[SVector{3}(4:6), SVector{3}(4:6)]
+
+"""
     element_gravitational_loads(CtCab, mass, gvec)
 
 Calculate the integrated distributed loads on an element due to gravity.
@@ -425,32 +459,157 @@ Calculate the loads experienced by an element due to gravitational loads acting 
 point masses.
 """
 @inline function point_mass_gravitational_loads(Ct, mass, gvec)
-    # extract mass matrix submatrices
+
     M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
     M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
-    # calculate force and moment due to gravitionatl forces on point masses 
+
     F = Ct*M11*Ct'*gvec
     M = -Ct*M12*Ct'*gvec
-    # divide force and moment between both ends of the beam element
-    f1 = f2 = F/2
-    m1 = m2 = M/2
-    # return result
-    return f1, f2, m1, m2
+    
+    return F, M
 end
 
-@inline function point_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec)
+@inline function static_point_mass_loads(Ct, mass, gvec)
+
+    return point_mass_gravitational_loads(Ct, mass, gvec)
+end
+
+@inline function steady_state_point_mass_loads(Ct, mass, gvec, V, Ω)
+
+    # static point mass loads
+    Fp, Mp = static_point_mass_loads(Ct, mass, gvec)
+
+    # velocities in point mass reference frame
+    Vp = Cab*V
+    Ωp = Cab*Ω
+
+    # point mass linear and angular momentum
+    Pp = mass_linear_momentum(mass, Vp, Ωp)
+    Hp = mass_angular_momentum(mass, Vp, Ωp)
+    
+    # add steady state loads due to frame motion
+    Fp -= cross(ω, Ct*Pp)
+    Mp -= cross(ω, Ct*Hp) + Ct*cross(Vp, Pp)
+
+    # return result
+    return F, M
+end
+
+@inline function dynamic_point_mass_loads(Ct, mass, V, Ω, Vdot, Ωdot)
+
+    # steady state point mass loads
+    Fp, Mp = steady_state_point_mass_loads(Ct, mass, gvec, V, Ω)
+
+    # accelerations in point mass reference frame
+    Vpdot = Cab*Vdot
+    Ωpdot = Cab*Ωdot
+
+    # point mass linear and angular momentum derivatives
+    Ppdot = mass_linear_momentum(mass, Vpdot, Ωpdot)
+    Hpdot = mass_angular_momentum(mass, Vpdot, Ωpdot)
+
+    # calculate \dot{\bar{C^T*P}} and \dot{\bar{C^T*H}}
+    CtPpdot = Ctdot*Ppt + Ct*Ppdot
+    CtHpdot = Ctdot*Hpt + Ct*Hpdot
+
+    # add loads due to structure motion
+    Fp -= CtPpdot
+    Mp -= CtHpdot
+
+    # return result
+    return F, M
+end
+
+@inline function static_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec)
     C_θ1, C_θ2, C_θ3 = Ct_θ1', Ct_θ2', Ct_θ3'
     # extract mass matrix submatrices
     M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
     M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
     # calculate force and moment due to gravitational forces on point masses
-    F_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, M11*Ct'*gvec) + Ct*M11*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    M_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, M12*Ct'*gvec) - Ct*M12*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    # divide force and moment between both ends of the beam element
-    f1_θ = f2_θ = F_θ/2
-    m1_θ = m2_θ = M_θ/2
+    Fp_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, M11*Ct'*gvec) + Ct*M11*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    Mp_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, M12*Ct'*gvec) - Ct*M12*mul3(C_θ1, C_θ2, C_θ3, gvec)
     # return result
-    return f1_θ, f2_θ, m1_θ, m2_θ
+    return Fp_θ, Mp_θ
+end
+
+@inline function steady_state_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec, V, Ω)
+
+    # static point mass jacobians
+    Fp_θ, Mp_θ = static_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec)
+
+    # velocities in point mass reference frame
+    Vp = Cab*V
+    Ωp = Cab*Ω
+
+    # point mass linear and angular momentum
+    Pp = M11*Cab*V + M12*Cab*Ω
+    Hp = M21*Cab*V + M22*Cab*Ω
+    
+    # add steady state loads due to frame motion
+    Fp_θ -= tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, M11*Vp + M12*Ωp)
+    Fp_V -= tilde(ω)*Ct*M11*Cab
+    Fp_Ω -= tilde(ω)*Ct*M12*Cab
+
+    Mp_θ -= tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, tilde(Vp)*Pp)
+    Mp_V -= tilde(ω)*Ct*M21*Cab - Ct*tilde(Pp)*Cab + Ct*tilde(Vp)*M11*Cab
+    Mp_Ω -= tilde(ω)*Ct*M22*Ωp + Ct*tilde(Vp)*M12*Cab
+
+    return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
+end
+
+@inline function newmark_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec, V, Ω)
+
+    # static point mass jacobians
+    Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = steady_state_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec, V, Ω)
+    
+    # point mass linear and angular momentum
+    Pp = M11*Cab*V + M12*Cab*Ω
+    Hp = M21*Cab*V + M22*Cab*Ω
+
+    # accelerations in point mass reference frame
+    Vpdot = Cab*(2/dt*V - Vdot_init)
+    Ωpdot = Cab*(2/dt*Ω - Ωdot_init)
+
+    # point mass linear and angular momentum derivatives
+    Ppdot = M11 * Vpdot + M12 * Ωpdot
+    Hpdot = M21 * Vpdot + M22 * Ωpdot
+
+    Fp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Pp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Ppdot)
+    Mp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Hp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hpdot)
+
+    Fp_V -= Ctdot*M11*Cab + 2/dt*Ct*M11*Cab
+    Mp_V -= Ctdot*M21*Cab + 2/dt*Ct*M21*Cab
+
+    Fp_Ω -= Ctdot*M12*Cab + 2/dt*Ct*M12*Cab
+    Mp_Ω -= Ctdot*M22*Cab + 2/dt*Ct*M22*Cab
+
+    return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
+end
+
+@inline function dynamic_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec, V, Ω)
+
+    # static point mass jacobians
+    Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = steady_state_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec, V, Ω)
+    
+    Pp = M11*Cab*V + M12*Cab*Ω
+    Hp = M21*Cab*V + M22*Cab*Ω
+
+    Vpdot = Cab*Vdot
+    Ωpdot = Cab*Ωdot
+
+    Ppdot = mass_linear_momentum(mass, Vpdot, Ωpdot)
+    Hpdot = mass_angular_momentum(mass, Vpdot, Ωpdot)
+
+    Fp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Pp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Ppdot)
+    Mp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Hp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hpdot)
+
+    Fp_V -= Ctdot*M11*Cab*V
+    Mp_V -= Ctdot*M21*Cab*V
+
+    Fp_Ω -= Ctdot*M12*Cab*Ω
+    Mp_Ω -= Ctdot*M22*Cab*Ω
+
+    return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
 end
 
 """
