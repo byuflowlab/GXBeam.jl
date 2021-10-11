@@ -412,7 +412,7 @@ end
     M12 = elem.mass[SVector{3}(1:3), SVector{3}(4:6)]
     # calculate force and moment per unit length due to gravitational forces
     f_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M11*CtCab'*gvec) + CtCab*M11*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M12*CtCab'*gvec) + CtCab*M12*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M12*CtCab'*gvec) - CtCab*M12*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
     # calculate integrated force and moment per unit length
     f1_θ = f2_θ = ΔL*f_θ/2
     m1_θ = m2_θ = ΔL*m_θ/2
