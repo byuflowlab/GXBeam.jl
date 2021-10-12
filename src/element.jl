@@ -262,8 +262,8 @@ end
     CtCabPdot = CtCabdot*P + CtCab*Pdot
     CtCabHdot = CtCabdot*H + CtCab*Hdot
 
-    return ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
-        CtCabPdot, CtCabHdot
+    return ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot, Vdot, Ωdot, 
+        Pdot, Hdot, CtCabPdot, CtCabHdot, CtCabdot
 end
 
 # dynamic - general
@@ -836,8 +836,8 @@ end
     Vdot_init, Ωdot_init, dt)
 
     # compute element properties
-    ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
-        CtCabPdot, CtCabHdot = newmark_element_properties(x, icol,
+    ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot, Vdot, Ωdot, Pdot, Hdot, 
+        CtCabPdot, CtCabHdot, CtCabdot = newmark_element_properties(x, icol,
         elem, force_scaling, x0, v0, ω0, udot_init, θdot_init, Vdot_init,
         Ωdot_init, dt)
 
@@ -1032,10 +1032,11 @@ end
 
 # dynamic - newmark scheme time-marching
 @inline function element_jacobian_equations(elem, ΔL, Cab, CtCab, θ, F, M, γ, κ,
-    ω, P, H, V, θdot, dt, Ct_θ1, Ct_θ2, Ct_θ3)
+    ω, P, H, V, θdot, Vdot, Ωdot, dt, Ct_θ1, Ct_θ2, Ct_θ3, CtCabdot)
 
     return newmark_element_jacobian_equations(elem, ΔL, Cab, CtCab, θ, F, M, γ, κ,
-        ω, P, H, V, θdot, dt, Ct_θ1, Ct_θ2, Ct_θ3)
+        ω, P, H, V, Ω, θdot, Vdot, Ωdot, Pdot, Hdot, dt, Ct_θ1, Ct_θ2, Ct_θ3, CtCabdot, Ctdot_θ1, 
+        Ctdot_θ2, Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 end
 
 # static
@@ -1319,7 +1320,8 @@ end
 
 # dynamic - newmark scheme time-marching
 @inline function newmark_element_jacobian_equations(elem, ΔL, Cab, CtCab, θ, F, M, γ, κ,
-    ω, P, H, V, θdot, dt, Ct_θ1, Ct_θ2, Ct_θ3)
+    ω, P, H, V, Ω, θdot, Vdot, Ωdot, Pdot, Hdot, dt, Ct_θ1, Ct_θ2, Ct_θ3, CtCabdot, 
+    Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
     f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
         f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_V, f_ψ2_V, f_ψ1_Ω, f_ψ2_Ω,
@@ -1336,18 +1338,14 @@ end
 
     # --- f_u1, f_u2 --- #
 
-    tmp = ΔL/2*(CtCabdot*(M11*V + M12*Ω) + Ct*Cab*(M11*Vdot + M12*Ωdot))
-    f_u1 += tmp
-    f_u2 += tmp
-
     # d_fu_dθ
     tmp = ΔL/2*(
         mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*P) +
         2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*P) + 
         mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Pdot)
     )
-    f_u1_θ += tmp1 + tmp2 + tmp3
-    f_u2_θ += tmp1 + tmp2 + tmp3
+    f_u1_θ += tmp
+    f_u2_θ += tmp
 
     # d_fu_dV      
     tmp = ΔL/2*(CtCabdot*M11 + 2/dt*CtCab*M11)
@@ -1360,16 +1358,13 @@ end
     f_u2_Ω += tmp
 
     # --- f_ψ1, f_ψ2 --- #
+
+    # d_fψ_dθ
     tmp = ΔL/2*(
         mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*H) +
         2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*H) +
         mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Hdot)
     )
-    f_ψ1 += tmp
-    f_ψ2 += tmp
-
-    # d_fψ_dθ
-    tmp = ΔL/dt*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*H)
     f_ψ1_θ += tmp
     f_ψ2_θ += tmp
 
@@ -1980,14 +1975,20 @@ end
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     # compute element properties
-    ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot,
-        CtCabPdot, CtCabHdot = newmark_element_properties(x, icol, elem,
+    ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω, udot, θdot, Vdot, Ωdot, Pdot, Hdot,
+        CtCabPdot, CtCabHdot, CtCabdot = newmark_element_properties(x, icol, elem,
         force_scaling, x0, v0, ω0, udot_init, θdot_init, Vdot_init,
         Ωdot_init, dt)
 
     # pre-calculate jacobian of rotation matrix wrt θ
     C_θ1, C_θ2, C_θ3 = get_C_θ(Ct', θ)
     Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
+
+    Cdot_θ1, Cdot_θ2, Cdot_θ3 = get_C_t_θ(θ, θdot)
+    Ctdot_θ1, Ctdot_θ2, Ctdot_θ3 = Cdot_θ1', Cdot_θ2', Cdot_θ3'
+
+    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_θdot(Ct', θ)
+    Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3 = Cdot_θdot1', Cdot_θdot2', Cdot_θdot3'
 
     # solve for the element resultants
     f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
@@ -1996,7 +1997,8 @@ end
         f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_V_u, f_V_θ, f_V_V,
         f_Ω_θ, f_Ω_Ω = newmark_element_jacobian_equations(elem, ΔL, Cab, CtCab,
-        θ, F, M, γ, κ, ω, P, H, V, θdot, dt, Ct_θ1, Ct_θ2, Ct_θ3)
+        θ, F, M, γ, κ, ω, P, H, V, Ω, θdot, Vdot, Ωdot, Pdot, Hdot, dt, Ct_θ1, Ct_θ2, Ct_θ3, CtCabdot,
+        Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
     # add jacobians for follower loads (if applicable)
     if haskey(distributed_loads, ielem)
