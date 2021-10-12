@@ -971,7 +971,10 @@ end
     dload = Dict()
 
     # point masses
-    pmass = Dict()
+    pmass = Dict(
+        # point mass at the end of the beam
+        nelem => PointMass(Symmetric(rand(6,6)))
+    )
 
     # gravity vector
     gvec = rand(3)

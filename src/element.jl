@@ -704,14 +704,14 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
+    # add point mass loads to the element equations
     if haskey(point_masses, ielem)
-        # add point mass gravitational loads to the element equations
-        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+        Fp, Mp = static_point_mass_loads(Ct, point_masses[ielem].mass, gvec)
 
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
+        f_u1 -= Fp/2
+        f_u2 -= Fp/2
+        f_ψ1 -= Mp/2
+        f_ψ2 -= Mp/2
     end
 
     # insert element resultants into residual vector
@@ -749,22 +749,15 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
+    # add point mass loads to the element equations
     if haskey(point_masses, ielem)
-        # add point mass gravitational loads to the element equations
-        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+        Fp, Mp = steady_state_point_mass_loads(Ct, point_masses[ielem].mass, 
+            gvec, ω, V, Ω)
 
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
-
-        # add point mass acceleration loads to the element equations 
-        fp1, fp2, mp1, mp2 = steady_state_point_loads(Ct, point_masses[ielem].mass, V, Ω)
-
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
+        f_u1 -= Fp/2
+        f_u2 -= Fp/2
+        f_ψ1 -= Mp/2
+        f_ψ2 -= Mp/2
     end
 
     # insert element resultants into the residual vector
@@ -805,22 +798,15 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
-    # add point mass gravitational loads to the element equations
+    # add point mass loads to the element equations
     if haskey(point_masses, ielem)
-        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+        Fp, Mp = dynamic_point_mass_loads(Ct, point_masses[ielem].mass, gvec, ω, 
+            V, Ω, Vdot, Ωdot)
 
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
-
-        # add point mass acceleration loads to the element equations 
-        fp1, fp2, mp1, mp2 = dynamic_point_loads(Ct, point_masses[ielem].mass, V, Ω)
-
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
+        f_u1 -= Fp/2
+        f_u2 -= Fp/2
+        f_ψ1 -= Mp/2
+        f_ψ2 -= Mp/2
     end
 
     # insert element resultants into the residual vector
@@ -862,22 +848,15 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
+    # add point mass loads to the element equations
     if haskey(point_masses, ielem)
-        # add point mass gravitational loads to the element equations
-        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+        Fp, Mp = dynamic_point_mass_loads(Ct, point_masses[ielem].mass, gvec, 
+            ω, V, Ω, Vdot, Ωdot)
 
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
-
-        # add point mass acceleration loads to the element equations 
-        fp1, fp2, mp1, mp2 = dynamic_point_loads(Ct, point_masses[ielem].mass, V, Ω)
-
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
+        f_u1 -= Fp/2
+        f_u2 -= Fp/2
+        f_ψ1 -= Mp/2
+        f_ψ2 -= Mp/2
     end
 
     # insert element resultants into the residual vector
@@ -919,22 +898,15 @@ end
     f_ψ1 -= mg1
     f_ψ2 -= mg2
 
+    # add point mass loads to the element equations
     if haskey(point_masses, ielem)
-        # add point mass gravitational loads to the element equations
-        fp1, fp2, mp1, mp2 = point_mass_gravitational_loads(Ct, point_masses[ielem].mass, gvec)
+        Fp, Mp = dynamic_point_mass_loads(Ct, point_masses[ielem].mass, gvec, 
+            ω, V, Ω, Vdot, Ωdot)
 
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
-
-        # add point mass acceleration loads to the element equations 
-        fp1, fp2, mp1, mp2 = dynamic_point_loads(Ct, point_masses[ielem].mass, V, Ω)
-
-        f_u1 -= fp1
-        f_u2 -= fp2
-        f_ψ1 -= mp1
-        f_ψ2 -= mp2
+        f_u1 -= Fp/2
+        f_u2 -= Fp/2
+        f_ψ1 -= Mp/2
+        f_ψ2 -= Mp/2
     end
 
     # insert element resultants into the residual vector
@@ -1859,14 +1831,14 @@ end
     f_ψ1_θ -= mg1_θ
     f_ψ2_θ -= mg2_θ
 
-    # add jacobians for point mass gravitational loads
+    # add jacobians for point mass loads
     if haskey(point_masses, ielem)
-        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+        Fp_θ, Mp_θ = static_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
 
-        f_u1 -= fp1_θ
-        f_u2 -= fp2_θ
-        f_ψ1 -= mp1_θ
-        f_ψ2 -= mp2_θ
+        f_u1_θ -= Fp_θ/2
+        f_u2_θ -= Fp_θ/2
+        f_ψ1_θ -= Mp_θ/2
+        f_ψ2_θ -= Mp_θ/2
     end
 
     # insert element resultants into the jacobian matrix
@@ -1885,7 +1857,7 @@ end
     force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0)
 
     # compute element properties
-    ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Q = steady_state_element_properties(
+    ΔL, Ct, Cab, CtCab, u, θ, F, M, γ, κ, v, ω, P, H, V, Ω = steady_state_element_properties(
         x, icol, elem, force_scaling, x0, v0, ω0)
 
     # pre-calculate jacobian of rotation matrix wrt θ
@@ -1916,14 +1888,28 @@ end
     f_ψ1_θ -= mg1_θ
     f_ψ2_θ -= mg2_θ
 
-    # add jacobians for point mass gravitational loads
+    # add jacobians for point mass loads
     if haskey(point_masses, ielem)
-        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+        Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = steady_state_point_mass_jacobian(Ct, Ct_θ1, 
+            Ct_θ2, Ct_θ3, Cab, point_masses[ielem].mass, gvec, ω, V, Ω)
 
-        f_u1 -= fp1_θ
-        f_u2 -= fp2_θ
-        f_ψ1 -= mp1_θ
-        f_ψ2 -= mp2_θ
+        f_u1_θ -= Fp_θ/2
+        f_u2_θ -= Fp_θ/2
+
+        f_u1_V -= Fp_V/2
+        f_u2_V -= Fp_V/2
+
+        f_u1_Ω -= Fp_Ω/2
+        f_u2_Ω -= Fp_Ω/2
+
+        f_ψ1_θ -= Mp_θ/2
+        f_ψ2_θ -= Mp_θ/2
+
+        f_ψ1_V -= Mp_V/2
+        f_ψ2_V -= Mp_V/2
+
+        f_ψ1_Ω -= Mp_Ω/2
+        f_ψ2_Ω -= Mp_Ω/2
     end
 
     # insert element resultants into the jacobian matrix
@@ -1956,6 +1942,36 @@ end
         f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_V_V, f_Ω_Ω = initial_step_element_jacobian_equations(elem, ΔL, Cab, CtCab, θ, F, γ,
         ω, P, V, CtCabdot)
+
+    # add jacobians for point mass loads
+    if haskey(point_masses, ielem)
+        Fp_Vdot, Fp_Ωdot, Fp_V, Fp_Ω, Mp_Vdot, Mp_Ωdot, Mp_V, Mp_Ω = 
+            initial_step_point_mass_jacobian(Ct, Cab, mass, ω)
+
+        f_u1_Vdot -= Fp_Vdot/2
+        f_u2_Vdot -= Fp_Vdot/2
+
+        f_u1_Ωdot -= Fp_Ωdot/2
+        f_u2_Ωdot -= Fp_Ωdot/2
+
+        f_u1_V -= Fp_V/2
+        f_u2_V -= Fp_V/2
+
+        f_u1_Ω -= Fp_Ω/2
+        f_u2_Ω -= Fp_Ω/2
+
+        f_ψ1_Vdot -= Mp_Vdot/2
+        f_ψ2_Vdot -= Mp_Vdot/2
+
+        f_ψ1_Ωdot -= Mp_Ωdot/2
+        f_ψ2_Ωdot -= Mp_Ωdot/2
+
+        f_ψ1_V -= Mp_V/2
+        f_ψ2_V -= Mp_V/2
+
+        f_ψ1_Ω -= Mp_Ω/2
+        f_ψ2_Ω -= Mp_Ω/2
+    end
 
     # insert element resultants into the jacobian matrix
     jacob = insert_initial_step_element_jacobian!(jacob, force_scaling, irow_e,
@@ -2017,12 +2033,26 @@ end
 
     # add jacobians for point mass gravitational loads
     if haskey(point_masses, ielem)
-        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+        Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = newmark_point_mass_jacobian(Ct, Ct_θ1, 
+            Ct_θ2, Ct_θ3, Cab, point_masses[ielem].mass, gvec, ω, V, Ω)
 
-        f_u1 -= fp1_θ
-        f_u2 -= fp2_θ
-        f_ψ1 -= mp1_θ
-        f_ψ2 -= mp2_θ
+        f_u1_θ -= Fp_θ/2
+        f_u2_θ -= Fp_θ/2
+
+        f_u1_V -= Fp_V/2
+        f_u2_V -= Fp_V/2
+
+        f_u1_Ω -= Fp_Ω/2
+        f_u2_Ω -= Fp_Ω/2
+
+        f_ψ1_θ -= Mp_θ/2
+        f_ψ2_θ -= Mp_θ/2
+
+        f_ψ1_V -= Mp_V/2
+        f_ψ2_V -= Mp_V/2
+
+        f_ψ1_Ω -= Mp_Ω/2
+        f_ψ2_Ω -= Mp_Ω/2
     end
 
     # insert element resultants into the jacobian matrix
@@ -2083,14 +2113,28 @@ end
     f_ψ1_θ -= mg1_θ
     f_ψ2_θ -= mg2_θ
 
-    # add jacobians for point mass gravitational loads
+    # add jacobians for point mass loads
     if haskey(point_masses, ielem)
-        fp1_θ, fp2_θ, mp1_θ, mp2_θ = point_mass_gravitational_loads_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, point_masses[ielem].mass, gvec)
+        Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = dynamic_point_mass_jacobian(Ct, Ct_θ1, 
+            Ct_θ2, Ct_θ3, Cab, point_masses[ielem].mass, gvec, ω, V, Ω)
 
-        f_u1 -= fp1_θ
-        f_u2 -= fp2_θ
-        f_ψ1 -= mp1_θ
-        f_ψ2 -= mp2_θ
+        f_u1_θ -= Fp_θ/2
+        f_u2_θ -= Fp_θ/2
+
+        f_u1_V -= Fp_V/2
+        f_u2_V -= Fp_V/2
+
+        f_u1_Ω -= Fp_Ω/2
+        f_u2_Ω -= Fp_Ω/2
+
+        f_ψ1_θ -= Mp_θ/2
+        f_ψ2_θ -= Mp_θ/2
+
+        f_ψ1_V -= Mp_V/2
+        f_ψ2_V -= Mp_V/2
+
+        f_ψ1_Ω -= Mp_Ω/2
+        f_ψ2_Ω -= Mp_Ω/2
     end
 
     # insert element resultants into the jacobian matrix
