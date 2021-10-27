@@ -1517,7 +1517,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `icol_point`: Column index of first state variable for each point
  - `icol_elem`: Column index of first state variable for each beam element
 """
-function system_mass_matrix!(jacob, x, assembly, force_scaling, irow_point,
+function system_mass_matrix!(jacob, x, assembly, point_masses, force_scaling, irow_point,
     irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     jacob .= 0
@@ -1535,8 +1535,8 @@ function system_mass_matrix!(jacob, x, assembly, force_scaling, irow_point,
         irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
-        element_mass_matrix!(jacob, x, assembly.elements[ielem], force_scaling,
-            icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
+        element_mass_matrix!(jacob, x, assembly.elements[ielem], point_masses, 
+            force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 
     # no contributions to "mass matrix" from point state variables
@@ -1553,7 +1553,7 @@ end
 
 Add the system mass matrix to `jacob`, scaled by the scaling parameter `gamma`.
 """
-function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, irow_point, irow_elem,
+function system_mass_matrix!(jacob, gamma, x, assembly, point_masses, force_scaling, irow_point, irow_elem,
     irow_elem1, irow_elem2, icol_point, icol_elem)
 
     npoint = length(assembly.points)
@@ -1569,7 +1569,7 @@ function system_mass_matrix!(jacob, gamma, x, assembly, force_scaling, irow_poin
         irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
-        element_mass_matrix!(jacob, gamma, x, assembly.elements[ielem],
+        element_mass_matrix!(jacob, gamma, x, assembly.elements[ielem], point_masses,
             force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 

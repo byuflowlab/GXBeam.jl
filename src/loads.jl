@@ -1,27 +1,33 @@
 """
     PrescribedConditions{T}
 
-Describes the forces, moments, displacements, and/or rotations prescribed at a
-point at a specific point in time.
+Type which contains the forces, moments, displacements, and/or rotations prescribed at a point.
+
+# Fields:
+ - `isforce`: Flag for each degree of freedom indicating whether forces/moments or 
+    displacements are prescribed 
+ - `value`: Magnitude of the prescribed force/moment and/or displacement associated 
+    with each degree of freedom 
+ - `follower`: Magnitude of the follower force/moment associated with each degree of 
+    freedom (if applicable)
 """
 struct PrescribedConditions{T}
-    force::SVector{6, Bool}
+    isforce::SVector{6, Bool}
     value::SVector{6, T}
     follower::SVector{6, T}
 end
 Base.eltype(::PrescribedConditions{T}) where T = T
 
 function PrescribedConditions{T}(p::PrescribedConditions) where T
-    PrescribedConditions{T}(p.force, p.value, p.follower)
+    PrescribedConditions{T}(p.isforce, p.value, p.follower)
 end
 
-PrescribedConditions(force, value, follower) = PrescribedConditions(force, promote(value, follower)...)
+PrescribedConditions(isforce, value, follower) = PrescribedConditions(isforce, promote(value, follower)...)
 
 """
     PrescribedConditions(t = 0.0; kwargs...)
 
-Return the combined prescribed conditions at a point (as an object of type
-[`PrescribedConditions`](@ref)) at time `t`.
+Return the prescribed conditions at a point at time `t`.
 
 Individual prescribed conditions may be assigned as either a scalar parameter or
 as a function of time.
@@ -31,24 +37,24 @@ sqrt(theta_x^2 + theta_y^2 + theta_z^2) <= 4.  Note that this restriction still
 allows all possible rotations to be represented.
 
 # Keyword Arguments
- - `ux`: Prescribed x-direction displacement of the point
- - `uy`: Prescribed y-direction displacement of the point
- - `uz`: Prescribed z-direction displacement of the point
- - `theta_x`: Prescribed first Wiener-Milenkovic parameter of the point
- - `theta_y`: Prescribed second Wiener-Milenkovic parameter of the point
- - `theta_z`: Prescribed third Wiener-Milenkovic parameter of the point
- - `Fx`: Prescribed force in x-direction applied on the point
- - `Fy`: Prescribed force in y-direction applied on the point
- - `Fz`: Prescribed force in z-direction applied on the point
- - `Mx`: Prescribed moment about x-axis applied on the point
- - `My`: Prescribed moment about y-axis applied on the point
- - `Mz`: Prescribed moment about z-axis applied on the point
- - `Fx_follower`: Prescribed follower force in x-direction applied on the point
- - `Fy_follower`: Prescribed follower force in y-direction applied on the point
- - `Fz_follower`: Prescribed follower force in z-direction applied on the point
- - `Mx_follower`: Prescribed follower moment about x-axis applied on the point
- - `My_follower`: Prescribed follower moment about y-axis applied on the point
- - `Mz_follower`: Prescribed follower moment about z-axis applied on the point
+ - `ux`: Prescribed x-displacement (in the body frame)
+ - `uy`: Prescribed y-displacement (in the body frame)
+ - `uz`: Prescribed z-displacement (in the body frame)
+ - `theta_x`: Prescribed first Wiener-Milenkovic parameter
+ - `theta_y`: Prescribed second Wiener-Milenkovic parameter
+ - `theta_z`: Prescribed third Wiener-Milenkovic parameter
+ - `Fx`: Prescribed x-direction force
+ - `Fy`: Prescribed y-direction force
+ - `Fz`: Prescribed z-direction force
+ - `Mx`: Prescribed x-direction moment
+ - `My`: Prescribed y-direction moment
+ - `Mz`: Prescribed z-direction moment
+ - `Fx_follower`: Prescribed x-direction follower force
+ - `Fy_follower`: Prescribed y-direction follower force
+ - `Fz_follower`: Prescribed z-direction follower force
+ - `Mx_follower`: Prescribed x-direction follower moment
+ - `My_follower`: Prescribed y-direction follower moment
+ - `Mz_follower`: Prescribed z-direction follower moment
 """
 function PrescribedConditions(t = 0.0;
     ux = nothing,
@@ -158,18 +164,17 @@ end
 """
     DistributedLoads{T}
 
-Contains the integrated distributed forces and moments for each beam element at
-a specific time step.
+Type which contains pre-integrated distributed forces and moments applied to a beam element.
 
 # Fields
- - f1: Integrated non-follower distributed force for the beam element's left endpoint for each time step
- - f2: Integrated non-follower distributed force for the beam element's right endpoint for each time step
- - m1: Integrated non-follower distributed moment for the beam element's left endpoint for each time step
- - m2: Integrated non-follower distributed moment for the beam element's right endpoint for each time step
- - f1_follower: Integrated follower distributed force for the beam element's left endpoint for each time step
- - f2_follower: Integrated follower distributed force for the beam element's right endpoint for each time step
- - m1_follower: Integrated follower distributed moment for the beam element's left endpoint for each time step
- - m2_follower: Integrated follower distributed moment for the beam element's right endpoint for each time step
+ - f1: Integrated non-follower distributed force corresponding to the start of the beam element.
+ - f2: Integrated non-follower distributed force corresponding to the end of the beam element.
+ - m1: Integrated non-follower distributed moment corresponding to the start of the beam element.
+ - m2: Integrated non-follower distributed moment corresponding to the end of the beam element.
+ - f1_follower: Integrated follower distributed force corresponding to the start of the beam element.
+ - f2_follower: Integrated follower distributed force corresponding to the end of the beam element.
+ - m1_follower: Integrated follower distributed moment corresponding to the start of the beam element.
+ - m2_follower: Integrated follower distributed moment corresponding to the end of the beam element.
 """
 struct DistributedLoads{T}
     f1::SVector{3, T}
@@ -194,29 +199,30 @@ DistributedLoads(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follo
 """
     DistributedLoads(assembly, ielem; kwargs...)
 
-Return the integrated distributed loads at a point (as an object of type [`DistributedLoads`](@ref)).
+Pre-integrate distributed loads on a beam element for use in an analysis.
 
 # Arguments
- - `assembly`: The beam element assembly
- - `ielem`: The index of the beam element which the distributed load is assigned to
+ - `assembly`: Beam element assembly (of type [`Assembly`](@ref))
+ - `ielem`: Beam element index
 
 # Keyword Arguments
  - `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
  - `s2 = 1.0`: End of the beam element (used solely for integrating the distributed loads)
- - `method = (f, a, b) -> gauss_quadrature(f, a, b)`: Method which integrates function
-    `f` from `a` to `b`. Defaults to the Gauss-Legendre quadrature with 4 points on each element.
- - `fx = (s) -> 0.0`: Distributed non-follower force on beam element in x-direction
- - `fy = (s) -> 0.0`: Distributed non-follower force on beam element in y-direction
- - `fz = (s) -> 0.0`: Distributed non-follower force on beam element in z-direction
- - `mx = (s) -> 0.0`: Distributed non-follower moment on beam element in x-direction
- - `my = (s) -> 0.0`: Distributed non-follower moment on beam element in y-direction
- - `mz = (s) -> 0.0`: Distributed non-follower moment on beam element in z-direction
- - `fx_follower = (s) -> 0.0`: Distributed follower force on beam element in x-direction
- - `fy_follower = (s) -> 0.0`: Distributed follower force on beam element in y-direction
- - `fz_follower = (s) -> 0.0`: Distributed follower force on beam element in z-direction
- - `mx_follower = (s) -> 0.0`: Distributed follower moment on beam element in x-direction
- - `my_follower = (s) -> 0.0`: Distributed follower moment on beam element in y-direction
- - `mz_follower = (s) -> 0.0`: Distributed follower moment on beam element in z-direction
+ - `method = (f, s1, s2) -> gauss_quadrature(f, s1, s2)`: Method which integrates function
+    `f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points 
+    on each element.
+ - `fx = (s) -> 0.0`: Distributed x-direction force
+ - `fy = (s) -> 0.0`: Distributed y-direction force
+ - `fz = (s) -> 0.0`: Distributed z-direction force
+ - `mx = (s) -> 0.0`: Distributed x-direction moment
+ - `my = (s) -> 0.0`: Distributed y-direction moment
+ - `mz = (s) -> 0.0`: Distributed z-direction moment
+ - `fx_follower = (s) -> 0.0`: Distributed x-direction follower force
+ - `fy_follower = (s) -> 0.0`: Distributed y-direction follower force
+ - `fz_follower = (s) -> 0.0`: Distributed z-direction follower force
+ - `mx_follower = (s) -> 0.0`: Distributed x-direction follower moment
+ - `my_follower = (s) -> 0.0`: Distributed y-direction follower moment
+ - `mz_follower = (s) -> 0.0`: Distributed z-direction follower moment
 """
 function DistributedLoads(assembly, ielem;
     s1 = 0.0,
@@ -258,31 +264,30 @@ end
 """
     DistrubutedLoads(assembly, ielem, t; kwargs...)
 
-Return the integrated distributed loads on a beam element (as an object of type
-[`DistributedLoads`](@ref)) at time `t`.
+Pre-integrate distributed loads on a beam element for use in an analysis.
 
 # Arguments
- - `assembly`: The beam element assembly
- - `ielem`: The index of the beam element which the distributed load is assigned to
- - `t`: time at which to evaluate the distributed loads
+ - `assembly`: Beam element assembly (of type [`Assembly`](@ref))
+ - `ielem`: Beam element index
+ - `t`: Current time
 
 # Keyword Arguments
  - `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
  - `s2 = 1.0`: End of the beam element (used solely for integrating the distributed loads)
- - `method = (f, a, b) -> gauss_quadrature(f, a, b)`: Method which integrates function
-    `f` from `a` to `b`. Defaults to the Gauss-Legendre quadrature with 4 points on each element.
- - `fx = (s, t) -> 0.0`: Distributed non-follower force on beam element in x-direction
- - `fy = (s, t) -> 0.0`: Distributed non-follower force on beam element in y-direction
- - `fz = (s, t) -> 0.0`: Distributed non-follower force on beam element in z-direction
- - `mx = (s, t) -> 0.0`: Distributed non-follower moment on beam element in x-direction
- - `my = (s, t) -> 0.0`: Distributed non-follower moment on beam element in y-direction
- - `mz = (s, t) -> 0.0`: Distributed non-follower moment on beam element in z-direction
- - `fx_follower = (s, t) -> 0.0`: Distributed follower force on beam element in x-direction
- - `fy_follower = (s, t) -> 0.0`: Distributed follower force on beam element in y-direction
- - `fz_follower = (s, t) -> 0.0`: Distributed follower force on beam element in z-direction
- - `mx_follower = (s, t) -> 0.0`: Distributed follower moment on beam element in x-direction
- - `my_follower = (s, t) -> 0.0`: Distributed follower moment on beam element in y-direction
- - `mz_follower = (s, t) -> 0.0`: Distributed follower moment on beam element in z-direction
+ - `method = (f, s1, s2) -> gauss_quadrature(f, s1, s2)`: Method which integrates function
+    `f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points on each element.
+ - `fx = (s, t) -> 0.0`: Distributed x-direction force
+ - `fy = (s, t) -> 0.0`: Distributed y-direction force
+ - `fz = (s, t) -> 0.0`: Distributed z-direction force
+ - `mx = (s, t) -> 0.0`: Distributed x-direction moment
+ - `my = (s, t) -> 0.0`: Distributed y-direction moment
+ - `mz = (s, t) -> 0.0`: Distributed z-direction moment
+ - `fx_follower = (s, t) -> 0.0`: Distributed x-direction follower force
+ - `fy_follower = (s, t) -> 0.0`: Distributed y-direction follower force
+ - `fz_follower = (s, t) -> 0.0`: Distributed z-direction follower force
+ - `mx_follower = (s, t) -> 0.0`: Distributed x-direction follower moment
+ - `my_follower = (s, t) -> 0.0`: Distributed y-direction follower moment
+ - `mz_follower = (s, t) -> 0.0`: Distributed z-direction follower moment
 """
 function DistributedLoads(assembly, ielem, t;
     s1 = 0.0,
@@ -371,283 +376,39 @@ function DistributedLoads(assembly, ielem, t;
 end
 
 """
-    PointMass{T}
-
-Describes the inertial properties of a mass attached at a point.
-"""
-struct PointMass{T}
-    mass::SMatrix{6,6,T,36}
-end
-Base.eltype(::PointMass{T}) where T = T
-
-function PointMass{T}(p::PointMass) where T
-    PointMass{T}(p.mass)
-end
-
-PointMass(mass::AbstractMatrix{T}) where T = PointMass{T}(SMatrix{6,6,T,36}(mass))
-
-"""
-    mass_linear_momentum(element, V, Ω)
-
-Calculate the linear momentum (in the deformed local beam frame) of a point mass which is 
-rigidly attached to an element given the element's linear and angular velocity
-"""
-@inline function mass_linear_momentum(M, V, Ω)
-    M11 = M[SVector{3}(1:3), SVector{3}(1:3)]
-    M12 = M[SVector{3}(1:3), SVector{3}(4:6)]
-    return M11*V + M12*Ω
-end
-
-@inline mass_linear_momentum_V(M) = M[SVector{3}(1:3), SVector{3}(1:3)]
-
-@inline mass_linear_momentum_Ω(M) = M[SVector{3}(1:3), SVector{3}(4:6)]
-
-"""
-    mass_angular_momentum(element, V, Ω)
-
-Calculate the angular momentum (in the deformed local beam frame) of a point mass which is 
-rigidly attached to an element given the element's linear and angular velocity
-"""
-@inline function mass_angular_momentum(M, V, Ω)
-    M21 = M[SVector{3}(4:6), SVector{3}(1:3)]
-    M22 = M[SVector{3}(4:6), SVector{3}(4:6)]
-    return M21*V + M22*Ω
-end
-
-@inline mass_angular_momentum_V(M) = M[SVector{3}(4:6), SVector{3}(1:3)]
-
-@inline mass_angular_momentum_Ω(M) = M[SVector{3}(4:6), SVector{3}(4:6)]
-
-"""
     element_gravitational_loads(CtCab, mass, gvec)
 
 Calculate the integrated distributed loads on an element due to gravity.
 """
-@inline function element_gravitational_loads(ΔL, CtCab, mass, gvec)
-    # extract mass matrix submatrices
-    M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
-    M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
+@inline function element_gravitational_loads(ΔL, CtCab, mass11, mass12, gvec)
+    
     # calculate force and moment per unit length due to graviational forces
-    f = CtCab*M11*CtCab'*gvec
-    m = -CtCab*M12*CtCab'*gvec
+    f = CtCab*mass11*CtCab'*gvec
+    m = -CtCab*mass12*CtCab'*gvec
+
     # calculate integrated force and moment per unit length
     f1 = f2 = ΔL*f/2
     m1 = m2 = ΔL*m/2
+
     # return result
     return f1, f2, m1, m2
 end
 
-@inline function element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, elem, gvec)   
+@inline function element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, 
+    mass11, mass12, gvec)
+
     C_θ1, C_θ2, C_θ3 = Ct_θ1', Ct_θ2', Ct_θ3'
-    # extract mass matrix submatrices
-    M11 = elem.mass[SVector{3}(1:3), SVector{3}(1:3)]
-    M12 = elem.mass[SVector{3}(1:3), SVector{3}(4:6)]
+    
     # calculate force and moment per unit length due to gravitational forces
-    f_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M11*CtCab'*gvec) + CtCab*M11*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M12*CtCab'*gvec) - CtCab*M12*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    f_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass11*CtCab'*gvec) + CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass12*CtCab'*gvec) - CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
+    
     # calculate integrated force and moment per unit length
     f1_θ = f2_θ = ΔL*f_θ/2
     m1_θ = m2_θ = ΔL*m_θ/2
+    
     # return result
     return f1_θ, f2_θ, m1_θ, m2_θ
-end
-
-"""
-    point_mass_gravitational_loads(Ct, mass, gvec)
-
-Calculate the loads experienced by an element due to gravitational loads acting on attached 
-point masses.
-"""
-@inline function point_mass_gravitational_loads(Ct, mass, gvec)
-
-    M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
-    M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
-
-    F = Ct*M11*Ct'*gvec
-    M = -Ct*M12*Ct'*gvec
-    
-    return F, M
-end
-
-@inline function static_point_mass_loads(Ct, mass, gvec)
-
-    return point_mass_gravitational_loads(Ct, mass, gvec)
-end
-
-@inline function steady_state_point_mass_loads(Ct, mass, gvec, ω, V, Ω)
-
-    # static point mass loads
-    Fp, Mp = static_point_mass_loads(Ct, mass, gvec)
-
-    # velocities in point mass reference frame
-    Vp = Cab*V
-    Ωp = Cab*Ω
-
-    # point mass linear and angular momentum
-    Pp = mass_linear_momentum(mass, Vp, Ωp)
-    Hp = mass_angular_momentum(mass, Vp, Ωp)
-    
-    # add steady state loads due to frame motion
-    Fp -= cross(ω, Ct*Pp)
-    Mp -= cross(ω, Ct*Hp)
-
-    # return result
-    return F, M
-end
-
-@inline function dynamic_point_mass_loads(Ct, mass, gvec, ω, V, Ω, Vdot, Ωdot)
-
-    # steady state point mass loads
-    Fp, Mp = steady_state_point_mass_loads(Ct, mass, gvec, ω, V, Ω)
-
-    # accelerations in point mass reference frame
-    Vpdot = Cab*Vdot
-    Ωpdot = Cab*Ωdot
-
-    # point mass linear and angular momentum derivatives
-    Ppdot = mass_linear_momentum(mass, Vpdot, Ωpdot)
-    Hpdot = mass_angular_momentum(mass, Vpdot, Ωpdot)
-
-    # calculate \dot{\bar{C^T*P}} and \dot{\bar{C^T*H}}
-    CtPpdot = Ctdot*Pp + Ct*Ppdot
-    CtHpdot = Ctdot*Hp + Ct*Hpdot
-
-    # add loads due to structure motion
-    Fp -= CtPpdot
-    Mp -= CtHpdot
-
-    # return result
-    return F, M
-end
-
-@inline function static_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec)
-    C_θ1, C_θ2, C_θ3 = Ct_θ1', Ct_θ2', Ct_θ3'
-    # extract mass matrix submatrices
-    M11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
-    M12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
-    # calculate force and moment due to gravitational forces on point masses
-    Fp_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, M11*Ct'*gvec) + Ct*M11*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    Mp_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, M12*Ct'*gvec) - Ct*M12*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    # return result
-    return Fp_θ, Mp_θ
-end
-
-@inline function steady_state_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, Cab, mass, gvec, 
-        ω, V, Ω)
-
-    M11 = mass_linear_momentum_V(mass)
-    M12 = mass_linear_momentum_Ω(mass)
-    M21 = mass_linear_momentum_V(mass)
-    M22 = mass_linear_momentum_Ω(mass)
-
-    # static point mass jacobians
-    Fp_θ, Mp_θ = static_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, mass, gvec)
-
-    # velocities in point mass reference frame
-    Vp = Cab*V
-    Ωp = Cab*Ω
-
-    # point mass linear and angular momentum
-    Pp = mass_linear_momentum(mass, Vp, Ωp)
-    Hp = mass_angular_momentum(mass, Vp, Ωp)
-    
-    # add steady state loads due to frame motion
-    Fp_θ -= tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Pp)
-    Fp_V = -tilde(ω)*Ct*M11*Cab
-    Fp_Ω = -tilde(ω)*Ct*M12*Cab
-
-    Mp_θ -= tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hp)
-    Mp_V = -tilde(ω)*Ct*M21*Cab
-    Mp_Ω = -tilde(ω)*Ct*M22*Cab
-
-    return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
-end
-
-@inline function initial_step_point_mass_jacobian(Ct, Cab, mass, ω)
-
-    M11 = mass_linear_momentum_V(mass)
-    M12 = mass_linear_momentum_Ω(mass)
-    M21 = mass_linear_momentum_V(mass)
-    M22 = mass_linear_momentum_Ω(mass)
-
-    Fp_Vdot = -Ct*M11*Cab
-    Fp_Ωdot = -Ct*M12*Cab
-    Fp_V = -tilde(ω)*Ct*M11*Cab + Ctdot*M11*Cab
-    Fp_Ω = -tilde(ω)*Ct*M12*Cab + Ctdot*M12*Cab
-
-    Mp_Vdot = -Ct*M21*Cab
-    Mp_Ωdot = -Ct*M22*Cab
-    Mp_V = -tilde(ω)*Ct*M21*Cab + Ctdot*M21*Cab
-    Mp_Ω = -tilde(ω)*Ct*M22*Cab + Ctdot*M22*Cab
-
-    # return result
-    return Fp_Vdot, Fp_Ωdot, Fp_V, Fp_Ω, Mp_Vdot, Mp_Ωdot, Mp_V, Mp_Ω
-end
-
-@inline function newmark_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, Cab, mass, gvec, ω, V, Ω)
-
-    M11 = mass_linear_momentum_V(mass)
-    M12 = mass_linear_momentum_Ω(mass)
-    M21 = mass_linear_momentum_V(mass)
-    M22 = mass_linear_momentum_Ω(mass)
-
-    # static point mass jacobians
-    Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = steady_state_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, 
-        Ct_θ3, Cab, mass, gvec, ω, V, Ω)
-    
-    # velocities in point mass reference frame
-    Vp = Cab*V
-    Ωp = Cab*Ω
-
-    # accelerations in point mass reference frame
-    Vpdot = Cab*Vdot
-    Ωpdot = Cab*Ωdot
-
-    # point mass linear and angular momentum
-    Pp = mass_linear_momentum(mass, Vp, Ωp)
-    Hp = mass_angular_momentum(mass, Vp, Ωp)
-
-    # point mass linear and angular momentum time derivatives
-    Ppdot = mass_linear_momentum(mass, Vpdot, Ωpdot)
-    Hpdot = mass_angular_momentum(mass, Vpdot, Ωpdot)
-
-    Fp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Pp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Ppdot)
-    Mp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Hp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hpdot)
-
-    Fp_V -= Ctdot*M11*Cab + 2/dt*Ct*M11*Cab
-    Mp_V -= Ctdot*M21*Cab + 2/dt*Ct*M21*Cab
-
-    Fp_Ω -= Ctdot*M12*Cab + 2/dt*Ct*M12*Cab
-    Mp_Ω -= Ctdot*M22*Cab + 2/dt*Ct*M22*Cab
-
-    return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
-end
-
-@inline function dynamic_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, Cab, mass, gvec, ω, V, Ω)
-
-    # static point mass jacobians
-    Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = steady_state_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, 
-        Ct_θ3, Cab, mass, gvec, ω, V, Ω)
-    
-    Pp = M11*Cab*V + M12*Cab*Ω
-    Hp = M21*Cab*V + M22*Cab*Ω
-
-    Vpdot = Cab*Vdot
-    Ωpdot = Cab*Ωdot
-
-    Ppdot = mass_linear_momentum(mass, Vpdot, Ωpdot)
-    Hpdot = mass_angular_momentum(mass, Vpdot, Ωpdot)
-
-    Fp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Pp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Ppdot)
-    Mp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Hp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hpdot)
-
-    Fp_V -= Ctdot*M11*Cab*V
-    Mp_V -= Ctdot*M21*Cab*V
-
-    Fp_Ω -= Ctdot*M12*Cab*Ω
-    Mp_Ω -= Ctdot*M22*Cab*Ω
-
-    return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
 end
 
 """
