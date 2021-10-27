@@ -2025,7 +2025,8 @@ end
             Ctdot, V, Ω, Vdot, Ωdot)
         # get point mass load jacobians
         Fp_Vdot, Fp_Ωdot, Fp_V, Fp_Ω, Mp_Vdot, Mp_Ωdot, Mp_V, Mp_Ω = 
-            initial_step_point_mass_jacobian(Cab, Ct, Ctdot, massp11, massp12, massp21, massp22, ω)
+            initial_step_point_mass_jacobian(Cab, Ct, Ctdot, massp11, massp12, massp21, 
+            massp22, ω, Vp, Pp)
         # add to element resultant jacobians
         f_u1_Vdot -= Fp_Vdot/2
         f_u2_Vdot -= Fp_Vdot/2
@@ -2122,8 +2123,9 @@ end
             Ctdot, V, Ω, Vdot, Ωdot)
         # get point mass load jacobians
         Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = newmark_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, 
-            Ct_θ3, Ctdot, Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab, massp11, massp12, massp21, massp22, 
-            gvec, ω, Vp, Pp, Hp, Ppdot, Hpdot, dt)
+            Ct_θ3, Ctdot, Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, 
+            Ctdot_θdot3, Cab, massp11, massp12, massp21, massp22, gvec, ω, Vp, Pp, Hp, 
+            Ppdot, Hpdot, dt)
         # add to element resultant jacobians
         f_u1_θ -= Fp_θ/2
         f_u2_θ -= Fp_θ/2
@@ -2263,7 +2265,7 @@ Extract/Compute the properties needed for mass matrix construction: `ΔL`, `Ct`,
     mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
-    return ΔL, mass11, mass12, mass21, mass22, Ct, Cab, CtCab, θ, P, H, 
+    return ΔL, mass11, mass12, mass21, mass22, Ct, Cab, CtCab, θ, V, Ω, P, H, 
         Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3
 end
 
@@ -2427,6 +2429,7 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 # Arguments
  - `jacob`: System jacobian matrix to add mass matrix jacobian to
  - `x`: current state vector
+ - `ielem`: beam element index
  - `elem`: beam element
  - `point_masses`: dictionary with all point masses
  - `force_scaling`: scaling parameter for forces/moments
@@ -2439,11 +2442,11 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
  - `irow_p2`: Row index of the first equation for the point on the right side of the beam element
  - `gamma`: Scaling parameter for scaling mass matrix contribution to `jacob`
 """
-@inline function element_mass_matrix!(jacob, x, elem, point_masses, force_scaling,
+@inline function element_mass_matrix!(jacob, x, ielem, elem, point_masses, force_scaling,
     icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 
     # get beam element properties
-    ΔL, mass11, mass12, mass21, mass22, Ct, Cab, CtCab, θ, P, H, Ctdot_cdot1, Ctdot_cdot2, 
+    ΔL, mass11, mass12, mass21, mass22, Ct, Cab, CtCab, θ, V, Ω, P, H, Ctdot_cdot1, Ctdot_cdot2, 
         Ctdot_cdot3 = element_mass_matrix_properties(x, icol, elem)
 
     # get jacobians of beam element equations
@@ -2454,14 +2457,22 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 
     # add jacobians for point mass loads
     if haskey(point_masses, ielem)
+        # get point mass properties
+        massp11, massp12, massp21, massp22, Pp, Hp = point_mass_rate_jacobian_properties(
+            point_masses[ielem], Cab, V, Ω)
         # get point mass load jacobians
-        Fp_Vdot, Fp_Ωdot, Mp_Vdot, Mp_Ωdot = point_mass_rate_jacobian(point_masses[ielem], 
-            Ct, Cab)
+        Fp_θdot, Fp_Vdot, Fp_Ωdot, Mp_θdot, Mp_Vdot, Mp_Ωdot = point_mass_rate_jacobian(
+            Ct, Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3, Cab, massp11, massp12, massp21, 
+            massp22, Pp, Hp)
         # add to element resultant jacobians
+        f_u1_θdot -= Fp_θdot/2
+        f_u2_θdot -= Fp_θdot/2
         f_u1_Vdot -= Fp_Vdot/2
         f_u2_Vdot -= Fp_Vdot/2
         f_u1_Ωdot -= Fp_Ωdot/2
         f_u2_Ωdot -= Fp_Ωdot/2
+        f_ψ1_θdot -= Mp_θdot/2
+        f_ψ2_θdot -= Mp_θdot/2
         f_ψ1_Vdot -= Mp_Vdot/2
         f_ψ2_Vdot -= Mp_Vdot/2
         f_ψ1_Ωdot -= Mp_Ωdot/2
@@ -2478,17 +2489,17 @@ Wiener-Milenković parameters" by Qi Wang and Wenbin Yu.
 end
 
 """
-    element_mass_matrix!(jacob, gamma, x, elem, force_scaling,
+    element_mass_matrix!(jacob, gamma, x, ielem, elem, force_scaling,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 
 Add the beam element's mass matrix to the system jacobian matrix `jacob`, scaled
 by the scaling parameter `gamma`.
 """
-@inline function element_mass_matrix!(jacob, gamma, x, elem, point_masses, force_scaling,
-    icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
+@inline function element_mass_matrix!(jacob, gamma, x, ielem, elem, point_masses, 
+    force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 
     # get beam element properties
-    ΔL, mass11, mass12, mass21, mass22, Ct, Cab, CtCab, θ, P, H, Ctdot_cdot1, Ctdot_cdot2, 
+    ΔL, mass11, mass12, mass21, mass22, Ct, Cab, CtCab, θ, V, Ω, P, H, Ctdot_cdot1, Ctdot_cdot2, 
         Ctdot_cdot3 = element_mass_matrix_properties(x, icol, elem)
 
     # get jacobians of beam element equations
@@ -2499,14 +2510,22 @@ by the scaling parameter `gamma`.
 
     # add jacobians for point mass loads
     if haskey(point_masses, ielem)
+        # get point mass properties
+        massp11, massp12, massp21, massp22, Pp, Hp = point_mass_rate_jacobian_properties(
+            point_masses[ielem], Cab, V, Ω)
         # get point mass load jacobians
-        Fp_Vdot, Fp_Ωdot, Mp_Vdot, Mp_Ωdot = point_mass_rate_jacobian(point_masses[ielem], 
-            Ct, Cab)
+        Fp_θdot, Fp_Vdot, Fp_Ωdot, Mp_θdot, Mp_Vdot, Mp_Ωdot = point_mass_rate_jacobian(
+            Ct, Ctdot_cdot1, Ctdot_cdot2, Ctdot_cdot3, Cab, massp11, massp12, massp21, 
+            massp22, Pp, Hp)
         # add to element resultant jacobians
+        f_u1_θdot -= Fp_θdot/2
+        f_u2_θdot -= Fp_θdot/2
         f_u1_Vdot -= Fp_Vdot/2
         f_u2_Vdot -= Fp_Vdot/2
         f_u1_Ωdot -= Fp_Ωdot/2
         f_u2_Ωdot -= Fp_Ωdot/2
+        f_ψ1_θdot -= Mp_θdot/2
+        f_ψ2_θdot -= Mp_θdot/2
         f_ψ1_Vdot -= Mp_Vdot/2
         f_ψ2_Vdot -= Mp_Vdot/2
         f_ψ1_Ωdot -= Mp_Ωdot/2

@@ -124,11 +124,13 @@ function DiffEqBase.ODEFunction(system::System, assembly)
 
     update_mass_matrix! = function(M, u, p, t)
 
+       point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
+
         # zero out all mass matrix entries
         M .= 0.0
 
         # calculate mass matrix
-        system_mass_matrix!(M, u, assembly, force_scaling,
+        system_mass_matrix!(M, u, assembly, point_masses, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         return M
@@ -330,7 +332,7 @@ function DiffEqBase.DAEFunction(system::System, assembly)
             irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
         # add gamma multiplied by the mass matrix
-        system_mass_matrix!(J, gamma, u, assembly, force_scaling,
+        system_mass_matrix!(J, gamma, u, assembly, point_masses, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         return J

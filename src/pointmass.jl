@@ -198,7 +198,7 @@ end
 end
 
 @inline function initial_step_point_mass_jacobian(Cab, Ct, Ctdot, massp11, massp12, massp21, 
-    massp22, ω)
+    massp22, ω, Vp, Pp)
 
     Fp_Vdot = -Ct*massp11*Cab
     Fp_Ωdot = -Ct*massp12*Cab
@@ -207,28 +207,29 @@ end
 
     Mp_Vdot = -Ct*massp21*Cab
     Mp_Ωdot = -Ct*massp22*Cab
-    Mp_V = -tilde(ω)*Ct*massp21*Cab - Ctdot*massp21*Cab
-    Mp_Ω = -tilde(ω)*Ct*massp22*Cab - Ctdot*massp22*Cab
+    Mp_V = -tilde(ω)*Ct*massp21*Cab - Ct*tilde(Vp)*massp11*Cab + Ct*tilde(Pp)*Cab - Ctdot*massp21*Cab
+    Mp_Ω = -tilde(ω)*Ct*massp22*Cab - Ct*tilde(Vp)*massp12*Cab - Ctdot*massp22*Cab
 
     # return result
     return Fp_Vdot, Fp_Ωdot, Fp_V, Fp_Ω, Mp_Vdot, Mp_Ωdot, Mp_V, Mp_Ω
 end
 
 @inline function newmark_point_mass_jacobian(Ct, Ct_θ1, Ct_θ2, Ct_θ3, Ctdot, Ctdot_θ1, Ctdot_θ2, 
-    Ctdot_θ3, Cab, massp11, massp12, massp21, massp22, gvec, ω, Vp, Pp, Hp, Ppdot, Hpdot, dt)
+    Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab, massp11, massp12, massp21, massp22, 
+    gvec, ω, Vp, Pp, Hp, Ppdot, Hpdot, dt)
 
     # steady state point mass jacobians
     Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω = steady_state_point_mass_jacobian(Cab, Ct, Ct_θ1, 
         Ct_θ2, Ct_θ3, massp11, massp12, massp21, massp22, gvec, ω, Vp, Pp, Hp)
 
-    Fp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Pp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Ppdot)
-    Mp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Hp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hpdot)
+    Fp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Pp) + 2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Pp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Ppdot)
+    Mp_θ -= mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Hp) + 2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Hp) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Hpdot)
 
     Fp_V -= Ctdot*massp11*Cab + 2/dt*Ct*massp11*Cab
     Mp_V -= Ctdot*massp21*Cab + 2/dt*Ct*massp21*Cab
 
     Fp_Ω -= Ctdot*massp12*Cab + 2/dt*Ct*massp12*Cab
-    Mp_Ω -= Ctdot*massp22*Cab + 2/dt*Ct*massp22*Cab
+    Mp_Ω -= Ctdot*massp22*Cab + 2/dt*Ct*massp22*Cab    
 
     return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
 end
@@ -252,16 +253,27 @@ end
     return Fp_θ, Fp_V, Fp_Ω, Mp_θ, Mp_V, Mp_Ω
 end
 
-@inline function point_mass_rate_jacobian(point_mass, Ct, Cab)
+@inline function point_mass_rate_jacobian_properties(point_mass, Cab, V, Ω)
 
-    # point mass mass matrix 
-    mass_p = point_mass.mass
+    massp11, massp12, massp21, massp22 = static_point_mass_properties(point_mass)
+    
+    # velocities in point mass reference frame
+    Vp = Cab*V
+    Ωp = Cab*Ω
+    
+    # point mass linear and angular momentum
+    Pp = massp11*Vp + massp12*Ωp
+    Hp = massp21*Vp + massp22*Ωp
+    
+    return massp11, massp12, massp21, massp22, Pp, Hp
+end
 
-    # mass matrix submatrices
-    massp11 = mass_p[SVector{3}(1:3), SVector{3}(1:3)]
-    massp12 = mass_p[SVector{3}(1:3), SVector{3}(4:6)]
-    massp21 = mass_p[SVector{3}(4:6), SVector{3}(1:3)]
-    massp22 = mass_p[SVector{3}(4:6), SVector{3}(4:6)]
+@inline function point_mass_rate_jacobian(Ct, Ctdot_θdot1, Ctdot_θdot2, 
+    Ctdot_θdot3, Cab, massp11, massp12, massp21, massp22, Pp, Hp)
+
+    # add loads due to structure motion
+    Fp_θdot = -mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Pp)
+    Mp_θdot = -mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Hp)
 
     # add loads due to structure motion
     Fp_Vdot = -Ct*massp11*Cab
@@ -271,5 +283,5 @@ end
     Fp_Ωdot = -Ct*massp12*Cab
     Mp_Ωdot = -Ct*massp22*Cab
 
-    return Fp_Vdot, Fp_Ωdot, Mp_Vdot, Mp_Ωdot
+    return Fp_θdot, Fp_Vdot, Fp_Ωdot, Mp_θdot, Mp_Vdot, Mp_Ωdot
 end

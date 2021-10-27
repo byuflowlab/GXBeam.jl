@@ -558,8 +558,8 @@ function eigenvalue_analysis!(system, assembly;
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
     # solve for the system mass matrix
-    M = system_mass_matrix!(M, x, assembly, force_scaling, irow_point, irow_elem,
-        irow_elem1, irow_elem2, icol_point, icol_elem)
+    M = system_mass_matrix!(M, x, assembly, point_masses, force_scaling, irow_point, 
+        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     # construct linear map
     T = eltype(system)

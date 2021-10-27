@@ -1535,7 +1535,7 @@ function system_mass_matrix!(jacob, x, assembly, point_masses, force_scaling, ir
         irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
-        element_mass_matrix!(jacob, x, assembly.elements[ielem], point_masses, 
+        element_mass_matrix!(jacob, x, ielem, assembly.elements[ielem], point_masses, 
             force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 
@@ -1553,8 +1553,8 @@ end
 
 Add the system mass matrix to `jacob`, scaled by the scaling parameter `gamma`.
 """
-function system_mass_matrix!(jacob, gamma, x, assembly, point_masses, force_scaling, irow_point, irow_elem,
-    irow_elem1, irow_elem2, icol_point, icol_elem)
+function system_mass_matrix!(jacob, gamma, x, assembly, point_masses, force_scaling, 
+    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     npoint = length(assembly.points)
     nelem = length(assembly.elements)
@@ -1569,7 +1569,7 @@ function system_mass_matrix!(jacob, gamma, x, assembly, point_masses, force_scal
         irow_e2 = irow_elem2[ielem]
         irow_p2 = irow_point[assembly.stop[ielem]]
 
-        element_mass_matrix!(jacob, gamma, x, assembly.elements[ielem], point_masses,
+        element_mass_matrix!(jacob, gamma, x, ielem, assembly.elements[ielem], point_masses,
             force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
     end
 

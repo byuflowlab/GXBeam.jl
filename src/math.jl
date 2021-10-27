@@ -118,7 +118,7 @@ end
 Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
 respect to each of the rotation parameters in `θ`.
 """
-@inline get_C_θ(c) = get_C_θ(get_C(c), θ)
+@inline get_C_θ(c) = get_C_θ(get_C(c), c)
 
 @inline function get_C_θ(C, θ)
 
