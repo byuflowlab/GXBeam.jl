@@ -6,17 +6,21 @@ Perform a static analysis of the system of nonlinear beams contained in
 iteration procedure converged.
 
 # Keyword Arguments
-- `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
-       A dictionary with keys corresponding to the points at
-       which prescribed conditions are applied and elements of type
-       [`PrescribedConditions`](@ref) which describe the prescribed conditions
-       at those points.  If time varying, this input may be provided as a
-       function of time.
-- `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
-       with keys corresponding to the elements to which distributed loads are
-       applied and elements of type [`DistributedLoads`](@ref) which describe
-       the distributed loads at those points.  If time varying, this input may
-       be provided as a function of time.
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
+        A dictionary with keys corresponding to the points at
+        which prescribed conditions are applied and values of type
+        [`PrescribedConditions`](@ref) which describe the prescribed conditions
+        at those points.  If time varying, this input may be provided as a
+        function of time.
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
+        with keys corresponding to the elements to which distributed loads are
+        applied and values of type [`DistributedLoads`](@ref) which describe
+        the distributed loads on those elements.  If time varying, this input may
+        be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -24,19 +28,21 @@ iteration procedure converged.
  - `update_linearization_state`: Flag indicating whether to update the linearization state 
     variables for a linear analysis with the instantaneous state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
+ - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear 
+        system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `tvec = 0`: Time vector/value. May be used in conjunction with time varying
-     prescribed conditions and distributed loads to gradually increase
-    displacements/loads.
+        prescribed conditions and distributed loads to gradually increase
+        displacements/loads.
  - `reset_state = true`: Flag indicating whether the state variables should be
-    reset prior to performing the analysis.  This keyword argument is only valid
-    for the pre-allocated version of this function.
+        reset prior to performing the analysis.  This keyword argument is only valid
+        for the pre-allocated version of this function.
 """
 function static_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -57,6 +63,7 @@ function static_analysis(assembly;
     return static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        point_masses=point_masses,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -77,6 +84,7 @@ Pre-allocated version of `static_analysis`.
 function static_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -117,13 +125,14 @@ function static_analysis!(system, assembly;
         # current parameters
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
 
         # solve the system of equations
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
+        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         if linear
@@ -171,15 +180,19 @@ iteration procedure converged.
 # Keyword Arguments
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
         A dictionary with keys corresponding to the points at
-        which prescribed conditions are applied and elements of type
+        which prescribed conditions are applied and values of type
         [`PrescribedConditions`](@ref) which describe the prescribed conditions
         at those points.  If time varying, this input may be provided as a
         function of time.
  - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
         with keys corresponding to the elements to which distributed loads are
-        applied and elements of type [`DistributedLoads`](@ref) which describe
-        the distributed loads at those points.  If time varying, this input may
+        applied and values of type [`DistributedLoads`](@ref) which describe
+        the distributed loads on those elements.  If time varying, this input may
         be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
@@ -206,6 +219,7 @@ iteration procedure converged.
 function steady_state_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -229,6 +243,7 @@ function steady_state_analysis(assembly;
     return steady_state_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        point_masses=point_masses,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -253,6 +268,7 @@ Pre-allocated version of `steady_state_analysis`.
 function steady_state_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -297,16 +313,17 @@ function steady_state_analysis!(system, assembly;
         # current parameters
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
         x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling, 
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling, 
+        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0)
 
@@ -357,15 +374,19 @@ converged.
 # Keyword Arguments
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
         A dictionary with keys corresponding to the points at
-        which prescribed conditions are applied and elements of type
+        which prescribed conditions are applied and values of type
         [`PrescribedConditions`](@ref) which describe the prescribed conditions
         at those points.  If time varying, this input may be provided as a
         function of time.
  - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
         with keys corresponding to the elements to which distributed loads are
-        applied and elements of type [`DistributedLoads`](@ref) which describe
-        the distributed loads at those points.  If time varying, this input may
+        applied and values of type [`DistributedLoads`](@ref) which describe
+        the distributed loads on those elements.  If time varying, this input may
         be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
@@ -396,6 +417,7 @@ converged.
 function eigenvalue_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     method=:newton,
     linear=false,
@@ -421,6 +443,7 @@ function eigenvalue_analysis(assembly;
     return eigenvalue_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        point_masses=point_masses,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -448,6 +471,7 @@ Pre-allocated version of `eigenvalue_analysis`.  Uses the state variables stored
 function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -474,6 +498,7 @@ function eigenvalue_analysis!(system, assembly;
         system, converged = steady_state_analysis!(system, assembly;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
+            point_masses=point_masses,
             gravity=gravity,
             linear=linear,
             linearization_state=linearization_state,
@@ -522,18 +547,19 @@ function eigenvalue_analysis!(system, assembly;
     # current parameters
     pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
     gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
     x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
     v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
     ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
     # solve for the system stiffness matrix
-    K = system_jacobian!(K, x, assembly, pcond, dload, gvec, force_scaling,
+    K = system_jacobian!(K, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
 
     # solve for the system mass matrix
-    M = system_mass_matrix!(M, x, assembly, force_scaling, irow_point, irow_elem,
-        irow_elem1, irow_elem2, icol_point, icol_elem)
+    M = system_mass_matrix!(M, x, assembly, point_masses, force_scaling, irow_point, 
+        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     # construct linear map
     T = eltype(system)
@@ -565,15 +591,19 @@ final system with the new initial conditions.
 
 # Keyword Arguments
  - `prescribed_conditions: A dictionary with keys corresponding to the points at
-        which prescribed conditions are applied and elements of type
+        which prescribed conditions are applied and values of type
         [`PrescribedConditions`](@ref) which describe the prescribed conditions
         at those points.  If time varying, this input may be provided as a
         function of time.
  - `distributed_loads: A dictionary with keys corresponding to the elements to
-        which distributed loads are applied and elements of type
+        which distributed loads are applied and values of type
         [`DistributedLoads`](@ref) which describe the distributed loads at those
         points.  If time varying, this input may be provided as a function of
         time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -601,6 +631,7 @@ final system with the new initial conditions.
 function initial_condition_analysis(assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -626,6 +657,7 @@ function initial_condition_analysis(assembly, t0;
     return initial_condition_analysis!(system, assembly, t0;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        point_masses=point_masses,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -652,6 +684,7 @@ Pre-allocated version of `initial_condition_analysis`.
 function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -691,8 +724,6 @@ function initial_condition_analysis!(system, assembly, t0;
     θdot = system.θdot
     Vdot = system.Vdot
     Ωdot = system.Ωdot
-    CtCabPdot = system.CtCabPdot
-    CtCabHdot = system.CtCabHdot
 
     nelem = length(assembly.elements)
 
@@ -702,17 +733,18 @@ function initial_condition_analysis!(system, assembly, t0;
     # set current parameters
     pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t0)
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t0)
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
     gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
     x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t0))
     v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t0))
     ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t0))
 
     # construct residual and jacobian functions
-    f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
+    f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
-    j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
+    j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, u0, theta0, udot0, thetadot0)
 
@@ -748,30 +780,11 @@ function initial_condition_analysis!(system, assembly, t0;
     # save states and state rates
     for ielem = 1:nelem
         icol = icol_elem[ielem]
-        # extract beam element state variables
-        u = u0[ielem]
-        θ = theta0[ielem]
-        V = SVector(x[icol+12], x[icol+13], x[icol+14])
-        Ω = SVector(x[icol+15], x[icol+16], x[icol+17])
         # save state rates
         udot[ielem] = udot0[ielem]
         θdot[ielem] = thetadot0[ielem]
         Vdot[ielem] = SVector(x[icol], x[icol+1], x[icol+2])
         Ωdot[ielem] = SVector(x[icol+3], x[icol+4], x[icol+5])
-        # calculate transformation matrix from global to local frame
-        C = get_C(θ)
-        Cab = assembly.elements[ielem].Cab
-        CtCab = C' * Cab
-        CtCabdot = get_C_t(C, θ, θdot[ielem])'*Cab
-        # calculate linear and angular momentum
-        P = element_linear_momentum(assembly.elements[ielem], V, Ω)
-        H = element_angular_momentum(assembly.elements[ielem], V, Ω)
-        # calculate time derivative of linear and angular momentum
-        Pdot = element_linear_momentum(assembly.elements[ielem], Vdot[ielem], Ωdot[ielem])
-        Hdot = element_angular_momentum(assembly.elements[ielem], Vdot[ielem], Ωdot[ielem])  
-        # calculate and save CtCabPdot and CtCabHdot     
-        CtCabPdot[ielem] = CtCabdot*P + CtCab*Pdot
-        CtCabHdot[ielem] = CtCabdot*H + CtCab*Hdot
         # restore original state vector
         x[icol:icol+2] .= u0[ielem]
         x[icol+3:icol+5] .= theta0[ielem]
@@ -790,15 +803,19 @@ converged for each time step.
 
 # Keyword Arguments
  - `prescribed_conditions: A dictionary with keys corresponding to the points at
-        which prescribed conditions are applied and elements of type
+        which prescribed conditions are applied and values of type
         [`PrescribedConditions`](@ref) which describe the prescribed conditions
         at those points.  If time varying, this input may be provided as a
         function of time.
  - `distributed_loads: A dictionary with keys corresponding to the elements to
-        which distributed loads are applied and elements of type
+        which distributed loads are applied and values of type
         [`DistributedLoads`](@ref) which describe the distributed loads at those
         points.  If time varying, this input may be provided as a function of
         time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys 
+        corresponding to the beam elements to which point masses are attached and values 
+        of type [`PointMass`](@ref) which contain the properties of the attached 
+        point masses.  If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -832,6 +849,7 @@ converged for each time step.
 function time_domain_analysis(assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -860,6 +878,7 @@ function time_domain_analysis(assembly, tvec;
     return time_domain_analysis!(system, assembly, tvec;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
+        point_masses=point_masses,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -889,6 +908,7 @@ Pre-allocated version of `time_domain_analysis`.
 function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -921,6 +941,7 @@ function time_domain_analysis!(system, assembly, tvec;
         system, converged = initial_condition_analysis!(system, assembly, tvec[1];
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
+            point_masses=point_masses,
             gravity=gravity,
             linear=linear,
             linearization_state=linearization_state,
@@ -957,8 +978,6 @@ function time_domain_analysis!(system, assembly, tvec;
     θdot = system.θdot
     Vdot = system.Vdot
     Ωdot = system.Ωdot
-    CtCabPdot = system.CtCabPdot
-    CtCabHdot = system.CtCabHdot
 
     # number of beam elements
     nelem = length(assembly.elements)
@@ -988,6 +1007,7 @@ function time_domain_analysis!(system, assembly, tvec;
         # current parameters
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[it])
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(tvec[it])
+        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
         x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(tvec[it]))
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(tvec[it]))
@@ -1006,26 +1026,16 @@ function time_domain_analysis!(system, assembly, tvec;
             θdot[ielem] = 2 / dt * θ + θdot[ielem]
             Vdot[ielem] = 2 / dt * V + Vdot[ielem]
             Ωdot[ielem] = 2 / dt * Ω + Ωdot[ielem]
-            # calculate transformation matrix from global to local frame
-            C = get_C(θ)
-            Cab = assembly.elements[ielem].Cab
-            CtCab = C' * Cab
-            # calculate linear and angular momentum
-            P = element_linear_momentum(assembly.elements[ielem], V, Ω)
-            H = element_angular_momentum(assembly.elements[ielem], V, Ω)
-            # calculate CtCabPdot and CtCabHdot initialization terms
-            CtCabPdot[ielem] = 2/dt*CtCab*P + CtCabPdot[ielem]
-            CtCabHdot[ielem] = 2/dt*CtCab*H + CtCabHdot[ielem]
         end
 
         # solve for the state variables at the next time step
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, gvec, force_scaling,
+        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, CtCabPdot, CtCabHdot, dt)
+            x0, v0, ω0, udot, θdot, Vdot, Ωdot, dt)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, gvec, force_scaling,
+        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, CtCabPdot, CtCabHdot, dt)
+            x0, v0, ω0, udot, θdot, Vdot, Ωdot, dt)
 
         # solve system of equations
         if linear
@@ -1067,16 +1077,6 @@ function time_domain_analysis!(system, assembly, tvec;
             θdot[ielem] = 2/dt*θ - θdot[ielem]
             Vdot[ielem] = 2/dt*V - Vdot[ielem]
             Ωdot[ielem] = 2/dt*Ω - Ωdot[ielem]
-            # calculate transformation matrix from global to local frame
-            C = get_C(θ)
-            Cab = assembly.elements[ielem].Cab
-            CtCab = C' * Cab
-            # calculate linear and angular momentum
-            P = element_linear_momentum(assembly.elements[ielem], V, Ω)
-            H = element_angular_momentum(assembly.elements[ielem], V, Ω)
-            # calculate CtCabPdot and CtCabHdot
-            CtCabPdot[ielem] = 2/dt*CtCab*P - CtCabPdot[ielem]
-            CtCabHdot[ielem] = 2/dt*CtCab*H - CtCabHdot[ielem]
         end
 
         # add state to history

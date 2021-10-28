@@ -34,12 +34,12 @@ System(assembly, static)
 system_state
 reset_state!
 set_state!
-set_element_deflections!
-set_element_rotations!
+set_element_deflection!
+set_element_rotation!
 set_element_forces!
 set_element_moments!
-set_element_linear_momenta!
-set_element_angular_momenta!
+set_element_linear_velocity!
+set_element_angular_velocity!
 set_point_deflections!
 set_point_rotations!
 set_point_forces!
@@ -97,7 +97,7 @@ GXBeam.rotation_parameter_scaling
 GXBeam.get_C
 GXBeam.get_C_t
 GXBeam.get_C_θ
-GXBeam.get_C_θdot
+GXBeam.get_C_t_θdot
 GXBeam.get_Q
 GXBeam.get_Q_θ
 GXBeam.get_Qinv
