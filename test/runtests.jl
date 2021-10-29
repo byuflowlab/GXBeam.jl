@@ -134,17 +134,19 @@ end
     x0 = rand(3)
     v0 = rand(3)
     ω0 = rand(3)
+    a0 = rand(3)
+    α0 = rand(3)
 
     x = rand(length(system.x))
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
         force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0)
+        icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
     GXBeam.system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0)
+        icol_elem, x0, v0, ω0, a0, α0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -160,11 +162,11 @@ end
 
     f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
         force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, u0, theta0, udot0, thetadot0)
+        icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
     GXBeam.system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, u0, theta0, udot0, thetadot0)
+        icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -181,11 +183,11 @@ end
 
     f = (x) -> GXBeam.system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
         force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+        icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Pdot, Hdot, dt)
 
     GXBeam.system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, udot, θdot, Pdot, Hdot, dt)
+        icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Pdot, Hdot, dt)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -198,15 +200,15 @@ end
 
     fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), x, dx, assembly, pcond, dload, 
         pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0)
+        icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
     fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), x, dx, assembly, pcond, dload, 
         pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0)
+        icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
     GXBeam.dynamic_system_jacobian!(J, x, dx, assembly, pcond, dload, pmass, gvec, force_scaling, 
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0)
+        x0, v0, ω0, a0, α0)
 
     GXBeam.system_mass_matrix!(M, x, assembly, pmass, force_scaling, irow_point,
         irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)

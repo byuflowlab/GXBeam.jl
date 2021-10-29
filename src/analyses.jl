@@ -204,11 +204,15 @@ iteration procedure converged.
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `origin = zeros(3)`: Global frame origin vector. If time varying, this input
-        may be provided as a function of time.
+    may be provided as a function of time.
  - `linear_velocity = zeros(3)`: Global frame linear velocity vector. If time
-        varying, this vector may be provided as a function of time.
+    varying, this vector may be provided as a function of time.
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector. If time
-        varying, this vector may be provided as a function of time.
+    varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+    varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+    varying, this vector may be provided as a function of time.
  - `tvec = 0.0`: Time vector/value. May be used in conjunction with time varying
     prescribed conditions, distributed loads, and global motion to gradually
     increase displacements/loads.
@@ -231,6 +235,8 @@ function steady_state_analysis(assembly;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     tvec=0.0,
     )
 
@@ -255,6 +261,8 @@ function steady_state_analysis(assembly;
         origin=origin,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
+        linear_acceleration=linear_acceleration,
+        angular_acceleration=angular_acceleration,
         tvec=tvec,
         reset_state=false,
         )
@@ -280,6 +288,8 @@ function steady_state_analysis!(system, assembly;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     tvec=0.0,
     reset_state=true,
     )
@@ -318,14 +328,17 @@ function steady_state_analysis!(system, assembly;
         x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+        a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+        α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
+
 
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
-            icol_elem, x0, v0, ω0)
+            icol_elem, x0, v0, ω0, a0, α0)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
-            icol_elem, x0, v0, ω0)
+            icol_elem, x0, v0, ω0, a0, α0)
 
         # solve the system of equations
         if linear
@@ -406,9 +419,12 @@ converged.
     If time varying, this vector may be provided as a function of time.
  - `linear_velocity = zeros(3)`: Global frame linear velocity vector.
     If time varying, this vector may be provided as a function of time.
-    May be provided either as a constant or as a function of time.
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector.
     If time varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+    varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+    varying, this vector may be provided as a function of time.
  - `tvec`: Time vector. May be used in conjunction with time varying
     prescribed conditions, distributed loads, and global motion to gradually
     increase displacements/loads during the steady-state analysis.
@@ -430,6 +446,8 @@ function eigenvalue_analysis(assembly;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     tvec=0.0,
     nev=6
     )
@@ -457,6 +475,8 @@ function eigenvalue_analysis(assembly;
         origin=origin,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
+        linear_acceleration=linear_acceleration,
+        angular_acceleration=angular_acceleration,
         tvec=tvec,
         nev=nev,
         )
@@ -485,6 +505,8 @@ function eigenvalue_analysis!(system, assembly;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     tvec=0.0,
     nev=6,
     )
@@ -510,6 +532,8 @@ function eigenvalue_analysis!(system, assembly;
             origin=origin,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
+            linear_acceleration=linear_acceleration,
+            angular_acceleration=angular_acceleration,
             tvec=tvec,
             )
     else
@@ -552,10 +576,13 @@ function eigenvalue_analysis!(system, assembly;
     x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
     v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
     ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+    a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+    α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
     # solve for the system stiffness matrix
     K = system_jacobian!(K, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, 
+        ω0, a0, α0)
 
     # solve for the system mass matrix
     M = system_mass_matrix!(M, x, assembly, point_masses, force_scaling, irow_point, 
@@ -619,9 +646,12 @@ final system with the new initial conditions.
     If time varying, this vector may be provided as a function of time.
  - `linear_velocity = zeros(3)`: Global frame linear velocity vector.
     If time varying, this vector may be provided as a function of time.
-    May be provided either as a constant or as a function of time.
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector.
     If time varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+    varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+    varying, this vector may be provided as a function of time.
  - `u0=fill(zeros(3), length(assembly.elements))`: Initial displacment of each beam element,
  - `theta0=fill(zeros(3), length(assembly.elements))`: Initial angular displacement of each beam element,
  - `udot0=fill(zeros(3), length(assembly.elements))`: Initial time derivative with respect to `u`
@@ -642,6 +672,8 @@ function initial_condition_analysis(assembly, t0;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     u0=fill((@SVector zeros(3)), length(assembly.elements)),
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
@@ -669,6 +701,8 @@ function initial_condition_analysis(assembly, t0;
         origin=origin,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
+        linear_acceleration=linear_acceleration,
+        angular_acceleration=angular_acceleration,
         u0=u0,
         theta0=theta0,
         udot0=udot0,
@@ -696,6 +730,8 @@ function initial_condition_analysis!(system, assembly, t0;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     u0=fill((@SVector zeros(3)), length(assembly.elements)),
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
@@ -738,15 +774,17 @@ function initial_condition_analysis!(system, assembly, t0;
     x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t0))
     v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t0))
     ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t0))
+    a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+    α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
     # construct residual and jacobian functions
     f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, u0, theta0, udot0, thetadot0)
+        x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
     j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, u0, theta0, udot0, thetadot0)
+        x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
     # solve system of equations
     if linear
@@ -835,11 +873,15 @@ converged for each time step.
     be ignored and the system state vector will be used as the initial state
     variables.
  - `origin`: Global frame origin vector. If time varying, this input
-        may be provided as a function of time.
+    may be provided as a function of time.
  - `linear_velocity`: Global frame linear velocity vector. If time
-        varying, this vector may be provided as a function of time.
+    varying, this vector may be provided as a function of time.
  - `angular_velocity`: Global frame angular velocity vector. If time
-        varying, this vector may be provided as a function of time.
+    varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+    varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+    varying, this vector may be provided as a function of time.
  - `u0=fill(zeros(3), length(assembly.elements))`: Initial displacment of each beam element,
  - `theta0=fill(zeros(3), length(assembly.elements))`: Initial angular displacement of each beam element,
  - `udot0=fill(zeros(3), length(assembly.elements))`: Initial time derivative with respect to `u`
@@ -862,6 +904,8 @@ function time_domain_analysis(assembly, tvec;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     u0=fill((@SVector zeros(3)), length(assembly.elements)),
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
@@ -892,6 +936,8 @@ function time_domain_analysis(assembly, tvec;
         origin=origin,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
+        linear_acceleration=linear_acceleration,
+        angular_acceleration=angular_acceleration,
         u0=u0,
         theta0=theta0,
         udot0=udot0,
@@ -922,6 +968,8 @@ function time_domain_analysis!(system, assembly, tvec;
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
     u0=fill((@SVector zeros(3)), length(assembly.elements)),
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
@@ -953,6 +1001,8 @@ function time_domain_analysis!(system, assembly, tvec;
             origin=origin,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
+            linear_acceleration=linear_acceleration,
+            angular_acceleration=angular_acceleration,
             u0=u0,
             theta0=theta0,
             udot0=udot0,
@@ -1012,6 +1062,8 @@ function time_domain_analysis!(system, assembly, tvec;
         x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(tvec[it]))
         v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(tvec[it]))
         ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(tvec[it]))
+        a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+        α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
         # set current initialization parameters
         for ielem = 1:nelem
@@ -1031,11 +1083,11 @@ function time_domain_analysis!(system, assembly, tvec;
         # solve for the state variables at the next time step
         f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, Vdot, Ωdot, dt)
+            x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
 
         j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, udot, θdot, Vdot, Ωdot, dt)
+            x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
 
         # solve system of equations
         if linear
