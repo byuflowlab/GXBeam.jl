@@ -23,15 +23,15 @@ end
     follower = prescribed_conditions.follower
 
     # get degrees of freedom to fix/set
-    force_dof = prescribed_conditions.force
+    isforce = prescribed_conditions.isforce
 
     # get the displacement and rotations of the point
-    u = SVector(ifelse(force_dof[1], x[icol  ], value[1]),
-                ifelse(force_dof[2], x[icol+1], value[2]),
-                ifelse(force_dof[3], x[icol+2], value[3]))
-    θ = SVector(ifelse(force_dof[4], x[icol+3], value[4]),
-                ifelse(force_dof[5], x[icol+4], value[5]),
-                ifelse(force_dof[6], x[icol+5], value[6]))
+    u = SVector(ifelse(isforce[1], x[icol  ], value[1]),
+                ifelse(isforce[2], x[icol+1], value[2]),
+                ifelse(isforce[3], x[icol+2], value[3]))
+    θ = SVector(ifelse(isforce[4], x[icol+3], value[4]),
+                ifelse(isforce[5], x[icol+4], value[5]),
+                ifelse(isforce[6], x[icol+5], value[6]))
 
     # get the transformation matrix for the point
     C = get_C(θ)
@@ -39,10 +39,10 @@ end
     # solve for the force applied at the point due to the prescribed loads
     Fp = zero(u)
     for i = 1:3
-        if force_dof[i]
-            # add dead force_dof
+        if isforce[i]
+            # add dead isforce
             Fp += SVector(I3[i,1], I3[i,2], I3[i,3])*value[i]
-            # add follower force_dof
+            # add follower isforce
             Fp += SVector(C[i,1], C[i,2], C[i,3])*follower[i]
         end
     end
@@ -50,7 +50,7 @@ end
     # solve for the moment applied at the point due to the prescribed loads
     Mp = zero(θ)
     for i = 4:6
-        if force_dof[i]
+        if isforce[i]
             # add dead moment
             Mp += SVector(I3[i-3,1], I3[i-3,2], I3[i-3,3])*value[i]
             # add follower moment
@@ -59,12 +59,12 @@ end
     end
 
     # overwrite external forces/moments with solved for forces/moments
-    F = SVector(ifelse(force_dof[1], Fp[1], x[icol  ] * force_scaling),
-                ifelse(force_dof[2], Fp[2], x[icol+1] * force_scaling),
-                ifelse(force_dof[3], Fp[3], x[icol+2] * force_scaling))
-    M = SVector(ifelse(force_dof[4], Mp[1], x[icol+3] * force_scaling),
-                ifelse(force_dof[5], Mp[2], x[icol+4] * force_scaling),
-                ifelse(force_dof[6], Mp[3], x[icol+5] * force_scaling))
+    F = SVector(ifelse(isforce[1], Fp[1], x[icol  ] * force_scaling),
+                ifelse(isforce[2], Fp[2], x[icol+1] * force_scaling),
+                ifelse(isforce[3], Fp[3], x[icol+2] * force_scaling))
+    M = SVector(ifelse(isforce[4], Mp[1], x[icol+3] * force_scaling),
+                ifelse(isforce[5], Mp[2], x[icol+4] * force_scaling),
+                ifelse(isforce[6], Mp[3], x[icol+5] * force_scaling))
 
     return u, θ, F, M
 end
@@ -128,14 +128,14 @@ Adds a points contributions to the residual vector
  - `irow_elem1`: Row index of first equation for the left side of each beam element
  - `irow_elem2`: Row index of first equation for the right side of each beam element
 """
-@inline function point_residual!(resid, x, ipoint, assembly, prescribed_conditions,
+@inline function point_residual!(resid, x, ipoint, assembly, prescribed_conditions, 
     force_scaling, icol, irow_point, irow_elem1, irow_elem2)
 
     nelem = length(assembly.elements)
 
     # incorporate prescribed condition if applicable
-    prescribed = haskey(prescribed_conditions, ipoint)
-    if prescribed
+    has_prescribed = haskey(prescribed_conditions, ipoint)
+    if has_prescribed
         u, θ, F, M = point_variables(x, icol, prescribed_conditions[ipoint], force_scaling)
     else
         u, θ, F, M = point_variables(x, icol)
@@ -180,11 +180,11 @@ Calculate the jacobians of the follower forces/moments with respect to θ
     value = prescribed_conditions.value
     follower = prescribed_conditions.follower
 
-    force_dof = prescribed_conditions.force
+    isforce = prescribed_conditions.isforce
 
-    θ = SVector(ifelse(force_dof[4], x[icol+3], value[4]),
-                ifelse(force_dof[5], x[icol+4], value[5]),
-                ifelse(force_dof[6], x[icol+5], value[6]))
+    θ = SVector(ifelse(isforce[4], x[icol+3], value[4]),
+                ifelse(isforce[5], x[icol+4], value[5]),
+                ifelse(isforce[6], x[icol+5], value[6]))
 
     C = get_C(θ)
     C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
@@ -192,7 +192,7 @@ Calculate the jacobians of the follower forces/moments with respect to θ
     # solve for the jacobian wrt theta of the follower forces
     Fp_θ = @SMatrix zeros(TF, 3, 3)
     for i = 1:3
-        if force_dof[i]
+        if isforce[i]
             rot_θ = @SMatrix [
                 C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
                 C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
@@ -205,7 +205,7 @@ Calculate the jacobians of the follower forces/moments with respect to θ
     # solve for the jacobian wrt theta of the follower moments
     Mp_θ = @SMatrix zeros(TF, 3, 3)
     for i = 1:3
-        if force_dof[i+3]
+        if isforce[i+3]
             rot_θ = @SMatrix [
                 C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
                 C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
@@ -216,14 +216,14 @@ Calculate the jacobians of the follower forces/moments with respect to θ
     end
 
     # if displacement is specified, corresponding component of follower jacobian is zero
-    F1_θ = ifelse(force_dof[1], SVector(Fp_θ[1,1], Fp_θ[1,2], Fp_θ[1,3]), @SVector zeros(TF, 3))
-    F2_θ = ifelse(force_dof[2], SVector(Fp_θ[2,1], Fp_θ[2,2], Fp_θ[2,3]), @SVector zeros(TF, 3))
-    F3_θ = ifelse(force_dof[3], SVector(Fp_θ[3,1], Fp_θ[3,2], Fp_θ[3,3]), @SVector zeros(TF, 3))
+    F1_θ = ifelse(isforce[1], SVector(Fp_θ[1,1], Fp_θ[1,2], Fp_θ[1,3]), @SVector zeros(TF, 3))
+    F2_θ = ifelse(isforce[2], SVector(Fp_θ[2,1], Fp_θ[2,2], Fp_θ[2,3]), @SVector zeros(TF, 3))
+    F3_θ = ifelse(isforce[3], SVector(Fp_θ[3,1], Fp_θ[3,2], Fp_θ[3,3]), @SVector zeros(TF, 3))
     F_θ = vcat(F1_θ', F2_θ', F3_θ')
 
-    M1_θ = ifelse(force_dof[4], SVector(Mp_θ[1,1], Mp_θ[1,2], Mp_θ[1,3]), @SVector zeros(TF, 3))
-    M2_θ = ifelse(force_dof[5], SVector(Mp_θ[2,1], Mp_θ[2,2], Mp_θ[2,3]), @SVector zeros(TF, 3))
-    M3_θ = ifelse(force_dof[6], SVector(Mp_θ[3,1], Mp_θ[3,2], Mp_θ[3,3]), @SVector zeros(TF, 3))
+    M1_θ = ifelse(isforce[4], SVector(Mp_θ[1,1], Mp_θ[1,2], Mp_θ[1,3]), @SVector zeros(TF, 3))
+    M2_θ = ifelse(isforce[5], SVector(Mp_θ[2,1], Mp_θ[2,2], Mp_θ[2,3]), @SVector zeros(TF, 3))
+    M3_θ = ifelse(isforce[6], SVector(Mp_θ[3,1], Mp_θ[3,2], Mp_θ[3,3]), @SVector zeros(TF, 3))
     M_θ = vcat(M1_θ', M2_θ', M3_θ')
 
     return F_θ, M_θ
@@ -326,7 +326,7 @@ Adds a points contributions to the residual vector
  - `irow_elem1`: Row index of first equation for the left side of each beam element
  - `irow_elem2`: Row index of first equation for the right side of each beam element
 """
-@inline function point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions,
+@inline function point_jacobian!(jacob, x, ipoint, assembly, prescribed_conditions, 
     force_scaling, icol, irow_point, irow_elem1, irow_elem2)
 
     nelem = length(assembly.elements)
@@ -335,11 +335,11 @@ Adds a points contributions to the residual vector
     prescribed = haskey(prescribed_conditions, ipoint)
     if prescribed
         F_θ, M_θ = point_follower_jacobians(x, icol, prescribed_conditions[ipoint])
-        force_dof = prescribed_conditions[ipoint].force
+        isforce = prescribed_conditions[ipoint].isforce
     else
         F_θ = @SMatrix zeros(3,3)
         M_θ = @SMatrix zeros(3,3)
-        force_dof = @SVector ones(Bool, 6)
+        isforce = @SVector ones(Bool, 6)
     end
 
     # search for beam elements that are connected to the specified point
@@ -349,14 +349,14 @@ Adds a points contributions to the residual vector
             # add to residual equations for the beam element endpoint
             side = -1
             irow_elem = irow_elem1[ielem]
-            jacob = insert_point_jacobian!(jacob, irow_elem, irow_point, icol, side, force_dof, F_θ, M_θ, force_scaling)
+            jacob = insert_point_jacobian!(jacob, irow_elem, irow_point, icol, side, isforce, F_θ, M_θ, force_scaling)
         end
         # check right side of beam element
         if ipoint == assembly.stop[ielem]
             # add to residual equations for the beam element endpoint
             side = 1
             irow_elem = irow_elem2[ielem]
-            jacob = insert_point_jacobian!(jacob, irow_elem, irow_point, icol, side, force_dof, F_θ, M_θ, force_scaling)
+            jacob = insert_point_jacobian!(jacob, irow_elem, irow_point, icol, side, isforce, F_θ, M_θ, force_scaling)
         end
     end
 

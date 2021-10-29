@@ -9,7 +9,7 @@ analysis.
  - `points`: Array of all beam element endpoints
  - `start`: Array containing point index where each beam element starts
  - `stop`: Array containing point index where each beam element stops
- - `element`: Array of `Element`s
+ - `elements`: Array of `Element`s
 """
 struct Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
     points::TP
@@ -32,21 +32,24 @@ straight.
  - `stop`: Array containing point indices where each beam element stops
 
 # Keyword Arguments
- - `stiffness`: Array of (6 x 6) stiffness matrices for each beam element, alternative to providing `compliance`
- - `compliance`: Array of (6 x 6) compliance matrices for each beam element, defaults to `zeros(6,6)` for each beam element
- - `mass`: Array of (6 x 6) mass matrices for each beam element, alternative to providing `minv`
- - `minv`: Array of (6 x 6) mass matrices for each beam element, defaults to the identity matrix for each beam element
- - `frames`: Array of (3 x 3) tranformation matrices for each beam element, which
-        transform from the local undeformed beam frame to the global frame),
-        defaults to the identity matrix for each beam element
- - `lengths`: Array containing the length of each beam, defaults to the distance between beam endpoints
- - `midpoints`: Array containing the midpoint of each beam element, defaults to the average of the beam element endpoints
+ - `stiffness`: Array of (6 x 6) stiffness matrices for each beam element, 
+        acts as an alternative to providing `compliance`
+ - `compliance`: Array of (6 x 6) compliance matrices for each beam element, 
+        defaults to `zeros(6,6)` for each beam element
+ - `mass`: Array of (6 x 6) mass matrices for each beam element, 
+        defaults to `zeros(6,6)` for each beam element
+ - `frames`: Array of (3 x 3) tranformation matrices for each beam element.
+        Transforms from the local undeformed beam frame to the global frame) and defaults
+        to the identity matrix for each beam element
+ - `lengths`: Array containing the length of each beam, defaults to the distance between 
+        beam endpoints
+ - `midpoints`: Array containing the midpoint of each beam element, defaults to the average 
+        of the beam element endpoints
 """
 function Assembly(points, start, stop;
     stiffness = nothing,
     compliance = nothing,
     mass = nothing,
-    minv = nothing,
     frames = nothing,
     lengths = norm.(points[stop] - points[start]),
     midpoints = (points[stop] + points[start])/2)
@@ -66,24 +69,15 @@ function Assembly(points, start, stop;
         end
     end
 
-    if isnothing(minv)
-        if isnothing(mass)
-            minv = fill(Diagonal(@SVector ones(6)), nelem)
-        else
-            minv = [MMatrix{6,6}(Diagonal(@SVector ones(eltype(eltype(mass)), 6))) for i=1:nelem] # can't use infill because it copies the reference. Need a different value for every i.
-            for i = 1:nelem
-                filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), mass[i], dims = 1)))
-                minv[i][filled_cols,filled_cols] .= inv(Matrix(mass[i][filled_cols, filled_cols]))
-            end
-            minv = SMatrix{6,6}.(minv)
-        end
+    if isnothing(mass)
+        mass = fill((@SMatrix zeros(6,6)), nelem)
     end
 
     if isnothing(frames)
         frames = fill(I3, nelem)
     end
 
-    elements = Element.(lengths, midpoints, compliance, minv, frames)
+    elements = Element.(lengths, midpoints, compliance, mass, frames)
 
     return Assembly(points, promote(start, stop)..., elements)
 end
