@@ -129,11 +129,11 @@ function static_analysis!(system, assembly;
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
 
         # solve the system of equations
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        f! = (F, x) -> static_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
+            irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        j! = (J, x) -> static_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
+            irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         if linear
             # linear analysis
@@ -331,12 +331,11 @@ function steady_state_analysis!(system, assembly;
         a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
+        f! = (F, x) -> steady_state_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0, a0, α0)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
+        j! = (J, x) -> steady_state_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
             icol_elem, x0, v0, ω0, a0, α0)
 
@@ -580,7 +579,7 @@ function eigenvalue_analysis!(system, assembly;
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
     # solve for the system stiffness matrix
-    K = system_jacobian!(K, x, assembly, pcond, dload, pmass, gvec, force_scaling,
+    K = steady_state_system_jacobian!(K, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, 
         ω0, a0, α0)
 
@@ -778,11 +777,11 @@ function initial_condition_analysis!(system, assembly, t0;
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
     # construct residual and jacobian functions
-    f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
+    f! = (F, x) -> initial_condition_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
-    j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
+    j! = (J, x) -> initial_condition_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
@@ -1081,11 +1080,11 @@ function time_domain_analysis!(system, assembly, tvec;
         end
 
         # solve for the state variables at the next time step
-        f! = (F, x) -> system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
+        f! = (F, x) -> newmark_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
 
-        j! = (J, x) -> system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
+        j! = (J, x) -> newmark_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
             x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
 

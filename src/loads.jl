@@ -376,17 +376,17 @@ function DistributedLoads(assembly, ielem, t;
 end
 
 """
-    element_gravitational_loads(CtCab, mass, gvec)
+    element_gravitational_loads(ΔL, mass11, mass12, CtCab, gvec)
 
 Calculate the integrated distributed loads on an element due to gravity.
 """
-@inline function element_gravitational_loads(ΔL, CtCab, mass11, mass12, gvec)
-    
+@inline function element_gravitational_loads(ΔL, mass11, mass12, CtCab, gvec)
+      
     # calculate force and moment per unit length due to graviational forces
     f = CtCab*mass11*CtCab'*gvec
     m = -CtCab*mass12*CtCab'*gvec
 
-    # calculate integrated force and moment per unit length
+    # integrate force and moment per unit length
     f1 = f2 = ΔL*f/2
     m1 = m2 = ΔL*m/2
 
@@ -394,21 +394,71 @@ Calculate the integrated distributed loads on an element due to gravity.
     return f1, f2, m1, m2
 end
 
-@inline function element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, 
-    mass11, mass12, gvec)
+@inline function element_gravitational_loads_jacobian(ΔL, mass11, mass12, Cab, CtCab, gvec, 
+    C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
-    C_θ1, C_θ2, C_θ3 = Ct_θ1', Ct_θ2', Ct_θ3'
-    
     # calculate force and moment per unit length due to gravitational forces
     f_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass11*CtCab'*gvec) + CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
     m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass12*CtCab'*gvec) - CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
     
-    # calculate integrated force and moment per unit length
+    # integrate force and moment per unit length
     f1_θ = f2_θ = ΔL*f_θ/2
     m1_θ = m2_θ = ΔL*m_θ/2
     
     # return result
     return f1_θ, f2_θ, m1_θ, m2_θ
+end
+
+"""
+    element_acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, u, a, α)
+
+Calculate the integrated distributed loads on an element caused by an accelerating 
+reference frame.
+"""
+@inline function element_acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, u, a, 
+    α, gvec)
+
+    # linear and angular acceleration in deformed element reference frame
+    ae = CtCab'*(a - gvec + cross(α, u))
+    αe = CtCab'*α
+    
+    # force and moment per unit length due to accelerating reference frame
+    f = -CtCab*(mass11*ae + mass12*αe) 
+    m = -CtCab*(mass21*ae + mass22*αe)
+
+    # integrate force and moment per unit length
+    f1 = f2 = ΔL*f/2
+    m1 = m2 = ΔL*m/2
+
+    # return result
+    return f1, f2, m1, m2
+end
+
+@inline function element_acceleration_loads_jacobian(ΔL, mass11, mass12, mass21, mass22, 
+    Cab, CtCab, u, a, α, gvec, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
+
+    # linear and angular acceleration in deformed element reference frame
+    ae = CtCab'*(a - gvec + cross(α, u))
+    αe = CtCab'*α
+
+    # force and moment per unit length due to accelerating reference frame
+    f_u = -CtCab*mass11*CtCab'*tilde(α)
+    m_u = -CtCab*mass21*CtCab'*tilde(α)
+
+    f_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass11*ae + mass12*αe)) - 
+        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, a - gvec + cross(α, u)) -
+        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
+    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass21*ae + mass22*αe)) - 
+        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, a - gvec + cross(α, u)) -
+        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
+
+    # calculate integrated force and moment per unit length
+    f1_u = f2_u = ΔL*f_u/2
+    m1_u = m2_u = ΔL*m_u/2
+    f1_θ = f2_θ = ΔL*f_θ/2
+    m1_θ = m2_θ = ΔL*m_θ/2
+
+    return f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ
 end
 
 """

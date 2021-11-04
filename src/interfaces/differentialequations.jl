@@ -332,7 +332,7 @@ function DiffEqBase.DAEFunction(system::System, assembly)
         α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate residual
-        dynamic_system_residual!(resid, u, du, assembly, prescribed_conditions,
+        dynamic_system_residual!(resid, du, u, assembly, prescribed_conditions,
             distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, 
             irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
@@ -357,7 +357,7 @@ function DiffEqBase.DAEFunction(system::System, assembly)
         α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate jacobian
-        dynamic_system_jacobian!(J, u, du, assembly, prescribed_conditions,
+        dynamic_system_jacobian!(J, du, u, assembly, prescribed_conditions,
             distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, 
             irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
