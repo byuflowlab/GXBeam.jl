@@ -1462,13 +1462,13 @@ end
     m1 = m2 = ΔL*m/2
 
     # test against gravitational load function results
-    mass11 = mass[1:3, 1:3]
-    mass12 = mass[1:3, 4:6]
-    mass21 = mass[4:6, 1:3]
-    mass22 = mass[4:6, 4:6]
+    mass11 = ΔL*mass[1:3, 1:3]
+    mass12 = ΔL*mass[1:3, 4:6]
+    mass21 = ΔL*mass[4:6, 1:3]
+    mass22 = ΔL*mass[4:6, 4:6]
     a = -gvec
     α = zero(a)
-    f1t, f2t, m1t, m2t = GXBeam.acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, a, α)
+    f1t, f2t, m1t, m2t = GXBeam.acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
 
     @test isapprox(f1, f1t)
     @test isapprox(f2, f2t)

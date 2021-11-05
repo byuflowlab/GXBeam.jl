@@ -448,25 +448,25 @@ function combine_masses(masses)
 end
 
 """
-    acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, u, a, α)
+    acceleration_loads(mass11, mass12, mass21, mass22, CtCab, u, a, α)
 
 Calculate the integrated distributed loads on an element caused by acceleration.
 """
-@inline function acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, a, α)
+@inline function acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
    
     # force and moment per unit length due to accelerating reference frame
     f = -CtCab*(mass11*CtCab'*a + mass12*CtCab'*α)
     m = -CtCab*(mass21*CtCab'*a + mass22*CtCab'*α)
 
     # integrate force and moment per unit length
-    f1 = f2 = ΔL*f/2
-    m1 = m2 = ΔL*m/2
+    f1 = f2 = f/2
+    m1 = m2 = m/2
 
     # return result
     return f1, f2, m1, m2
 end
 
-@inline function acceleration_loads_jacobian(ΔL, mass11, mass12, mass21, mass22, a, α, 
+@inline function acceleration_loads_jacobian(mass11, mass12, mass21, mass22, a, α, 
     Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     # force and moment per unit length due to accelerating reference frame
@@ -481,10 +481,10 @@ end
         CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
 
     # calculate integrated force and moment per unit length
-    f1_u = f2_u = ΔL*f_u/2
-    m1_u = m2_u = ΔL*m_u/2
-    f1_θ = f2_θ = ΔL*f_θ/2
-    m1_θ = m2_θ = ΔL*m_θ/2
+    f1_u = f2_u = f_u/2
+    m1_u = m2_u = m_u/2
+    f1_θ = f2_θ = f_θ/2
+    m1_θ = m2_θ = m_θ/2
 
     return f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ
 end

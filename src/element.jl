@@ -142,16 +142,16 @@ Calculate the element resultants for a static analysis.
     f_u2 =  tmp - f2
 
     tmp1 = CtCab*M
-    tmp2 = ΔL/2*CtCab*cross(e1 + γ, F)
+    tmp2 = 1/2*CtCab*cross(ΔL*e1 + γ, F)
     f_ψ1 = -tmp1 - m1 - tmp2
     f_ψ2 =  tmp1 - m2 - tmp2
 
-    tmp = ΔL/2*(CtCab*(e1 + γ) - Cab*e1)
+    tmp = 1/2*(CtCab*(ΔL*e1 + γ) - Cab*ΔL*e1)
     f_F1 =  u - tmp
     f_F2 = -u - tmp
 
     Qinv = get_Qinv(θ)
-    tmp = ΔL/2*Qinv*Cab*κ
+    tmp = 1/2*Qinv*Cab*κ
     f_M1 =  θ - tmp
     f_M2 = -θ - tmp
 
@@ -191,11 +191,11 @@ Calculate the element resultants for a steady state analysis.
     f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2 = static_element_equations(ΔL, Cab, 
         CtCab, u, θ, F, M, γ, κ, f1, f2, m1, m2)
     
-    tmp = ΔL/2*cross(ω, CtCab*P)
+    tmp = 1/2*cross(ω, CtCab*P) 
     f_u1 += tmp
     f_u2 += tmp
 
-    tmp = ΔL/2*(cross(ω, CtCab*H) + CtCab*cross(V, P))
+    tmp = 1/2*(cross(ω, CtCab*H) + CtCab*cross(V, P))
     f_ψ1 += tmp
     f_ψ2 += tmp
 
@@ -243,11 +243,13 @@ Calculate the element resultants for a dynamic analysis.
         steady_state_element_equations(ΔL, Cab, CtCab, u, θ, F, M, γ, κ, V, Ω, P, H, v, ω, 
         f1, f2, m1, m2)
 
-    tmp = ΔL/2*CtCabPdot
+    # note that the ΔL term has been incorporated into the mass matrix 
+
+    tmp = 1/2*CtCabPdot
     f_u1 += tmp
     f_u2 += tmp
 
-    tmp = ΔL/2*CtCabHdot
+    tmp = 1/2*CtCabHdot
     f_ψ1 += tmp
     f_ψ2 += tmp
 
@@ -429,13 +431,17 @@ Compute and add a beam element's contributions to the residual vector for a stat
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    u, θ, F, M = static_element_state_variables(x, icol, force_scaling)
+    # scale compliance and mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M = static_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -463,7 +469,7 @@ Compute and add a beam element's contributions to the residual vector for a stat
     αe = zero(ae)
 
     # element acceleration loads (including gravitational loads)
-    f1, f2, m1, m2 = acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, ae, αe)
+    f1, f2, m1, m2 = acceleration_loads(mass11, mass12, mass21, mass22, CtCab, ae, αe)
 
     # distributed loads
     if haskey(distributed_loads, ielem)
@@ -527,13 +533,17 @@ analysis.
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -573,7 +583,7 @@ analysis.
     αe = α
 
     # element acceleration loads (including gravitational loads)
-    f1, f2, m1, m2 = acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, ae, αe)
+    f1, f2, m1, m2 = acceleration_loads(mass11, mass12, mass21, mass22, CtCab, ae, αe)
 
     # distributed loads
     if haskey(distributed_loads, ielem)
@@ -642,13 +652,17 @@ condition analysis.
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    Vdot, Ωdot, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    Vdot, Ωdot, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -701,7 +715,7 @@ condition analysis.
     αe = α
 
     # element acceleration loads (including gravitational loads)
-    f1, f2, m1, m2 = acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, ae, αe)
+    f1, f2, m1, m2 = acceleration_loads(mass11, mass12, mass21, mass22, CtCab, ae, αe)
 
     # distributed loads
     if haskey(distributed_loads, ielem)
@@ -771,6 +785,15 @@ time-marching analysis.
     mass = elem.mass
     Cab = elem.Cab
 
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
+
+    # modify mass matrix to account for point masses, if present
+    if haskey(point_masses, ielem)
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+    end
+
     # element state variables
     u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
     
@@ -779,11 +802,6 @@ time-marching analysis.
     θdot = 2/dt*θ - θdot_init
     Vdot = 2/dt*V - Vdot_init
     Ωdot = 2/dt*Ω - Ωdot_init
-
-    # modify mass matrix to account for point masses, if present
-    if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
-    end
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -836,7 +854,7 @@ time-marching analysis.
     αe = α
 
     # element acceleration loads (including gravitational loads)
-    f1, f2, m1, m2 = acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, ae, αe)
+    f1, f2, m1, m2 = acceleration_loads(mass11, mass12, mass21, mass22, CtCab, ae, αe)
 
     # distributed loads
     if haskey(distributed_loads, ielem)
@@ -905,13 +923,17 @@ analysis.
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
-    
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
+
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -964,7 +986,7 @@ analysis.
     αe = α
 
     # element acceleration loads (including gravitational loads)
-    f1, f2, m1, m2 = acceleration_loads(ΔL, mass11, mass12, mass21, mass22, CtCab, ae, αe)
+    f1, f2, m1, m2 = acceleration_loads(mass11, mass12, mass21, mass22, CtCab, ae, αe)
 
     # distributed loads
     if haskey(distributed_loads, ielem)
@@ -1038,17 +1060,17 @@ a static analysis.
 
     # d_fψ/d_θ
     tmp1 = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M)
-    tmp2 = ΔL/2*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*cross(e1 + γ, F))
+    tmp2 = 1/2*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*cross(ΔL*e1 + γ, F))
     f_ψ1_θ = -tmp1 - m1_θ - tmp2
     f_ψ2_θ =  tmp1 - m2_θ - tmp2
 
     # d_fψ/d_F
-    tmp = -ΔL/2*CtCab*(tilde(e1 + γ) - tilde(F)*S11)
+    tmp = -1/2*CtCab*(tilde(ΔL*e1 + γ) - tilde(F)*S11)
     f_ψ1_F = tmp
     f_ψ2_F = tmp
 
     # d_fψ/d_M
-    tmp = ΔL/2*CtCab*tilde(F)*S12
+    tmp = 1/2*CtCab*tilde(F)*S12
     f_ψ1_M = tmp - CtCab
     f_ψ2_M = tmp + CtCab
 
@@ -1059,17 +1081,17 @@ a static analysis.
     f_F2_u = -I3
 
     # d_fF/d_θ
-    tmp = mul3(Ct_θ1, Ct_θ2, Ct_θ3, ΔL/2*Cab*(e1 + γ))
+    tmp = mul3(Ct_θ1, Ct_θ2, Ct_θ3, 1/2*Cab*(ΔL*e1 + γ))
     f_F1_θ = -tmp
     f_F2_θ = -tmp
 
     # d_fF/d_F
-    tmp = ΔL/2*CtCab*S11
+    tmp = 1/2*CtCab*S11
     f_F1_F = -tmp
     f_F2_F = -tmp
 
     # d_fF/d_M
-    tmp = ΔL/2*CtCab*S12
+    tmp = 1/2*CtCab*S12
     f_F1_M = -tmp
     f_F2_M = -tmp
 
@@ -1077,13 +1099,13 @@ a static analysis.
 
     # d_fM/d_θ
     Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_θ(θ)
-    tmp = mul3(Qinv_θ1, Qinv_θ2, Qinv_θ3, ΔL/2*Cab*κ)
+    tmp = mul3(Qinv_θ1, Qinv_θ2, Qinv_θ3, 1/2*Cab*κ)
     f_M1_θ =  I - tmp
     f_M2_θ = -I - tmp
 
     # d_fM/d_F
     Qinv = get_Qinv(θ)
-    tmp1 = -ΔL/2*Qinv*Cab
+    tmp1 = -1/2*Qinv*Cab
     tmp2 = tmp1*S21
     f_M1_F = tmp2
     f_M2_F = tmp2
@@ -1148,38 +1170,40 @@ a steady state analysis.
         ΔL, S11, S12, S21, S22, Cab, CtCab, θ, F, M, γ, κ, f1_u, f2_u, m1_u, m2_u, 
         f1_θ, f2_θ, m1_θ, m2_θ, Ct_θ1, Ct_θ2, Ct_θ3)
 
+    # note that the ΔL term has been incorporated into the mass matrix 
+
     # --- f_u1, f_u2 --- #
 
     # d_fu_dθ
-    tmp = ΔL/2*tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*P)
+    tmp = 1/2*tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*P)
     f_u1_θ += tmp
     f_u2_θ += tmp
 
     # d_fu_dV
-    tmp = ΔL/2*tilde(ω)*CtCab*mass11
+    tmp = 1/2*tilde(ω)*CtCab*mass11
     f_u1_V = tmp
     f_u2_V = tmp
 
     # d_fu_dΩ
-    tmp = ΔL/2*tilde(ω)*CtCab*mass12
+    tmp = 1/2*tilde(ω)*CtCab*mass12
     f_u1_Ω = tmp
     f_u2_Ω = tmp
 
     # --- f_ψ1, f_ψ2 --- #
 
     # d_fψ_dθ
-    tmp = ΔL/2*(tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*H) + 
+    tmp = 1/2*(tilde(ω)*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*H) + 
         mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*cross(V, P)))
     f_ψ1_θ += tmp
     f_ψ2_θ += tmp
 
     # d_fψ_dV
-    tmp = ΔL/2*tilde(ω)*CtCab*mass21 + ΔL/2*CtCab*(tilde(V)*mass11 - tilde(P))
+    tmp = 1/2*(tilde(ω)*CtCab*mass21 + CtCab*(tilde(V)*mass11 - tilde(P)))
     f_ψ1_V = tmp
     f_ψ2_V = tmp
 
     # d_fψ_dΩ
-    tmp = ΔL/2*tilde(ω)*CtCab*mass22 + ΔL/2*CtCab*(tilde(V)*mass12)
+    tmp = 1/2*(tilde(ω)*CtCab*mass22 + CtCab*(tilde(V)*mass12))
     f_ψ1_Ω = tmp
     f_ψ2_Ω = tmp
 
@@ -1234,15 +1258,17 @@ an initial condition analysis.
 @inline function initial_condition_element_jacobian_equations(ΔL, S11, S12, S21, S22, 
     mass11, mass12, mass21, mass22, Cab, CtCab, CtCabdot, θ, F, γ, V, P, ω)
 
+    # note that the ΔL term has been incorporated into the mass matrix 
+
     # --- f_u1, f_u2 --- #
 
     # d_fu/d_Vdot
-    tmp = ΔL/2*CtCab*mass11
+    tmp = 1/2*CtCab*mass11
     f_u1_Vdot = tmp
     f_u2_Vdot = tmp
 
     # d_fu/d_Ωdot
-    tmp = ΔL/2*CtCab*mass12
+    tmp = 1/2*CtCab*mass12
     f_u1_Ωdot = tmp
     f_u2_Ωdot = tmp
 
@@ -1252,56 +1278,56 @@ an initial condition analysis.
     f_u2_F =  tmp
 
     # d_fu/dV
-    tmp = ΔL/2*(tilde(ω)*CtCab*mass11 + CtCabdot*mass11)
+    tmp = 1/2*(tilde(ω)*CtCab*mass11 + CtCabdot*mass11)
     f_u1_V = tmp 
     f_u2_V = tmp 
 
     # d_fu/dΩ
-    tmp = ΔL/2*(tilde(ω)*CtCab*mass12 + CtCabdot*mass12)
+    tmp = 1/2*(tilde(ω)*CtCab*mass12 + CtCabdot*mass12)
     f_u1_Ω = tmp 
     f_u2_Ω = tmp 
 
     # --- f_θ1, f_θ2 --- #
 
     # d_fψ/d_Ωdot
-    tmp = ΔL/2*CtCab*mass21
+    tmp = 1/2*CtCab*mass21
     f_ψ1_Vdot = tmp 
     f_ψ2_Vdot = tmp
 
     # d_fψ/d_Ωdot
-    tmp = ΔL/2*CtCab*mass22
+    tmp = 1/2*CtCab*mass22
     f_ψ1_Ωdot = tmp
     f_ψ2_Ωdot = tmp
 
     # d_fψ/d_F
-    tmp = -ΔL/2*CtCab*(tilde(e1 + γ) - tilde(F)*S11)
+    tmp = -1/2*CtCab*(tilde(ΔL*e1 + γ) - tilde(F)*S11)
     f_ψ1_F = tmp
     f_ψ2_F = tmp
 
     # d_fψ/d_M
-    tmp = ΔL/2*CtCab*tilde(F)*S12
+    tmp = 1/2*CtCab*tilde(F)*S12
     f_ψ1_M = tmp - CtCab
     f_ψ2_M = tmp + CtCab
 
     # d_fψ_dV
-    tmp = ΔL/2*tilde(ω)*CtCab*mass21 + ΔL/2*CtCabdot*mass21 + ΔL/2*CtCab*(tilde(V)*mass11 - tilde(P))
+    tmp = 1/2*(tilde(ω)*CtCab*mass21 + CtCabdot*mass21 + CtCab*(tilde(V)*mass11 - tilde(P)))
     f_ψ1_V = tmp 
     f_ψ2_V = tmp 
 
     # d_fψ_dΩ
-    tmp = ΔL/2*tilde(ω)*CtCab*mass22 + ΔL/2*CtCabdot*mass22 + ΔL/2*CtCab*(tilde(V)*mass12)
+    tmp = 1/2*(tilde(ω)*CtCab*mass22 + CtCabdot*mass22 + CtCab*(tilde(V)*mass12))
     f_ψ1_Ω = tmp
     f_ψ2_Ω = tmp
 
     # --- f_F1, f_F2 --- #
 
     # d_fF/d_F
-    tmp = ΔL/2*CtCab*S11
+    tmp = 1/2*CtCab*S11
     f_F1_F = -tmp
     f_F2_F = -tmp
 
     # d_fF/d_M
-    tmp = ΔL/2*CtCab*S12
+    tmp = 1/2*CtCab*S12
     f_F1_M = -tmp
     f_F2_M = -tmp
 
@@ -1309,7 +1335,7 @@ an initial condition analysis.
 
     # d_fM/d_F
     Qinv = get_Qinv(θ)
-    tmp1 = -ΔL/2*Qinv*Cab
+    tmp1 = -1/2*Qinv*Cab
     tmp2 = tmp1*S21
     f_M1_F = tmp2
     f_M2_F = tmp2
@@ -1395,7 +1421,7 @@ an Newmark scheme time-marching analysis.
     # --- f_u1, f_u2 --- #
 
     # d_fu_dθ
-    tmp = ΔL/2*(
+    tmp = 1/2*(
         mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*P) +
         2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*P) + 
         mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Pdot)
@@ -1404,19 +1430,19 @@ an Newmark scheme time-marching analysis.
     f_u2_θ += tmp
 
     # d_fu_dV      
-    tmp = ΔL/2*(CtCabdot*mass11 + 2/dt*CtCab*mass11)
+    tmp = 1/2*(CtCabdot*mass11 + 2/dt*CtCab*mass11)
     f_u1_V += tmp
     f_u2_V += tmp
 
     # d_fu_dΩ
-    tmp = ΔL/2*(CtCabdot*mass12 + 2/dt*CtCab*mass12)
+    tmp = 1/2*(CtCabdot*mass12 + 2/dt*CtCab*mass12)
     f_u1_Ω += tmp
     f_u2_Ω += tmp
 
     # --- f_ψ1, f_ψ2 --- #
 
     # d_fψ_dθ
-    tmp = ΔL/2*(
+    tmp = 1/2*(
         mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*H) +
         2/dt*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*H) +
         mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Hdot)
@@ -1425,12 +1451,12 @@ an Newmark scheme time-marching analysis.
     f_ψ2_θ += tmp
 
     # d_fψ_dV
-    tmp = ΔL/2*(CtCabdot*mass21 + 2/dt*CtCab*mass21)
+    tmp = 1/2*(CtCabdot*mass21 + 2/dt*CtCab*mass21)
     f_ψ1_V += tmp
     f_ψ2_V += tmp
 
     # d_fψ_dΩ
-    tmp = ΔL/2*(CtCabdot*mass22 + 2/dt*CtCab*mass22)
+    tmp = 1/2*(CtCabdot*mass22 + 2/dt*CtCab*mass22)
     f_ψ1_Ω += tmp
     f_ψ2_Ω += tmp
 
@@ -1514,34 +1540,34 @@ an Newmark scheme time-marching analysis.
     # --- f_u1, f_u2 --- #
 
     # d_fu_dθ
-    tmp = ΔL/2*(mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*P) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Pdot))
+    tmp = 1/2*(mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*P) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Pdot))
     f_u1_θ += tmp
     f_u2_θ += tmp
 
     # d_fu_dV
-    tmp = ΔL/2*CtCabdot*mass11
+    tmp = 1/2*CtCabdot*mass11
     f_u1_V += tmp
     f_u2_V += tmp
 
     # d_fu_dΩ
-    tmp = ΔL/2*CtCabdot*mass12
+    tmp = 1/2*CtCabdot*mass12
     f_u1_Ω += tmp
     f_u2_Ω += tmp
 
     # --- f_ψ1, f_ψ2 --- #
 
     # d_fψ_dθ
-    tmp = ΔL/2*(mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*H) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Hdot))
+    tmp = 1/2*(mul3(Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Cab*H) + mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*Hdot))
     f_ψ1_θ += tmp
     f_ψ2_θ += tmp
 
     # d_fψ_dV
-    tmp = ΔL/2*CtCabdot*mass21
+    tmp = 1/2*CtCabdot*mass21
     f_ψ1_V += tmp
     f_ψ2_V += tmp
 
     # d_fψ_dΩ
-    tmp = ΔL/2*CtCabdot*mass22
+    tmp = 1/2*CtCabdot*mass22
     f_ψ1_Ω += tmp
     f_ψ2_Ω += tmp
 
@@ -1847,13 +1873,17 @@ Adds a beam element's contributions to the system jacobian matrix for a static a
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    u, θ, F, M = static_element_state_variables(x, icol, force_scaling)
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M = static_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -1882,7 +1912,7 @@ Adds a beam element's contributions to the system jacobian matrix for a static a
     αe = zero(ae)
 
     # element acceleration loads (including gravitational loads)
-    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(ΔL, mass11, 
+    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(mass11, 
         mass12, mass21, mass22, ae, αe, Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     # distributed loads
@@ -1955,13 +1985,17 @@ analysis.
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -2003,7 +2037,7 @@ analysis.
     αe = α
 
     # element acceleration loads (including gravitational loads)
-    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(ΔL, mass11, 
+    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(mass11, 
         mass12, mass21, mass22, ae, αe, Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     # distributed loads
@@ -2086,13 +2120,17 @@ analysis.
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    Vdot, Ωdot, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    Vdot, Ωdot, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -2197,6 +2235,15 @@ time-marching simulation.
     mass = elem.mass
     Cab = elem.Cab
 
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
+
+    # modify mass matrix to account for point masses, if present
+    if haskey(point_masses, ielem)
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+    end
+
     # element state variables
     u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
     
@@ -2205,11 +2252,6 @@ time-marching simulation.
     θdot = 2/dt*θ - θdot_init
     Vdot = 2/dt*V - Vdot_init
     Ωdot = 2/dt*Ω - Ωdot_init
-
-    # modify mass matrix to account for point masses, if present
-    if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
-    end
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -2270,7 +2312,7 @@ time-marching simulation.
     αe = α
 
     # element acceleration loads (including gravitational loads)
-    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(ΔL, mass11, 
+    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(mass11, 
         mass12, mass21, mass22, ae, αe, Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     # distributed loads
@@ -2353,13 +2395,17 @@ simulation.
     mass = elem.mass
     Cab = elem.Cab
 
-    # element state variables
-    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
-    
+    # scale mass matrix by the element length (to allow zero length elements)
+    compliance *= ΔL
+    mass *= ΔL
+
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # compliance submatrices
     S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
@@ -2418,7 +2464,7 @@ simulation.
     αe = α
 
     # element acceleration loads (including gravitational loads)
-    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(ΔL, mass11, 
+    f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ = acceleration_loads_jacobian(mass11, 
         mass12, mass21, mass22, ae, αe, Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     # distributed loads
@@ -2455,13 +2501,12 @@ simulation.
 end
 
 """
-    element_mass_matrix_equations(ΔL, mass11, mass12, mass21, mass22, Cab, 
+    element_mass_matrix_equations(mass11, mass12, mass21, mass22, Cab, 
         CtCab, θ, P, H, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
 Calculate the derivatives of the element resultants with respect to the state rates.
 
 # Arguments:
- - `ΔL`: beam element length
  - `mass11, mass12, mass21, mass22`: beam element mass matrix, divided into submatrices
  - `Cab`: transformation matrix from the undeformed beam element frame to the body frame
  - `CtCab`: transformation matrix from the deformed beam element frame to the body frame
@@ -2472,30 +2517,30 @@ Calculate the derivatives of the element resultants with respect to the state ra
  - `Ctdot_θdot2`: Derivative of `Cdot'` w.r.t. `θdot[2]`
  - `Ctdot_θdot3`: Derivative of `Cdot'` w.r.t. `θdot[3]`
 """
-@inline function element_mass_matrix_equations(ΔL, mass11, mass12, mass21, mass22, Cab, 
+@inline function element_mass_matrix_equations(mass11, mass12, mass21, mass22, Cab, 
     CtCab, θ, P, H, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
-    tmp = ΔL/2*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*P)
+    tmp = 1/2*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*P)
     f_u1_θdot = tmp
     f_u2_θdot = tmp
 
-    tmp = ΔL/2*CtCab*mass11
+    tmp = 1/2*CtCab*mass11
     f_u1_Vdot = tmp
     f_u2_Vdot = tmp
 
-    tmp = ΔL/2*CtCab*mass12
+    tmp = 1/2*CtCab*mass12
     f_u1_Ωdot = tmp
     f_u2_Ωdot = tmp
 
-    tmp = ΔL/2*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*H)
+    tmp = 1/2*mul3(Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3, Cab*H)
     f_ψ1_θdot = tmp
     f_ψ2_θdot = tmp
 
-    tmp = ΔL/2*CtCab*mass21
+    tmp = 1/2*CtCab*mass21
     f_ψ1_Vdot = tmp
     f_ψ2_Vdot = tmp
 
-    tmp = ΔL/2*CtCab*mass22
+    tmp = 1/2*CtCab*mass22
     f_ψ1_Ωdot = tmp
     f_ψ2_Ωdot = tmp
 
@@ -2632,14 +2677,17 @@ residual equations with respect to the time derivatives of the state variables
     ΔL = elem.L
     mass = elem.mass
     Cab = elem.Cab
-    
-    # element state variables
-    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
+    # scale mass matrix by the element length (to allow zero length elements)
+    mass *= ΔL
+    
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # mass submatrices
     mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
@@ -2663,7 +2711,7 @@ residual equations with respect to the time derivatives of the state variables
     # get jacobians of beam element equations
     f_u1_θdot, f_u2_θdot, f_u1_Vdot, f_u2_Vdot, f_u1_Ωdot, f_u2_Ωdot,
         f_ψ1_θdot, f_ψ2_θdot, f_ψ1_Vdot, f_ψ2_Vdot, f_ψ1_Ωdot, f_ψ2_Ωdot,
-        f_V_udot, f_Ω_θdot = element_mass_matrix_equations(ΔL, mass11, mass12, mass21, mass22, Cab, 
+        f_V_udot, f_Ω_θdot = element_mass_matrix_equations(mass11, mass12, mass21, mass22, Cab, 
         CtCab, θ, P, H, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
     # initialize/insert into jacobian matrix for the system
@@ -2691,13 +2739,16 @@ by the scaling parameter `gamma`.
     mass = elem.mass
     Cab = elem.Cab
     
-    # element state variables
-    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
-
+    # scale mass matrix by the element length (to allow zero length elements)
+    mass *= ΔL
+    
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
     end
+
+    # element state variables
+    u, θ, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
     # mass submatrices
     mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
@@ -2721,7 +2772,7 @@ by the scaling parameter `gamma`.
     # get jacobians of beam element equations
     f_u1_θdot, f_u2_θdot, f_u1_Vdot, f_u2_Vdot, f_u1_Ωdot, f_u2_Ωdot,
         f_ψ1_θdot, f_ψ2_θdot, f_ψ1_Vdot, f_ψ2_Vdot, f_ψ1_Ωdot, f_ψ2_Ωdot,
-        f_V_udot, f_Ω_θdot = element_mass_matrix_equations(ΔL, mass11, mass12, mass21, mass22, Cab, 
+        f_V_udot, f_Ω_θdot = element_mass_matrix_equations(mass11, mass12, mass21, mass22, Cab, 
         CtCab, θ, P, H, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
     # initialize/insert into jacobian matrix for the system

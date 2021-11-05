@@ -258,7 +258,7 @@ We won't be applying point masses to our model, but we will demonstrate how to d
 
 Point masses are defined by using the constructor [`PointMass`](@ref).  Point masses may be attached to the center of any beam element.  By using zero length beam elements, point masses may also be effectively attached to points.  One instance of [`PointMass`](@ref) must be created for every beam element to which point masses are attached.  These instances are then stored in a dictionary with keys corresponding to each beam element index. 
 
-To define a [`PointMass`](@ref) a 6x6 mass matrix must be provided which describes the relationship between the linear/angular velocity of the beam element (as defined in the body frame) and the linear/angular momentum of the point mass.  For a single point mass, this matrix is defined as
+Each [`PointMass`](@ref) contains a 6x6 mass matrix which describes the relationship between the linear/angular velocity of the beam element and the linear/angular momentum of the point mass.  For a single point mass, this matrix is defined as
 ```math
 \begin{bmatrix}
    P_{x} \\
@@ -273,9 +273,9 @@ To define a [`PointMass`](@ref) a 6x6 mass matrix must be provided which describ
    m & 0 & 0 & 0 & m p_{z} & -m p_{y} \\
    0 & m & 0 & -m p_{z} & 0 & m p_{x} \\
    0 & 0 & m & m p_{y} & -m p_{x} & 0 \\
-   0 & -m p_{z} & m p_{y} & I_{xx} & -I_{xy} & -I_{xz} \\
-   m p_{z}  & 0 & -m p_{x} & -I_{xy} & I_{yy} & -I_{yz} \\
-   -m p_{y} & m p_{x} & 0 & -I_{xz} & -I_{yz} & I_{zz}
+   0 & -m p_{z} & m p_{y} & I_{xx}^* & -I_{xy}^* & -I_{xz}^* \\
+   m p_{z}  & 0 & -m p_{x} & -I_{xy}^* & I_{yy}^* & -I_{yz}^* \\
+   -m p_{y} & m p_{x} & 0 & -I_{xz}^* & -I_{yz}^* & I_{zz}^*
 \end{bmatrix}
 \begin{bmatrix}
    V_{x} \\
@@ -286,25 +286,18 @@ To define a [`PointMass`](@ref) a 6x6 mass matrix must be provided which describ
    \Omega_{z}
 \end{bmatrix}
 ```
-where ``m`` is the mass of the point mass, ``p`` is the position of the point mass relative to the center of the beam element to which it is attached, and ``I`` is the inertia matrix corresponding to the point mass.  Multiple point masses may be modeled by adding their respective mass matrices together.
+where ``m`` is the mass of the point mass, ``p`` is the position of the point mass relative to the center of the beam element to which it is attached, and ``I^*`` is the inertia matrix corresponding to the point mass, defined relative to the center of the beam element.  Multiple point masses may be modeled by adding their respective mass matrices together.
 
-The following code places a 10 kg tip mass at the end of the beam, which is rigidly attached to the center of the final beam element
+Objects of type [`PointMass`](@ref) may be constructed by providing the fully populated mass matrix as described above or by providing the mass, offset, and inertia matrix of the point mass, with the later being the inertia matrix of the point mass about its center of gravity rather than the beam center.  To demonstrate, the following code places a 10 kg tip mass at the end of the beam, which is rigidly attached to the center of the final beam element
 
 ```@example guide
 m = 10 # mass
 p = xp_b2[end] - xm_b2[end] # relative location
-I = zeros(6,6) # inertia matrix
+J = zeros(6,6) # inertia matrix (about the point mass center of gravity)
 
 # create dictionary of point masses
 point_masses = Dict(
-    nelem => PointMass([
-        m       0       0       0     m*p[3] -m*p[2];
-        0       m       0    -m*p[3]    0     m*p[1];
-        0       0       m     m*p[2] -m*p[1]    0   ;
-        0    -m*p[3]  m*p[2]  I[1,1]  I[1,2]  I[1,3];
-      m*p[3]    0    -m*p[1]  I[2,1]  I[2,2]  I[2,3];
-     -m*p[2]  m*p[1]    0     I[3,1]  I[3,2]  I[3,3];
-    ])
+    nelem => PointMass(m, p, J)
     )
 
 nothing #hide
