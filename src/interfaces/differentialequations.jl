@@ -29,6 +29,10 @@ Keyword Arguments:
         varying, this vector may be provided as a function of time.
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+       varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+       varying, this vector may be provided as a function of time.
 """
 function DiffEqBase.ODEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -38,6 +42,8 @@ function DiffEqBase.ODEProblem(system::System, assembly, tspan;
     origin = (@SVector zeros(3)),
     linear_velocity = (@SVector zeros(3)),
     angular_velocity = (@SVector zeros(3)),
+    linear_acceleration = (@SVector zeros(3)),
+    angular_acceleration = (@SVector zeros(3)),
     )
 
     # create ODEFunction
@@ -48,7 +54,7 @@ function DiffEqBase.ODEProblem(system::System, assembly, tspan;
 
     # set parameters
     p = (prescribed_conditions, distributed_loads, point_masses, gravity, origin, 
-        linear_velocity, angular_velocity)
+        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
     return DiffEqBase.ODEProblem{true}(func, u0, tspan, p)
 end
@@ -61,7 +67,7 @@ contained in `assembly` which may be used with the DifferentialEquations package
 
 The parameters associated with the resulting ODEFunction are defined by the tuple
 `(prescribed_conditions, distributed_loads, point_masses, origin, linear_velocity, 
-angular_velocity)` where each parameter is defined as follows:
+angular_velocity, linear_acceleration, angular_acceleration)` where each parameter is defined as follows:
  - `prescribed_conditions`: A dictionary with keys corresponding to the points at
         which prescribed conditions are applied and elements of type
         [`PrescribedConditions`](@ref) which describe the prescribed conditions
@@ -85,6 +91,10 @@ angular_velocity)` where each parameter is defined as follows:
         varying, this vector may be provided as a function of time.
  - `angular_velocity`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+       varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+       varying, this vector may be provided as a function of time.
 """
 function DiffEqBase.ODEFunction(system::System, assembly)
 
@@ -113,11 +123,13 @@ function DiffEqBase.ODEFunction(system::System, assembly)
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
+        a0 = typeof(p[8]) <: AbstractVector ? SVector{3}(p[8]) : SVector{3}(p[8](t))
+        α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate residual
         steady_state_system_residual!(resid, u, assembly, prescribed_conditions,
             distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
         return resid
     end
@@ -152,11 +164,13 @@ function DiffEqBase.ODEFunction(system::System, assembly)
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
+        a0 = typeof(p[8]) <: AbstractVector ? SVector{3}(p[8]) : SVector{3}(p[8](t))
+        α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate jacobian
         steady_state_system_jacobian!(J, u, assembly, prescribed_conditions,
             distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
         return J
     end
@@ -208,6 +222,10 @@ Keyword Arguments:
         varying, this vector may be provided as a function of time.
  - `angular_velocity = zeros(3)`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+       varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+       varying, this vector may be provided as a function of time.
 """
 function DiffEqBase.DAEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
@@ -217,6 +235,8 @@ function DiffEqBase.DAEProblem(system::System, assembly, tspan;
     origin = (@SVector zeros(3)),
     linear_velocity = (@SVector zeros(3)),
     angular_velocity = (@SVector zeros(3)),
+    linear_acceleration = (@SVector zeros(3)),
+    angular_acceleration = (@SVector zeros(3)),
     )
 
     # create DiffEqBase.DAEFunction
@@ -235,7 +255,8 @@ function DiffEqBase.DAEProblem(system::System, assembly, tspan;
     end
 
     # set parameters
-    p = (prescribed_conditions, distributed_loads, point_masses, gravity, origin, linear_velocity, angular_velocity)
+    p = (prescribed_conditions, distributed_loads, point_masses, gravity, origin, 
+       linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
     # get differential variables
     differential_vars = get_differential_vars(system)
@@ -250,7 +271,8 @@ Construct a `DAEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
 
 The parameters associated with the resulting DiffEqBase.DAEFunction are defined by the tuple
-`(prescribed_conditions, distributed_loads, point_masses, origin, linear_velocity, angular_velocity)`
+`(prescribed_conditions, distributed_loads, point_masses, origin, linear_velocity, 
+angular_velocity, linear_acceleration, angular_acceleration)`
 where each parameter is defined as follows:
  - `prescribed_conditions`: A dictionary with keys corresponding to the points at
         which prescribed conditions are applied and elements of type
@@ -274,6 +296,10 @@ where each parameter is defined as follows:
         varying, this vector may be provided as a function of time.
  - `angular_velocity`: Global frame angular velocity vector. If time
         varying, this vector may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Global frame linear acceleration vector. If time
+       varying, this vector may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
+       varying, this vector may be provided as a function of time.
 """
 function DiffEqBase.DAEFunction(system::System, assembly)
 
@@ -302,11 +328,13 @@ function DiffEqBase.DAEFunction(system::System, assembly)
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
+        a0 = typeof(p[8]) <: AbstractVector ? SVector{3}(p[8]) : SVector{3}(p[8](t))
+        α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate residual
-        dynamic_system_residual!(resid, u, du, assembly, prescribed_conditions,
+        dynamic_system_residual!(resid, du, u, assembly, prescribed_conditions,
             distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, 
-            irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+            irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
         return resid
     end
@@ -325,11 +353,13 @@ function DiffEqBase.DAEFunction(system::System, assembly)
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
+        a0 = typeof(p[8]) <: AbstractVector ? SVector{3}(p[8]) : SVector{3}(p[8](t))
+        α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate jacobian
-        dynamic_system_jacobian!(J, u, du, assembly, prescribed_conditions,
+        dynamic_system_jacobian!(J, du, u, assembly, prescribed_conditions,
             distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, 
-            irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0)
+            irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
         # add gamma multiplied by the mass matrix
         system_mass_matrix!(J, gamma, u, assembly, point_masses, force_scaling,

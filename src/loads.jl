@@ -376,54 +376,117 @@ function DistributedLoads(assembly, ielem, t;
 end
 
 """
-    element_gravitational_loads(CtCab, mass, gvec)
+    combine_loads(loads)
 
-Calculate the integrated distributed loads on an element due to gravity.
+Combine the distributed loads in the iterable collection `loads`
 """
-@inline function element_gravitational_loads(ΔL, CtCab, mass11, mass12, gvec)
-    
-    # calculate force and moment per unit length due to graviational forces
-    f = CtCab*mass11*CtCab'*gvec
-    m = -CtCab*mass12*CtCab'*gvec
+function combine_loads(loads)
+    f1 = @SVector zeros(3)
+    f2 = @SVector zeros(3)
+    m1 = @SVector zeros(3)
+    m2 = @SVector zeros(3)
+    f1_follower = @SVector zeros(3)
+    f2_follower = @SVector zeros(3)
+    m1_follower = @SVector zeros(3)
+    m2_follower = @SVector zeros(3)
+    for load in loads
+        f1 += load.f1
+        f2 += load.f2
+        m1 += load.m1
+        m2 += load.m2
+        f1_follower += load.f1_follower
+        f2_follower += load.f2_follower
+        m1_follower += load.m1_follower
+        m2_follower += load.m2_follower
+    end
+    return DistributedLoads(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower)
+end
 
-    # calculate integrated force and moment per unit length
-    f1 = f2 = ΔL*f/2
-    m1 = m2 = ΔL*m/2
+"""
+    PointMass{T}
+
+Type which contains the aggregated inertial properties of one or more point masses which 
+are rigidly attached to the center of an element.
+
+# Fields:
+ - `mass`: Mass matrix corresponding to the point masses.
+"""
+struct PointMass{T}
+    mass::SMatrix{6,6,T,36}
+end
+Base.eltype(::PointMass{T}) where T = T
+
+function PointMass{T}(p::PointMass) where T
+    PointMass{T}(p.mass)
+end
+
+"""
+    PointMass(mass)
+
+Define a point mass given its mass matrix
+"""
+PointMass(mass::AbstractMatrix{T}) where T = PointMass{T}(SMatrix{6,6,T,36}(mass))
+
+"""
+    PointMass(m, p, I)
+
+Define a point mass given its mass `m`, offset `p`, and inertia matrix `I`
+"""
+PointMass(m, p, I) = PointMass([m*I3 -m*tilde(p); m*tilde(p) I-m*tilde(p)*tilde(p)])
+
+"""
+    combine_masses(masses)
+
+Combine the point masses in the iterable collection `masses`
+"""
+function combine_masses(masses)
+    M = @SMatrix zeros(6,6)
+    for mass in masses
+        M += mass.M
+    end
+    return PointMass(M)
+end
+
+"""
+    acceleration_loads(mass11, mass12, mass21, mass22, CtCab, u, a, α)
+
+Calculate the integrated distributed loads on an element caused by acceleration.
+"""
+@inline function acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
+   
+    # force and moment per unit length due to accelerating reference frame
+    f = -CtCab*(mass11*CtCab'*a + mass12*CtCab'*α)
+    m = -CtCab*(mass21*CtCab'*a + mass22*CtCab'*α)
+
+    # integrate force and moment per unit length
+    f1 = f2 = f/2
+    m1 = m2 = m/2
 
     # return result
     return f1, f2, m1, m2
 end
 
-@inline function element_gravitational_loads_jacobian(ΔL, Cab, CtCab, Ct_θ1, Ct_θ2, Ct_θ3, 
-    mass11, mass12, gvec)
+@inline function acceleration_loads_jacobian(mass11, mass12, mass21, mass22, a, α, 
+    Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
-    C_θ1, C_θ2, C_θ3 = Ct_θ1', Ct_θ2', Ct_θ3'
-    
-    # calculate force and moment per unit length due to gravitational forces
-    f_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass11*CtCab'*gvec) + CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass12*CtCab'*gvec) - CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, gvec)
-    
+    # force and moment per unit length due to accelerating reference frame
+    f_u = -CtCab*mass11*CtCab'*tilde(α)
+    m_u = -CtCab*mass21*CtCab'*tilde(α)
+
+    f_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass11*CtCab'*a + mass12*CtCab'*α)) - 
+        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) -
+        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
+    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass21*CtCab'*a + mass22*CtCab'*α)) - 
+        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) -
+        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
+
     # calculate integrated force and moment per unit length
-    f1_θ = f2_θ = ΔL*f_θ/2
-    m1_θ = m2_θ = ΔL*m_θ/2
-    
-    # return result
-    return f1_θ, f2_θ, m1_θ, m2_θ
+    f1_u = f2_u = f_u/2
+    m1_u = m2_u = m_u/2
+    f1_θ = f2_θ = f_θ/2
+    m1_θ = m2_θ = m_θ/2
+
+    return f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ
 end
 
-"""
-    combine_loads(l1, l2)
 
-Combine the distributed loads in `l1` and `l2`
-"""
-function combine_loads(l1, l2)
-    f1 = l1.f1 + l2.f1
-    f2 = l1.f2 + l2.f2
-    m1 = l1.m1 + l2.m1
-    m2 = l1.m2 + l2.m2
-    f1_follower = l1.f1_follower + l2.f1_follower
-    f2_follower = l1.f2_follower + l2.f2_follower
-    m1_follower = l1.m1_follower + l2.m1_follower
-    m2_follower = l1.m2_follower + l2.m2_follower
-    return DistributedLoads(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower)
-end
