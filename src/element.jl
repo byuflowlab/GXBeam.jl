@@ -434,7 +434,7 @@ Compute and add a beam element's contributions to the residual vector for a stat
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -532,7 +532,7 @@ analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -647,7 +647,7 @@ condition analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -782,7 +782,7 @@ time-marching analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -910,7 +910,7 @@ analysis.
     
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -1852,7 +1852,7 @@ Adds a beam element's contributions to the system jacobian matrix for a static a
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -1960,7 +1960,7 @@ analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -2091,7 +2091,7 @@ analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -2208,7 +2208,7 @@ time-marching simulation.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -2358,7 +2358,7 @@ simulation.
     
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # compliance submatrices
@@ -2638,7 +2638,7 @@ residual equations with respect to the time derivatives of the state variables
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # mass submatrices
@@ -2696,7 +2696,7 @@ by the scaling parameter `gamma`.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'] * point_masses[ielem].mass * [Cab; Cab] ./ ΔL
+        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab] ./ ΔL
     end
 
     # mass submatrices
