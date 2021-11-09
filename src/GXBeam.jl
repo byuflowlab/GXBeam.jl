@@ -5,6 +5,7 @@ using ForwardDiff
 using LinearAlgebra
 using LinearMaps
 using NLsolve
+import Roots
 using SparseArrays
 using StaticArrays
 using WriteVTK
