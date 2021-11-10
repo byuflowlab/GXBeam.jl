@@ -168,7 +168,6 @@ GXBeam.element_mass_matrix!
 ### Loads
 
 ```@docs
-GXBeam.DistributedLoads
 GXBeam.acceleration_loads
 ```
 
