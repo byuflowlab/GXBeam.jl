@@ -31,6 +31,7 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
     - Follower forces/moments (which rotate as the beam element rotates)
     - Forces/moments due to the presence of rigidly attached point masses
     - Forces/moments due to gravitational loads
+    - Forces/moments due to body frame linear/angular velocities and accelerations
  - Models arbitrary time-varying prescribed forces/moments and/or displacements/rotations at the connection points between beam elements using:
     - Dead forces/moments (which do not rotate as the point rotates)
     - Follower forces/moments (which rotate as the point rotates)
