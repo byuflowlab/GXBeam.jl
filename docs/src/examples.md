@@ -17,7 +17,7 @@ pyplot()
 
 This example shows how to predict the behavior of a cantilever beam which is partially subjected to a uniform distributed load.
 
-![](linear-cantilever-pudl-drawing.svg)
+![](assets/linear-cantilever-pudl-drawing.svg)
 
 ```@example linear-cantilever-pudl
 
@@ -125,7 +125,7 @@ deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, deflection_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
 
-savefig("linear-cantilever-pudl-1.svg") #hide
+savefig(joinpath("assets", "linear-cantilever-pudl-1.svg")) #hide
 
 # elastic twist plot (euler angle)
 plot(
@@ -144,7 +144,7 @@ theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint =
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
 
-savefig("linear-cantilever-pudl-2.svg") #hide
+savefig(joinpath("assets", "linear-cantilever-pudl-2.svg")) #hide
 
 # bending moment plot
 plot(
@@ -162,18 +162,18 @@ M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
 
-savefig("linear-cantilever-pudl-3.svg") #hide
+savefig(joinpath("assets", "linear-cantilever-pudl-3.svg")) #hide
 
 end #hide
 
 nothing #hide
 ```
 
-![](linear-cantilever-pudl-1.svg)
+![](assets/linear-cantilever-pudl-1.svg)
 
-![](linear-cantilever-pudl-2.svg)
+![](assets/linear-cantilever-pudl-2.svg)
 
-![](linear-cantilever-pudl-3.svg)
+![](assets/linear-cantilever-pudl-3.svg)
 
 Note that we could have easily performed a nonlinear analysis for this problem by setting `linear=false`.
 
@@ -181,7 +181,7 @@ Note that we could have easily performed a nonlinear analysis for this problem b
 
 This example shows how to predict the behavior of a beam which is clamped at one end and simply supported at the other end when subjected to a linear distributed load.
 
-![](linear-overdetermined-ldl-drawing.svg)
+![](assets/linear-overdetermined-ldl-drawing.svg)
 
 ```@example linear-overdetermined-ldl
 
@@ -284,7 +284,7 @@ deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, w_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
 
-savefig("linear-overdetermined-ldl-1.svg") #hide
+savefig(joinpath("assets", "linear-overdetermined-ldl-1.svg")) #hide
 
 plot(
     xlim = (0.0, 1.0),
@@ -302,7 +302,7 @@ theta = [4*atan.(state.points[ipoint].theta[2]/4)
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
 
-savefig("linear-overdetermined-ldl-2.svg") #hide
+savefig(joinpath("assets", "linear-overdetermined-ldl-2.svg")) #hide
 
 plot(
     xlim = (0.0, 1.0),
@@ -319,18 +319,18 @@ M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
 
-savefig("linear-overdetermined-ldl-3.svg") #hide
+savefig(joinpath("assets", "linear-overdetermined-ldl-3.svg")) #hide
 
 end #hide
 
 nothing #hide
 ```
 
-![](linear-overdetermined-ldl-1.svg)
+![](assets/linear-overdetermined-ldl-1.svg)
 
-![](linear-overdetermined-ldl-2.svg)
+![](assets/linear-overdetermined-ldl-2.svg)
 
-![](linear-overdetermined-ldl-3.svg)
+![](assets/linear-overdetermined-ldl-3.svg)
 
 Note that we could have easily performed a nonlinear analysis for this problem by setting `linear=false`.
 
@@ -338,7 +338,7 @@ Note that we could have easily performed a nonlinear analysis for this problem b
 
 This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip load.
 
-![](cantilever-tipforce-drawing.svg)
+![](assets/cantilever-tipforce-drawing.svg)
 
 ```@example cantilever-tipforce
 
@@ -461,20 +461,20 @@ scatter!(λ, -u/L, color=2, label="")
 plot!(λ_a, θ_a*2/pi, color=3, label="")
 scatter!(λ, -4*atan.(θ/4)*2/pi, color=3, label="")
 
-savefig("cantilever-tipforce.svg"); nothing #hide
+savefig(joinpath("assets", "cantilever-tipforce.svg")); nothing #hide
 
 end #hide
 
 nothing #hide
 ```
 
-![](cantilever-tipforce.svg)
+![](assets/cantilever-tipforce.svg)
 
 ## Nonlinear Analysis of a Cantilever Subjected to a Constant Moment
 
 This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip moment.  This is a common benchmark problem for the geometrically nonlinear analysis of beams.
 
-![](cantilever-tipmoment-drawing.svg)
+![](assets/cantilever-tipmoment-drawing.svg)
 
 ```@example cantilever-tipmoment
 
@@ -594,20 +594,20 @@ for i = 1:length(M)
     plot!(x/L, y/L, label="λ=$(λ[i])", color=i)
 end
 
-savefig("cantilever-tipmoment.svg"); nothing #hide
+savefig(joinpath("assets", "cantilever-tipmoment.svg")); nothing #hide
 
 end #hide
 
 nothing #hide
 ```
 
-![](cantilever-tipmoment.svg)
+![](assets/cantilever-tipmoment.svg)
 
 ## Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
 This example is also a common benchmark problem for the geometrically exact bending of nonlinear beams.
 
-![](cantilever-curved-drawing.svg)
+![](assets/cantilever-curved-drawing.svg)
 
 ```@example cantilever-curved
 
@@ -685,13 +685,13 @@ We can visualize the deformed geometry and inspect the associated point and elem
 write_vtk("cantilever-curved", assembly, state)
 ```
 
-![](cantilever-curved.png)
+![](assets/cantilever-curved.png)
 
 ## Rotating Beam with a Swept Tip
 
 In this example we analyze a rotating beam with a swept tip.  The parameters for this example come from "Finite element solution of nonlinear intrinsic equations for curved composite beams" by Hodges, Shang, and Cesnik.
 
-![](rotating-beam-drawing.svg)
+![](assets/rotating-beam-drawing.svg)
 
 ```@example rotating-beam
 
@@ -824,7 +824,7 @@ Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
 plot!(rpm, Mz_nl, label="Nonlinear")
 plot!(rpm, Mz_l, label="Linear")
 
-savefig("rotating-beam-Mz.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-Mz.svg")); nothing #hide
 
 # x tip deflection
 plot(
@@ -842,7 +842,7 @@ ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
 plot!(rpm, ux_nl, label="Nonlinear")
 plot!(rpm, ux_l, label="Linear")
 
-savefig("rotating-beam-ux.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-ux.svg")); nothing #hide
 
 # y tip deflection
 plot(
@@ -860,7 +860,7 @@ uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
 plot!(rpm, uy_nl, label="Nonlinear")
 plot!(rpm, uy_l, label="Linear")
 
-savefig("rotating-beam-uy.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-uy.svg")); nothing #hide
 
 # rotation of the tip
 plot(
@@ -879,7 +879,7 @@ theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
 
-savefig("rotating-beam-theta_z.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-theta_z.svg")); nothing #hide
 
 end #hide
 
@@ -887,10 +887,10 @@ nothing #hide
 
 ```
 
-![](rotating-beam-Mz.svg)
-![](rotating-beam-ux.svg)
-![](rotating-beam-uy.svg)
-![](rotating-beam-theta_z.svg)
+![](assets/rotating-beam-Mz.svg)
+![](assets/rotating-beam-ux.svg)
+![](assets/rotating-beam-uy.svg)
+![](assets/rotating-beam-theta_z.svg)
 
 We will now compute the eigenvalues of this system for a range of sweep angles and and angular speeds.
 
@@ -1075,7 +1075,7 @@ for k = 1:length(indices)
     end
 
     plot!(show=true)
-    savefig("rotating-beam-frequencies-$(k).svg") #hide
+    savefig(joinpath("assets", "rotating-beam-frequencies-$(k).svg")) #hide
 end
 
 names = ["1T/5B", "5B/1T", "4B/1T"]
@@ -1109,17 +1109,17 @@ end
 
 plot!(show=true)
 
-savefig("rotating-beam-frequencies-4.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-frequencies-4.svg")); nothing #hide
 
 end #hide
 
 nothing #hide
 ```
 
-![](rotating-beam-frequencies-1.svg)
-![](rotating-beam-frequencies-2.svg)
-![](rotating-beam-frequencies-3.svg)
-![](rotating-beam-frequencies-4.svg)
+![](assets/rotating-beam-frequencies-1.svg)
+![](assets/rotating-beam-frequencies-2.svg)
+![](assets/rotating-beam-frequencies-3.svg)
+![](assets/rotating-beam-frequencies-4.svg)
 
 As you can see, the frequency results from the eigenmode analysis in this package compare well with experimental results.
 
@@ -1132,7 +1132,7 @@ write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end],
     mode_scaling = 100.0)
 ```
 
-![](rotating-beam.gif)
+![](assets/rotating-beam.gif)
 
 ## Nonlinear Dynamic Analysis of a Wind Turbine Blade
 
@@ -1244,7 +1244,7 @@ for i = 1:12
 
     plot!(t, y, label="")
     plot!(show=true)
-    savefig("dynamic-wind-turbine-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
+    savefig(joinpath("assets", "dynamic-wind-turbine-"*string(field[i])*string(direction[i])*".svg")); nothing #hide
 end
 
 end #hide
@@ -1252,18 +1252,18 @@ end #hide
 nothing #hide
 ```
 
-![](dynamic-wind-turbine-u1.svg)
-![](dynamic-wind-turbine-u2.svg)
-![](dynamic-wind-turbine-u3.svg)
-![](dynamic-wind-turbine-theta1.svg)
-![](dynamic-wind-turbine-theta2.svg)
-![](dynamic-wind-turbine-theta3.svg)
-![](dynamic-wind-turbine-F1.svg)
-![](dynamic-wind-turbine-F2.svg)
-![](dynamic-wind-turbine-F3.svg)
-![](dynamic-wind-turbine-M1.svg)
-![](dynamic-wind-turbine-M2.svg)
-![](dynamic-wind-turbine-M3.svg)
+![](assets/dynamic-wind-turbine-u1.svg)
+![](assets/dynamic-wind-turbine-u2.svg)
+![](assets/dynamic-wind-turbine-u3.svg)
+![](assets/dynamic-wind-turbine-theta1.svg)
+![](assets/dynamic-wind-turbine-theta2.svg)
+![](assets/dynamic-wind-turbine-theta3.svg)
+![](assets/dynamic-wind-turbine-F1.svg)
+![](assets/dynamic-wind-turbine-F2.svg)
+![](assets/dynamic-wind-turbine-F3.svg)
+![](assets/dynamic-wind-turbine-M1.svg)
+![](assets/dynamic-wind-turbine-M2.svg)
+![](assets/dynamic-wind-turbine-M3.svg)
 
 These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A. Sprague in "Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic Parameters".
 
@@ -1353,7 +1353,7 @@ end
 write_vtk("dynamic-wind-turbine", assembly, history, t; sections = sections)
 ```
 
-![](dynamic-wind-turbine.gif)
+![](assets/dynamic-wind-turbine.gif)
 
 ## Nonlinear Static Analysis of a Joined-Wing
 
@@ -1362,7 +1362,7 @@ Beam Formulation for Joined-Wings in a Post-Buckled State" and optimized by Gree
 et al. in "Structural Optimization of Joined-Wing Beam Model with Bend-Twist
 Coupling using Equivalent Static Loads".
 
-![](static-joined-wing-drawing.png)
+![](assets/static-joined-wing-drawing.png)
 
 ```@example static-joined-wing
 
@@ -1591,7 +1591,7 @@ plot!(uz_l, Fz./1e3, label="Linear")
 plot!(uz_nl, Fz./1e3, label="Nonlinear with Dead Force")
 plot!(uz_fnl, Fz./1e3, label="Nonlinear with Follower Force")
 
-savefig("static-joined-wing.svg"); nothing #hide
+savefig(joinpath("assets", "static-joined-wing.svg")); nothing #hide
 
 end #hide
 
@@ -1600,7 +1600,7 @@ nothing #hide
 
 This plot matches the plot provided by Wenbin Yu in "GEBT: A general-purpose nonlinear analysis tool for composite beams".
 
-![](static-joined-wing.svg)
+![](assets/static-joined-wing.svg)
 
 We can also visualize the deformed geometry and inspect the associated point and element data for any of these operating conditions conditions using ParaView.  To demonstrate
 we will visualize the 70kN follower force condition and set the color gradient to
@@ -1718,7 +1718,7 @@ write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end];
     sections = section)
 ```
 
-![](static-joined-wing.png)
+![](assets/static-joined-wing.png)
 
 ## Nonlinear Dynamic Analysis of a Joined-Wing
 
@@ -1742,7 +1742,7 @@ F_S(t) = \begin{cases}
 
 We will also use the same compliance and mass matrix for all beams, in order to simplify the problem definition.
 
-![](static-joined-wing-drawing.png)
+![](assets/static-joined-wing-drawing.png)
 
 ```@example dynamic-joined-wing
 
@@ -1888,7 +1888,7 @@ for i = 1:12
 
     plot!(t, y, label="")
     plot!(show=true)
-    savefig("dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
+    savefig(joinpath("assets", "dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg")); nothing #hide
 end
 
 end #hide
@@ -1896,18 +1896,18 @@ end #hide
 nothing #hide
 ```
 
-![](dynamic-joined-wing-u1.svg)
-![](dynamic-joined-wing-u2.svg)
-![](dynamic-joined-wing-u3.svg)
-![](dynamic-joined-wing-theta1.svg)
-![](dynamic-joined-wing-theta2.svg)
-![](dynamic-joined-wing-theta3.svg)
-![](dynamic-joined-wing-F1.svg)
-![](dynamic-joined-wing-F2.svg)
-![](dynamic-joined-wing-F3.svg)
-![](dynamic-joined-wing-M1.svg)
-![](dynamic-joined-wing-M2.svg)
-![](dynamic-joined-wing-M3.svg)
+![](assets/dynamic-joined-wing-u1.svg)
+![](assets/dynamic-joined-wing-u2.svg)
+![](assets/dynamic-joined-wing-u3.svg)
+![](assets/dynamic-joined-wing-theta1.svg)
+![](assets/dynamic-joined-wing-theta2.svg)
+![](assets/dynamic-joined-wing-theta3.svg)
+![](assets/dynamic-joined-wing-F1.svg)
+![](assets/dynamic-joined-wing-F2.svg)
+![](assets/dynamic-joined-wing-F3.svg)
+![](assets/dynamic-joined-wing-M1.svg)
+![](assets/dynamic-joined-wing-M2.svg)
+![](assets/dynamic-joined-wing-M3.svg)
 
 These graphs are identical to those presented in "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu and Maxwell Blair.
 
@@ -2025,4 +2025,579 @@ write_vtk("dynamic-joined-wing", assembly, history, t, scaling=1e2;
     sections = section)
 ```
 
-![](dynamic-joined-wing.gif)
+![](assets/dynamic-joined-wing.gif)
+
+## Nonlinear Dynamic Analysis of the Sandia 34-Meter Vertical Axis Wind Turbine
+
+In this example, we examine the stability characteristics of the Sandia 34-Meter Vertical Axis Wind Turbine (VAWT).  Geometry for this VAWT is described in [SAND-91-2228](https://energy.sandia.gov/wp-content/gallery/uploads/SAND-91-2228.pdf) and shown in the figure.  Sectional properties for this VAWT are derived from properties listed in [SAND-88-1807](https://energy.sandia.gov/wp-content/gallery/uploads/SAND-88-1807.pdf) 
+
+![](assets/sandia-34m-vawt.png)
+
+The original authors of this example requested that the following citation accompany it.
+
+```
+Moore, K. and Ennis, B., “Aeroelastic Validation of the Offshore Wind Energy Simulator for Vertical-Axis Wind Turbines”, forthcoming 2022
+```
+
+The following section of code generates the beam assembly for this example.
+
+```@example vawt
+
+using GXBeam, LinearAlgebra, FLOWMath
+
+# --- Tower Definition --- #
+
+tower_height = 41.9
+tower_stiffness = Diagonal([8.4404e9, 2.7053e9, 2.7053e9, 7.0428e9, 9.4072e9, 9.4072e9])
+tower_mass = Diagonal([330.755, 330.755, 330.755, 737.282, 368.641, 368.641])
+
+# --- Blade Definition --- #
+
+# geometry
+blade_xyz = [
+     0.0        0.0   0.0;
+     2.26837    0.0   1.257;
+     3.63183    0.0   2.095;
+     6.76113    0.0   4.19;
+     9.55882    0.0   6.285;
+    11.8976     0.0   8.38;
+    13.7306     0.0  10.475;
+    15.1409     0.0  12.57;
+    16.1228     0.0  14.665;
+    16.7334     0.0  16.76;
+    17.0133     0.0  18.855;
+    17.0987     0.0  20.95;
+    16.9615     0.0  23.045;
+    16.5139     0.0  25.14;
+    15.7435     0.0  27.235;
+    14.5458     0.0  29.33;
+    12.9287     0.0  31.425;
+    10.8901     0.0  33.52;
+     8.547      0.0  35.615;
+     5.93739    0.0  37.71;
+     3.05842    0.0  39.805;
+     1.87486    0.0  40.643;
+     0.0        0.0  41.9
+]
+
+# section boundaries (z-coordinate)
+blade_transition = [0.0, 5.8, 11.1, 29.0, 34.7, 41.9]
+
+# root section properties
+
+blade_stiffness1 = [
+    3.74563e9  0.0        0.0        0.0        0.0        1.14382e8;
+    0.0        1.20052e9  0.0        0.0        0.0        0.0;
+    0.0        0.0        1.20052e9  0.0        0.0        0.0;
+    0.0        0.0        0.0        1.87992e7  0.0        0.0;
+    0.0        0.0        0.0        0.0        2.24336e7  0.0;
+    1.14382e8  0.0        0.0        0.0        0.0        4.09242e8;
+]
+
+blade_mass1 = [
+    146.781     0.0       0.0      0.0     28.7783     0.0;
+      0.0     146.781     0.0    -28.7783   0.0        0.0;
+      0.0       0.0     146.781    0.0      0.0        0.0;
+      0.0     -28.7783    0.0     16.7793   0.0        0.0;
+     28.7783    0.0       0.0      0.0      0.879112  -0.0;
+      0.0       0.0       0.0      0.0     -0.0       15.9002;
+] 
+
+# transition section properties
+
+blade_stiffness2 = [
+    2.22783e9  0.0        0.0        0.0        0.0        4.20422e7;
+    0.0        7.14048e8  0.0        0.0        0.0        0.0;
+    0.0        0.0        7.14048e8  0.0        0.0        0.0;
+    0.0        0.0        0.0        6.55493e6  0.0        0.0;
+    0.0        0.0        0.0        0.0        7.35548e6  0.0;
+    4.20422e7  0.0        0.0        0.0        0.0        1.84227e8;
+]
+
+blade_mass2 = [
+    87.3025    0.0      0.0       0.0      16.7316     0.0;
+     0.0      87.3025   0.0     -16.7316    0.0        0.0;
+     0.0       0.0     87.3025   -0.0       0.0        0.0;
+     0.0     -16.7316  -0.0       7.47649   0.0        0.0;
+    16.7316    0.0      0.0       0.0       0.288241  -0.0;
+     0.0       0.0      0.0       0.0      -0.0        7.18825;
+]
+
+# center section properties
+
+blade_stiffness3 = [
+    1.76888e9  0.0        0.0        0.0        0.0        2.34071e7;
+    0.0        5.66947e8  0.0        0.0        0.0        0.0;
+    0.0        0.0        5.66947e8  0.0        0.0        0.0;
+    0.0        0.0        0.0        4.00804e6  0.0        0.0;
+    0.0        0.0        0.0        0.0        4.34302e6  0.0;
+    2.34071e7  0.0        0.0        0.0        0.0        1.09341e8;
+]
+
+blade_mass3 = [
+    69.3173    0.0      0.0       0.0      11.5831     0.0;
+     0.0      69.3173   0.0     -11.5831    0.0        0.0;
+     0.0       0.0     69.3173   -0.0       0.0        0.0;
+     0.0     -11.5831  -0.0       4.44282   0.0        0.0;
+    11.5831    0.0      0.0       0.0       0.170191  -0.0;
+     0.0       0.0      0.0       0.0      -0.0        4.27263;
+]
+
+# --- Strut Definition --- #
+
+strut_locations = [1.257, 40.643]
+strut_stiffness = blade_stiffness1
+strut_mass = blade_mass1
+
+# --- Define Assembly --- #
+
+# Tower
+
+# number of tower sections
+nt = 22
+
+# tower points
+x = zeros(nt+1)
+y = zeros(nt+1)
+z = vcat(0, range(strut_locations[1], strut_locations[2]; length=nt-1), tower_height)
+pt_t = [[x[i],y[i],z[i]] for i = 1:nt+1]
+
+# tower frame of reference
+frame_t = fill([0 0 1; 0 1 0; -1 0 0], nt)
+
+# tower stiffness
+stiff_t = fill(tower_stiffness, nt)
+
+# tower mass
+mass_t = fill(tower_mass, nt)
+
+# Blades
+
+# number of blade sections
+nbr = 4 # root
+nbt = 3 # transition
+nbc = 8 # center
+nb = 2*nbr + 2*nbt + nbc # total number of blade sections
+
+# interpolation parameter coordinates
+new_z = vcat(0.0, 
+    range(strut_locations[1], 5.8, length=nbr)[1:end-1],
+    range(5.8, 11.1, length=nbt+1)[1:end-1],
+    range(11.1, 29.0, length=nbc+1)[1:end-1],
+    range(29.0, 34.7, length=nbt+1)[1:end-1], 
+    range(34.7, strut_locations[2], length=nbr),
+    tower_height)
+
+# blade points
+x = FLOWMath.akima(blade_xyz[:,3], blade_xyz[:,1], new_z)
+y = zero(new_z)
+z = new_z 
+pt_bl = [[-x[i],y[i],z[i]] for i = 1:nb+1] # left blade
+pt_br = [[x[i],y[i],z[i]] for i = 1:nb+1] # right blade
+
+# left blade frame of reference
+frame_bl = Vector{Matrix{Float64}}(undef, nb)
+for i = 1:nb
+    r = pt_bl[i+1] - pt_bl[i]
+    n = norm(r)
+    s = r[3]/n
+    c = r[1]/n
+    frame_bl[i] = [c 0 -s; 0 1 0; s 0 c]
+end
+
+# right blade frame of reference
+frame_br = Vector{Matrix{Float64}}(undef, nb)
+for i = 1:nb
+    r = pt_br[i+1] - pt_br[i]
+    n = norm(r)
+    s = r[3]/n
+    c = r[1]/n
+    frame_br[i] = [c 0 -s; 0 1 0; s 0 c]
+end
+
+# blade stiffness
+stiff_b = vcat(
+    fill(blade_stiffness1, nbr),
+    fill(blade_stiffness2, nbt),
+    fill(blade_stiffness3, nbc),
+    fill(blade_stiffness2, nbt),
+    fill(blade_stiffness1, nbr)
+)
+
+# blade mass
+mass_b = vcat(
+    fill(blade_mass1, nbr),
+    fill(blade_mass2, nbt),
+    fill(blade_mass3, nbc),
+    fill(blade_mass2, nbt),
+    fill(blade_mass1, nbr)
+)
+
+# Struts
+
+# number of strut sections per strut
+ns = 3 
+
+# lower left strut points
+x = range(0.0, pt_bl[2][1]; length=ns+1)
+y = zeros(ns+1)
+z = fill(strut_locations[1], ns+1) 
+pt_s1 = [[x[i],y[i],z[i]] for i = 1:ns+1]
+
+# lower right strut points
+x = range(0.0, pt_br[2][1]; length=ns+1)
+y = zeros(ns+1)
+z = fill(strut_locations[1], ns+1) 
+pt_s2 = [[x[i],y[i],z[i]] for i = 1:ns+1]
+
+# upper left strut points
+x = range(0.0, pt_bl[end-1][1]; length=ns+1)
+y = zeros(ns+1)
+z = fill(strut_locations[2], ns+1) 
+pt_s3 = [[x[i],y[i],z[i]] for i = 1:ns+1]
+
+# upper right strut points
+x = range(0.0, pt_br[end-1][1]; length=ns+1)
+y = zeros(ns+1)
+z = fill(strut_locations[2], ns+1) 
+pt_s4 = [[x[i],y[i],z[i]] for i = 1:ns+1]
+
+# strut frame of reference
+frame_s = fill([1 0 0; 0 1 0; 0 0 1], ns)
+
+# strut stiffness
+stiff_s = fill(strut_stiffness, ns)
+
+# strut mass
+mass_s = fill(strut_mass, ns)
+
+# Combine Tower, Blades, and Struts
+
+# combine points
+points = vcat(pt_t, pt_bl, pt_br, pt_s1, pt_s2, pt_s3, pt_s4)
+
+# define element connectivity
+istart = cumsum([1, nt+1, nb+1, nb+1, ns+1, ns+1, ns+1])
+istop = cumsum([nt+1, nb+1, nb+1, ns+1, ns+1, ns+1, ns+1])
+start = vcat([istart[i]:istop[i]-1 for i = 1:length(istart)]...)
+stop = vcat([istart[i]+1:istop[i] for i = 1:length(istart)]...)
+
+# use zero-length elements as joints
+
+nj = 12 # number of joints
+
+joints = [
+    istart[1]     istart[2]; # tower - bottom of left blade
+    istart[1]     istart[3]; # tower - bottom of right blade
+    istart[1]+1   istart[4]; # tower - lower left strut
+    istart[1]+1   istart[5]; # tower - lower right strut
+    istop[1]-1    istart[6]; # tower - upper left strut 
+    istop[1]-1    istart[7]; # tower - upper right strut
+    istop[2]      istop[1]; # top of left blade - tower
+    istop[3]      istop[1]; # top of right blade - tower
+    istop[4]      istart[2]+1; # lower left strut - left blade
+    istop[5]      istart[3]+1; # lower right strut - right blade
+    istop[6]      istop[2]-1; # upper left strut - left blade
+    istop[7]      istop[3]-1; # upper right strut - right blade
+]
+
+frame_j = fill([1 0 0; 0 1 0; 0 0 1], nj)
+
+stiff_j = fill(zeros(6,6), nj) # will be modeled as infinitely stiff
+
+mass_j = fill(zeros(6,6), nj)
+
+# add joint connectivity
+start = vcat(start, joints[:,1])
+stop = vcat(stop, joints[:,2])
+
+# combine frames
+frames = vcat(frame_t, frame_bl, frame_br, frame_s, frame_s, frame_s, frame_s, frame_j)
+
+# combine stiffness
+stiffness = vcat(stiff_t, stiff_b, stiff_b, stiff_s, stiff_s, stiff_s, stiff_s, stiff_j)
+
+# combine mass
+mass = vcat(mass_t, mass_b, mass_b, mass_s, mass_s, mass_s, mass_s, mass_j)
+
+# create assembly
+assembly = Assembly(points, start, stop; 
+    frames=frames, 
+    stiffness=stiffness, 
+    mass=mass)
+
+# --- Define Prescribed Conditions --- #
+
+# create dictionary of prescribed conditions
+prescribed_conditions = Dict(
+    # fixed base
+    1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0), 
+    # fixed top, but free to rotate around z-axis
+    istop[1] => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0), 
+)
+
+# --- Perform Analysis --- #
+
+# revolutions per minute
+rpm = 0:1:40
+
+# gravity vector
+gravity = [0, 0, -9.81]
+
+# number of modes
+nmode = 10
+
+# number of eigenvalues
+nev = 2*nmode
+
+# initialize system storage
+system = System(assembly, false; prescribed_points=keys(prescribed_conditions))
+
+# storage for results
+freq = zeros(length(rpm), nmode)
+
+# perform an analysis for each rotation rate
+for (i,rpm) in enumerate(rpm)
+
+    global system, Up
+
+    # set turbine rotation
+    angular_velocity = [0, 0, rpm*(2*pi)/60]
+
+    # eigenvalues and (right) eigenvectors
+    system, λ, V, converged = eigenvalue_analysis!(system, assembly;
+        prescribed_conditions = prescribed_conditions,
+        angular_velocity = angular_velocity,
+        gravity = gravity,
+        nev = nev
+        )
+
+    # check convergence
+    @assert converged
+
+    if i > 1
+        # construct correlation matrix
+        C = Up*system.M*V
+
+        # correlate eigenmodes
+        perm, corruption = correlate_eigenmodes(C)
+
+        # re-arrange eigenvalues
+        λ = λ[perm]
+
+        # update left eigenvector matrix
+        Up = left_eigenvectors(system, λ, V)
+        Up = Up[perm,:]
+    else
+        # update left eigenvector matrix
+        Up = left_eigenvectors(system, λ, V)
+    end
+
+    # save frequencies
+    freq[i,:] = [imag(λ[k])/(2*pi) for k = 1:2:nev]
+
+end
+
+```
+
+We can compare the computed mode frequencies with experimental data taken from [SAND-91-2228](https://energy.sandia.gov/wp-content/gallery/uploads/SAND-91-2228.pdf).
+
+```@example vawt
+using Plots
+pyplot()
+
+# Experimental Data
+SNL34_flap = [
+    -0.11236  3.4778;
+    20.1124   4.08516;
+    20.1124   3.92961;
+    20.1124   3.72961;
+    20.2247   2.47403;
+    24.1573   2.4733;
+    28.2022   2.57256;
+    30.2247   2.5944;
+    31.9101   2.62742;
+    33.2584   2.63829;
+    34.1573   2.70479;
+    34.2697   2.57143;
+    34.2697   2.40476;
+    28.2022   2.46144;
+    20.1124   2.30739;
+    10.0      2.23148;
+    10.0      2.17593;
+    10.0      2.0537;
+    39.6629   1.38154;
+    37.3034   1.31531;
+    36.0674   1.25999;
+    36.1798   1.31552;
+    34.1573   1.24923;
+    32.0225   1.23851;
+    30.6742   1.20543;
+    28.2022   1.18367;
+    20.2247   1.08514;
+    20.2247   1.18514;
+    28.2022   1.27256;
+    32.0225   1.34963;
+    34.0449   1.38258;
+    15.1685   1.13052;
+    15.1685   1.04164;
+    10.0      1.03148;
+     0.0      1.06667;
+     0.0      2.13333;
+]
+
+SNL34_lead = [
+     0.0      3.57778;
+    -0.11236  2.51113;
+    -0.11236  1.80002;
+    10.0      1.78704;
+    15.1685   1.75275;
+    20.1124   1.67405;
+    30.2247   1.63885;
+    32.0225   1.50518;
+    35.0562   1.54906;
+    36.0674   1.55999;
+    39.5506   1.52601;
+    39.3258   2.04827;
+    36.9663   2.0376;
+    35.8427   2.04892;
+    34.9438   2.0602;
+    34.0449   2.08258;
+    32.0225   2.09407;
+    30.2247   2.10551;
+    24.4944   2.09546;
+    30.1124   2.42776;
+    24.1573   2.29553;
+    20.1124   2.22961;
+    20.0      2.37407;
+    10.0      2.48704;
+     9.88764  3.55372;
+    14.9438   3.54168;
+    10.0      3.86481;
+    20.1124   3.59628;
+    24.1573   3.58442;
+    24.2697   3.85106;
+    28.0899   3.63924;
+    30.0      3.66111;
+    32.0225   3.67185;
+    33.0337   3.69388;
+    34.1573   3.67145;
+    35.1685   3.68238;
+    35.1685   3.68238;
+    36.1798   3.6933;
+    37.0787   3.71536;
+    34.9438   4.0602;
+    35.9551   4.16001;
+]
+
+SNL34_1F = [
+     0.11236  1.06665;
+     7.19101  1.05422;
+    14.1573   1.05293;
+    20.2247   1.10737;
+    28.0899   1.18369;
+    34.1573   1.26034;
+    37.0787   1.31536;
+    39.7753   1.39263;
+]
+
+SNL34_1BE = [
+     0.0      1.81111;
+     6.85393  1.79873;
+    14.9438   1.75279;
+    20.2247   1.67403;
+    30.0      1.63889;
+    35.1685   1.57127;
+]
+
+SNL34_2FA = [
+    -0.11236  2.13335;
+     7.64045  2.13192;
+    10.0      2.10926;
+    19.5506   2.15194;
+    26.7416   2.38394;
+    30.5618   2.41656;
+    34.2697   2.59365;
+]
+
+SNL34_2FS = [
+    -0.11236  2.13335;
+    10.1124   2.23146;
+    15.3933   2.27493;
+    26.2921   2.52846;
+    34.1573   2.70479;
+]
+
+SNL34_1TO = [
+     0.0      2.5;
+     4.04494  2.49925;
+     9.77528  2.49819;
+    16.6292   2.43025;
+    20.2247   2.39625;
+    24.382    2.11771;
+    30.6742   2.09432;
+    35.0562   2.0824;
+]
+
+SNL34_3F = [
+    -0.11236  3.58891;
+     9.88764  3.55372;
+    15.1685   3.57497;
+    20.2247   3.59625;
+    25.5056   3.62861;
+    30.7865   3.66097;
+    34.0449   3.6937;
+    37.191    3.73756;
+]
+
+# Initialize Plot
+plot(
+    xlabel="Rotor Speed (RPM)", 
+    ylabel="Frequency (Hz)", 
+    xlim = (0, 40.0),
+    legend = :topleft,
+    grid=true)
+
+# Add Computational results
+for i=1:1:nmode
+    plot!(rpm, freq[:,i], color=:red, linestyle=:solid, label="")
+end
+
+# Add Experimental results
+scatter!(SNL34_flap[:,1],SNL34_flap[:,2], color=:black, markerstyle=:dot, label="Flatwise")
+scatter!(SNL34_lead[:,1],SNL34_lead[:,2], color=:black, markershape=:x, label="Lead-Lag")
+plot!(SNL34_1F[:,1], SNL34_1F[:,2], color=:black, linestyle=:dash, label="")
+plot!(SNL34_1BE[:,1], SNL34_1BE[:,2], color=:black, linestyle=:solid, label="")
+plot!(SNL34_2FA[:,1], SNL34_2FA[:,2], color=:black, linestyle=:solid, label="")
+plot!(SNL34_2FS[:,1], SNL34_2FS[:,2], color=:black, linestyle=:solid, label="")
+plot!(SNL34_1TO[:,1], SNL34_1TO[:,2], color=:black, linestyle=:dash, label="Tower Mode")
+plot!(SNL34_3F[:,1], SNL34_3F[:,2], color=:black, linestyle=:solid, label="")
+
+# Add Per-Revolution Lines
+for i = 1:6
+    lx = [rpm[1], rpm[end]+10]
+    ly = [rpm[1], rpm[end]+10].*i./60.0
+    plot!(lx, ly, color=:black, linestyle=:dash, linewidth=0.5, label="")
+    annotate!(0.95*lx[2], ly[2]+.05+(i-1)*.01, text("$i P", 10))
+end
+
+# Add Legend Entries
+plot!([0], [0], color=:black, label="Experimental")
+plot!([0], [0], color=:red, label="GXBeam")
+
+savefig(joinpath("assets", "vawt-stability.svg")) #hide
+
+nothing #hide
+```
+
+![](assets/vawt-stability.svg)
+
+As can be seen, there is good agreement between the computational and experimental results.
+
+```julia
+state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
+
+write_vtk("vawt", assembly, state; sections=sections)
+```
+
+![](assets/vawt.gif)

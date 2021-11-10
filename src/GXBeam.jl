@@ -13,7 +13,7 @@ using DiffEqBase
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads, PointMass
-export combine_loads
+export combine_loads, combine_masses
 export system_state, reset_state!, set_state!
 export set_element_deflection!, set_element_rotation!
 export set_element_forces!, set_element_moments!
