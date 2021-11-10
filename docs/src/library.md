@@ -15,8 +15,16 @@ discretize_beam
 Assembly(points, start, stop)
 ```
 
+### Defining Point Masses
+```@docs
+PointMass
+PointMass(m, p, J)
+combine_masses
+```
+
 ### Defining Distributed Loads
 ```@docs
+DistributedLoads
 DistributedLoads(assembly, ibeam)
 combine_loads
 ```
@@ -24,6 +32,7 @@ combine_loads
 ### Defining Prescribed Conditions
 
 ```@docs
+PrescribedConditions
 PrescribedConditions()
 ```
 
@@ -64,9 +73,10 @@ time_domain_analysis!
 ### Post-Processing
 
 ```@docs
-AssemblyState(system, assembly)
 AssemblyState
 PointState
+ElementState
+AssemblyState(system, assembly)
 extract_element_state
 extract_element_states
 extract_element_states!
@@ -97,6 +107,7 @@ GXBeam.rotation_parameter_scaling
 GXBeam.get_C
 GXBeam.get_C_t
 GXBeam.get_C_θ
+GXBeam.get_C_t_θ
 GXBeam.get_C_t_θdot
 GXBeam.get_Q
 GXBeam.get_Q_θ
@@ -120,31 +131,45 @@ GXBeam.point_jacobian!
 ### Elements
 
 ```@docs
-GXBeam.Element
 GXBeam.element_strain
 GXBeam.element_curvature
 GXBeam.element_linear_momentum
 GXBeam.element_angular_momentum
-GXBeam.element_properties
-GXBeam.element_dynamic_properties
-GXBeam.element_equations
-GXBeam.insert_element_residual!
-GXBeam.element_residual!
-GXBeam.element_jacobian_equations
-GXBeam.insert_element_jacobian!
-GXBeam.element_jacobian!
-GXBeam.element_mass_matrix_properties
+GXBeam.static_element_state_variables
+GXBeam.dynamic_element_state_variables
+GXBeam.static_element_equations
+GXBeam.steady_state_element_equations
+GXBeam.dynamic_element_equations
+GXBeam.static_insert_element_residual!
+GXBeam.dynamic_insert_element_residual!
+GXBeam.static_element_residual!
+GXBeam.steady_state_element_residual!
+GXBeam.initial_condition_element_residual!
+GXBeam.dynamic_element_residual!
+GXBeam.newmark_element_residual!
+GXBeam.static_element_jacobian_equations
+GXBeam.initial_condition_element_jacobian_equations
+GXBeam.steady_state_element_jacobian_equations
+GXBeam.newmark_element_jacobian_equations
+GXBeam.dynamic_element_jacobian_equations
+GXBeam.static_insert_element_jacobian!
+GXBeam.initial_condition_insert_element_jacobian!
+GXBeam.dynamic_insert_element_jacobian!
+GXBeam.static_element_jacobian!
+GXBeam.steady_state_element_jacobian!
+GXBeam.initial_condition_element_jacobian!
+GXBeam.newmark_element_jacobian!
+GXBeam.dynamic_element_jacobian!
 GXBeam.element_mass_matrix_equations
 GXBeam.insert_element_mass_matrix!
 GXBeam.element_mass_matrix!
-GXBeam.ElementState
 ```
 
 ### Loads
 
 ```@docs
-GXBeam.PrescribedConditions
 GXBeam.DistributedLoads
+GXBeam.acceleration_loads
 ```
 
 ### System
@@ -154,10 +179,18 @@ GXBeam.Assembly
 GXBeam.curve_triad
 GXBeam.curve_coordinates
 GXBeam.System
+GXBeam.static_system_residual!
+GXBeam.initial_condition_system_residual!
+GXBeam.steady_state_system_residual!
+GXBeam.newmark_system_residual!
+GXBeam.dynamic_system_residual!
+GXBeam.static_system_jacobian!
+GXBeam.steady_state_system_jacobian!
+GXBeam.initial_condition_system_jacobian!
+GXBeam.newmark_system_jacobian!
+GXBeam.dynamic_system_jacobian!
 GXBeam.get_sparsity
 GXBeam.system_indices
-GXBeam.system_residual!
-GXBeam.system_jacobian!
 GXBeam.system_mass_matrix!
 ```
 

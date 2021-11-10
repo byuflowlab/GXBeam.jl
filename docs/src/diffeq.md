@@ -173,22 +173,22 @@ for i = 1:12
     plot!(t, y_gxbeam, label="GXBeam")
     plot!(sol.t, y_diffeq, label="DifferentialEquations")
     plot!(show=true)
-    savefig("dynamic-wind-turbine-diffeq-"*string(field[i])*string(direction[i])*".svg"); nothing #hide
+    savefig(joinpath("assets","dynamic-wind-turbine-diffeq-"*string(field[i])*string(direction[i])*".svg")); nothing #hide
 end
 ```
 
-![](dynamic-wind-turbine-diffeq-u1.svg)
-![](dynamic-wind-turbine-diffeq-u2.svg)
-![](dynamic-wind-turbine-diffeq-u3.svg)
-![](dynamic-wind-turbine-diffeq-theta1.svg)
-![](dynamic-wind-turbine-diffeq-theta2.svg)
-![](dynamic-wind-turbine-diffeq-theta3.svg)
-![](dynamic-wind-turbine-diffeq-F1.svg)
-![](dynamic-wind-turbine-diffeq-F2.svg)
-![](dynamic-wind-turbine-diffeq-F3.svg)
-![](dynamic-wind-turbine-diffeq-M1.svg)
-![](dynamic-wind-turbine-diffeq-M2.svg)
-![](dynamic-wind-turbine-diffeq-M3.svg)
+![](assets/dynamic-wind-turbine-diffeq-u1.svg)
+![](assets/dynamic-wind-turbine-diffeq-u2.svg)
+![](assets/dynamic-wind-turbine-diffeq-u3.svg)
+![](assets/dynamic-wind-turbine-diffeq-theta1.svg)
+![](assets/dynamic-wind-turbine-diffeq-theta2.svg)
+![](assets/dynamic-wind-turbine-diffeq-theta3.svg)
+![](assets/dynamic-wind-turbine-diffeq-F1.svg)
+![](assets/dynamic-wind-turbine-diffeq-F2.svg)
+![](assets/dynamic-wind-turbine-diffeq-F3.svg)
+![](assets/dynamic-wind-turbine-diffeq-M1.svg)
+![](assets/dynamic-wind-turbine-diffeq-M2.svg)
+![](assets/dynamic-wind-turbine-diffeq-M3.svg)
 
 As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely with each other.
 
@@ -276,4 +276,4 @@ end
 write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, sol.t; sections = sections)
 ```
 
-![](dynamic-wind-turbine.gif)
+![](assets/dynamic-wind-turbine.gif)

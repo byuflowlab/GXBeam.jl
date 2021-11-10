@@ -22,7 +22,7 @@ nothing #hide
 
 The geometry we will be working with is a rotating beam with a swept tip as pictured.
 
-![](rotating-beam-drawing.svg)
+![](assets/rotating-beam-drawing.svg)
 
 This geometry has a fixed boundary condition on the left side of the beam and rotates around a point 2.5 inches to the left of the beam.  We will investigating the steady behavior of this system for a variety of RPM settings at a constant sweep of 45°.
 
@@ -250,7 +250,7 @@ At this point this is probably a good time to check that the geometry of our ass
 write_vtk("swept-tip", assembly)
 ```
 
-![](swept-tip.png)
+![](assets/swept-tip.png)
 
 ## Point Masses
 
@@ -293,7 +293,7 @@ Objects of type [`PointMass`](@ref) may be constructed by providing the fully po
 ```@example guide
 m = 10 # mass
 p = xp_b2[end] - xm_b2[end] # relative location
-J = zeros(6,6) # inertia matrix (about the point mass center of gravity)
+J = zeros(3,3) # inertia matrix (about the point mass center of gravity)
 
 # create dictionary of point masses
 point_masses = Dict(
@@ -309,7 +309,7 @@ We won't be applying distributed loads to our model, but we will demonstrate how
 
 Distributed loads are defined by using the constructor [`DistributedLoads`](@ref).  One instance of [`DistributedLoads`](@ref) must be created for every beam element on which the distributed load is applied.  These instances of [`DistributedLoads`](@ref) are then stored in a dictionary with keys corresponding to each beam element index.  
 
-To define a [`DistributedLoad`](@ref) the assembly, element number, and distributed load functions must be passed to [`distributed_loads`](@ref).  Possible distributed load functions are:
+To define a [`DistributedLoads`](@ref) the assembly, element number, and distributed load functions must be passed to [`DistributedLoads`](@ref).  Possible distributed load functions are:
 - `fx`: Distributed x-direction force
 - `fy`: Distributed y-direction force
 - `fz`: Distributed z-direction force
@@ -399,7 +399,7 @@ nothing #hide
 
 ## Eliminating Unnecessary State Variables
 
-The time needed to perform our analysis can be further reduced by removing unnecessary state variables and equations from the system of equations.  This optimization may be enabled by providing the identities of the points with prescribed conditions using the [`prescribed_points`](@ref) keyword.  
+The time needed to perform our analysis can be further reduced by removing unnecessary state variables and equations from the system of equations.  This optimization may be enabled by providing the identities of the points with prescribed conditions using the `prescribed_points` keyword.  
 
 ```@example guide
 system = System(assembly, false; prescribed_points=[1, nelem+1])
@@ -498,7 +498,7 @@ Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
 plot!(rpm, Mz_nl, label="Nonlinear")
 plot!(rpm, Mz_l, label="Linear")
 
-savefig("rotating-beam-Mz.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-Mz.svg")); nothing #hide
 
 # x tip deflection
 plot(
@@ -516,7 +516,7 @@ ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
 plot!(rpm, ux_nl, label="Nonlinear")
 plot!(rpm, ux_l, label="Linear")
 
-savefig("rotating-beam-ux.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-ux.svg")); nothing #hide
 
 # y tip deflection
 plot(
@@ -534,7 +534,7 @@ uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
 plot!(rpm, uy_nl, label="Nonlinear")
 plot!(rpm, uy_l, label="Linear")
 
-savefig("rotating-beam-uy.svg"); nothing #hide
+savefig(joinpath("assets", "rotating-beam-uy.svg")); nothing #hide
 
 # rotation of the tip
 plot(
@@ -558,10 +558,10 @@ end #hide
 nothing #hide
 ```
 
-![](rotating-beam-Mz.svg)
-![](rotating-beam-ux.svg)
-![](rotating-beam-uy.svg)
-![](rotating-beam-theta_z.svg)
+![](assets/rotating-beam-Mz.svg)
+![](assets/rotating-beam-ux.svg)
+![](assets/rotating-beam-uy.svg)
+![](assets/rotating-beam-theta_z.svg)
 
 ## Other Capabilities
 

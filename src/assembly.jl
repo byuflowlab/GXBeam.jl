@@ -83,29 +83,33 @@ function Assembly(points, start, stop;
 end
 
 """
-    discretize_beam(L, start, discretization; frame = Matrix(I,3,3)),
-        curvature = zeros(3))
+    discretize_beam(L, start, discretization; frame, curvature)
 
-Discretize a beam according to the discretization provided in `discretization`
-given the beam length (`L`), and starting point (`start`).
+Discretize a beam of length `L` located at `start` according to the discretization provided 
+in `discretization`
 
-Return the lengths, endpoints, midpoints, and trasformation matrices of the beam elements.
+Return the lengths, endpoints, midpoints, and reference frame of the beam elements.
 
 # Arguments
  - `L`: Beam length
  - `start`: Beam starting point
- - `discretization`: May be either an integer, representing the number of
-        elements that the beam should be discretized into, or a vector containing
-        the normalized endpoints of each beam element, where 0 is the beginning
-        of the beam and 1 is the end of the beam.
- - `frame`: 3x3 tranformation matrix which transforms from the local beam
-        coordinate frame at the start of the beam to the global coordinate frame.
+ - `discretization`: Number of beam elements, or the normalized endpoints of each beam 
+        element, with values ranging from 0 to 1.
+
+# Keyword Arguments
+ - `frame`: Reference frame at the start of the beam element, represented by a 3x3
+         transformation matrix from the undeformed local frame to the body frame.
  - `curvature`: curvature vector
 """
-discretize_beam(L, start, discretization::Integer; frame = I3, curvature = (@SVector zeros(3))) =
-    discretize_beam(L, start, range(0, 1, length=discretization+1); frame=frame, curvature=curvature)
+function discretize_beam(L::Number, start::AbstractVector, discretization::Integer; 
+    frame=I3, curvature=(@SVector zeros(3)))
+  
+    return discretize_beam(L, start, range(0, 1, length=discretization+1); 
+        frame=frame, curvature=curvature)
+end
 
-function discretize_beam(L, start, discretization; frame = I3, curvature = (@SVector zeros(3)))
+function discretize_beam(L::Number, start::AbstractVector, discretization; 
+    frame=I3, curvature=(@SVector zeros(3)))
 
     r1 = SVector{3}(start)
     Cab = SMatrix{3,3}(frame)
@@ -114,14 +118,14 @@ function discretize_beam(L, start, discretization; frame = I3, curvature = (@SVe
     # discretize beam
     sp = L*discretization
     sm = (sp[1:end-1] .+ sp[2:end])/2
-    ΔL = (sp[2:end] .- sp[1:end-1])
+    ΔL = sp[2:end] .- sp[1:end-1]
 
     # precompute some curvature quantities
     kkt = k*k'
     ktilde = tilde(k)
     kn = sqrt(k'*k)
 
-    if curvature == zero(curvature)
+    if iszero(curvature)
         triads = fill(Cab, length(sm))
         xp = [r1 + s*Cab*e1 for s in sp]
         xm = [r1 + s*Cab*e1 for s in sm]
@@ -134,29 +138,74 @@ function discretize_beam(L, start, discretization; frame = I3, curvature = (@SVe
     return ΔL, xp, xm, triads
 end
 
+"""
+    discretize_beam(start, stop, discretization; frame, curvature)
+
+Discretize a beam from `start` to `stop` according to the discretization provided in 
+`discretization`.
+
+Return the lengths, endpoints, midpoints, and reference frame of the beam elements.
+
+# Arguments
+ - `start`: Beam starting point
+ - `stop`: Beam ending point
+ - `discretization`: Number of beam elements, or the normalized endpoints of each beam 
+        element, with values ranging from 0 to 1.
+
+# Keyword Arguments
+ - `frame`: Reference frame at the start of the beam element, represented by a 3x3
+        transformation matrix from the undeformed local frame to the body frame.
+ - `curvature`: curvature vector
+"""
+function discretize_beam(start::AbstractVector, stop::AbstractVector, 
+    discretization::Integer; frame=I3, curvature=(@SVector zeros(3)))
+    
+    return discretize_beam(start, stop, range(0, 1, length=discretization+1); 
+        frame=frame, curvature=curvature)
+end
+
+function discretize_beam(start::AbstractVector, stop::AbstractVector, discretization; 
+    frame=I3, curvature=(@SVector zeros(3)))
+
+    # compute curve length
+    L = curve_length(start, stop, curvature)
+
+    # discretize beam
+    ΔL, xp, xm, triads = discretize_beam(L, start, discretization; frame=frame, curvature=curvature)
+
+    return ΔL, xp, xm, triads
+end
 
 """
     curve_length(start, stop, curvature)
 
-Calculate the length of a curve given its endpoints and its curvature vector
+Calculate the length of a curve given its endpoints and its curvature vector.
 """
 function curve_length(start, stop, curvature)
-    r1, r2, k = SVector{3}(start), SVector{3}(stop), SVector{3}(curvature)
+
+    r1 = SVector{3}(start)
+    r2 = SVector{3}(stop)
+    k = SVector{3}(curvature)
+
+    # precomputed quantities
     kn = sqrt(k'*k)
     r = r2 - r1
-    rn = sqrt(r'*r)
-    if kn == 0 || (k[2] == 0 && k[3] == 0)
+    rn2 = r'*r
+    rn = sqrt(rn2)
+
+    # compute curve length
+    if iszero(kn) || (iszero(k[2]) && iszero(k[3]))
+        # the beam is straight or twisted, but not curved
         ΔL = rn
-    else
-        if k[1] == 0
-            ΔL = 2*asin(kn*rn/2)/kn
-        else
-            lower_bound = rn
-            upper_bound = rn*kn/k
-            residual = (L) -> (2*(kn^2-k[1]^2)*(1-cos(kn*L)) + k[1]^2*(kn*L)^2)/kn^4 - rnorm
-            ΔL = fzero(residual, lower_bound, upper_bound)
-        end
+    elseif iszero(k[1])
+        # the beam is curved, but not twisted
+        ΔL = 2*asin(kn*rn/2)/kn
+    else 
+        # the beam is curved and twisted
+        f = (L) -> (2*(kn^2-k[1]^2)*(1-cos(kn*L)) + k[1]^2*(kn*L)^2)/kn^4 - rn2
+        ΔL = Roots.find_zero(f, (rn, rn*kn/k), Roots.Brent())
     end
+
     return ΔL
 end
 
@@ -179,4 +228,4 @@ Return the coordinates at `s` along the length of the beam given the starting
 point `r`, initial transformation matrix `Cab`, and curvature vector `k`.
 """
 @inline curve_coordinates(r, Cab, k, s) = curve_coordinates(r, Cab, k*k', tilde(k), sqrt(k'*k), s)
-@inline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^2)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)
+@inline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^3)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)
