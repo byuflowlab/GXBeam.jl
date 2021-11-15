@@ -103,6 +103,7 @@ write_vtk
 
 ```@docs
 GXBeam.tilde
+GXBeam.transform_properties
 GXBeam.rotation_parameter_scaling
 GXBeam.get_C
 GXBeam.get_C_t

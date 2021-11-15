@@ -3,6 +3,7 @@ const e1 = SVector(1, 0, 0)
 const e2 = SVector(0, 1, 0)
 const e3 = SVector(0, 0, 1)
 const I3 = @SMatrix [1 0 0; 0 1 0; 0 0 1]
+const Z3 = @SMatrix zeros(3,3)
 
 """
     tilde(x)
@@ -33,6 +34,13 @@ transformation matrix.
 
     return C
 end
+
+"""
+    transform_properties(K, T)
+
+Applies the transformation `T` to the stiffness or mass matrix `K`
+"""
+transform_properties(X, T) = [T' Z3; Z3 T'] * X * [T Z3; Z3 T]
 
 """
     rotation_parameter_scaling(θ)

@@ -437,7 +437,7 @@ Compute and add a beam element's contributions to the residual vector for a stat
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -539,7 +539,7 @@ analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -658,7 +658,7 @@ condition analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -791,7 +791,7 @@ time-marching analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -929,7 +929,7 @@ analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -1879,7 +1879,7 @@ Adds a beam element's contributions to the system jacobian matrix for a static a
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -1991,7 +1991,7 @@ analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -2126,7 +2126,7 @@ analysis.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -2241,7 +2241,7 @@ time-marching simulation.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -2401,7 +2401,7 @@ simulation.
 
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -2683,7 +2683,7 @@ residual equations with respect to the time derivatives of the state variables
     
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
@@ -2744,7 +2744,7 @@ by the scaling parameter `gamma`.
     
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
-        mass += [Cab' Cab'; Cab' Cab'] * point_masses[ielem].mass * [Cab Cab; Cab Cab]
+        mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
     # element state variables
