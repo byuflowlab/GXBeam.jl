@@ -1476,3 +1476,55 @@ end
     @test isapprox(m2, m2t)
 
 end
+
+@testset "Point Masses" begin
+
+    nelem = 5
+    nodes = [[0,i,0] for i in 0:.1:1]
+    nelem = length(nodes)-1
+    start = 1:nelem
+    stop =  2:(nelem+1)
+
+    frames = fill(wiener_milenkovic(rand(3)), nelem)
+    stiffness = fill(Symmetric(rand(6,6)), nelem)
+    mass = fill(Symmetric(rand(6,6)), nelem)
+       
+    prescribed_conditions = Dict(1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0));
+
+    # assembly of mass-containing beam elements
+
+    assembly = GXBeam.Assembly(nodes, start, stop;
+        stiffness=stiffness, 
+        frames=frames, 
+        mass=mass);
+    
+    system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly;
+        prescribed_conditions = prescribed_conditions, 
+        nev = 10);
+
+    freq = imag(λ[1:2:10])/2π
+   
+    # assembly of massless beam elements with point masses
+    
+    assembly = GXBeam.Assembly(nodes, start, stop;
+        stiffness=stiffness, 
+        frames=frames);
+   
+    point_masses = Dict{Int, PointMass{Float64}}()
+    for i = 1:nelem
+        T = [frames[i] zeros(3,3); zeros(3,3) frames[i]]
+        point_masses[i] = PointMass(T * mass[i] * T' .* assembly.elements[i].L)
+    end
+
+    system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly; 
+        prescribed_conditions = prescribed_conditions, 
+        point_masses = point_masses,
+        nev = 10);
+    
+    pfreq = imag(λ[1:2:10])/2π
+
+    # test the two equivalent systems
+
+    @test isapprox(freq, pfreq)
+
+end
