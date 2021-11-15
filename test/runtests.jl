@@ -1502,7 +1502,7 @@ end
         prescribed_conditions = prescribed_conditions, 
         nev = 10);
 
-    freq = imag(λ[1:2:10])/2π
+    freq = imag(λ[1:2:8])/2π
    
     # assembly of massless beam elements with point masses
     
@@ -1521,7 +1521,7 @@ end
         point_masses = point_masses,
         nev = 10);
     
-    pfreq = imag(λ[1:2:10])/2π
+    pfreq = imag(λ[1:2:8])/2π
 
     # test the two equivalent systems
 
