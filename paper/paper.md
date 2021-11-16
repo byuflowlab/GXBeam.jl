@@ -35,8 +35,4 @@ Even if one were to disregard the advantages associated with the use of the Juli
 
 `GXBeam` may be used as either a standalone tool, or as a component of a larger analysis framework.  Its results are designed to be smooth and continuous, so that the package may be used as part of a gradient-based design optimization framework.  The package is also designed to be modular, so that it can be used as part of a fluid-structure interaction framework.  It has also been verified and validated using analytical, computational, and experimental results so that users may be reasonably confident that the results predicted by GXBeam are correct (when used within the theoretical limitations of geometrically exact beam theory).  These verifications and validations are included as part of the package's documentation so the accuracy of the package can be verified by anyone wishing to use it.  These features make it an invaluable tool for modeling beams in a geometrically exact manner.
 
-# Acknowledgements
-
-
-
 # References
