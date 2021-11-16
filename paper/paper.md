@@ -11,12 +11,10 @@ authors:
     affiliation: 1
   - name: Andrew Ning
     orcid: 0000-0003-2190-823X
-    affiliation: 2
+    affiliation: 1
 affiliations:
- - name: Ph.D. Candidate, Department of Mechanical Engineering, Brigham Young University, Provo, UT, 84602, USA
+ - name: Department of Mechanical Engineering, Brigham Young University, Provo, UT, 84602, USA
    index: 1
- - name: Assistant Professor, Department of Mechanical Engineering, Brigham Young University, Provo, UT, 84602, USA
-   index: 2
 date: 16 November 2021
 bibliography: paper.bib
 ---
