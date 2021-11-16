@@ -10,7 +10,7 @@ authors:
     orcid: 0000-0001-7993-5703
     affiliation: 1
   - name: Andrew Ning
-  - orcid: 0000-0003-2190-823X
+    orcid: 0000-0003-2190-823X
     affiliation: 2
 affiliations:
  - name: Ph.D. Candidate, Department of Mechanical Engineering, Brigham Young University, Provo, UT, 84602, USA
@@ -27,7 +27,7 @@ When the cross sections of a three-dimensional structure are small compared to t
 
 Geometrically exact beam theory, as pioneered by Reissner[@reissner:1973] and extended by Hodges[@hodges:2006], captures all of the nonlinearities associated with large deflections and/or rotations, assuming strains are small.  It also allows for the coupling terms associated with the use of composite materials to be explicitly modeled as part of the beam analysis.  When coupled with a cross sectional analysis, such as a variational asymptotic beam sectional analysis[@hodges:2006], it constitutes an accurate and efficient replacement for a full three-dimensional structural analysis.  
 
-`GXBeam` is a geometrically exact beam theory package which is written completely in the Julia programming language[@bezanson:2017].  It was originally based on the open source code `GEBT` and its associated papers[@author:2001;@author:2021], which adopt the mixed formulation of geometrically exact beam theory presented by Hodges.  It has since incorporated several improvements relative to the `GEBT` code. One such improvement is the introduction of a custom rotation parameterization, which is based upon Wiener-Milenkovic parameters, but is singularity free.  This improvement increases the codes numerical stability for large deformations and allows for beam deformations in excess of 360 degrees.  Additional improvements include the explicit modeling of the influence of point masses and/or rigid bodies, gravitational forces, and forces due to body frame linear/angular accelerations.
+`GXBeam` is a geometrically exact beam theory package which is written completely in the Julia programming language[@bezanson:2017].  It was originally based on the open source code `GEBT` and its associated papers[@yu:2012;@author:2021], which adopt the mixed formulation of geometrically exact beam theory presented by Hodges.  It has since incorporated several improvements relative to the `GEBT` code. One such improvement is the introduction of a custom rotation parameterization, which is based upon Wiener-Milenkovic parameters, but is singularity free.  This improvement increases the codes numerical stability for large deformations and allows for beam deformations in excess of 360 degrees.  Additional improvements include the explicit modeling of the influence of point masses and/or rigid bodies, gravitational forces, and forces due to body frame linear/angular accelerations.
 
 # Statement of Need
 
