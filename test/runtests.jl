@@ -1500,10 +1500,12 @@ end
     
     system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly;
         prescribed_conditions = prescribed_conditions, 
-        nev = 10);
+        nev = 12);
 
-    freq = imag(λ[1:2:8])/2π
-   
+    imagλ = imag(λ)
+    isort = sortperm(abs.(imagλ))
+    freq = imagλ[isort[1:2:10]]/(2*pi)
+
     # assembly of massless beam elements with point masses
     
     assembly = GXBeam.Assembly(nodes, start, stop;
@@ -1519,12 +1521,13 @@ end
     system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly; 
         prescribed_conditions = prescribed_conditions, 
         point_masses = point_masses,
-        nev = 10);
-    
-    pfreq = imag(λ[1:2:8])/2π
+        nev = 12);
+   
+    imagλ = imag(λ)
+    isort = sortperm(abs.(imagλ))
+    pfreq = imagλ[isort[1:2:10]]/(2*pi)
 
     # test the two equivalent systems
-
     @test isapprox(freq, pfreq)
 
 end
