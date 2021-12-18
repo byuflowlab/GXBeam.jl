@@ -1499,7 +1499,7 @@ end
     
     system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly;
         prescribed_conditions = prescribed_conditions, 
-        nev = 12);
+        nev = 14);
 
     imagλ = imag(λ)
     isort = sortperm(abs.(imagλ))
@@ -1520,7 +1520,7 @@ end
     system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly; 
         prescribed_conditions = prescribed_conditions, 
         point_masses = point_masses,
-        nev = 12);
+        nev = 14);
    
     imagλ = imag(λ)
     isort = sortperm(abs.(imagλ))
