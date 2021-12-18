@@ -123,7 +123,7 @@ function default_force_scaling(assembly)
         force_scaling = 1.0
     else
         nonzero_compliance_entries = compliance_entries[compliance_nonzero_indices]
-        force_scaling = nextpow(2.0, length(nonzero_compliance_entries)/sum(nonzero_compliance_entries)/100)
+        force_scaling = nextpow(2.0, length(nonzero_compliance_entries)/sum(abs, nonzero_compliance_entries)/100)
     end
 
     return force_scaling
