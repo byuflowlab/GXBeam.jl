@@ -9,7 +9,7 @@ import Roots
 using SparseArrays
 using StaticArrays
 using WriteVTK
-using DiffEqBase
+using SciMLBase
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads, PointMass
