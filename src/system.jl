@@ -112,18 +112,23 @@ function default_force_scaling(assembly)
 
     TF = eltype(assembly)
 
-    # create vector of all compliance entries
-    compliance_entries = vcat([elem.compliance for elem in assembly.elements]...)
-
-    # get all nonzero entries
-    compliance_nonzero_indices = findall(xi -> abs(xi) > eps(TF), compliance_entries)
+    # Count and sum all nonzero entries
+    force_sum = 0.0
+    N_entries = 0
+    for elem in assembly.elements
+        for val in elem.compliance
+            if abs(val) > eps(TF)
+                force_sum += abs(val)
+                N_entries += 1
+            end
+        end
+    end
 
     # set force scaling based on nonzero compliance matrix entries
-    if isempty(compliance_nonzero_indices)
+    if N_entries == 0
         force_scaling = 1.0
     else
-        nonzero_compliance_entries = compliance_entries[compliance_nonzero_indices]
-        force_scaling = nextpow(2.0, length(nonzero_compliance_entries)/sum(abs, nonzero_compliance_entries)/100)
+        force_scaling = nextpow(2.0, N_entries/force_sum/100)
     end
 
     return force_scaling
