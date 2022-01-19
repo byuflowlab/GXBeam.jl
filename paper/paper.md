@@ -23,11 +23,13 @@ bibliography: paper.bib
 
 When the cross sections of a three-dimensional structure are small compared to the length of the structure, beam theory may be used to efficiently model the structure's three-dimensional behavior.  Applications of beam theory include, but are not limited to, the structural modeling of buildings, bridges, aircraft, helicopter blades, and wind turbines.  When deflections are small, linear beam theories may be used to model the behavior of slender structures.  When deflections become significant, such as encountered when modeling high aspect ratio wings and/or large wind turbine blades, nonlinearities associated with geometric deformations must be accounted for.  
 
-Geometrically exact beam theory, as pioneered by Reissner [@Reissner1973] and extended by Hodges [@Hodges2006], captures all of the nonlinearities associated with large deflections and/or rotations, assuming strains are small.  It also allows for the coupling terms associated with the use of composite materials to be explicitly modeled as part of the beam analysis.  When coupled with a cross sectional analysis, such as a variational asymptotic beam sectional analysis [@Hodges2006a], it constitutes an accurate and efficient replacement for a full three-dimensional structural analysis.  
+Geometrically exact beam theory, as pioneered by Reissner [@Reissner1973], captures all of the nonlinearities associated with large deflections and/or rotations, assuming strains are small.  This beam theory was extended to model general three dimensional dynamics by Simo [@Simo1985] and Simo and Vu-Quoc [@Simo1986].  Betsch and Steinmann later reparameterized the equations of motion of geometrically exact beam theory in order to preserve the geometrical exactness of the theory.
 
-`GXBeam` is a geometrically exact beam theory package which is written completely in the Julia programming language [@Bezanson2017].  It was originally based on the open source code `GEBT` and its associated papers [@Yu2012;@Wang2017], which adopt the mixed formulation of geometrically exact beam theory presented by Hodges.  It has since incorporated several improvements relative to the `GEBT` code. One such improvement is the introduction of a custom rotation parameterization, which is based upon Wiener-Milenkovic parameters, but is singularity free.  This improvement increases the codes numerical stability for large deformations and allows for beam deformations in excess of 360 degrees.  Additional improvements include the explicit modeling of the influence of point masses and/or rigid bodies, gravitational forces, and forces due to body frame linear/angular accelerations.
+  Since it was introduced, this beam theory has been extended and used by many researchers, with significant efforts directed towards modeling finite rotations.  These improvements have developed geometrically exact beam theory to the point where it is now the de-facto standard for the modeling of highly flexible beams.
 
 # Statement of Need
+
+`GXBeam` is a geometrically exact beam theory package which is written completely in the Julia programming language [@Bezanson2017].  It was originally based on the open source code `GEBT` and its associated papers [@Yu2012;@Wang2017], which adopt the mixed formulation of geometrically exact beam theory presented by Hodges[@Hodges].  When combined with a beam cross sectional analysis, such as a variational asymptotic beam sectional analysis [@Hodges2006a], this geometrically exact beam theory formulation constitutes an efficient and accurate replacement for a full three-dimensional structural analysis.
 
 One of the key advantages of `GXBeam` relative to other geometrically exact beam theory codes is that is written completely in the Julia programming language.  This presents several advantages for the `GXBeam` package. First, since Julia is a higher-level language, the code is generally easier to develop, maintain, and extend than lower-level languages.  This is especially helpful from a research perspective if one wishes to include `GXBeam` as a component of a multidisciplinary design optimization framework and/or fluid structure interaction solver.  Second, by leveraging Julia's type system, Julia-specific automatic differentiation packages (such as ForwardDiff [@Revels2016]) may be used to obtain exact derivatives for sensitivity analyses and/or gradient-based optimization.  Third, by maintaining type stability and minimizing allocations, this package is able to perform analyses with minimal overhead compared to lower-level languages such as C or Fortran.  Finally, the code is able to access and use several well-developed Julia-specific packages to enhance its capabilities such as NLsolve [@Mogensen2020] for solving nonlinear sets of equations, WriteVTK [@Polanco2021] for writing visualization files, and DifferentialEquations [@Rackauckas2017] for solving differential equations. 
 
@@ -35,4 +37,30 @@ Even if one were to disregard the advantages associated with the use of the Juli
 
 `GXBeam` may be used as either a standalone tool, or as a component of a larger analysis framework.  Its results are designed to be smooth and continuous, so that the package may be used as part of a gradient-based design optimization framework.  The package is also designed to be modular, so that it can be used as part of a fluid-structure interaction framework.  It has also been verified and validated using analytical, computational, and experimental results so that users may be reasonably confident that the results predicted by GXBeam are correct (when used within the theoretical limitations of geometrically exact beam theory).  These verifications and validations are included as part of the package's documentation so the accuracy of the package can be verified by anyone wishing to use it.  These features make it an invaluable tool for modeling beams in a geometrically exact manner.
 
+It has since incorporated several improvements relative to the `GEBT` code. One such improvement is the introduction of a custom rotation parameterization, which is based upon Wiener-Milenkovic parameters, but is singularity free.  This improvement increases the codes numerical stability for large deformations and allows for beam deformations in excess of 360 degrees.  Additional improvements include the explicit modeling of the influence of point masses and/or rigid bodies, gravitational forces, and forces due to body frame linear/angular accelerations.
+
+
 # References
+
+
+
+When coupled with a cross sectional analysis, such as a variational asymptotic beam sectional analysis [@Hodges2006a], this formulation of geometrically exact beam theory constitutes an accurate and efficient replacement for a full three-dimensional structural analysis. 
+
+
+  
+
+
+
+
+
+  It also allows for the coupling terms associated with the use of composite materials to be explicitly modeled as part of the beam analysis.  When coupled with a cross sectional analysis, such as a variational asymptotic beam sectional analysis [@Hodges2006a], it constitutes an accurate and efficient replacement for a full three-dimensional structural analysis. 
+
+
+  
+
+ now the de-facto standard when modeling the large de
+
+
+
+It also allows for the coupling terms associated with the use of composite materials to be explicitly modeled as part of the beam analysis.  When coupled with a cross sectional analysis, such as a variational asymptotic beam sectional analysis [@Hodges2006a], it constitutes an accurate and efficient replacement for a full three-dimensional structural analysis.  
+
