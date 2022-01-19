@@ -51,7 +51,12 @@ pkg> add GXBeam
 
 ## Performance
 
-This code has been optimized to be highly performant, primarily by maintaining type stability and minimizing allocations.  As a result the performance of this package rivals (or even outperforms) that of the Fortran implementation in GEBT.  At this point, differences in performance between the two codes can be primarily attributed to the performance of the sparse linear system solver in each.
+This code has been optimized to be highly performant.  In our tests we found that GXBeam outperforms GEBT by a significant margin across all analysis types, as seen in the following table.  More details about the specific cases which we test may be found by inspecting the input files and scripts for these tests in the `benchmark` folder.
+
+| Package | Steady Analysis | Eigenvalue Analysis | Time Marching Analysis |
+|---- | ----| --- | --- |
+| GEBT | 13.722 ms | 33.712 ms | 26.870 s |
+| GXBeam | 4.716 ms | 18.478 ms | 9.019 s |
 
 ## Usage
 
