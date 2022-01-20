@@ -629,6 +629,7 @@ M = λ*m
 # run an analysis for each grid size
 states = Vector{AssemblyState{Float64}}(undef, length(grid_sizes))
 for (igrid, nelem) in enumerate(grid_sizes)
+    global x, y, z, points, start, stop, compliance, assembly, system #hide
 
     # create points
     x = range(0, L, length=nelem+1)
@@ -688,7 +689,7 @@ dy = [states[igrid].points[end].u[2] for igrid = 1:length(grid_sizes)]
 εy = abs.((dy .- dya) ./ dya)
 
 # plot the x-error
-p1 = plot(grid_sizes .+ 1, εx,
+p1 = plot(grid_sizes .+ 1, εx, label="",
     xlabel = "Number of Nodes",
     xaxis=:log, 
     xlim = (10^0, 10^3),
@@ -700,7 +701,7 @@ p1 = plot(grid_sizes .+ 1, εx,
     overwrite_figure=false)
 
 # plot the y-error
-p2 = plot(grid_sizes .+ 1, εy, 
+p2 = plot(grid_sizes .+ 1, εy, label="",
     xlabel = "Number of Nodes",
     xaxis=:log, 
     xlim = (10^0, 10^3),
