@@ -603,6 +603,130 @@ nothing #hide
 
 ![](assets/cantilever-tipmoment.svg)
 
+We can use this problem to test the accuracy and convergence of this package.  To do so we set ``\lambda = 1`` and repeat the analysis for a variety of grid sizes.  We measure the normalized tip displacement error ``\varepsilon(u)`` using the following expression
+```math
+\varepsilon(u) = \left| \frac{u - u^a}{u^a} \right|
+```
+where ``u`` is the calculated tip displacement (at x=L) and ``u^a`` is the analytical tip displacement.
+
+```@example cantilever-tipmoment
+
+grid_sizes = unique(round.(Int, 10 .^ range(0,3,length=25)))
+
+L = 12 # inches
+h = w = 1 # inches
+E = 30e6 # lb/in^4 Young's Modulus
+
+A = h*w
+Iyy = w*h^3/12
+Izz = w^3*h/12
+
+# bending moment (applied at end)
+λ = 1.0
+m = pi*E*Iyy/L
+M = λ*m
+
+# run an analysis for each grid size
+states = Vector{AssemblyState{Float64}}(undef, length(grid_sizes))
+for (igrid, nelem) in enumerate(grid_sizes)
+    global x, y, z, points, start, stop, compliance, assembly, system #hide
+
+    # create points
+    x = range(0, L, length=nelem+1)
+    y = zero(x)
+    z = zero(x)
+    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+    # index of endpoints of each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
+
+    # compliance matrix for each beam element
+    compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+    # create assembly of interconnected nonlinear beams
+    assembly = Assembly(points, start, stop, compliance=compliance)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # moment on right side
+        nelem+1 => PrescribedConditions(Mz = M)
+    )
+
+    # perform a static analysis
+    system, converged = static_analysis(assembly; 
+        prescribed_conditions = prescribed_conditions)
+
+    # post-process the results
+    states[igrid] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+end
+
+nothing #hide
+```
+
+```@example cantilever-tipmoment
+
+using Suppressor #hide
+
+@suppress_err begin #hide
+
+using Plots
+pyplot()
+
+# calculate analytical solution
+dxa, dya = analytical(L, E*Iyy/M)
+
+# extract computational solution
+dx = [states[igrid].points[end].u[1] for igrid = 1:length(grid_sizes)]
+dy = [states[igrid].points[end].u[2] for igrid = 1:length(grid_sizes)]
+
+# compute error
+εx = abs.((dx .- dxa) ./ dxa)
+εy = abs.((dy .- dya) ./ dya)
+
+# plot the x-error
+p1 = plot(grid_sizes .+ 1, εx, label="",
+    xlabel = "Number of Nodes",
+    xaxis=:log, 
+    xlim = (10^0, 10^3),
+    xtick = 10.0 .^ (0:3),
+    ylabel = "\$\\varepsilon(u_x)\$",
+    yaxis=:log,
+    ylim = (-Inf, 10^0),
+    ytick = 10.0 .^ -(0:7),
+    overwrite_figure=false)
+
+# plot the y-error
+p2 = plot(grid_sizes .+ 1, εy, label="",
+    xlabel = "Number of Nodes",
+    xaxis=:log, 
+    xlim = (10^0, 10^3),
+    xtick = 10.0 .^ (0:3),
+    ylabel = "\$\\varepsilon(u_y)\$",
+    yaxis=:log,
+    ylim = (-Inf, 10^0),
+    ytick = 10.0 .^ -(0:7),
+    overwrite_figure=false)
+
+savefig(joinpath("assets", "cantilever-tipmoment-x-convergence.svg")); nothing #hide
+
+savefig(joinpath("assets", "cantilever-tipmoment-y-convergence.svg")); nothing #hide
+
+end #hide
+
+nothing #hide
+```
+
+![](assets/cantilever-tipmoment-x-convergence.svg)
+
+![](assets/cantilever-tipmoment-y-convergence.svg)
+
+We observe second-order algebraic convergence for both x and y tip displacement errors.  We can therefore conclude that a large number of elements are likely necessary in order to obtain highly accurate solutions using this package.  For problems where high accuracy solutions are critical, higher order shape functions, such as the Legendre spectral finite elements used by [BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html) are likely more computationally efficient.  
+
 ## Nonlinear Analysis of the Bending of a Curved Beam in 3D Space
 
 This example is also a common benchmark problem for the geometrically exact bending of nonlinear beams.
