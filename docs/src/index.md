@@ -63,6 +63,14 @@ See the [examples](@ref Examples)
 
 Note that while the theoretical basis for this code is identical to Wenbin Yu's code, some of the implementation details vary.
 
+## Limitations
+
+By using the simplest possible shape functions (constant or linear shape functions), this package avoids using numerical quadrature except when integrating applied distributed loads (which can be pre-integrated).  As a result, element properties are approximated as constant throughout each beam element and a relatively large number of beam elements may be necessary to achieve grid-independent results.
+
+This package does not currently model cross section warping, and therefore should not be used to model open cross sections (such as I, C, or L-beams).  The one exception to this rule is if the beam's width is much greater than its height, in which case the beam may be considered to be strip-like (like a helicopter blade).  
+
+This package relies on the results of linear cross-sectional analyses.  Most notably, it does not model the nonlinear component of the Trapeze effect, which is the tendency of a beam to untwist when subjected to axial tension.  This nonlinear effect is typically most important when modeling rotating structures such as helicopter blades due to the presence of large centrifugal forces.  It is also more important when modeling strip-like beams than for modeling regular closed cross-section beams due to their low torsional rigidity.
+
 ## References
 [1] Yu, W., & Blair, M. (2012).
 GEBT: A general-purpose nonlinear analysis tool for composite beams.
@@ -71,3 +79,7 @@ Composite Structures, 94(9), 2677-2689.
 [2] Wang, Q., & Yu, W. (2017).
 Geometrically nonlinear analysis of composite beams using Wiener-Milenković parameters.
 Journal of Renewable and Sustainable Energy, 9(3), 033306.
+
+[3] Hodges, D. (2006).
+Nonlinear Composite Beam Theory.
+American Institute of Aeronautics and Astronautics.
