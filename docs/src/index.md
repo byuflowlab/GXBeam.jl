@@ -69,7 +69,7 @@ By using the simplest possible shape functions (constant or linear shape functio
 
 This package does not currently model cross section warping, and therefore should not be used to model open cross sections (such as I, C, or L-beams).  The one exception to this rule is if the beam's width is much greater than its height, in which case the beam may be considered to be strip-like (like a helicopter blade).  
 
-This package relies on the results of linear cross-sectional analyses.  Most notably, it does not model the nonlinear component of the Trapeze effect, which is the tendency of a beam to untwist when subjected to axial tension.  This nonlinear effect is typically most important when modeling rotating structures such as helicopter blades due to the presence of large centrifugal forces.  It is also more important when modeling strip-like beams than for modeling regular closed cross-section beams due to their low torsional rigidity.
+This package relies on the results of linear cross-sectional analyses.  Most notably, it does not model the nonlinear component of the Trapeze effect, which is the tendency of a beam to untwist when subjected to axial tension.  This nonlinear effect is typically most important when modeling rotating structures such as helicopter blades due to the presence of large centrifugal forces.  It is also more important when modeling strip-like beams than for modeling closed cross-section beams due to their low torsional rigidity.
 
 ## References
 [1] Yu, W., & Blair, M. (2012).
