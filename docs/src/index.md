@@ -61,8 +61,6 @@ This code has been optimized to be highly performant.  In our tests we found tha
 
 See the [examples](@ref Examples)
 
-Note that while the theoretical basis for this code is identical to Wenbin Yu's code, some of the implementation details vary.
-
 ## Limitations
 
 By using the simplest possible shape functions (constant or linear shape functions), this package avoids using numerical quadrature except when integrating applied distributed loads (which can be pre-integrated).  As a result, element properties are approximated as constant throughout each beam element and a relatively large number of beam elements may be necessary to achieve grid-independent results.  More details about the convergence of this package may be found in the [examples](@ref Nonlinear Analysis of a Cantilever Subjected to a Constant Moment).
