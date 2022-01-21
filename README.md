@@ -70,6 +70,12 @@ This package does not currently model cross section warping, and therefore shoul
 
 This package relies on the results of linear cross-sectional analyses.  Most notably, it does not model the nonlinear component of the Trapeze effect, which is the tendency of a beam to untwist when subjected to axial tension.  This nonlinear effect is typically most important when modeling rotating structures such as helicopter blades due to the presence of large centrifugal forces.  It is also more important when modeling strip-like beams than for modeling closed cross-section beams due to their low torsional rigidity.
 
+## Related Geometrically Exact Beam Theory Codes
+
+[GEBT](https://cdmhub.org/resources/367): Open source geometrically exact beam theory code developed in Fortran as a companion to the proprietary cross sectional analysis tool [VABS](https://analyswift.com/vabs-cross-sectional-analysis-tool-for-composite-beams/).  The theory for this code is provided in references [1](#1) and [2](#2).  GXBeam was originally developed based on this package and its associated papers, but has since been augmented with additional features.
+
+[BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html): Open source geometrically exact beam theory code developed in Fortran by NREL as part of the OpenFAST project.  This code was also developed based on [GEBT](https://cdmhub.org/resources/367), but uses Legendre spectral finite elements.  This allows for exponential rather than algebraic convergence when the solution is smooth.  This makes this code a good candidate for use when analyzing beams with smoothly varying properties.  Unfortunately, this code is limited to analyzing a single beam, rather than an assembly of beams, which limits its applicability.
+
 ## References
 <a id="1">[1]</a>
 Yu, W., & Blair, M. (2012).
