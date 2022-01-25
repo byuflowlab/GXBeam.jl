@@ -1536,3 +1536,55 @@ end
     @test isapprox(freq, pfreq)
 
 end
+
+@testset "Damping" begin
+
+    # problem constants
+    L = 50 # meter
+    h = 0.1 # meters
+    w = 0.5 # meters
+    E = 70e9 # Pa Young's Modulus
+    ν = 0.327 # Poisson's Ratio
+    ρ = 2700 # kg/m^3
+
+    # derived properties
+    A = h*w
+    Iyy = w*h^3/12
+    Izz = w^3*h/12
+    J = Iyy + Izz
+    G = E/(2*(1+ν))
+
+    # create points
+    nelem = 50
+    x = range(0, L, length=nelem+1)
+    y = zero(x)
+    z = zero(x)
+    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+    # index of endpoints for each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
+
+    # compliance matrix
+    compliance = fill(Diagonal([1/(E*A), 0, 0, 1/(G*J), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+    
+    # mass matrix
+    mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+    # damping coefficients
+    damping = fill(fill(2e-4, 6), nelem)
+
+    # create assembly of interconnected nonlinear beams
+    assembly = Assembly(points, start, stop; compliance, mass, damping)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    )
+
+    # perform an eigenvalue analysis
+    system, λ, V, converged = eigenvalue_analysis(assembly, 
+        prescribed_conditions=prescribed_conditions, nev = 20)
+
+end
