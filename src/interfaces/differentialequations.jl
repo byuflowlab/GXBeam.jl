@@ -259,7 +259,7 @@ function SciMLBase.DAEProblem(system::System, assembly, tspan;
        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
     # get differential variables
-    differential_vars = get_differential_vars(system)
+    differential_vars = get_differential_vars(system, assembly)
 
     return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars)
 end
@@ -381,13 +381,19 @@ function SciMLBase.DAEFunction(system::System, assembly)
     return SciMLBase.DAEFunction{true,true}(f; jac, sparsity)
 end
 
-function get_differential_vars(system::System)
+function get_differential_vars(system::System, assembly::Assembly)
     differential_vars = fill(false, length(system.x))
-    for icol in system.icol_elem
-        differential_vars[icol:icol+2] .= true # u (for the beam element)
-        differential_vars[icol+3:icol+5] .= true # θ (for the beam element)
-        differential_vars[icol+12:icol+14] .= true # V (for the beam element)
-        differential_vars[icol+15:icol+17] .= true # Ω (for the beam element)
+    for (ielem, icol) in enumerate(system.icol_elem)
+       icol = system.icol_elem[ielem]
+       differential_vars[icol:icol+2] .= true # u (for the beam element)
+       differential_vars[icol+3:icol+5] .= true # θ (for the beam element)
+       for i = 1:6
+           if !iszero(assembly.elements[ielem].mu[i])
+              differential_vars[icol+5+i] = true
+           end
+       end
+       differential_vars[icol+12:icol+14] .= true # V (for the beam element)
+       differential_vars[icol+15:icol+17] .= true # Ω (for the beam element)
     end
     return differential_vars
 end

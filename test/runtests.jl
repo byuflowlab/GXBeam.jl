@@ -77,8 +77,10 @@ end
          -71.6871     0.0        0.0      0.0      0.0       46.418],
          nelem)
 
+    damping = fill(rand(6), nelem)
+
     # create assembly of interconnected nonlinear beams
-    assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
+    assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass, damping=damping)
 
     # prescribed conditions
     pcond = Dict(
@@ -156,17 +158,19 @@ end
     theta0 = [rand(3) for ielem = 1:length(assembly.elements)]
     udot0 = [rand(3) for ielem = 1:length(assembly.elements)]
     thetadot0 = [rand(3) for ielem = 1:length(assembly.elements)]
+    Fdot0 = [rand(3) for ielem = 1:length(assembly.elements)]
+    Mdot0 = [rand(3) for ielem = 1:length(assembly.elements)]
 
     x = rand(length(system.x))
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
         force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+        icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, Fdot0, Mdot0)
 
     GXBeam.initial_condition_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+        icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, Fdot0, Mdot0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -174,6 +178,8 @@ end
 
     udot = [rand(3) for ielem = 1:length(assembly.elements)]
     θdot = [rand(3) for ielem = 1:length(assembly.elements)]
+    Fdot = [rand(3) for ielem = 1:length(assembly.elements)]
+    Mdot = [rand(3) for ielem = 1:length(assembly.elements)]
     Vdot = [rand(3) for ielem = 1:length(assembly.elements)]
     Ωdot = [rand(3) for ielem = 1:length(assembly.elements)]
     dt = rand()
@@ -183,11 +189,11 @@ end
 
     f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
         force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
+        icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot, dt)
 
     GXBeam.newmark_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
+        icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot, dt)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -1185,7 +1191,7 @@ end
     end
 
     # define simulation time
-    tspan = (0.0, 2.0)
+    tspan = (0.0, 0.1)
 
     # run initial condition analysis to get consistent set of initial conditions
     system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
@@ -1197,7 +1203,7 @@ end
     sol = solve(prob, Rodas4())
 
     # test that solution worked
-    @test sol.t[end] == 2.0
+    @test sol.t[end] == 0.1
 
     # construct DAEProblem
     prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
@@ -1206,7 +1212,7 @@ end
     sol = solve(prob, DABDF2())
 
     # test that solution worked
-    @test sol.t[end] == 2.0
+    @test sol.t[end] == 0.1
 end
 
 @testset "ForwardDiff" begin

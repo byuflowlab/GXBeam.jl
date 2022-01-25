@@ -51,6 +51,7 @@ function Assembly(points, start, stop;
     compliance = nothing,
     mass = nothing,
     frames = nothing,
+    damping = nothing,
     lengths = norm.(points[stop] - points[start]),
     midpoints = (points[stop] + points[start])/2)
 
@@ -77,7 +78,11 @@ function Assembly(points, start, stop;
         frames = fill(I3, nelem)
     end
 
-    elements = Element.(lengths, midpoints, compliance, mass, frames)
+    if isnothing(damping)
+        damping = fill(@SVector zeros(6))
+    end
+
+    elements = Element.(lengths, midpoints, compliance, mass, frames, damping)
 
     return Assembly(points, promote(start, stop)..., elements)
 end
