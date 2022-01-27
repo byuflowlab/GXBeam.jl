@@ -4,11 +4,14 @@ using DifferentialEquations
 using Test
 import Elliptic
 using ForwardDiff
+using Random
+
+const RNG = MersenneTwister(1234)
 
 @testset "Math" begin
     
-    c = rand(3)
-    cdot = rand(3)
+    c = rand(RNG, 3)
+    cdot = rand(RNG, 3)
 
     # get_C_θ
     C_θ1, C_θ2, C_θ3 = GXBeam.get_C_θ(c)
@@ -92,11 +95,11 @@ end
     # point masses
     pmass = Dict(
         # point mass at the end of the beam
-        nelem => PointMass(Symmetric(rand(6,6)))
+        nelem => PointMass(Symmetric(rand(RNG,6,6)))
     )
 
     # gravity vector
-    gvec = rand(3)
+    gvec = rand(RNG, 3)
 
     # --- Static Analysis --- #
     static_system = System(assembly, true)
@@ -109,7 +112,7 @@ end
     icol_point = static_system.icol_point
     icol_elem = static_system.icol_elem
 
-    x = rand(length(static_system.x))
+    x = rand(RNG, length(static_system.x))
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.static_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
@@ -131,13 +134,13 @@ end
     irow_elem2 = system.irow_elem2
     icol_point = system.icol_point
     icol_elem = system.icol_elem
-    x0 = rand(3)
-    v0 = rand(3)
-    ω0 = rand(3)
-    a0 = rand(3)
-    α0 = rand(3)
+    x0 = rand(RNG, 3)
+    v0 = rand(RNG, 3)
+    ω0 = rand(RNG, 3)
+    a0 = rand(RNG, 3)
+    α0 = rand(RNG, 3)
 
-    x = rand(length(system.x))
+    x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.steady_state_system_residual!(similar(x), x, assembly, pcond, dload, 
@@ -152,12 +155,12 @@ end
 
     # --- Initial Condition Analysis --- #
 
-    u0 = [rand(3) for ielem = 1:length(assembly.elements)]
-    theta0 = [rand(3) for ielem = 1:length(assembly.elements)]
-    udot0 = [rand(3) for ielem = 1:length(assembly.elements)]
-    thetadot0 = [rand(3) for ielem = 1:length(assembly.elements)]
+    u0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    theta0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    udot0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    thetadot0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
 
-    x = rand(length(system.x))
+    x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
@@ -172,13 +175,13 @@ end
 
     # --- Newmark Scheme Time-Marching Analysis --- #
 
-    udot = [rand(3) for ielem = 1:length(assembly.elements)]
-    θdot = [rand(3) for ielem = 1:length(assembly.elements)]
-    Vdot = [rand(3) for ielem = 1:length(assembly.elements)]
-    Ωdot = [rand(3) for ielem = 1:length(assembly.elements)]
-    dt = rand()
+    udot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    θdot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    Vdot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    Ωdot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    dt = rand(RNG)
 
-    x = rand(length(system.x))
+    x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
@@ -193,8 +196,8 @@ end
 
     # --- General Dynamic Analysis --- #
 
-    dx = rand(length(system.x))
-    x = rand(length(system.x))
+    dx = rand(RNG, length(system.x))
+    x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
     M = similar(x, length(x), length(x))
 
@@ -1430,18 +1433,18 @@ end
 @testset "Element Gravitational Loads" begin
 
     # use arbitrary length
-    ΔL = rand()
+    ΔL = rand(RNG)
 
     # use random rotation matrix  
-    CtCab = GXBeam.get_C(rand(3))
+    CtCab = GXBeam.get_C(rand(RNG, 3))
 
     # create random mass matrix
-    μ = rand()
-    xm2 = rand()
-    xm3 = rand()
-    i22 = rand()
-    i33 = rand()
-    i23 = rand()
+    μ = rand(RNG)
+    xm2 = rand(RNG)
+    xm3 = rand(RNG)
+    i22 = rand(RNG)
+    i33 = rand(RNG)
+    i23 = rand(RNG)
 
     mass = [
         μ 0 0 0 μ*xm3 -μ*xm2; 
@@ -1453,7 +1456,7 @@ end
         ]
 
     # use random gravity vector
-    gvec = rand(3)
+    gvec = rand(RNG, 3)
 
     # calculate integrated force and moment per unit length
     f = μ*gvec
@@ -1484,9 +1487,9 @@ end
     start = 1:nelem
     stop =  2:(nelem+1)
 
-    frames = fill(wiener_milenkovic(rand(3)), nelem)
-    compliance = fill(Symmetric(rand(6,6)), nelem)
-    mass = fill(Symmetric(rand(6,6)), nelem)
+    frames = fill(wiener_milenkovic(rand(RNG, 3)), nelem)
+    compliance = fill(Symmetric(rand(RNG, 6,6)), nelem)
+    mass = fill(Symmetric(rand(RNG, 6,6)), nelem)
        
     prescribed_conditions = Dict(1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0));
 
