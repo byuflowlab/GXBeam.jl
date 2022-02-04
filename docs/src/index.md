@@ -63,7 +63,7 @@ See the [examples](@ref Examples)
 
 ## Limitations
 
-By using the simplest possible shape functions (constant or linear shape functions), this package avoids using numerical quadrature except when integrating applied distributed loads (which can be pre-integrated).  As a result, element properties are approximated as constant throughout each beam element and a relatively large number of beam elements may be necessary to achieve grid-independent results.  More details about the convergence of this package may be found in the [examples](@ref Nonlinear Analysis of a Cantilever Subjected to a Constant Moment).
+By using the simplest possible shape functions (constant or linear shape functions), this package avoids using numerical quadrature except when integrating applied distributed loads (which can be pre-integrated).  As a result, element properties are approximated as constant throughout each beam element and a relatively large number of beam elements may be necessary to achieve grid-independent results.  More details about the convergence of this package may be found in the [examples](@ref Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment).
 
 This package does not currently model cross section warping, and therefore should not be used to model open cross sections (such as I, C, or L-beams).  The one exception to this rule is if the beam's width is much greater than its height, in which case the beam may be considered to be strip-like (like a helicopter blade).  
 
