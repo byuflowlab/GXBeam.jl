@@ -105,11 +105,11 @@ tspan = (0.0, 2.0)
 # run initial condition analysis to get consistent set of initial conditions
 system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
 
-# construct DAE as ODEProblem with non-constant mass matrix
-prob = ODEProblem(system, assembly, tspan; prescribed_conditions)
+# construct a DAEProblem
+prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
 
-# solve ODEProblem
-sol = solve(prob, Rodas4())
+# solve DAEProblem
+sol = solve(prob, DABDF2())
 
 nothing #hide
 ```
@@ -124,7 +124,7 @@ diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions
 nothing #hide
 ```
 
-Let's now compare the solutions from GXBeam's internal solver and the `Rodas4` solver from DifferentialEquations.
+Let's now compare the solutions from GXBeam's internal solver and the `DABDF2` solver from DifferentialEquations.
 
 ```@example diffeq
 using Plots
