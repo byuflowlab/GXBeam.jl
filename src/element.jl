@@ -199,8 +199,9 @@ Calculate the element resultants for a steady state analysis.
     f_ψ1 += tmp
     f_ψ2 += tmp
 
+    Qinv = get_Qinv(θ)
     f_V = CtCab*V - v - cross(ω, u)
-    f_Ω = Ω - CtCab'*ω
+    f_Ω = Qinv*Cab*(Ω - CtCab'*ω)
 
     return f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω
 end
@@ -255,8 +256,7 @@ Calculate the element resultants for a dynamic analysis.
 
     f_V -= udot
 
-    Q = get_Q(θ)
-    f_Ω -= Cab'*Q*θdot
+    f_Ω -= θdot
 
     return f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω
 end
@@ -1123,7 +1123,7 @@ end
 
 """
     steady_state_element_jacobian_equations(ΔL, S11, S12, S21, S22, 
-        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, P, H, ω, f1_u, f2_u, 
+        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, Ω, P, H, ω, f1_u, f2_u, 
         m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
 Calculate the derivatives of the element resultants with respect to the state variables for 
@@ -1141,6 +1141,7 @@ a steady state analysis.
  - `γ`: engineering strain
  - `κ`: curvature
  - `V`: linear velocity
+ - `Ω`: angular velocity
  - `P`: linear momentum
  - `H`: angular momentum
  - `ω`: angular velocity caused by body frame velocity
@@ -1160,7 +1161,7 @@ a steady state analysis.
  - `Ct_θ3`: Derivative of `C'` w.r.t. `θ[3]` (transpose of `C_θ3`)
 """
 @inline function steady_state_element_jacobian_equations(ΔL, S11, S12, S21, S22, 
-    mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, P, H, ω, f1_u, f2_u, 
+    mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, Ω, P, H, ω, f1_u, f2_u, 
     m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     f_u1_u, f_u2_u, f_u1_θ, f_u2_θ, f_u1_F, f_u2_F,
@@ -1220,11 +1221,15 @@ a steady state analysis.
 
     # --- f_Ω --- #
 
+    Qinv = get_Qinv(θ)
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_θ(θ)
+
     # d_fH_dθ
-    f_Ω_θ = -Cab'*mul3(C_θ1, C_θ2, C_θ3, ω)
+    f_Ω_θ = mul3(Qinv_θ1, Qinv_θ2, Qinv_θ3, Cab*(Ω - CtCab'*ω)) - 
+        Qinv*mul3(C_θ1, C_θ2, C_θ3, ω)
 
     # d_fH_dΩ
-    f_Ω_Ω = I3
+    f_Ω_Ω = Qinv*Cab
 
     return f_u1_u, f_u2_u, f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
         f_ψ1_u, f_ψ2_u, f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_V, f_ψ2_V, f_ψ1_Ω, f_ψ2_Ω,
@@ -1352,8 +1357,10 @@ an initial condition analysis.
 
     # --- f_Ω --- #
 
+    Qinv = get_Qinv(θ)
+
     # d_fH_dΩ
-    f_Ω_Ω = I3
+    f_Ω_Ω = Qinv*Cab
 
     return f_u1_Vdot, f_u2_Vdot, f_u1_Ωdot, f_u2_Ωdot, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
         f_ψ1_Vdot, f_ψ2_Vdot, f_ψ1_Ωdot, f_ψ2_Ωdot, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_V, f_ψ2_V, f_ψ1_Ω, f_ψ2_Ω,
@@ -1364,7 +1371,7 @@ end
 
 """
     newmark_element_jacobian_equations(ΔL, S11, S12, S21, S22, mass11, mass12, 
-        mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, P, H, θdot, Pdot, Hdot, ω, 
+        mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, Ω, P, H, θdot, Pdot, Hdot, ω, 
         dt, f1_u, f2_u, m1_u, m2_u, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, Ctdot_θ1, 
         Ctdot_θ2, Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
@@ -1384,6 +1391,7 @@ an Newmark scheme time-marching analysis.
  - `γ`: engineering strain
  - `κ`: curvature
  - `V`: linear velocity
+ - `Ω`: angular velocity
  - `P`: linear momentum
  - `H`: angular momentum
  - `θdot`: angular displacement rate
@@ -1405,7 +1413,7 @@ an Newmark scheme time-marching analysis.
  - `Ctdot_θdot3`: Derivative of `Cdot'` w.r.t. `θdot[3]`
 """
 @inline function newmark_element_jacobian_equations(ΔL, S11, S12, S21, S22, mass11, mass12, 
-    mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, P, H, θdot, Pdot, Hdot, ω, dt,
+    mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, Ω, P, H, θdot, Pdot, Hdot, ω, dt,
     f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, 
     Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
@@ -1415,7 +1423,7 @@ an Newmark scheme time-marching analysis.
         f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_V_u, f_V_θ, f_V_V,
         f_Ω_θ, f_Ω_Ω = steady_state_element_jacobian_equations(ΔL, S11, S12, S21, S22, 
-        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, P, H, ω, f1_u, f2_u, 
+        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, Ω, P, H, ω, f1_u, f2_u, 
         m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     # --- f_u1, f_u2 --- #
@@ -1464,9 +1472,8 @@ an Newmark scheme time-marching analysis.
     f_V_u -= 2/dt*I
 
     # --- d_fH_dθ --- #
-    Q = get_Q(θ)
-    Q_θ1, Q_θ2, Q_θ3 = get_Q_θ(θ)
-    f_Ω_θ -= Cab'*(mul3(Q_θ1, Q_θ2, Q_θ3, θdot) + Q*2/dt)
+
+    f_Ω_θ -= 2/dt*I
 
     return f_u1_u, f_u2_u, f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
         f_ψ1_u, f_ψ2_u, f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_V, f_ψ2_V, f_ψ1_Ω, f_ψ2_Ω,
@@ -1478,7 +1485,7 @@ end
 
 """
     dynamic_element_jacobian_equations(ΔL, S11, S12, S21, S22, mass11, mass12, 
-        mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, P, H, θdot, Pdot, Hdot, ω, 
+        mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, Ω, P, H, θdot, Pdot, Hdot, ω, 
         f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, 
         C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, Ctdot_θ1, Ctdot_θ2, Ctdot_θ3)
 
@@ -1498,6 +1505,7 @@ an Newmark scheme time-marching analysis.
  - `γ`: engineering strain
  - `κ`: curvature
  - `V`: linear velocity
+ - `Ω`: angular velocity
  - `P`: linear momentum
  - `H`: angular momentum
  - `θdot`: angular displacement rate
@@ -1523,7 +1531,7 @@ an Newmark scheme time-marching analysis.
  - `Ctdot_θ3`: Derivative of `Cdot'` w.r.t. `θ[3]`
 """
 @inline function dynamic_element_jacobian_equations(ΔL, S11, S12, S21, S22, mass11, mass12, 
-    mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, P, H, θdot, Pdot, Hdot, ω, 
+    mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, Ω, P, H, θdot, Pdot, Hdot, ω, 
     f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, 
     C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, Ctdot_θ1, Ctdot_θ2, Ctdot_θ3)
 
@@ -1533,7 +1541,7 @@ an Newmark scheme time-marching analysis.
         f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_V_u, f_V_θ, f_V_V,
         f_Ω_θ, f_Ω_Ω = steady_state_element_jacobian_equations(ΔL, S11, S12, S21, S22, 
-        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, P, H, ω, f1_u, f2_u, 
+        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, Ω, P, H, ω, f1_u, f2_u, 
         m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, 
         C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
@@ -1570,10 +1578,6 @@ an Newmark scheme time-marching analysis.
     tmp = 1/2*CtCabdot*mass22
     f_ψ1_Ω += tmp
     f_ψ2_Ω += tmp
-
-    # --- d_fH_dθ --- #
-    Q_θ1, Q_θ2, Q_θ3 = get_Q_θ(θ)
-    f_Ω_θ -= Cab'*mul3(Q_θ1, Q_θ2, Q_θ3, θdot)
 
     return f_u1_u, f_u2_u, f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
         f_ψ1_u, f_ψ2_u, f_ψ1_θ, f_ψ2_θ, f_ψ1_F, f_ψ2_F, f_ψ1_M, f_ψ2_M, f_ψ1_V, f_ψ2_V, f_ψ1_Ω, f_ψ2_Ω,
@@ -2057,7 +2061,7 @@ analysis.
         f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_V_u, f_V_θ, f_V_V,
         f_Ω_θ, f_Ω_Ω = steady_state_element_jacobian_equations(ΔL, S11, S12, S21, S22, 
-        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, P, H, ω, f1_u, f2_u, 
+        mass11, mass12, mass21, mass22, Cab, CtCab, θ, F, M, γ, κ, V, Ω, P, H, ω, f1_u, f2_u, 
         m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
 
     # insert element resultants into the jacobian matrix
@@ -2331,7 +2335,7 @@ time-marching simulation.
         f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_V_u, f_V_θ, f_V_V,
         f_Ω_θ, f_Ω_Ω = newmark_element_jacobian_equations(ΔL, S11, S12, S21, S22, 
-        mass11, mass12, mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, P, H, 
+        mass11, mass12, mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, Ω, P, H, 
         θdot, Pdot, Hdot, ω, dt, f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, 
         C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, Ctdot_θ1, Ctdot_θ2, Ctdot_θ3, Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3)
 
@@ -2483,7 +2487,7 @@ simulation.
         f_M1_θ, f_M2_θ, f_M1_F, f_M2_F, f_M1_M, f_M2_M,
         f_V_u, f_V_θ, f_V_V,
         f_Ω_θ, f_Ω_Ω = dynamic_element_jacobian_equations(ΔL, S11, S12, S21, S22, mass11, 
-        mass12, mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, P, H, θdot, Pdot, 
+        mass12, mass21, mass22, Cab, CtCab, CtCabdot, θ, F, M, γ, κ, V, Ω, P, H, θdot, Pdot, 
         Hdot, ω, f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, 
         Ctdot_θ1, Ctdot_θ2, Ctdot_θ3)
 
@@ -2546,8 +2550,7 @@ Calculate the derivatives of the element resultants with respect to the state ra
 
     f_V_udot = -I3
 
-    Q = get_Q(θ)
-    f_Ω_θdot = -Cab'*Q
+    f_Ω_θdot = -I3
 
     return f_u1_θdot, f_u2_θdot, f_u1_Vdot, f_u2_Vdot, f_u1_Ωdot, f_u2_Ωdot,
         f_ψ1_θdot, f_ψ2_θdot, f_ψ1_Vdot, f_ψ2_Vdot, f_ψ1_Ωdot, f_ψ2_Ωdot,
