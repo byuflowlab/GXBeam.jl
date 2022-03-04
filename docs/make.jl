@@ -8,6 +8,7 @@ makedocs(;
         "Examples" => "examples.md",
         "Using GXBeam with DifferentialEquations.jl" => "diffeq.md",
         "Library" => "library.md"
+        "Theory" => "theory.md"
     ],
     sitename = "GXBeam.jl",
     authors = "Taylor McDonnell <taylormcd@byu.edu>",
