@@ -1200,7 +1200,7 @@ end
     sol = solve(prob, Rodas4())
 
     # test that the solution worked
-    # @test sol.t[end] == 2.0 # solution is not stable
+    @test sol.t[end] == 2.0
 
     # construct DAEProblem
     prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
