@@ -38,7 +38,7 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
  - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface for time domain simulations.
- - Extensively validated against published analytical and computational results. See the [examples](@ref Examples).
+ - Extensively validated against published analytical and computational results. For more details, see the examples.
 
 ## Installation
 
@@ -59,7 +59,7 @@ This code has been optimized to be highly performant.  In our tests we found tha
 
 ## Usage
 
-See the [examples](@ref Examples)
+See the [guide](@ref Getting Started).
 
 ## Limitations
 
