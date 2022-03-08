@@ -30,6 +30,6 @@ makedocs(;
     authors = "Taylor McDonnell <taylormcd@byu.edu>",
 )
 
-# deploydocs(
-#     repo = "github.com/byuflowlab/GXBeam.jl.git",
-# )
+deploydocs(
+    repo = "github.com/byuflowlab/GXBeam.jl.git",
+)
