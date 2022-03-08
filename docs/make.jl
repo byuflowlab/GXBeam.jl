@@ -23,7 +23,7 @@ makedocs(;
             joinpath("examples", "dynamic-joined-wing.md"),
             joinpath("examples", "vertical-axis-wind-turbine.md"),
         ],
-        "Using GXBeam with DifferentialEquations.jl" => joinpath("examples", "differential-equations.md"),
+        "Using GXBeam with DifferentialEquations.jl" => joinpath("examples", "diffeq.md"),
         "API Reference" => joinpath("reference", "reference.md"),
     ],
     sitename = "GXBeam.jl",
