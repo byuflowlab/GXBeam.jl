@@ -1,9 +1,9 @@
-# # Cantilever with a Tip Force
+# # [Cantilever with a Tip Force](@id tipforce)
 #
 # This example shows how to predict the behavior of a cantilever beam that is subjected 
-# to a constant tip load.
+# to a constant shear force at the tip.
 #
-# ![](../assets/cantilever-tipforce-drawing.svg)
+# ![](../assets/tipforce-drawing.svg)
 # 
 #-
 #md # !!! tip
@@ -95,6 +95,9 @@ nothing #hide
 using Plots
 #md using Suppressor #hide
 pyplot()
+nothing #hide
+
+#-
 
 #md @suppress_err begin #hide
 
@@ -130,8 +133,14 @@ plot!(λ_a, θ_a*2/pi, color=3, label="")
 scatter!(λ, -4*atan.(θ/4)*2/pi, color=3, label="")
 
 plot!(show=true)
-
+#md savefig("../assets/tipforce-displacement.svg"); 
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/tipforce-displacement.svg)
+
+#- 
 
 #md # Here's the complete example, without any comments.  It is also available here:
 #md # [`tipforce.jl`](tipforce.jl).

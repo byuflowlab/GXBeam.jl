@@ -1,10 +1,10 @@
-# # Rotating Beam with a Swept Tip
+# # [Rotating Beam with a Swept Tip](@id rotating)
 #
 # In this example we analyze a rotating beam with a swept tip.  The parameters for this 
 # example come from "Finite element solution of nonlinear intrinsic equations for curved 
 # composite beams" by Hodges, Shang, and Cesnik.
 # 
-# ![](../assets/rotating-beam-drawing.svg)
+# ![](../assets/rotating-drawing.svg)
 #
 #-
 #md # !!! tip
@@ -120,6 +120,7 @@ nothing ##hide
 using Plots
 #md using Suppressor #hide
 pyplot()
+nothing #hide
 
 #-
 
@@ -140,8 +141,12 @@ Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
 plot!(rpm, Mz_nl, label="Nonlinear")
 plot!(rpm, Mz_l, label="Linear")
 plot!(show=true)
-
+#md savefig("../assets/rotating-Mz.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/rotating-Mz.svg)
 
 #- 
 
@@ -164,7 +169,12 @@ plot!(rpm, ux_nl, label="Nonlinear")
 plot!(rpm, ux_l, label="Linear")
 plot!(show=true)
 
+#md savefig("../assets/rotating-ux.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/rotating-ux.svg)
 
 #- 
 
@@ -187,7 +197,12 @@ plot!(rpm, uy_nl, label="Nonlinear")
 plot!(rpm, uy_l, label="Linear")
 plot!(show=true)
 
+#md savefig("../assets/rotating-uy.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/rotating-uy.svg)
 
 #- 
 
@@ -211,7 +226,14 @@ plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
 plot!(show=true)
 
+#md savefig("../assets/rotating-theta_z.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/rotating-theta_z.svg)
+
+#-
 
 # We will now compute the eigenvalues of this system for a range of sweep angles and and 
 # angular speeds.
@@ -227,6 +249,14 @@ state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
 eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef,
     length(sweep), length(rpm))
 for i = 1:length(sweep)
+
+    local L_b1, r_b1, nelem_b1, lengths_b1
+    local xp_b1, xm_b1, Cab_b1
+    local cs, ss
+    local L_b2, r_b2, nelem_b2, frame_b2, lengths_b2
+    local xp_b2, xm_b2, Cab_b2
+    local nelem, points, start, stop
+    local lengths, midpoints, Cab, compliance, mass, assembly
 
     ## straight section of the beam
     L_b1 = 31.5 # inch
@@ -360,13 +390,11 @@ experiment_frequencies = [
      47.0 44.4 39.3 35.1;
      62.9 55.9 48.6 44.8]
 ]
+nothing #hide
 
 #-
 
 #md @suppress_err begin #hide
-
-plot!([], [], color=:black, label="GXBeam")
-scatter!([], [], color=:black, label = "Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
     plot(
@@ -379,6 +407,9 @@ for k = 1:length(indices)
         overwrite_figure=false
         )
 
+    plot!([], [], color=:black, label="GXBeam")
+    scatter!([], [], color=:black, label = "Experiment (Epps and Chandra)")
+
     for j = length(rpm):-1:1
         plot!(sweep*180/pi, frequency[indices[k]][:,j],
             label="$(rpm[j]) RPM", color=j)
@@ -387,9 +418,15 @@ for k = 1:length(indices)
     end
 
     plot!(show=true)
+#md savefig("../assets/rotating-frequencies-$(k).svg") #hide
+#md closeall() #hide
 end
-
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/rotating-frequencies-1.svg)
+#md # ![](../assets/rotating-frequencies-2.svg)
+#md # ![](../assets/rotating-frequencies-3.svg)
 
 #-
 
@@ -423,12 +460,15 @@ for k = 1:length(indices)
     plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
     scatter!(experiment_sweep, experiment_frequencies[k,:], label="", color=k)
 end
-
 plot!(show=true)
-
+#md savefig("../assets/rotating-frequencies-4.svg"); 
+#md closeall() #hide
 #md end #hide
-
 nothing #hide
+
+#md # ![](../assets/rotating-frequencies-4.svg)
+
+#-
 
 # As you can see, the frequency results from the eigenmode analysis in this package 
 # compare well with experimental results.
@@ -438,7 +478,7 @@ nothing #hide
 # helpful for identifying different eigenmodes.
 
 ## write the response to vtk files for visualization using ParaView
-write_vtk("rotating-beam-45d-750rpm-bending-mode-1", assembly, state[end,end],
+write_vtk("rotating-eigenmode", assembly, state[end,end],
     λ[end,end][1], eigenstates[end,end][1]; mode_scaling = 100.0)
 
-# ![](../assets/rotating-beam.gif)
+# ![](../assets/rotating-eigenmode.gif)

@@ -1,4 +1,4 @@
-# # Static Analysis of a Joined-Wing
+# # [Static Analysis of a Joined-Wing](@id static-joined-wing)
 # 
 # In this example we consider the joined-wing model proposed by Blair in "An Equivalent
 # Beam Formulation for Joined-Wings in a Post-Buckled State" and optimized by Green
@@ -238,8 +238,14 @@ plot!(uz_l, Fz./1e3, label="Linear")
 plot!(uz_nl, Fz./1e3, label="Nonlinear with Dead Force")
 plot!(uz_fnl, Fz./1e3, label="Nonlinear with Follower Force")
 plot!(show=true)
-
+#md savefig("../assets/static-joined-wing-deflection.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/static-joined-wing-deflection.svg)
+
+#- 
 
 # This plot matches the plot provided by Wenbin Yu in "GEBT: A general-purpose nonlinear 
 # analysis tool for composite beams".
@@ -358,13 +364,11 @@ for ic = 1:size(airfoil, 1)
     section[3,ic] = airfoil[ic,2]
 end
 
-write_vtk("static-joined-wing", assembly, nonlinear_follower_states[end];
+write_vtk("static-joined-wing-visualization", assembly, nonlinear_follower_states[end];
     sections = section)
 
-# ![](../assets/static-joined-wing.png)
+# ![](../assets/static-joined-wing-visualization.png)
 
-#md # ## Plain program
-#md #
 #md # Here's the complete example, without any comments. It is also available here:
 #md # [`static-joined-wing.jl`](static-joined-wing.jl).
 #md #

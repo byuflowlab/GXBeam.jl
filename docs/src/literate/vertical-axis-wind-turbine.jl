@@ -1,4 +1,4 @@
-# # Sandia 34-Meter Vertical Axis Wind Turbine
+# # [Sandia 34-Meter Vertical Axis Wind Turbine](@id vawt)
 # 
 # In this example, we examine the stability characteristics of the Sandia 34-Meter Vertical 
 # Axis Wind Turbine (VAWT).  Geometry for this VAWT is described in 
@@ -8,11 +8,10 @@
 # 
 # The original authors of this example requested that the following citation accompany it.
 # 
-# ```
-# Moore, K. and Ennis, B., “Aeroelastic Validation of the Offshore Wind Energy Simulator for Vertical-Axis Wind Turbines”, forthcoming 2022
-# ```
+# Moore, K. and Ennis, B., “Aeroelastic Validation of the Offshore Wind Energy Simulator 
+# for Vertical-Axis Wind Turbines”, forthcoming 2022
 #
-# ![](../assets/sandia-34m-vawt.png)
+# ![](../assets/vawt-drawing.png)
 #
 #-
 #md # !!! tip
@@ -379,7 +378,10 @@ end
 # [SAND-91-2228](https://energy.sandia.gov/wp-content/gallery/uploads/SAND-91-2228.pdf).
 
 using Plots
+#md using Suppressor #hide
 pyplot()
+
+#md @suppress_err begin #hide
 
 ## Experimental Data
 SNL34_flap = [
@@ -561,17 +563,24 @@ plot!([0], [0], color=:black, label="Experimental")
 plot!([0], [0], color=:red, label="GXBeam")
 plot!(show=true)
 
+#md savefig("../assets/vawt-stability.svg") #hide
+#md closeall() #hide
+#md end #hide
+nothing #hide
+
+#md # ![](../assets/vawt-stability.svg)
+
+#-
+
 # As can be seen, there is good agreement between the computational and experimental 
 # results.
 
 state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
-write_vtk("vawt", assembly, state)
+write_vtk("vawt-simulation", assembly, state)
 
-# ![](../assets/vawt.gif)
+# ![](../assets/vawt-simulation.gif)
 
-#md # ## Plain program
-#md #
 #md # Here's the complete example, without any comments.  It is also available here:
 #md # [`vertical-axis-wind-turbine.jl`](vertical-axis-wind-turbine.jl).
 #md #

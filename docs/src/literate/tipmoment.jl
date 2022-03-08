@@ -1,10 +1,10 @@
-# # Cantilever with a Tip Moment
+# # [Cantilever with a Tip Moment](@id tipmoment)
 #
 # This example shows how to predict the behavior of a cantilever beam that is subjected 
 # to a constant tip moment.  This is a common benchmark problem for the geometrically 
 # nonlinear analysis of beams.
 #
-# ![](../assets/cantilever-tipmoment-drawing.svg)
+# ![](../assets/tipmoment-drawing.svg)
 # 
 #-
 #md # !!! tip
@@ -89,6 +89,7 @@ nothing #hide
 using Plots
 #md using Suppressor #hide
 pyplot()
+nothing #hide
 
 #- 
 
@@ -125,12 +126,18 @@ for i = 1:length(M)
     deflection = analytical.(x0, E*Iyy/M[i])
     x = (x0 + getindex.(deflection, 1))
     y = getindex.(deflection, 2)
-    plot!(x/L, y/L, label="λ=$(λ[i])", color=i)
+    plot!(x/L, y/L, label="\$\\lambda\$=$(λ[i])", color=i)
 end
-
 plot!(show=true)
-
+#md savefig("tipmoment-deflection.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+
+#md # ![](../assets/tipmoment-deflection.svg)
+
+#-
 
 # We can use this problem to test the accuracy and convergence of this package.  To do so 
 # we set ``\lambda = 1`` and repeat the analysis for a variety of grid sizes.  We measure 
@@ -159,6 +166,8 @@ M = λ*m
 ## run an analysis for each grid size
 states = Vector{AssemblyState{Float64}}(undef, length(grid_sizes))
 for (igrid, nelem) in enumerate(grid_sizes)
+    
+    local x, y, z, points, start, stop, compliance, assembly, system
 
     ## create points
     x = range(0, L, length=nelem+1)
@@ -235,7 +244,12 @@ p1 = plot(grid_sizes .+ 1, εx, label="",
     overwrite_figure=false,
     show=true)
 
+#md savefig("tipmoment-x-convergence.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/tipmoment-x-convergence.svg)
 
 #-
 
@@ -254,7 +268,14 @@ p2 = plot(grid_sizes .+ 1, εy, label="",
     overwrite_figure=false,
     show=true)
 
-#md end hide
+#md savefig("tipmoment-y-convergence.svg") #hide
+#md closeall() #hide
+#md end #hide
+nothing #hide
+
+#md # ![](../assets/tipmoment-y-convergence.svg)
+
+#-
 
 # We observe second-order algebraic convergence for both x and y tip displacement errors.  
 # We can therefore conclude that a large number of elements are likely necessary in order 

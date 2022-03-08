@@ -1,4 +1,4 @@
-# # Getting Started
+# # [Getting Started](@id guide)
 #
 #md # ```@setup guide
 #md # # this is placed here to pre-install matplotlib so the documentation doesn't get cluttered with the installation print statements.
@@ -18,12 +18,12 @@
 #
 # If you haven't yet, now would be a good time to install GXBeam.
 
-#md using Suppressor
-#md @suppress begin
+#md using Suppressor #hide
+#md @suppress_err begin #hide
 import Pkg
 Pkg.add("GXBeam")
+#md end #hide
 nothing #hide
-#md end
 
 # Now, that the package is installed we need to load it so that we can use it.  It's also 
 # often helpful to load the LinearAlgebra package.
@@ -33,7 +33,7 @@ nothing #hide
 
 # The geometry we will be working with is a rotating beam with a swept tip as pictured.
 # 
-# ![](../assets/rotating-beam-drawing.svg)
+# ![](../assets/rotating-drawing.svg)
 # 
 # This geometry has a fixed boundary condition on the left side of the beam and rotates 
 # around a point 2.5 inches to the left of the beam.  We will investigating the steady 
@@ -279,9 +279,9 @@ nothing #hide
 # [`write_vtk`](@ref) function to do this.  Note that in order to visualize the generated 
 # file yourself you will need to install ParaView separately.
 
-write_vtk("rotating-beam", assembly)
+write_vtk("rotating-geometry", assembly)
 
-# ![](../assets/rotating-beam.png)
+# ![](../assets/rotating-geometry.png)
 
 # ## Point Masses
 #
@@ -544,9 +544,13 @@ nothing #hide
 # tip deflections.
 
 using Plots
+#md using Suppressor #hide
 pyplot()
+nothing #hide
 
 #-
+
+#md @suppress_err begin #hide
 
 ## root moment
 plot(
@@ -563,8 +567,16 @@ Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
 plot!(rpm, Mz_nl, label="Nonlinear")
 plot!(rpm, Mz_l, label="Linear")
 plot!(show=true)
+#md savefig("../assets/guide-Mz.svg") #hide
+#md closeall() #hide
+#md end #hide
+nothing #hide
+
+#md # ![](../assets/guide-Mz.svg)
 
 #-
+
+#md @suppress_err begin #hide
 
 ## x tip deflection
 plot(
@@ -582,8 +594,16 @@ ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
 plot!(rpm, ux_nl, label="Nonlinear")
 plot!(rpm, ux_l, label="Linear")
 plot!(show=true)
+#md savefig("../assets/guide-ux.svg") #hide
+#md closeall() #hide
+#md end #hide
+nothing #hide
+
+#md # ![](../assets/guide-ux.svg)
 
 #-
+
+#md @suppress_err begin #hide
 
 ## y tip deflection
 plot(
@@ -601,8 +621,16 @@ uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
 plot!(rpm, uy_nl, label="Nonlinear")
 plot!(rpm, uy_l, label="Linear")
 plot!(show=true)
+#md savefig("../assets/guide-uy.svg") #hide
+#md closeall() #hide
+#md end #hide
+nothing #hide
+
+#md # ![](../assets/guide-uy.svg)
 
 #-
+
+#md @suppress_err begin #hide
 
 ## rotation of the tip
 plot(
@@ -621,17 +649,16 @@ theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
 plot!(show=true)
+#md savefig("../assets/guide-theta_z.svg") #hide
+#md closeall() #hide
+#md end #hide
+nothing #hide
 
-#- 
+#md # ![](../assets/guide-theta_z.svg)
+
+#-
 
 # ## Other Capabilities
 # 
 # For information on how to use the other capabilities of this package see the other 
 # examples and/or the [Public API](@ref).
-
-#md # Here's the code contained in this guide, without any comments.  It is also available here:
-#md # [`guide.jl`](guide.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```

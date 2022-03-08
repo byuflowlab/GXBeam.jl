@@ -1,9 +1,9 @@
-# # Cantilever with a Uniform Load
+# # [Cantilever with a Uniform Load](@id cantilever)
 # 
 # This example shows how to predict the behavior of a cantilever beam which is partially 
 # subjected to a uniform distributed load.
 #
-# ![](../assets/linear-cantilever-pudl-drawing.svg)
+# ![](../assets/cantilever-drawing.svg)
 # 
 #-
 #md # !!! tip
@@ -96,7 +96,7 @@ nothing #hide
 
 #-
 
-#md @suppress begin #hide
+#md @suppress_err begin #hide
 
 ## deflection plot
 plot(
@@ -115,18 +115,23 @@ plot!(x_a, deflection_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
 plot!(show=true)
 
+#md savefig("../assets/cantilever-deflection.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/cantilever-deflection.svg)
 
 #- 
 
-#md @suppress begin #hide
+#md @suppress_err begin #hide
 
 ## elastic twist plot (euler angle)
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    ylabel = "Rotation Parameter \$\\theta_y\$",
+    ylabel = "Rotation Angle (rad)",
     grid = false,
     overwrite_figure=false
     )
@@ -138,12 +143,16 @@ theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint =
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
 plot!(show=true)
-
+#md savefig("../assets/cantilever-twist.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/cantilever-twist.svg)
 
 #- 
 
-#md @suppress begin #hide
+#md @suppress_err begin #hide
 
 ## bending moment plot
 plot(
@@ -161,8 +170,12 @@ M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
 plot!(show=true)
-
+#md savefig("../assets/cantilever-moment.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/cantilever-moment.svg)
 
 #- 
 

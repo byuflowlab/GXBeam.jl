@@ -1,4 +1,4 @@
-# # Nonlinear Dynamic Analysis of a Wind Turbine Blade
+# # [Time-Domain Simulation of a Wind Turbine Blade](@id wind-turbine-blade)
 #
 #-
 #md # !!! tip
@@ -85,6 +85,9 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
     "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
 
 for i = 1:12
+
+    local y
+
     plot(
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
@@ -109,11 +112,25 @@ for i = 1:12
 
     plot!(t, y, label="")
     plot!(show=true)
-end
+#md     savefig("../assets/wind-turbine-blade-"*string(field[i])*string(direction[i])*".svg"); #hide
+#md     closeall() #hide
+end 
 
 #md end #hide
-
 nothing #hide
+
+#md # ![](../assets/wind-turbine-blade-u1.svg)
+#md # ![](../assets/wind-turbine-blade-u2.svg)
+#md # ![](../assets/wind-turbine-blade-u3.svg)
+#md # ![](../assets/wind-turbine-blade-theta1.svg)
+#md # ![](../assets/wind-turbine-blade-theta2.svg)
+#md # ![](../assets/wind-turbine-blade-theta3.svg)
+#md # ![](../assets/wind-turbine-blade-F1.svg)
+#md # ![](../assets/wind-turbine-blade-F2.svg)
+#md # ![](../assets/wind-turbine-blade-F3.svg)
+#md # ![](../assets/wind-turbine-blade-M1.svg)
+#md # ![](../assets/wind-turbine-blade-M2.svg)
+#md # ![](../assets/wind-turbine-blade-M3.svg)
 
 # These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A. 
 # Sprague in "Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic 
@@ -203,14 +220,13 @@ for ip = 1:length(points)
     sections[3, :, ip] .= chord .* airfoil[:,2]
 end
 
-write_vtk("dynamic-wind-turbine", assembly, history, t; sections = sections)
+write_vtk("wind-turbine-blade-simulation", assembly, history, t; sections = sections)
 
-# ![](assets/dynamic-wind-turbine.gif)
+# ![](../assets/wind-turbine-blade-simulation.gif)
 
-#md # ## Plain program
 #md #
-#md # Here follows a version of the program without any comments.
-#md # The file is also available here: [`wind-turbine-blade.jl`](wind-turbine-blade.jl).
+#md # Here's the complete example, without any comments. It is also available here:
+#md # [`wind-turbine-blade.jl`](wind-turbine-blade.jl).
 #md #
 #md # ```julia
 #md # @__CODE__

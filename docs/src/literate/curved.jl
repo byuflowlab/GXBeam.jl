@@ -1,9 +1,9 @@
-# # Bending of a Curved Beam in 3D Space
+# # [Bending of an Initially Curved Beam](@id curved)
 # 
 # This example is a common benchmark problem for the geometrically exact bending of 
 # nonlinear beams.
 # 
-# ![](../assets/cantilever-curved-drawing.svg)
+# ![](../assets/curved-drawing.svg)
 #
 #-
 #md # !!! tip
@@ -83,14 +83,12 @@ nothing #hide
 # We can visualize the deformed geometry and inspect the associated point and element data 
 # using ParaView.
 
-write_vtk("cantilever-curved", assembly, state)
+write_vtk("curved-visualization", assembly, state)
 
-# ![](../assets/cantilever-curved.png)
+# ![](../assets/curved-visualization.png)
 
-#md # ## Plain program
-#md #
-#md # Here follows a version of the program without any comments.
-#md # The file is also available here: [`curved.jl`](curved.jl).
+#md # Here's the complete example, without any comments. It is also available here:
+#md # [`curved.jl`](curved.jl).
 #md #
 #md # ```julia
 #md # @__CODE__

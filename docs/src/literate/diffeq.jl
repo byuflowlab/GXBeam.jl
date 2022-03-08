@@ -1,4 +1,4 @@
-# # Using GXBeam with DifferentialEquations.jl
+# # [Using GXBeam with DifferentialEquations.jl](@id diffeq)
 #
 # While the capabilities provided by GXBeam are probably sufficient for most users, 
 # advanced users may wish to make use of some of the features of the 
@@ -6,10 +6,15 @@
 # For this reason, we have created an interface in GXBeam to allow users to model the 
 # differential algebraic equations encountered in GXBeam in DifferentialEquations.
 #
+#md # ```@contents
+#md # Pages = ["diffeq.md"]
+#md # Depth = 3
+#md # ```
+#
 #-
 #md # !!! tip
 #md #     This guide is also available as a Jupyter notebook:
-#md #     [`guide.ipynb`](@__NBVIEWER_ROOT_URL__/examples/guide.ipynb).
+#md #     [`diffeq.ipynb`](@__NBVIEWER_ROOT_URL__/examples/diffeq.ipynb).
 #-
 # 
 # ## Interface Functions
@@ -130,7 +135,10 @@ nothing #hide
 # from DifferentialEquations.
 
 using Plots
+#md using Suppressor #hide
 pyplot()
+
+#md @suppress_err begin #hide
 
 point = vcat(fill(nelem+1, 6), fill(1, 6))
 field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
@@ -175,22 +183,26 @@ for i = 1:12
     plot!(t, y_gxbeam, label="GXBeam")
     plot!(sol.t, y_diffeq, label="DifferentialEquations")
     plot!(show=true)
-    #md savefig(joinpath("assets","dynamic-wind-turbine-diffeq-"*string(field[i])*string(direction[i])*".svg")); nothing #hide
+#md     savefig("../assets/diffeq-"*string(field[i])*string(direction[i])*".svg"); #hide
+#md     closeall() #hide
 end
 
-# ![](assets/dynamic-wind-turbine-diffeq-u1.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-u2.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-u3.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-theta1.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-theta2.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-theta3.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-F1.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-F2.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-F3.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-M1.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-M2.svg)
-# ![](assets/dynamic-wind-turbine-diffeq-M3.svg)
-#
+#md end #hide
+nothing #hide
+
+#md # ![](../assets/diffeq-u1.svg)
+#md # ![](../assets/diffeq-u2.svg)
+#md # ![](../assets/diffeq-u3.svg)
+#md # ![](../assets/diffeq-theta1.svg)
+#md # ![](../assets/diffeq-theta2.svg)
+#md # ![](../assets/diffeq-theta3.svg)
+#md # ![](../assets/diffeq-F1.svg)
+#md # ![](../assets/diffeq-F2.svg)
+#md # ![](../assets/diffeq-F3.svg)
+#md # ![](../assets/diffeq-M1.svg)
+#md # ![](../assets/diffeq-M2.svg)
+#md # ![](../assets/diffeq-M3.svg)
+
 # As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely 
 # with each other.
 
@@ -276,13 +288,4 @@ end
 
 write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, sol.t; sections = sections)
 
-# ![](assets/dynamic-wind-turbine.gif)
-# 
-#md # ## Plain program
-#md #
-#md # Here follows a version of the program without any comments.
-#md # The file is also available here: [`differential-equations.jl`](differential-equations.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```
+# ![](../assets/dynamic-wind-turbine-simulation.gif)

@@ -1,9 +1,9 @@
-# # Overdetermined Beam
+# # [Overdetermined Beam](@ref overdetermined)
 # 
 # This example shows how to predict the behavior of a beam which is clamped at one end and 
 # simply supported at the other end when subjected to a linear distributed load.
 # 
-# ![](../assets/linear-overdetermined-ldl-drawing.svg)
+# ![](../assets/overdetermined-drawing.svg)
 # 
 #-
 #md # !!! tip
@@ -59,7 +59,6 @@ system, converged = static_analysis(assembly;
 ## post-process the results
 state = AssemblyState(system, assembly;
     prescribed_conditions = prescribed_conditions)
-
 nothing #hide
 
 
@@ -77,7 +76,6 @@ theta_a = -atan.(slope_a)
 
 ## adjust coordinate system of analytical solution
 M_a = -M_a
-
 nothing #hide
 
 # Plotting the results reveals that the analytical and computational solutions show 
@@ -90,13 +88,13 @@ nothing #hide
 
 #-
 
-#md @suppress begin #hide
+#md @suppress_err begin #hide
 
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    ylabel = "Deflection (m)",
+    ylabel = "Linear Deflection (m)",
     grid = false,
     overwrite_figure=false
     )
@@ -107,18 +105,22 @@ deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, w_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
 plot!(show=true)
-
+#md savefig("../assets/overdetermined-linear-deflection.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/overdetermined-linear-deflection.svg)
 
 #- 
 
-#md @suppress begin #hide
+#md @suppress_err begin #hide
 
 plot(
     xlim = (0.0, 1.0),
     xticks = 0.0:0.2:1.0,
     xlabel = "x (m)",
-    ylabel = "Rotation Parameter \$\\theta_y\$",
+    ylabel = "Angular Deflection (rad)",
     grid = false,
     overwrite_figure=false
     )
@@ -130,12 +132,16 @@ theta = [4*atan.(state.points[ipoint].theta[2]/4)
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
 plot!(show=true)
-
+#md savefig("../assets/overdetermined-angular-deflection.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/overdetermined-angular-deflection.svg)
 
 #-
 
-#md @suppress begin #hide
+#md @suppress_err begin #hide
 
 plot(
     xlim = (0.0, 1.0),
@@ -151,9 +157,14 @@ x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem =
 M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
-plot!(show=true)
- 
+plot!(show=true) 
+#md savefig("../assets/overdetermined-bending-moment.svg") #hide
+#md closeall() #hide
 #md end #hide
+nothing #hide
+
+
+#md # ![](../assets/overdetermined-bending-moment.svg)
 
 # Note that we could have easily performed a nonlinear analysis for this problem by 
 # setting `linear=false`.

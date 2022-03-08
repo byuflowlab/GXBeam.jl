@@ -1,8 +1,7 @@
-# # Nonlinear Dynamic Analysis of a Joined-Wing
+# # [Time-Domain Simulation of a Joined-Wing](@id dynamic-joined-wing)
 # 
 # In this example we use the same joined-wing model as used in the [previous example](@ref 
-# Static Analysis of a Joined-Wing), but with the following time varying loads applied at 
-# the wingtip:
+# static-joined-wing), but with the following time varying loads applied at the wingtip:
 #  - A piecewise-linear load ``F_L`` in the x and y-directions defined as follows:
 # ```math
 # F_L(t) = \begin{cases}
@@ -170,9 +169,28 @@ for i = 1:12
 
     plot!(t, y, label="")
     plot!(show=true)
+#md     savefig("../assets/dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); #hide 
+#md     closeall() #hide
+#md     nothing #hide
 end
 
 #md end #hide
+nothing #hide
+
+#md # ![](../assets/dynamic-joined-wing-u1.svg)
+#md # ![](../assets/dynamic-joined-wing-u2.svg)
+#md # ![](../assets/dynamic-joined-wing-u3.svg)
+#md # ![](../assets/dynamic-joined-wing-theta1.svg)
+#md # ![](../assets/dynamic-joined-wing-theta2.svg)
+#md # ![](../assets/dynamic-joined-wing-theta3.svg)
+#md # ![](../assets/dynamic-joined-wing-F1.svg)
+#md # ![](../assets/dynamic-joined-wing-F2.svg)
+#md # ![](../assets/dynamic-joined-wing-F3.svg)
+#md # ![](../assets/dynamic-joined-wing-M1.svg)
+#md # ![](../assets/dynamic-joined-wing-M2.svg)
+#md # ![](../assets/dynamic-joined-wing-M3.svg)
+
+#- 
 
 # These graphs are identical to those presented in "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu and Maxwell Blair.
 # 
@@ -285,10 +303,10 @@ for ic = 1:size(airfoil, 1)
     section[3,ic] = airfoil[ic,2]
 end
 
-write_vtk("dynamic-joined-wing", assembly, history, t, scaling=1e2;
+write_vtk("dynamic-joined-wing-simulation", assembly, history, t, scaling=1e2;
     sections = section)
  
-# ![](../assets/dynamic-joined-wing.gif)
+# ![](../assets/dynamic-joined-wing-simulation.gif)
 
 #md # Here's the complete example, without any comments.  It is also available here:
 #md # [`dynamic-joined-wing.jl`](dynamic-joined-wing.jl).
