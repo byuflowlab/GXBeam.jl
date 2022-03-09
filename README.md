@@ -39,7 +39,7 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
  - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface for time domain simulations.
- - Extensively validated against published analytical and computational results.  See the [examples in the documentation](https://flow.byu.edu/GXBeam.jl/dev/examples/).
+ - Extensively validated against published analytical and computational results.  See the examples in the [documentation](https://flow.byu.edu/GXBeam.jl/dev/).
 
 ## Installation
 
@@ -64,7 +64,7 @@ See the [documentation](https://flow.byu.edu/GXBeam.jl/dev)
 
 ## Limitations
 
-By using the simplest possible shape functions (constant or linear shape functions), this package avoids using numerical quadrature except when integrating applied distributed loads (which can be pre-integrated).  As a result, element properties are approximated as constant throughout each beam element and a relatively large number of beam elements may be necessary to achieve grid-independent results.  More details about the convergence of this package may be found in the [examples](https://flow.byu.edu/GXBeam.jl/dev/examples/#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment).
+By using the simplest possible shape functions (constant or linear shape functions), this package avoids using numerical quadrature except when integrating applied distributed loads (which can be pre-integrated).  As a result, element properties are approximated as constant throughout each beam element and a relatively large number of beam elements may be necessary to achieve grid-independent results.  More details about the convergence of this package may be found in the [examples](https://flow.byu.edu/GXBeam.jl/dev/examples/#Cantilever-with-a-Tip-Moment).
 
 This package does not currently model cross section warping, and therefore should not be used to model open cross sections (such as I, C, or L-beams).  The one exception to this rule is if the beam's width is much greater than its height, in which case the beam may be considered to be strip-like (like a helicopter blade).  
 
