@@ -368,10 +368,3 @@ write_vtk("static-joined-wing-visualization", assembly, nonlinear_follower_state
     sections = section)
 
 # ![](../assets/static-joined-wing-visualization.png)
-
-#md # Here's the complete example, without any comments. It is also available here:
-#md # [`static-joined-wing.jl`](static-joined-wing.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```

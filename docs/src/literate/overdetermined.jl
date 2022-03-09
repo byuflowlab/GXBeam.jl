@@ -171,10 +171,3 @@ nothing #hide
 
 # Note that we could have easily performed a nonlinear analysis for this problem by 
 # setting `linear=false`.
-
-#md # Here's the complete example, without any comments.  It is also available here:
-#md # [`overdetermined.jl`](overdetermined.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```

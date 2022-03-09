@@ -86,10 +86,3 @@ nothing #hide
 write_vtk("curved-visualization", assembly, state)
 
 # ![](../assets/curved-visualization.png)
-
-#md # Here's the complete example, without any comments. It is also available here:
-#md # [`curved.jl`](curved.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```

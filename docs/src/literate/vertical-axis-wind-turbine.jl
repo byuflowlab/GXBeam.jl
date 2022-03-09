@@ -580,10 +580,3 @@ state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditi
 write_vtk("vawt-simulation", assembly, state)
 
 # ![](../assets/vawt-simulation.gif)
-
-#md # Here's the complete example, without any comments.  It is also available here:
-#md # [`vertical-axis-wind-turbine.jl`](vertical-axis-wind-turbine.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```

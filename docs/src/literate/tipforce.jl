@@ -139,12 +139,3 @@ plot!(show=true)
 nothing #hide
 
 #md # ![](../assets/tipforce-displacement.svg)
-
-#- 
-
-#md # Here's the complete example, without any comments.  It is also available here:
-#md # [`tipforce.jl`](tipforce.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```

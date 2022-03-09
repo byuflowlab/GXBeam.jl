@@ -307,10 +307,3 @@ write_vtk("dynamic-joined-wing-simulation", assembly, history, t, scaling=1e2;
     sections = section)
  
 # ![](../assets/dynamic-joined-wing-simulation.gif)
-
-#md # Here's the complete example, without any comments.  It is also available here:
-#md # [`dynamic-joined-wing.jl`](dynamic-joined-wing.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```
