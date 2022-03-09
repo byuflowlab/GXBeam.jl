@@ -123,7 +123,7 @@ t = range(0, 0.04, length=1001)
 system, history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions=prescribed_conditions)
 
-nothing #hide
+#!jl nothing #hide
 
 # We can visualize tip displacements and the resultant forces accessing the post-processed 
 # results for each time step contained in the variable `history`.  Note that the fore-root 
@@ -146,9 +146,11 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
     "\$F_y\$ at the forewing root (\$N\$)", "\$F_z\$ at the forewing root (\$N\$)",
     "\$M_x\$ at the forewing root (\$Nm\$)", "\$M_y\$ at the forewing root (\$Nm\$)",
     "\$M_z\$ at the forewing root (\$N\$)"]
+#nb ph = Vector{Any}(undef, 12)
 
 for i = 1:12
-    plot(
+#nb     ph[i] = plot(
+#!nb     plot(
         xlim = (0, 0.04),
         xticks = 0:0.01:0.04,
         xlabel = "Time (s)",
@@ -168,14 +170,51 @@ for i = 1:12
     end
 
     plot!(t, y, label="")
-    plot!(show=true)
+#!nb     plot!(show=true)
 #md     savefig("../assets/dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); #hide 
 #md     closeall() #hide
-#md     nothing #hide
 end
 
+#nb ph[1]
+#nb #-
+#nb ph[2]
+#nb #-
+#nb ph[3]
+#nb #-
+#nb ph[4]
+#nb #-
+#nb ph[5]
+#nb #-
+#nb ph[6]
+#nb #-
+#nb ph[7]
+#nb #-
+#nb ph[8]
+#nb #-
+#nb ph[9]
+#nb #-
+#nb ph[10]
+#nb #-
+#nb ph[11]
+#nb #-
+#nb ph[12]
+#nb #-
+
 #md end #hide
-nothing #hide
+#md nothing #hide
+
+#md # ![](../assets/dynamic-joined-wing-u1.svg)
+#md # ![](../assets/dynamic-joined-wing-u2.svg)
+#md # ![](../assets/dynamic-joined-wing-u3.svg)
+#md # ![](../assets/dynamic-joined-wing-theta1.svg)
+#md # ![](../assets/dynamic-joined-wing-theta2.svg)
+#md # ![](../assets/dynamic-joined-wing-theta3.svg)
+#md # ![](../assets/dynamic-joined-wing-F1.svg)
+#md # ![](../assets/dynamic-joined-wing-F2.svg)
+#md # ![](../assets/dynamic-joined-wing-F3.svg)
+#md # ![](../assets/dynamic-joined-wing-M1.svg)
+#md # ![](../assets/dynamic-joined-wing-M2.svg)
+#md # ![](../assets/dynamic-joined-wing-M3.svg)
 
 #md # ![](../assets/dynamic-joined-wing-u1.svg)
 #md # ![](../assets/dynamic-joined-wing-u2.svg)

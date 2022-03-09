@@ -60,7 +60,7 @@ t = 0:0.001:2.0
 system, history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions)
 
-nothing #hide
+#!jl nothing #hide
 
 # We can visualize tip displacements and the resultant forces in the root by accessing 
 # the post-processed results for each time step contained in the variable `history`.  
@@ -83,12 +83,14 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
     "Rodriguez Parameter \$\\theta_z\$ (degree)",
     "\$F_x\$ (\$N\$)", "\$F_y\$ (\$N\$)", "\$F_z\$ (\$N\$)",
     "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
+#nb ph = Vector{Any}(undef, 12)
 
 for i = 1:12
 
     local y
 
-    plot(
+#nb    ph[i] = plot(
+#!nb    plot(
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
         xlabel = "Time (s)",
@@ -111,13 +113,38 @@ for i = 1:12
     end
 
     plot!(t, y, label="")
-    plot!(show=true)
+#!nb     plot!(show=true)
 #md     savefig("../assets/wind-turbine-blade-"*string(field[i])*string(direction[i])*".svg"); #hide
 #md     closeall() #hide
 end 
 
 #md end #hide
-nothing #hide
+#md nothing #hide
+
+#nb ph[1]
+#nb #-
+#nb ph[2]
+#nb #-
+#nb ph[3]
+#nb #-
+#nb ph[4]
+#nb #-
+#nb ph[5]
+#nb #-
+#nb ph[6]
+#nb #-
+#nb ph[7]
+#nb #-
+#nb ph[8]
+#nb #-
+#nb ph[9]
+#nb #-
+#nb ph[10]
+#nb #-
+#nb ph[11]
+#nb #-
+#nb ph[12]
+#nb #-
 
 #md # ![](../assets/wind-turbine-blade-u1.svg)
 #md # ![](../assets/wind-turbine-blade-u2.svg)

@@ -59,7 +59,7 @@ system, converged = static_analysis(assembly;
 ## post-process the results
 state = AssemblyState(system, assembly;
     prescribed_conditions = prescribed_conditions)
-nothing #hide
+#!jl nothing #hide
 
 
 # An analytical solution to this over-determined problem can be found using the method of 
@@ -76,7 +76,7 @@ theta_a = -atan.(slope_a)
 
 ## adjust coordinate system of analytical solution
 M_a = -M_a
-nothing #hide
+#!jl nothing #hide
 
 # Plotting the results reveals that the analytical and computational solutions show 
 # excellent agreement.
@@ -84,7 +84,7 @@ nothing #hide
 using Plots
 #md using Suppressor #hide
 pyplot()
-nothing #hide
+#!jl nothing #hide
 
 #-
 
@@ -105,11 +105,11 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
 deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, w_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/overdetermined-linear-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/overdetermined-linear-deflection.svg)
 
@@ -133,11 +133,11 @@ theta = [4*atan.(state.points[ipoint].theta[2]/4)
     for ipoint = 1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/overdetermined-angular-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/overdetermined-angular-deflection.svg)
 
@@ -160,11 +160,11 @@ x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem =
 M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
-plot!(show=true) 
+#!nb plot!(show=true)
 #md savefig("../assets/overdetermined-bending-moment.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 
 #md # ![](../assets/overdetermined-bending-moment.svg)

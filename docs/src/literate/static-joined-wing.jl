@@ -203,7 +203,7 @@ for i = 1:length(Fz)
 
 end
 
-nothing #hide
+#!jl nothing #hide
 
 # Note that we incrementally increased the load from 0 to 70 kN in order to ensure that we 
 # obtained converged solutions.
@@ -237,11 +237,11 @@ uz_fnl = [nonlinear_follower_states[i].points[ijoint].u[3] for i = 1:length(Fz)]
 plot!(uz_l, Fz./1e3, label="Linear")
 plot!(uz_nl, Fz./1e3, label="Nonlinear with Dead Force")
 plot!(uz_fnl, Fz./1e3, label="Nonlinear with Follower Force")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/static-joined-wing-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/static-joined-wing-deflection.svg)
 

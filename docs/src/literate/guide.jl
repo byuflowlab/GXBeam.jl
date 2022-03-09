@@ -23,13 +23,13 @@
 import Pkg
 Pkg.add("GXBeam")
 #md end #hide
-nothing #hide
+#!jl nothing #hide
 
 # Now, that the package is installed we need to load it so that we can use it.  It's also 
 # often helpful to load the LinearAlgebra package.
 
 using GXBeam, LinearAlgebra
-nothing #hide
+#!jl nothing #hide
 
 # The geometry we will be working with is a rotating beam with a swept tip as pictured.
 # 
@@ -68,7 +68,7 @@ L_b1 = 31.5 # length of straight section of the beam in inches
 r_b1 = [2.5, 0, 0] # starting point of straight section of the beam
 nelem_b1 = 10 # number of elements in the straight section of the beam
 lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
-nothing #hide
+#!jl nothing #hide
 
 # The length of each beam element is equal since we used the number of elements to define 
 # the discretization.  Alternatively we can manually specify the discretization of the 
@@ -80,7 +80,7 @@ disc_b1 = range(0, 1, length=nelem_b1+1)
 ## discretize straight beam section
 lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, disc_b1)
 
-nothing #hide
+#!jl nothing #hide
 
 # We now create the geometry for the swept portion of the wing.  To do so we use the same 
 # [`discretize_beam`](@ref) function, but use the additional keyword argument `frame` in 
@@ -110,7 +110,7 @@ e3 = [0, 0, 1] # axis 3
 frame_b2 = hcat(e1, e2, e3) # transformation matrix from local to body frame
 lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
     frame = frame_b2)
-nothing #hide
+#!jl nothing #hide
 
 # We will now manually combine the results of our two calls to `discretize_beam`.  Since 
 # the last endpoint from the straight section is the same as the first endpoint of the 
@@ -125,7 +125,7 @@ lengths = vcat(lengths_b1, lengths_b2) # length of each beam element in our asse
 midpoints = vcat(xm_b1, xm_b2) # midpoint of each beam element in our assembly
 Cab = vcat(Cab_b1, Cab_b2) # transformation matrix from local to body frame
                            ## for each beam element in our assembly
-nothing #hide
+#!jl nothing #hide
 
 # Next we need to define the stiffness (or compliance) and mass matrices for each 
 # beam element.
@@ -249,7 +249,7 @@ compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
     1/(E*Izz)]), nelem)
 
 mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
-nothing #hide
+#!jl nothing #hide
 
 # Our case is simple enough that we can analytically calculate most values for the 
 # compliance and mass matrices, but this is not generally the case.  For more complex 
@@ -272,7 +272,7 @@ assembly = Assembly(points, start, stop;
    frames = Cab,
    lengths = lengths,
    midpoints = midpoints)
-nothing #hide
+#!jl nothing #hide
 
 # At this point this is probably a good time to check that the geometry of our assembly 
 # is correct.  We can do this by visualizing the geometry in ParaView.  We can use the 
@@ -346,7 +346,7 @@ point_masses = Dict(
     nelem => PointMass(m, p, J)
     )
 
-nothing #hide
+#!jl nothing #hide
 
 # ## Defining Distributed Loads
 # 
@@ -384,7 +384,7 @@ distributed_loads = Dict()
 for ielem in 1:nelem
     distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz = (s) -> 10)
 end
-nothing #hide
+#!jl nothing #hide
 
 # To instead use a follower force (a force that rotates with the structure) we would use 
 # the following code:
@@ -394,7 +394,7 @@ for ielem in 1:nelem
     distributed_loads[ielem] = DistributedLoads(assembly, ielem;
         fz_follower = (s) -> 10)
 end
-nothing #hide
+#!jl nothing #hide
 
 # The units are arbitrary, but must be consistent with the units used when constructing 
 # the beam assembly.  Also note that both non-follower and follower forces may exist 
@@ -443,7 +443,7 @@ prescribed_conditions = Dict(
     1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
     )
 
-nothing #hide
+#!jl nothing #hide
 
 # Note that most problems should have at least one point where deflections and/or 
 # rotations are constrained in order to be well-posed.
@@ -457,7 +457,7 @@ nothing #hide
 # assembly and a flag indicating whether the system is static.
 
 system = System(assembly, false)
-nothing #hide
+#!jl nothing #hide
 
 # ## Eliminating Unnecessary State Variables
 # 
@@ -467,7 +467,7 @@ nothing #hide
 # `prescribed_points` keyword.  
 
 system = System(assembly, false; prescribed_points=[1, nelem+1])
-nothing #hide
+#!jl nothing #hide
 
 # ## Performing a Steady State Analysis
 # 
@@ -517,7 +517,7 @@ for i = 1:length(rpm)
 
 end
 
-nothing #hide
+#!jl nothing #hide
 
 # ## Post Processing Results
 #
@@ -546,7 +546,7 @@ nothing #hide
 using Plots
 #md using Suppressor #hide
 pyplot()
-nothing #hide
+#!jl nothing #hide
 
 #-
 
@@ -566,11 +566,11 @@ Mz_nl = [-nonlinear_states[i].points[1].M[3] for i = 1:length(rpm)]
 Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
 plot!(rpm, Mz_nl, label="Nonlinear")
 plot!(rpm, Mz_l, label="Linear")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/guide-Mz.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/guide-Mz.svg)
 
@@ -593,11 +593,11 @@ ux_nl = [nonlinear_states[i].points[end].u[1] for i = 1:length(rpm)]
 ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
 plot!(rpm, ux_nl, label="Nonlinear")
 plot!(rpm, ux_l, label="Linear")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/guide-ux.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/guide-ux.svg)
 
@@ -620,11 +620,11 @@ uy_nl = [nonlinear_states[i].points[end].u[2] for i = 1:length(rpm)]
 uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
 plot!(rpm, uy_nl, label="Nonlinear")
 plot!(rpm, uy_l, label="Linear")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/guide-uy.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/guide-uy.svg)
 
@@ -648,11 +648,11 @@ theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
 
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/guide-theta_z.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/guide-theta_z.svg)
 

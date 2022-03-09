@@ -69,7 +69,7 @@ for i = 1:length(M)
 
 end
 
-nothing #hide
+#!jl nothing #hide
 
 # 
 # This problem has a simple analytical solution, which we obtained from "Study of the 
@@ -79,7 +79,7 @@ nothing #hide
 
 ## analytical solution (ρ = E*I/M)
 analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])
-nothing #hide
+#!jl nothing #hide
 
 #
 # Plotting the results reveals that the analytical and computational results show 
@@ -89,7 +89,7 @@ nothing #hide
 using Plots
 #md using Suppressor #hide
 pyplot()
-nothing #hide
+#!jl nothing #hide
 
 #- 
 
@@ -131,11 +131,11 @@ for i = 1:length(M)
     y = getindex.(deflection, 2)
     plot!(x/L, y/L, label="\$\\lambda\$=$(λ[i])", color=i)
 end
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("tipmoment-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 
 #md # ![](../assets/tipmoment-deflection.svg)
@@ -206,7 +206,7 @@ for (igrid, nelem) in enumerate(grid_sizes)
 
 end
 
-nothing #hide
+#!jl nothing #hide
 
 #- 
 
@@ -221,14 +221,14 @@ dy = [states[igrid].points[end].u[2] for igrid = 1:length(grid_sizes)]
 εx = abs.((dx .- dxa) ./ dxa)
 εy = abs.((dy .- dya) ./ dya)
 
-nothing #hide
+#!jl nothing #hide
 
 #-
 
 using Plots
 #md using Suppressor #hide
 pyplot()
-nothing #hide
+#!jl nothing #hide
 
 #-
 
@@ -247,10 +247,11 @@ p1 = plot(grid_sizes .+ 1, εx, label="",
     overwrite_figure=false,
     show=true)
 
+#!nb plot!(show=true)
 #md savefig("../assets/tipmoment-x-convergence.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/tipmoment-x-convergence.svg)
 
@@ -271,10 +272,11 @@ p2 = plot(grid_sizes .+ 1, εy, label="",
     overwrite_figure=false,
     show=true)
 
+#!nb plot!(show=true)
 #md savefig("../assets/tipmoment-y-convergence.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/tipmoment-y-convergence.svg)
 

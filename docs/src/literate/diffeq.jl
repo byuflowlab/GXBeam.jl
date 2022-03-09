@@ -37,12 +37,6 @@
 # We start by setting up the problem as if we were solving the problem using GXBeam's 
 # internal solver.
 
-#md # ```@setup diffeq
-#md # # this is placed here to pre-install matplotlib
-#md # using Plots
-#md # pyplot()
-#md # ```
-
 using GXBeam, LinearAlgebra
 
 L = 60 # m
@@ -91,7 +85,7 @@ prescribed_conditions = (t) -> begin
     )
 end
 
-nothing #hide
+#!jl nothing #hide
 
 # At this point if we wanted to use GXBeam's internal solver, we would choose a time 
 # discretization and call the `time_domain_analysis` function.
@@ -102,7 +96,7 @@ t = 0:0.001:2.0
 system, gxbeam_history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions)
 
-nothing #hide
+#!jl nothing #hide
 
 # To instead use the capabilities of the DifferentialEquations package we can do the 
 # following.
@@ -121,7 +115,7 @@ prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
 ## solve DAEProblem
 sol = solve(prob, DABDF2())
 
-nothing #hide
+#!jl nothing #hide
 
 # We can extract the outputs from the solution in a easy to understand format using the 
 # [`AssemblyState`](@ref) constructor.
@@ -129,7 +123,7 @@ nothing #hide
 diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions)
     for it in eachindex(sol)]
 
-nothing #hide
+#!jl nothing #hide
 
 # Let's now compare the solutions from GXBeam's internal solver and the `DABDF2` solver 
 # from DifferentialEquations.
@@ -149,10 +143,12 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
     "Rodriguez Parameter \$\\theta_z\$ (degree)",
     "\$F_x\$ (\$N\$)", "\$F_y\$ (\$N\$)", "\$F_z\$ (\$N\$)",
     "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
+#nb ph = Vector{Any}(undef, 12)
 
 for i = 1:12
-    local y #hide
-    plot(
+    #md local y #hide
+#nb    ph[i] = plot(
+#!nb    plot(
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
         xlabel = "Time (s)",
@@ -182,13 +178,38 @@ for i = 1:12
 
     plot!(t, y_gxbeam, label="GXBeam")
     plot!(sol.t, y_diffeq, label="DifferentialEquations")
-    plot!(show=true)
+#!nb     plot!(show=true)
 #md     savefig("../assets/diffeq-"*string(field[i])*string(direction[i])*".svg"); #hide
 #md     closeall() #hide
 end
 
 #md end #hide
-nothing #hide
+#md nothing #hide
+
+#nb ph[1]
+#nb #-
+#nb ph[2]
+#nb #-
+#nb ph[3]
+#nb #-
+#nb ph[4]
+#nb #-
+#nb ph[5]
+#nb #-
+#nb ph[6]
+#nb #-
+#nb ph[7]
+#nb #-
+#nb ph[8]
+#nb #-
+#nb ph[9]
+#nb #-
+#nb ph[10]
+#nb #-
+#nb ph[11]
+#nb #-
+#nb ph[12]
+#nb #-
 
 #md # ![](../assets/diffeq-u1.svg)
 #md # ![](../assets/diffeq-u2.svg)

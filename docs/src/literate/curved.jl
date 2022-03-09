@@ -74,8 +74,6 @@ state = AssemblyState(system, assembly;
 println("Tip Displacement: ", state.points[end].u)
 println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
 
-nothing #hide
-
 # The calculated tip displacements match those reported by Bathe and Bolourch in "Large 
 # Displacement Analysis of Three-Dimensional Beam Structures" closely, thus verifying our 
 # implementation of geometrically exact beam theory.

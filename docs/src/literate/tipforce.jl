@@ -64,7 +64,7 @@ for i = 1:length(P)
 
 end
 
-nothing #hide
+#!jl nothing #hide
 
 # 
 # The analytical solution to this problem has been presented by several authors.  Here 
@@ -85,7 +85,7 @@ k = @. cos(pi/4)/sin(δ)
 
 η_a = @. 1-2/sqrt(λ_a)*(Elliptic.E(pi/2, k^2) - Elliptic.E(δ, k^2))
 
-nothing #hide
+#!jl nothing #hide
 
 #
 # Plotting the results reveals that the analytical and computational solutions show 
@@ -95,7 +95,7 @@ nothing #hide
 using Plots
 #md using Suppressor #hide
 pyplot()
-nothing #hide
+#!jl nothing #hide
 
 #-
 
@@ -132,10 +132,10 @@ scatter!(λ, -u/L, color=2, label="")
 plot!(λ_a, θ_a*2/pi, color=3, label="")
 scatter!(λ, -4*atan.(θ/4)*2/pi, color=3, label="")
 
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/tipforce-displacement.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/tipforce-displacement.svg)

@@ -120,7 +120,7 @@ nothing ##hide
 using Plots
 #md using Suppressor #hide
 pyplot()
-nothing #hide
+#!jl nothing #hide
 
 #-
 
@@ -140,11 +140,11 @@ Mz_nl = [-nonlinear_states[i].points[1].M[3] for i = 1:length(rpm)]
 Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
 plot!(rpm, Mz_nl, label="Nonlinear")
 plot!(rpm, Mz_l, label="Linear")
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/rotating-Mz.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/rotating-Mz.svg)
 
@@ -167,12 +167,12 @@ ux_nl = [nonlinear_states[i].points[end].u[1] for i = 1:length(rpm)]
 ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
 plot!(rpm, ux_nl, label="Nonlinear")
 plot!(rpm, ux_l, label="Linear")
-plot!(show=true)
 
+#!nb plot!(show=true)
 #md savefig("../assets/rotating-ux.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/rotating-ux.svg)
 
@@ -195,12 +195,12 @@ uy_nl = [nonlinear_states[i].points[end].u[2] for i = 1:length(rpm)]
 uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
 plot!(rpm, uy_nl, label="Nonlinear")
 plot!(rpm, uy_l, label="Linear")
-plot!(show=true)
 
+#!nb plot!(show=true)
 #md savefig("../assets/rotating-uy.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/rotating-uy.svg)
 
@@ -224,12 +224,12 @@ theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
 
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
-plot!(show=true)
 
+#!nb plot!(show=true)
 #md savefig("../assets/rotating-theta_z.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/rotating-theta_z.svg)
 
@@ -323,7 +323,7 @@ for i = 1:length(sweep)
     end
 end
 
-nothing #hide
+#!jl nothing #hide
 
 #
 # We can correlate each eigenmode by taking advantage of the fact that left and right 
@@ -363,7 +363,7 @@ end
 frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)]
     for k = 1:2:nev]
 
-nothing #hide
+#!jl nothing #hide
 
 # In this case these eigenmode correlations work, but remember that large changes in the 
 # underlying parameters (or just drastic changes in the eigenvectors themselves due to a 
@@ -390,14 +390,16 @@ experiment_frequencies = [
      47.0 44.4 39.3 35.1;
      62.9 55.9 48.6 44.8]
 ]
-nothing #hide
+#!jl nothing #hide
 
 #-
 
 #md @suppress_err begin #hide
+#nb ph = Vector{Any}(undef, 3)
 
-for k = 1:length(indices)
-    plot(
+for k = 1:3
+#nb     ph[k] = plot(
+#!nb     plot(
         title = names[k],
         xticks = 0:15:45,
         xlabel = "Sweep Angle (degrees)",
@@ -417,12 +419,19 @@ for k = 1:length(indices)
             label="", color=j)
     end
 
-    plot!(show=true)
+#!nb     plot!(show=true)
 #md savefig("../assets/rotating-frequencies-$(k).svg") #hide
 #md closeall() #hide
 end
 #md end #hide
-nothing #hide
+#md nothing #hide
+
+#nb ph[1]
+#nb #-
+#nb ph[2]
+#nb #-
+#nb ph[3]
+#nb #-
 
 #md # ![](../assets/rotating-frequencies-1.svg)
 #md # ![](../assets/rotating-frequencies-2.svg)
@@ -460,11 +469,11 @@ for k = 1:length(indices)
     plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
     scatter!(experiment_sweep, experiment_frequencies[k,:], label="", color=k)
 end
-plot!(show=true)
+#!nb plot!(show=true)
 #md savefig("../assets/rotating-frequencies-4.svg"); 
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/rotating-frequencies-4.svg)
 

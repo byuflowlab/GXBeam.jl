@@ -561,12 +561,12 @@ end
 ## Add legend entries
 plot!([0], [0], color=:black, label="Experimental")
 plot!([0], [0], color=:red, label="GXBeam")
-plot!(show=true)
 
+#!nb plot!(show=true)
 #md savefig("../assets/vawt-stability.svg") #hide
 #md closeall() #hide
 #md end #hide
-nothing #hide
+#md nothing #hide
 
 #md # ![](../assets/vawt-stability.svg)
 
