@@ -89,6 +89,7 @@ nothing #hide
 #-
 
 #md @suppress_err begin #hide
+#md local x #hide
 
 plot(
     xlim = (0.0, 1.0),
@@ -115,6 +116,7 @@ nothing #hide
 #- 
 
 #md @suppress_err begin #hide
+#md local x #hide
 
 plot(
     xlim = (0.0, 1.0),
@@ -142,6 +144,7 @@ nothing #hide
 #-
 
 #md @suppress_err begin #hide
+#md local x #hide
 
 plot(
     xlim = (0.0, 1.0),

@@ -97,6 +97,7 @@ nothing #hide
 #-
 
 #md @suppress_err begin #hide
+#md local x #hide
 
 ## deflection plot
 plot(
@@ -125,6 +126,7 @@ nothing #hide
 #- 
 
 #md @suppress_err begin #hide
+#md local x #hide
 
 ## elastic twist plot (euler angle)
 plot(
@@ -153,6 +155,7 @@ nothing #hide
 #- 
 
 #md @suppress_err begin #hide
+#md local x #hide
 
 ## bending moment plot
 plot(

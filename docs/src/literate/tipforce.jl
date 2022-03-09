@@ -133,7 +133,7 @@ plot!(λ_a, θ_a*2/pi, color=3, label="")
 scatter!(λ, -4*atan.(θ/4)*2/pi, color=3, label="")
 
 plot!(show=true)
-#md savefig("../assets/tipforce-displacement.svg"); 
+#md savefig("../assets/tipforce-displacement.svg") #hide
 #md closeall() #hide
 #md end #hide
 nothing #hide

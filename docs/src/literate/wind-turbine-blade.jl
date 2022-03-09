@@ -223,11 +223,3 @@ end
 write_vtk("wind-turbine-blade-simulation", assembly, history, t; sections = sections)
 
 # ![](../assets/wind-turbine-blade-simulation.gif)
-
-#md #
-#md # Here's the complete example, without any comments. It is also available here:
-#md # [`wind-turbine-blade.jl`](wind-turbine-blade.jl).
-#md #
-#md # ```julia
-#md # @__CODE__
-#md # ```

@@ -114,6 +114,9 @@ plot!([], [], color=:black, label="Analytical")
 
 ## plot the data
 for i = 1:length(M)
+    
+    local x, y
+
     ## GXBeam
     x = [assembly.points[ipoint][1] + states[i].points[ipoint].u[1] for ipoint =
         1:length(assembly.points)]
@@ -244,7 +247,7 @@ p1 = plot(grid_sizes .+ 1, εx, label="",
     overwrite_figure=false,
     show=true)
 
-#md savefig("tipmoment-x-convergence.svg") #hide
+#md savefig("../assets/tipmoment-x-convergence.svg") #hide
 #md closeall() #hide
 #md end #hide
 nothing #hide
@@ -268,7 +271,7 @@ p2 = plot(grid_sizes .+ 1, εy, label="",
     overwrite_figure=false,
     show=true)
 
-#md savefig("tipmoment-y-convergence.svg") #hide
+#md savefig("../assets/tipmoment-y-convergence.svg") #hide
 #md closeall() #hide
 #md end #hide
 nothing #hide
