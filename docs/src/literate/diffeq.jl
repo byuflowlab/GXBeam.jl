@@ -309,4 +309,4 @@ end
 
 write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, sol.t; sections = sections)
 
-# ![](../assets/dynamic-wind-turbine-simulation.gif)
+# ![](../assets/wind-turbine-blade-simulation.gif)
