@@ -1,7 +1,5 @@
 using Documenter, Literate, GXBeam
 
-const is_ci = haskey(ENV, "GITHUB_ACTIONS")
-
 # Pre-install matplotlib
 import Plots; Plots.pyplot()
 
