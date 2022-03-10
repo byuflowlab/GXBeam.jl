@@ -1,52 +1,58 @@
-# Using GXBeam with DifferentialEquations.jl
+# # [Using GXBeam with DifferentialEquations.jl](@id diffeq)
+#
+# While the capabilities provided by GXBeam are probably sufficient for most users, 
+# advanced users may wish to make use of some of the features of the 
+# [`DifferentialEquations`](https://github.com/SciML/DifferentialEquations.jl) package.  
+# For this reason, we have created an interface in GXBeam to allow users to model the 
+# differential algebraic equations encountered in GXBeam in DifferentialEquations.
+#
+#md # ```@contents
+#md # Pages = ["diffeq.md"]
+#md # Depth = 3
+#md # ```
+#
+#-
+#md # !!! tip
+#md #     This guide is also available as a Jupyter notebook:
+#md #     [`diffeq.ipynb`](@__NBVIEWER_ROOT_URL__/examples/diffeq.ipynb).
+#-
+# 
+# ## Interface Functions
+#
+# The following constructors are available for modeling the differential algebraic 
+# equations from GXBeam in DifferentialEquations.
+#
+# ```@docs
+# GXBeam.ODEFunction(system::System, assembly; kwargs...)
+# GXBeam.ODEProblem(system::System, assembly, tspan; kwargs...)
+# GXBeam.DAEFunction(system::System, assembly; kwargs...)
+# GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
+# ```
+#
+# ## Example Usage
+#
+# For this example we demonstrate how to solve the [Nonlinear Dynamic Analysis of a Wind 
+# Turbine Blade](@ref) problem using DifferentialEquations.
+# 
+# We start by setting up the problem as if we were solving the problem using GXBeam's 
+# internal solver.
 
-While the capabilities provided by GXBeam are probably sufficient for most users, advanced users may wish to make use of some of the features of the [`DifferentialEquations`](https://github.com/SciML/DifferentialEquations.jl) package.  For this reason, we have created an interface in GXBeam to allow users to model the differential algebraic equations encountered in GXBeam in DifferentialEquations.
-
-```@contents
-Pages = ["diffeq.md"]
-Depth = 3
-```
-
-## Interface Functions
-
-The following constructors are available for modeling the differential algebraic equations from GXBeam in DifferentialEquations.
-
-```@docs
-GXBeam.ODEFunction(system::System, assembly; kwargs...)
-GXBeam.ODEProblem(system::System, assembly, tspan; kwargs...)
-GXBeam.DAEFunction(system::System, assembly; kwargs...)
-GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
-```
-
-## Example Usage
-
-For this example we demonstrate how to solve the [Nonlinear Dynamic Analysis of a Wind Turbine Blade](@ref) problem using DifferentialEquations.
-
-We start by setting up the problem as if we were solving the problem using GXBeam's internal solver.
-
-```@setup diffeq
-# this is placed here to pre-install matplotlib so the documentation doesn't get cluttered with the installation print statements.
-using Plots
-pyplot()
-```
-
-```@example diffeq
 using GXBeam, LinearAlgebra
 
 L = 60 # m
 
-# create points
+## create points
 nelem = 10
 x = range(0, L, length=nelem+1)
 y = zero(x)
 z = zero(x)
 points = [[x[i],y[i],z[i]] for i = 1:length(x)]
 
-# index of endpoints of each beam element
+## index of endpoints of each beam element
 start = 1:nelem
 stop = 2:nelem+1
 
-# stiffness matrix for each beam element
+## stiffness matrix for each beam element
 stiffness = fill(
     [2.389e9  1.524e6  6.734e6 -3.382e7 -2.627e7 -4.736e8
      1.524e6  4.334e8 -3.741e6 -2.935e5  1.527e7  3.835e5
@@ -56,7 +62,7 @@ stiffness = fill(
     -4.736e8  3.835e5 -4.742e6  1.430e6  1.209e7  4.406e8],
     nelem)
 
-# mass matrix for each beam element
+## mass matrix for each beam element
 mass = fill(
     [258.053      0.0        0.0      0.0      7.07839  -71.6871
        0.0      258.053      0.0     -7.07839  0.0        0.0
@@ -66,69 +72,67 @@ mass = fill(
      -71.6871     0.0        0.0      0.0      0.0       46.418],
      nelem)
 
-# create assembly of interconnected nonlinear beams
+## create assembly of interconnected nonlinear beams
 assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
 
-# prescribed conditions
+## prescribed conditions
 prescribed_conditions = (t) -> begin
     Dict(
-        # fixed left side
+        ## fixed left side
         1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-        # force on right side
+        ## force on right side
         nelem+1 => PrescribedConditions(Fz = 1e5*sin(20*t))
     )
 end
 
-nothing #hide
-```
+#!jl nothing #hide
 
-At this point if we wanted to use GXBeam's internal solver, we would choose a time discretization and call the `time_domain_analysis` function.
+# At this point if we wanted to use GXBeam's internal solver, we would choose a time 
+# discretization and call the `time_domain_analysis` function.
 
-```@example diffeq
-# simulation time
+## simulation time
 t = 0:0.001:2.0
 
 system, gxbeam_history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions)
 
-nothing #hide
-```
+#!jl nothing #hide
 
-To instead use the capabilities of the DifferentialEquations package we can do the following.
+# To instead use the capabilities of the DifferentialEquations package we can do the 
+# following.
 
-```@example diffeq
 using DifferentialEquations
 
-# define simulation time
+## define simulation time
 tspan = (0.0, 2.0)
 
-# run initial condition analysis to get consistent set of initial conditions
+## run initial condition analysis to get consistent set of initial conditions
 system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
 
-# construct DAE as ODEProblem with non-constant mass matrix
-prob = ODEProblem(system, assembly, tspan; prescribed_conditions)
+## construct a DAEProblem
+prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
 
-# solve ODEProblem
-sol = solve(prob, Rodas4())
+## solve DAEProblem
+sol = solve(prob, DABDF2())
 
-nothing #hide
-```
+#!jl nothing #hide
 
-We can extract the outputs from the solution in a easy to understand format using the [`AssemblyState`](@ref) constructor.
-
-```@example diffeq
+# We can extract the outputs from the solution in a easy to understand format using the 
+# [`AssemblyState`](@ref) constructor.
 
 diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions)
     for it in eachindex(sol)]
 
-nothing #hide
-```
+#!jl nothing #hide
 
-Let's now compare the solutions from GXBeam's internal solver and the `Rodas4` solver from DifferentialEquations.
+# Let's now compare the solutions from GXBeam's internal solver and the `DABDF2` solver 
+# from DifferentialEquations.
 
-```@example diffeq
 using Plots
+#md using Suppressor #hide
 pyplot()
+
+#md @suppress_err begin #hide
 
 point = vcat(fill(nelem+1, 6), fill(1, 6))
 field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
@@ -139,10 +143,12 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
     "Rodriguez Parameter \$\\theta_z\$ (degree)",
     "\$F_x\$ (\$N\$)", "\$F_y\$ (\$N\$)", "\$F_z\$ (\$N\$)",
     "\$M_x\$ (\$Nm\$)", "\$M_y\$ (\$Nm\$)", "\$M_z\$ (\$N\$)"]
+#nb ph = Vector{Any}(undef, 12)
 
 for i = 1:12
-    local y #hide
-    plot(
+    #md local y #hide
+#nb    ph[i] = plot(
+#!nb    plot(
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
         xlabel = "Time (s)",
@@ -157,10 +163,10 @@ for i = 1:12
         for state in diffeq_history]
 
     if field[i] == :theta
-        # convert to Rodriguez parameter
+        ## convert to Rodriguez parameter
         @. y_gxbeam = 4*atan(y_gxbeam/4)
         @. y_diffeq = 4*atan(y_diffeq/4)
-        # convert to degrees
+        ## convert to degrees
         @. y_gxbeam = rad2deg(y_gxbeam)
         @. y_diffeq = rad2deg(y_diffeq)
     end
@@ -172,27 +178,55 @@ for i = 1:12
 
     plot!(t, y_gxbeam, label="GXBeam")
     plot!(sol.t, y_diffeq, label="DifferentialEquations")
-    plot!(show=true)
-    savefig(joinpath("assets","dynamic-wind-turbine-diffeq-"*string(field[i])*string(direction[i])*".svg")); nothing #hide
+#!nb     plot!(show=true)
+#md     savefig("../assets/diffeq-"*string(field[i])*string(direction[i])*".svg"); #hide
+#md     closeall() #hide
 end
-```
 
-![](assets/dynamic-wind-turbine-diffeq-u1.svg)
-![](assets/dynamic-wind-turbine-diffeq-u2.svg)
-![](assets/dynamic-wind-turbine-diffeq-u3.svg)
-![](assets/dynamic-wind-turbine-diffeq-theta1.svg)
-![](assets/dynamic-wind-turbine-diffeq-theta2.svg)
-![](assets/dynamic-wind-turbine-diffeq-theta3.svg)
-![](assets/dynamic-wind-turbine-diffeq-F1.svg)
-![](assets/dynamic-wind-turbine-diffeq-F2.svg)
-![](assets/dynamic-wind-turbine-diffeq-F3.svg)
-![](assets/dynamic-wind-turbine-diffeq-M1.svg)
-![](assets/dynamic-wind-turbine-diffeq-M2.svg)
-![](assets/dynamic-wind-turbine-diffeq-M3.svg)
+#md end #hide
+#md nothing #hide
 
-As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely with each other.
+#nb ph[1]
+#nb #-
+#nb ph[2]
+#nb #-
+#nb ph[3]
+#nb #-
+#nb ph[4]
+#nb #-
+#nb ph[5]
+#nb #-
+#nb ph[6]
+#nb #-
+#nb ph[7]
+#nb #-
+#nb ph[8]
+#nb #-
+#nb ph[9]
+#nb #-
+#nb ph[10]
+#nb #-
+#nb ph[11]
+#nb #-
+#nb ph[12]
+#nb #-
 
-```julia
+#md # ![](../assets/diffeq-u1.svg)
+#md # ![](../assets/diffeq-u2.svg)
+#md # ![](../assets/diffeq-u3.svg)
+#md # ![](../assets/diffeq-theta1.svg)
+#md # ![](../assets/diffeq-theta2.svg)
+#md # ![](../assets/diffeq-theta3.svg)
+#md # ![](../assets/diffeq-F1.svg)
+#md # ![](../assets/diffeq-F2.svg)
+#md # ![](../assets/diffeq-F3.svg)
+#md # ![](../assets/diffeq-M1.svg)
+#md # ![](../assets/diffeq-M2.svg)
+#md # ![](../assets/diffeq-M3.svg)
+
+# As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely 
+# with each other.
+
 root_chord = 1.9000
 tip_chord =  0.4540
 airfoil = [ # MH-104
@@ -274,6 +308,5 @@ for ip = 1:length(points)
 end
 
 write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, sol.t; sections = sections)
-```
 
-![](assets/dynamic-wind-turbine.gif)
+# ![](../assets/wind-turbine-blade-simulation.gif)

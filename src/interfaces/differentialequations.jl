@@ -4,6 +4,9 @@
 Construct a `ODEProblem` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
 
+**Note that this function defines a non-constant mass matrix, which is not directly 
+supported by DifferentialEquations.jl.  This function is therefore experimental**
+
 Keyword Arguments:
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
         A dictionary with keys corresponding to the points at
@@ -64,6 +67,9 @@ end
 
 Construct a `ODEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
+
+**Note that this function defines a non-constant mass matrix, which is not directly 
+supported by DifferentialEquations.jl.  This function is therefore experimental**
 
 The parameters associated with the resulting ODEFunction are defined by the tuple
 `(prescribed_conditions, distributed_loads, point_masses, origin, linear_velocity, 
@@ -184,7 +190,7 @@ function SciMLBase.ODEFunction(system::System, assembly)
     # TODO: figure out how to use a sparse matrix here.
     # It's failing with a singular exception during the LU factorization.
 
-    return SciMLBase.ODEFunction{true,true}(f; mass_matrix, jac, jac_prototype, sparsity)
+    return SciMLBase.ODEFunction{true,true}(f; mass_matrix, jac)
 end
 
 """
@@ -378,7 +384,7 @@ function SciMLBase.DAEFunction(system::System, assembly)
     # It's failing with a singular exception during the LU factorization.
     # Using `jac_prototype` also causes errors
 
-    return SciMLBase.DAEFunction{true,true}(f; jac, sparsity)
+    return SciMLBase.DAEFunction{true,true}(f) # TODO: re-add jacobian here once supported
 end
 
 function get_differential_vars(system::System, assembly::Assembly)
