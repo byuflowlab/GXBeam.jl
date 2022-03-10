@@ -16,14 +16,9 @@
 #md #     [`guide.ipynb`](@__NBVIEWER_ROOT_URL__/examples/guide.ipynb).
 #-
 #
-# If you haven't yet, now would be a good time to install GXBeam.
-
-#md using Suppressor #hide
-#md @suppress_err begin #hide
-import Pkg
-Pkg.add("GXBeam")
-#md end #hide
-#!jl nothing #hide
+# If you haven't yet, now would be a good time to install GXBeam.  It can be 
+# installed from the Julia REPL by typing `]` (to enter the package manager) and then 
+# running `add GXBeam`.
 
 # Now, that the package is installed we need to load it so that we can use it.  It's also 
 # often helpful to load the LinearAlgebra package.
