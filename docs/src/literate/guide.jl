@@ -660,5 +660,4 @@ plot!(rpm, theta_z_l, label="Linear")
 
 # ## Other Capabilities
 # 
-# For information on how to use the other capabilities of this package see the other 
-# examples and/or the [Public API](@ref).
+# For information on how to use the other capabilities of this package see the examples or the [Public API](@ref).
