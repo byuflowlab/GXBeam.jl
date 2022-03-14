@@ -817,14 +817,36 @@ function initial_condition_analysis!(system, assembly, t0;
     # save states and state rates
     for ielem = 1:nelem
         icol = icol_elem[ielem]
-        # save state rates
-        udot[ielem] = udot0[ielem]
-        θdot[ielem] = thetadot0[ielem]
-        Vdot[ielem] = SVector(x[icol], x[icol+1], x[icol+2])
-        Ωdot[ielem] = SVector(x[icol+3], x[icol+4], x[icol+5])
-        # restore original state vector
-        x[icol:icol+2] .= u0[ielem]
-        x[icol+3:icol+5] .= theta0[ielem]
+
+        ΔL = assembly.elements[ielem].L
+        compliance = assembly.elements[ielem].compliance
+        mass = assembly.elements[ielem].mass
+        Cab = assembly.elements[ielem].Cab
+
+        compliance *= ΔL
+        mass *= ΔL
+
+        if haskey(point_masses, ielem)
+            mass += transform_properties(point_masses[ielem].mass, Cab)
+        end
+
+        if iszero(mass)
+            # save state rates
+            udot[ielem] = udot0[ielem]
+            θdot[ielem] = thetadot0[ielem]
+            Vdot[ielem] = @SVector zeros(3)
+            Ωdot[ielem] = @SVector zeros(3)
+        else
+            # save state rates
+            udot[ielem] = udot0[ielem]
+            θdot[ielem] = thetadot0[ielem]
+            Vdot[ielem] = SVector(x[icol], x[icol+1], x[icol+2])
+            Ωdot[ielem] = SVector(x[icol+3], x[icol+4], x[icol+5])
+
+            # restore original state vector
+            x[icol:icol+2] .= u0[ielem]
+            x[icol+3:icol+5] .= theta0[ielem]
+        end
     end
 
     return system, converged
