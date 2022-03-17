@@ -132,7 +132,7 @@ for i = 1:length(M)
     plot!(x/L, y/L, label="\$\\lambda\$=$(λ[i])", color=i)
 end
 #!nb plot!(show=true)
-#md savefig("tipmoment-deflection.svg") #hide
+#md savefig("../assets/tipmoment-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
 #md nothing #hide
