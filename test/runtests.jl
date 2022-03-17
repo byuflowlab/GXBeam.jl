@@ -1591,3 +1591,57 @@ end
         prescribed_conditions=prescribed_conditions, nev = 20)
 
 end
+
+@testset "Massless Element Time Domain Initialization" begin
+
+    comp = Symmetric([
+        6.00001e-6  0.0         0.0          7.25923e-7  -8.1452e-7    0.0001;
+        0.0         3.33333e-7  0.0          0.0          0.0          0.0;
+        0.0         0.0         3.33333e-7   0.0          0.0          0.0;
+        7.25923e-7  0.0         0.0          0.142898    -0.00285808   1.31466e-5;
+       -8.1452e-7   0.0         0.0         -0.00285808   0.200057    -2.0263e-5;
+        0.0001      0.0         0.0          1.31466e-5  -2.0263e-5    0.002;
+        ])
+    
+    mass = Symmetric([
+        0.02    0.0      0.0     0.0      -5.0e-7  -1.0e-7;
+        0.0     0.02     0.0     5.0e-7    0.0      0.0001;
+        0.0     0.0      0.02    1.0e-7   -0.0001   0.0;
+        0.0     5.0e-7   1.0e-7  1.0e-5    1.0e-8   2.0e-10;
+       -5.0e-7  0.0     -0.0001  1.0e-8    6.0e-7   9.0e-9;
+       -1.0e-7  0.0001   0.0     2.0e-10   9.0e-9   1.0e-5;
+        ])
+    
+    nodes = [[0,i,0] for i in 0:.1:1]
+    
+    nElements = length(nodes)-1
+    start = 1:nElements
+    stop =  2:nElements+1
+    transformation = [[0 -1 0; 1 0 0; 0 0 1] for _ in 1:nElements];
+    
+    compliance = [i%2==0 ? 0*comp : comp for i in 1:nElements]
+    
+    pointmass = Dict(2 => PointMass(GXBeam.transform_properties(mass, transformation[2]')))
+    for i in 4:2:nElements
+        pointmass[i] = PointMass(GXBeam.transform_properties(mass, transformation[i]'))
+    end
+    pointmass[nElements] = PointMass(GXBeam.transform_properties(mass, transformation[nElements]')./2) # last lumped mass is half of the others, as it represents the last half of an element
+    
+    assembly = GXBeam.Assembly(nodes, start, stop, 
+        compliance=compliance, 
+        frames=transformation);
+    
+    prescribed_conditions = Dict(
+        1 => GXBeam.PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        length(nodes) => GXBeam.PrescribedConditions(Fz=30, My=-0.2))
+    
+    t0 = 0.0
+    
+    system, converged = initial_condition_analysis(assembly, t0;
+                                                   prescribed_conditions = prescribed_conditions,
+                                                   point_masses = pointmass);
+    
+    @test converged
+
+end
+

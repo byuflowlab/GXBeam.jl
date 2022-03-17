@@ -671,6 +671,16 @@ condition analysis.
         mass += transform_properties(point_masses[ielem].mass, Cab)
     end
 
+    if iszero(mass)
+        # u and θ are state variables, Vdot and Ωdot are not used
+        Vdot = @SVector zeros(3) 
+        Ωdot = @SVector zeros(3)       
+
+        return dynamic_element_residual!(resid, x, ielem, elem, distributed_loads, 
+            point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
+            irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot)
+    end
+
     # element state variables
     Vdot, Ωdot, F, M, V, Ω = dynamic_element_state_variables(x, icol, force_scaling)
 
@@ -2193,6 +2203,16 @@ analysis.
     # modify mass matrix to account for point masses, if present
     if haskey(point_masses, ielem)
         mass += transform_properties(point_masses[ielem].mass, Cab)
+    end
+
+    if iszero(mass)
+        # u and θ are state variables, Vdot and Ωdot are not used
+        Vdot = @SVector zeros(3) 
+        Ωdot = @SVector zeros(3)
+              
+        return dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, 
+            point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
+            irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot)
     end
 
     # element state variables
