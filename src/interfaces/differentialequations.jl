@@ -24,6 +24,7 @@ Keyword Arguments:
         containing vectors of objects of type [`PointMass`](@ref) which describe 
         the point masses attached at those points.  If time varying, this input may
         be provided as a function of time.
+ - `structural_damping = false`: Flag indicating whether structural damping should be enabled
  - `gravity`: Gravity vector. If time varying, this input may be provided as a 
         function of time.
  - `origin = zeros(3)`: Global frame origin vector. If time varying, this input
@@ -41,6 +42,7 @@ function SciMLBase.ODEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     point_masses = Dict{Int,Vector{PointMass{Float64}}}(),
+    structural_damping=false,
     gravity = (@SVector zeros(3)),
     origin = (@SVector zeros(3)),
     linear_velocity = (@SVector zeros(3)),
@@ -50,7 +52,7 @@ function SciMLBase.ODEProblem(system::System, assembly, tspan;
     )
 
     # create ODEFunction
-    func = SciMLBase.ODEFunction(system, assembly)
+    func = SciMLBase.ODEFunction(system, assembly; structural_damping)
 
     # use initial state from `system`
     u0 = copy(system.x)
@@ -63,7 +65,7 @@ function SciMLBase.ODEProblem(system::System, assembly, tspan;
 end
 
 """
-    ODEFunction(system::GXBeam.System, assembly)
+    ODEFunction(system::GXBeam.System, assembly; structural_damping=true)
 
 Construct a `ODEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
@@ -102,7 +104,7 @@ angular_velocity, linear_acceleration, angular_acceleration)` where each paramet
  - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
        varying, this vector may be provided as a function of time.
 """
-function SciMLBase.ODEFunction(system::System, assembly)
+function SciMLBase.ODEFunction(system::System, assembly; structural_damping=false)
 
     # check to make sure the system isn't static
     @assert !system.static
@@ -148,7 +150,7 @@ function SciMLBase.ODEFunction(system::System, assembly)
         M .= 0.0
 
         # calculate mass matrix
-        system_mass_matrix!(M, u, assembly, point_masses, force_scaling,
+        system_mass_matrix!(M, u, assembly, point_masses, structural_damping, force_scaling,
             irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         return M
@@ -220,6 +222,7 @@ Keyword Arguments:
         containing vectors of objects of type [`PointMass`](@ref) which describe 
         the point masses attached at those points.  If time varying, this input may
         be provided as a function of time.
+ - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `gravity = zeros(3)`: Gravity vector. If time varying, this input may be provided as a 
         function of time.
  - `origin = zeros(3)`: Global frame origin vector. If time varying, this input
@@ -237,6 +240,7 @@ function SciMLBase.DAEProblem(system::System, assembly, tspan;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     point_masses = Dict{Int,Vector{PointMass{Float64}}}(),
+    structural_damping = true,
     gravity = (@SVector zeros(3)),
     origin = (@SVector zeros(3)),
     linear_velocity = (@SVector zeros(3)),
@@ -246,7 +250,7 @@ function SciMLBase.DAEProblem(system::System, assembly, tspan;
     )
 
     # create SciMLBase.DAEFunction
-    func = SciMLBase.DAEFunction(system, assembly)
+    func = SciMLBase.DAEFunction(system, assembly; structural_damping)
 
     # use initial state from `system`
     u0 = copy(system.x)
@@ -265,13 +269,13 @@ function SciMLBase.DAEProblem(system::System, assembly, tspan;
        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
     # get differential variables
-    differential_vars = get_differential_vars(system, assembly)
+    differential_vars = get_differential_vars(system, assembly, structural_damping)
 
     return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars)
 end
 
 """
-    DAEFunction(system::GXBeam.System, assembly)
+    DAEFunction(system::GXBeam.System, assembly; structural_damping=true)
 
 Construct a `DAEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
@@ -307,7 +311,7 @@ where each parameter is defined as follows:
  - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
        varying, this vector may be provided as a function of time.
 """
-function SciMLBase.DAEFunction(system::System, assembly)
+function SciMLBase.DAEFunction(system::System, assembly; structural_damping=true)
 
     # check to make sure the system isn't static
     @assert !system.static
@@ -339,8 +343,9 @@ function SciMLBase.DAEFunction(system::System, assembly)
 
         # calculate residual
         dynamic_system_residual!(resid, du, u, assembly, prescribed_conditions,
-            distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, 
-            irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
+            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, 
+            x0, v0, ω0, a0, α0)
 
         return resid
     end
@@ -364,12 +369,13 @@ function SciMLBase.DAEFunction(system::System, assembly)
 
         # calculate jacobian
         dynamic_system_jacobian!(J, du, u, assembly, prescribed_conditions,
-            distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, 
-            irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
+            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, 
+            x0, v0, ω0, a0, α0)
 
         # add gamma multiplied by the mass matrix
-        system_mass_matrix!(J, gamma, u, assembly, point_masses, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        system_mass_matrix!(J, gamma, u, assembly, point_masses, structural_damping, 
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         return J
     end
@@ -387,14 +393,14 @@ function SciMLBase.DAEFunction(system::System, assembly)
     return SciMLBase.DAEFunction{true,true}(f) # TODO: re-add jacobian here once supported
 end
 
-function get_differential_vars(system::System, assembly::Assembly)
+function get_differential_vars(system::System, assembly::Assembly, structural_damping)
     differential_vars = fill(false, length(system.x))
     for (ielem, icol) in enumerate(system.icol_elem)
        icol = system.icol_elem[ielem]
        differential_vars[icol:icol+2] .= true # u (for the beam element)
        differential_vars[icol+3:icol+5] .= true # θ (for the beam element)
        for i = 1:6
-           if !iszero(assembly.elements[ielem].mu[i])
+           if structural_damping && !iszero(assembly.elements[ielem].mu[i])
               differential_vars[icol+5+i] = true
            end
        end

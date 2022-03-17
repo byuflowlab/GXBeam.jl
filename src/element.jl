@@ -628,6 +628,7 @@ condition analysis.
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
  - `point_masses`: dictionary with all point masses
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the beam's state variables
@@ -652,8 +653,8 @@ condition analysis.
  - `Mdot0`: initial resultant moment for the beam element 
 """
 @inline function initial_condition_element_residual!(resid, x, ielem, elem, 
-    distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, 
-    irow_e2, irow_p2, x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
+    distributed_loads, point_masses, structural_damping, gvec, force_scaling, icol, irow_e, 
+    irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
 
     # element properties
     ΔL = elem.L
@@ -677,8 +678,9 @@ condition analysis.
         Ωdot = @SVector zeros(3)       
 
         return dynamic_element_residual!(resid, x, ielem, elem, distributed_loads, 
-            point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
-            irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot)
+            point_masses, structural_damping, gvec, force_scaling, 
+            icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, 
+            x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
     end
 
     # element state variables
@@ -746,13 +748,11 @@ condition analysis.
         m2 += dload.m2 + Ct*dload.m2_follower
     end
 
-    # damping loads
-    Fd = SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
-    Md = SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])
-
-    # total element loads
-    F = F + Fd
-    M = M + Md
+    # add structural damping
+    if structural_damping
+        F += SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
+        M += SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])
+    end
 
     # solve for the element resultants
     f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω =
@@ -781,6 +781,7 @@ time-marching analysis.
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
  - `point_masses`: dictionary with all point masses
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the beam's state variables
@@ -805,9 +806,10 @@ time-marching analysis.
  - `Ωdot_init`: `2/dt*Ω + Ωdot` for the beam element from the previous time step
  - `dt`: time step size
 """
-@inline function newmark_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
-    force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0, 
-    udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
+@inline function newmark_element_residual!(resid, x, ielem, elem, distributed_loads, 
+    point_masses, structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, 
+    irow_e2, irow_p2, x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, Mdot_init, 
+    Vdot_init, Ωdot_init, dt)
 
     # element properties
     ΔL = elem.L
@@ -898,13 +900,11 @@ time-marching analysis.
         m2 += dload.m2 + Ct*dload.m2_follower
     end
 
-    # damping loads
-    Fd = SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
-    Md = SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])
-
-    # total element loads
-    F = F + Fd
-    M = M + Md
+    # add structural damping
+    if structural_damping
+        F += SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
+        M += SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])
+    end
 
     # solve for element resultants
     f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω =
@@ -919,9 +919,9 @@ time-marching analysis.
 end
 
 """
-    dynamic_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, gvec,
-        force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
-        udot, θdot, Fdot, Mdot, Vdot, Ωdot)
+    dynamic_element_residual!(resid, x, ielem, elem, distributed_loads, point_masses, 
+        structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
+        irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
 
 Compute and add a beam element's contributions to the residual vector for a general dynamic 
 analysis.
@@ -933,6 +933,7 @@ analysis.
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
  - `point_masses`: dictionary with all point masses
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces
  - `icol`: starting index for the beam's state variables
@@ -957,8 +958,8 @@ analysis.
  - `Ωdot`: angular velocity rates for the beam element
 """
 @inline function dynamic_element_residual!(resid, x, ielem, elem, distributed_loads, 
-    point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, 
-    x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
+    point_masses, structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, 
+    irow_e2, irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
 
     # element properties
     ΔL = elem.L
@@ -1041,13 +1042,11 @@ analysis.
         m2 += dload.m2 + Ct*dload.m2_follower
     end
 
-    # damping loads
-    Fd = SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
-    Md = SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])    
-
-    # total element loads
-    F = F + Fd
-    M = M + Md
+    # add structural damping
+    if structural_damping
+        F += SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
+        M += SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])    
+    end
 
     # solve for element resultants
     f_u1, f_u2, f_ψ1, f_ψ2, f_F1, f_F2, f_M1, f_M2, f_V, f_Ω =
@@ -2162,6 +2161,7 @@ analysis.
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
  - `point_masses`: dictionary with all point masses
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `icol`: starting index for the beam's state variables
@@ -2182,12 +2182,12 @@ analysis.
  - `θ`: initial rotation variables for the beam element
  - `udot`: initial time derivative of u for the beam element
  - `θdot`: initial time derivative of θ for the beam element
- - `Fdot`:
- - `Mdot`:
+ - `Fdot`: initial time derivative of F for the beam element
+ - `Mdot`: initial time derivative of M for the beam element
 """
 @inline function initial_condition_element_jacobian!(jacob, x, ielem, elem, 
-    distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, 
-    irow_e2, irow_p2, x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
+    distributed_loads, point_masses, structural_damping, gvec, force_scaling, icol, irow_e, 
+    irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
 
     # element properties
     ΔL = elem.L
@@ -2211,8 +2211,8 @@ analysis.
         Ωdot = @SVector zeros(3)
               
         return dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, 
-            point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
-            irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot)
+            point_masses, structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
+            irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
     end
 
     # element state variables
@@ -2252,13 +2252,11 @@ analysis.
     v = v0 + cross(ω0, elem.x - x0)
     ω = ω0
 
-    # damping loads
-    Fd = SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
-    Md = SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])
-
-    # total element loads
-    F = F + Fd
-    M = M + Md
+    # add structural damping
+    if structural_damping
+        F += SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
+        M += SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])
+    end
 
     # solve for the element resultant jacobians
     f_u1_Vdot, f_u2_Vdot, f_u1_Ωdot, f_u2_Ωdot, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
@@ -2283,9 +2281,10 @@ analysis.
 end
 
 """
-    newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
-        force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
-        udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
+    newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, 
+        structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
+        irow_p2, x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, 
+        Ωdot_init, dt)
 
 Adds a beam element's contributions to the system jacobian matrix for a Newmark scheme 
 time-marching simulation.
@@ -2297,6 +2296,7 @@ time-marching simulation.
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
  - `point_masses`: dictionary with all point masses
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `icol`: starting index for the beam's state variables
@@ -2322,8 +2322,9 @@ time-marching simulation.
  - `dt`: time step size
 """
 @inline function newmark_element_jacobian!(jacob, x, ielem, elem, distributed_loads, 
-    point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, 
-    x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
+    point_masses, structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, 
+    irow_e2, irow_p2, x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, Mdot_init, 
+    Vdot_init, Ωdot_init, dt)
 
     # element properties
     ΔL = elem.L
@@ -2365,8 +2366,13 @@ time-marching simulation.
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
     # damping coefficient submatrices
-    μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
-    μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+    if structural_damping
+        μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
+        μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+    else
+        μ11 = @SMatrix zeros(3,3)
+        μ22 = @SMatrix zeros(3,3)
+    end
 
     # rotation matrices
     C = get_C(θ)
@@ -2427,13 +2433,11 @@ time-marching simulation.
         m2_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.m2_follower)
     end
 
-    # add damping loads
-    Fd = SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
-    Md = SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])    
-
-    # total element loads
-    F = F + Fd
-    M = M + Md
+    # add structural damping
+    if structural_damping
+        F += SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
+        M += SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])   
+    end 
 
     # element resultant jacobians
     f_u1_u, f_u2_u, f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
@@ -2461,9 +2465,9 @@ time-marching simulation.
 end
 
 """
-    dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
-        force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
-        udot, θdot, Fdot, Mdot, Vdot, Ωdot)
+    dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, 
+        structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, 
+        irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
 
 Adds a beam element's contributions to the system jacobian matrix for a general dynamic 
 simulation.
@@ -2475,6 +2479,7 @@ simulation.
  - `elem`: beam element
  - `distributed_loads`: dictionary with all distributed loads
  - `point_masses`: dictionary with all point masses
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `icol`: starting index for the beam's state variables
@@ -2491,17 +2496,17 @@ simulation.
  - `ω0`: Body frame angular velocity (for the current time step)
  - `a0`: Body frame linear acceleration (for the current time step)
  - `α0`: Body frame angular acceleration (for the current time step)
- - `udot_init`: `2/dt*u + udot` for the beam element from the previous time step
- - `θdot_init`: `2/dt*θ + θdot` for the beam element from the previous time step
- - `Fdot_init`: `2/dt*F + Fdot` for the beam element from the previous time step
- - `Mdot_init`: `2/dt*M + Mdot` for the beam element from the previous time step
- - `Vdot_init`: `2/dt*V + Vdot` for the beam element from the previous time step
- - `Ωdot_init`: `2/dt*Ω + Ωdot` for the beam element from the previous time step
+ - `udot`: time derivative of u
+ - `θdot`: time derivative of θ
+ - `Fdot`: time derivative of F
+ - `Mdot`: time derivative of M
+ - `Vdot`: time derivative of V
+ - `Ωdot`: time derivative of Ω
  - `dt`: time step size
 """
-@inline function dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, point_masses, gvec,
-    force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0, 
-    udot, θdot, Fdot, Mdot, Vdot, Ωdot)
+@inline function dynamic_element_jacobian!(jacob, x, ielem, elem, distributed_loads, 
+    point_masses, structural_damping, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, 
+    irow_e2, irow_p2, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
 
     # element properties
     ΔL = elem.L
@@ -2591,13 +2596,11 @@ simulation.
         m2_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.m2_follower)
     end
 
-    # damping loads
-    Fd = SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
-    Md = SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])        
-
-    # total element loads
-    F = F + Fd
-    M = M + Md
+    # add structural damping
+    if structural_damping
+        F += SVector(μ[1]*Fdot[1], μ[2]*Fdot[2], μ[3]*Fdot[3])
+        M += SVector(μ[4]*Mdot[1], μ[5]*Mdot[2], μ[6]*Mdot[3])        
+    end
 
     # solve for the element resultants
     f_u1_u, f_u2_u, f_u1_θ, f_u2_θ, f_u1_F, f_u2_F, f_u1_V, f_u2_V, f_u1_Ω, f_u2_Ω,
@@ -2812,6 +2815,7 @@ residual equations with respect to the time derivatives of the state variables
  - `ielem`: beam element index
  - `elem`: beam element
  - `point_masses`: dictionary with all point masses
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `force_scaling`: scaling parameter for forces/moments
  - `icol`: starting index for the beam's state variables
  - `irow_e1`: row index of the first residual equation for the start of the beam element
@@ -2824,8 +2828,8 @@ residual equations with respect to the time derivatives of the state variables
     beam element
  - `gamma`: Scaling parameter for scaling mass matrix contribution to `jacob`
 """
-@inline function element_mass_matrix!(jacob, x, ielem, elem, point_masses, force_scaling,
-    icol, irow_e, irow_p1, irow_p2)
+@inline function element_mass_matrix!(jacob, x, ielem, elem, point_masses, 
+    structural_damping, force_scaling, icol, irow_e, irow_p1, irow_p2)
 
     # element properties
     ΔL = elem.L
@@ -2857,8 +2861,13 @@ residual equations with respect to the time derivatives of the state variables
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
     # damping coefficient submatrices
-    μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
-    μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+    if structural_damping
+        μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
+        μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+    else
+        μ11 = @SMatrix zeros(3,3)
+        μ22 = @SMatrix zeros(3,3)
+    end
 
     # rotation matrices
     C = get_C(θ)
@@ -2895,14 +2904,14 @@ residual equations with respect to the time derivatives of the state variables
 end
 
 """
-    element_mass_matrix!(jacob, gamma, x, ielem, elem, force_scaling,
+    element_mass_matrix!(jacob, gamma, x, ielem, elem, force_scaling, structural_damping,
         icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2)
 
 Add the beam element's mass matrix to the system jacobian matrix `jacob`, scaled
 by the scaling parameter `gamma`.
 """
 @inline function element_mass_matrix!(jacob, gamma, x, ielem, elem, point_masses, 
-    force_scaling, icol, irow_e, irow_p1, irow_p2)
+    structural_damping, force_scaling, icol, irow_e, irow_p1, irow_p2)
 
     # element properties
     ΔL = elem.L
@@ -2934,8 +2943,13 @@ by the scaling parameter `gamma`.
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
     # damping coefficient submatrices
-    μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
-    μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+    if structural_damping
+        μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
+        μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+    else
+        μ11 = @SMatrix zeros(3,3)
+        μ22 = @SMatrix zeros(3,3)
+    end
 
     # rotation matrices
     C = get_C(θ)

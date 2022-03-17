@@ -973,8 +973,9 @@ function steady_state_system_residual!(resid, x, assembly, prescribed_conditions
 end
 
 """
-    initial_condition_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    initial_condition_system_residual!(resid, x, assembly, prescribed_conditions, 
+        distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
 
 Populate the system residual vector `resid` for an initial conditions analysis.
@@ -986,6 +987,7 @@ Populate the system residual vector `resid` for an initial conditions analysis.
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `distributed_loads`: dictionary of distributed loads
  - `point_masses`: dictionary of point masses 
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `irow_point`: row index of first equilibrium equation for each point
@@ -1006,9 +1008,10 @@ Populate the system residual vector `resid` for an initial conditions analysis.
  - `Fdot`: initial elastic force rate for each beam element
  - `Mdot`: initial elastic moment rate for each beam element
 """
-function initial_condition_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-    x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
+function initial_condition_system_residual!(resid, x, assembly, prescribed_conditions, 
+    distributed_loads, point_masses, structural_damping, gvec, force_scaling, irow_point, 
+    irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, u, θ, 
+    udot, θdot, Fdot, Mdot)
 
     npoint = length(assembly.points)
     nelem = length(assembly.elements)
@@ -1025,8 +1028,8 @@ function initial_condition_system_residual!(resid, x, assembly, prescribed_condi
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         initial_condition_element_residual!(resid, x, ielem, assembly.elements[ielem],
-            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
-            irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
+            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+            icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem], Fdot[ielem], Mdot[ielem])
     end
 
@@ -1049,9 +1052,10 @@ function initial_condition_system_residual!(resid, x, assembly, prescribed_condi
 end
 
 """
-    newmark_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
+    newmark_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, 
+        point_masses, structural_damping, gvec, force_scaling, irow_point, irow_elem, 
+        irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, 
+        udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
 
 Populate the system residual vector `resid` for a Newmark scheme time-marching analysis.
 
@@ -1062,6 +1066,7 @@ Populate the system residual vector `resid` for a Newmark scheme time-marching a
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `distributed_loads`: dictionary of distributed loads
  - `point_masses`: dictionary of point masses 
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `irow_point`: row index of first equilibrium equation for each point
@@ -1083,9 +1088,10 @@ Populate the system residual vector `resid` for a Newmark scheme time-marching a
  - `Ωdot_init`: `2/dt*Ω + Ωdot` for each beam element from the previous time step
  - `dt`: time step size
 """
-function newmark_system_residual!(resid, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-    x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
+function newmark_system_residual!(resid, x, assembly, prescribed_conditions, 
+    distributed_loads, point_masses, structural_damping, gvec, force_scaling, irow_point, 
+    irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, 
+    udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
 
     nelem = length(assembly.elements)
     npoint = length(assembly.points)
@@ -1102,8 +1108,8 @@ function newmark_system_residual!(resid, x, assembly, prescribed_conditions, dis
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         newmark_element_residual!(resid, x, ielem, assembly.elements[ielem],
-            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
-            x0, v0, ω0, a0, α0,
+            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+            icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
             udot_init[ielem], θdot_init[ielem], Fdot_init[ielem], Mdot_init[ielem],
             Vdot_init[ielem], Ωdot_init[ielem], dt)
     end
@@ -1127,8 +1133,9 @@ function newmark_system_residual!(resid, x, assembly, prescribed_conditions, dis
 end
 
 """
-    dynamic_system_residual!(resid, dx, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    dynamic_system_residual!(resid, dx, x, assembly, prescribed_conditions, 
+        distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, a0, α0)
 
 Populate the system residual vector `resid` for a general dynamic system analysis.
@@ -1141,6 +1148,7 @@ Populate the system residual vector `resid` for a general dynamic system analysi
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `distributed_loads`: dictionary of distributed loads
  - `point_masses`: dictionary of point masses 
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `irow_point`: row index of first equilibrium equation for each point
@@ -1155,7 +1163,8 @@ Populate the system residual vector `resid` for a general dynamic system analysi
  - `a0`: body frame linear acceleration
  - `α0`: body frame angular acceleration
 """
-function dynamic_system_residual!(resid, dx, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
+function dynamic_system_residual!(resid, dx, x, assembly, prescribed_conditions, 
+    distributed_loads, point_masses, structural_damping, gvec,
     force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, a0, α0)
 
@@ -1182,8 +1191,9 @@ function dynamic_system_residual!(resid, dx, x, assembly, prescribed_conditions,
         Ωdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17])
 
         dynamic_element_residual!(resid, x, ielem, assembly.elements[ielem],
-             distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2,
-             x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot)
+             distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+             icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0, 
+             udot, θdot, Fdot, Mdot, Vdot, Ωdot)
 
     end
 
@@ -1343,8 +1353,8 @@ end
 
 """
     initial_condition_system_jacobian!(jacob, x, assembly,
-        prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        prescribed_conditions, distributed_loads, point_masses, structural_damping, gvec, 
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
 
 Populate the system jacobian matrix `jacob` for an initial conditions analysis.
@@ -1356,6 +1366,7 @@ Populate the system jacobian matrix `jacob` for an initial conditions analysis.
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `distributed_loads`: dictionary of distributed loads
  - `point_masses`: dictionary of point masses 
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `irow_point`: row index of first equilibrium equation for each point
@@ -1377,8 +1388,8 @@ Populate the system jacobian matrix `jacob` for an initial conditions analysis.
  - `Mdot`: initial resultant moment rates for each beam element
 """
 @inline function initial_condition_system_jacobian!(jacob, x, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
-    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    prescribed_conditions, distributed_loads, point_masses, structural_damping, gvec, 
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, a0, α0, u, θ, udot, θdot, Fdot, Mdot)
 
     jacob .= 0
@@ -1397,8 +1408,8 @@ Populate the system jacobian matrix `jacob` for an initial conditions analysis.
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         initial_condition_element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
-            irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
+            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+            icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
             u[ielem], θ[ielem], udot[ielem], θdot[ielem], Fdot[ielem], Mdot[ielem])
     end
 
@@ -1421,7 +1432,8 @@ Populate the system jacobian matrix `jacob` for an initial conditions analysis.
 end
 
 """
-    newmark_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, point_masses, gvec,
+    newmark_system_jacobian!(jacob, x, assembly, prescribed_conditions, distributed_loads, 
+        point_masses, structural_damping, gvec,
         force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, 
         Mdot_init, Vdot_init, Ωdot_init, dt)
@@ -1435,6 +1447,7 @@ Populate the system jacobian matrix `jacob` for a Newmark scheme time-marching a
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `distributed_loads`: dictionary of distributed loads
  - `point_masses`: dictionary of point masses 
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `irow_point`: row index of first equilibrium equation for each point
@@ -1457,8 +1470,8 @@ Populate the system jacobian matrix `jacob` for a Newmark scheme time-marching a
  - `dt`: time step size
 """
 @inline function newmark_system_jacobian!(jacob, x, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
-    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    prescribed_conditions, distributed_loads, point_masses, structural_damping, gvec, 
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, a0, α0, udot_init, θdot_init, Fdot_init, Mdot_init, Vdot_init, Ωdot_init, dt)
 
     jacob .= 0
@@ -1477,8 +1490,8 @@ Populate the system jacobian matrix `jacob` for a Newmark scheme time-marching a
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         newmark_element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
-            irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
+            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
+            icol, irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
             udot_init[ielem], θdot_init[ielem], Fdot_init[ielem], Mdot_init[ielem],
             Vdot_init[ielem], Ωdot_init[ielem], dt)
     end
@@ -1506,8 +1519,8 @@ end
 
 """
     dynamic_system_jacobian!(jacob, dx, x, assembly,
-        prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+        prescribed_conditions, distributed_loads, point_masses, structural_damping, gvec, 
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
         x0, v0, ω0, a0, α0)
 
 Populate the jacobian matrix `jacob` for a general dynamic analysis.
@@ -1520,6 +1533,7 @@ Populate the jacobian matrix `jacob` for a general dynamic analysis.
  - `prescribed_conditions`: dictionary of prescribed conditions
  - `distributed_loads`: dictionary of distributed loads
  - `point_masses`: dictionary of point masses 
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `gvec`: gravity vector
  - `force_scaling`: scaling parameter for forces/moments
  - `irow_point`: row index of first equilibrium equation for each point
@@ -1535,8 +1549,8 @@ Populate the jacobian matrix `jacob` for a general dynamic analysis.
  - `α0`: body frame angular acceleration
 """
 @inline function dynamic_system_jacobian!(jacob, dx, x, assembly,
-    prescribed_conditions, distributed_loads, point_masses, gvec, force_scaling,
-    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
+    prescribed_conditions, distributed_loads, point_masses, structural_damping, gvec, 
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
     x0, v0, ω0, a0, α0)
 
     jacob .= 0
@@ -1563,8 +1577,8 @@ Populate the jacobian matrix `jacob` for a general dynamic analysis.
         Ωdot = SVector(dx[icol+15], dx[icol+16], dx[icol+17])
 
         dynamic_element_jacobian!(jacob, x, ielem, assembly.elements[ielem],
-            distributed_loads, point_masses, gvec, force_scaling, icol, irow_e, irow_e1,
-            irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
+            distributed_loads, point_masses, structural_damping, gvec, force_scaling, icol, 
+            irow_e, irow_e1, irow_p1, irow_e2, irow_p2, x0, v0, ω0, a0, α0,
             udot, θdot, Fdot, Mdot, Vdot, Ωdot)
     end
 
@@ -1590,7 +1604,7 @@ Populate the jacobian matrix `jacob` for a general dynamic analysis.
 end
 
 """
-    system_mass_matrix!(jacob, x, assembly, point_masses, force_scaling,
+    system_mass_matrix!(jacob, x, assembly, point_masses, structural_damping, force_scaling,
         irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Populate the system mass matrix for a general dynamic analysis
@@ -1600,6 +1614,7 @@ Populate the system mass matrix for a general dynamic analysis
  - `x`: current states of the system
  - `assembly`: assembly of nonlinear beam elements
  - `point_masses`: dictionary of point masses 
+ - `structural_damping`: flag indicating whether to apply structural damping
  - `force_scaling`: scaling parameter for forces/moments
  - `irow_point`: row index of the first equilibrium equation for each point
  - `irow_elem`: row index of the first linear/angular velocity residual for each element
@@ -1608,8 +1623,8 @@ Populate the system mass matrix for a general dynamic analysis
  - `icol_point`: column index of the first state variable for each point
  - `icol_elem`: column index of the first state variable for each beam element
 """
-function system_mass_matrix!(jacob, x, assembly, point_masses, force_scaling, 
-    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+function system_mass_matrix!(jacob, x, assembly, point_masses, structural_damping, 
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     jacob .= 0
 
@@ -1627,7 +1642,7 @@ function system_mass_matrix!(jacob, x, assembly, point_masses, force_scaling,
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         element_mass_matrix!(jacob, x, ielem, assembly.elements[ielem], point_masses, 
-            force_scaling, icol, irow_e, irow_p1, irow_p2)
+            structural_damping, force_scaling, icol, irow_e, irow_p1, irow_p2)
     end
 
     # no contributions to "mass matrix" from point state variables
@@ -1639,13 +1654,13 @@ function system_mass_matrix!(jacob, x, assembly, point_masses, force_scaling,
 end
 
 """
-    system_mass_matrix!(jacob, gamma, x, dx, assembly, point_masses, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    system_mass_matrix!(jacob, gamma, x, dx, assembly, point_masses, structural_damping, 
+        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
 Add the system mass matrix to `jacob`, scaled by the scaling parameter `gamma`.
 """
-function system_mass_matrix!(jacob, gamma, x, assembly, point_masses, force_scaling, 
-    irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+function system_mass_matrix!(jacob, gamma, x, assembly, point_masses, structural_damping, 
+    force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     npoint = length(assembly.points)
     nelem = length(assembly.elements)
@@ -1661,7 +1676,7 @@ function system_mass_matrix!(jacob, gamma, x, assembly, point_masses, force_scal
         irow_p2 = irow_point[assembly.stop[ielem]]
 
         element_mass_matrix!(jacob, gamma, x, ielem, assembly.elements[ielem], point_masses,
-            force_scaling, icol, irow_e, irow_p1, irow_p2)
+            structural_damping, force_scaling, icol, irow_e, irow_p1, irow_p2)
     end
 
     # no contributions to "mass matrix" from point state variables

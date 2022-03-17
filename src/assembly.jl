@@ -79,7 +79,7 @@ function Assembly(points, start, stop;
     end
 
     if isnothing(damping)
-        damping = fill(@SVector zeros(6))
+        damping = fill(0.01*(@SVector ones(6)), nelem)
     end
 
     elements = Element.(lengths, midpoints, compliance, mass, frames, damping)

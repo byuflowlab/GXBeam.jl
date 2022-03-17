@@ -164,16 +164,20 @@ end
     Fdot0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
     Mdot0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
 
+    structural_damping = true
+
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, Fdot0, Mdot0)
+    f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, assembly, pcond, 
+        dload, pmass, structural_damping, gvec, force_scaling, irow_point, irow_elem, 
+        irow_elem1, irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, 
+        u0, theta0, udot0, thetadot0, Fdot0, Mdot0)
 
-    GXBeam.initial_condition_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, Fdot0, Mdot0)
+    GXBeam.initial_condition_system_jacobian!(J, x, assembly, pcond, dload, pmass, 
+        structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, 
+        thetadot0, Fdot0, Mdot0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -190,13 +194,14 @@ end
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
+    f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, assembly, pcond, dload, pmass, 
+        structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
         icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot, dt)
 
-    GXBeam.newmark_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot, dt)
+    GXBeam.newmark_system_jacobian!(J, x, assembly, pcond, dload, pmass, 
+        structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, 
+        Vdot, Ωdot, dt)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -208,19 +213,19 @@ end
     M = similar(x, length(x), length(x))
 
     fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), dx, x, assembly, pcond, dload, 
-        pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0)
+        pmass, structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
     fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), dx, x, assembly, pcond, dload, 
-        pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0)
+        pmass, structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
-    GXBeam.dynamic_system_jacobian!(J, dx, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, a0, α0)
+    GXBeam.dynamic_system_jacobian!(J, dx, x, assembly, pcond, dload, pmass, 
+        structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem,x0, v0, ω0, a0, α0)
 
-    GXBeam.system_mass_matrix!(M, x, assembly, pmass, force_scaling, irow_point,
-        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    GXBeam.system_mass_matrix!(M, x, assembly, pmass, structural_damping, force_scaling, 
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(fx, x), atol=1e-10))
 

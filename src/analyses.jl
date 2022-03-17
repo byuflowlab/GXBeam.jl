@@ -129,11 +129,11 @@ function static_analysis!(system, assembly;
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
 
         # solve the system of equations
-        f! = (resid, x) -> static_system_residual!(resid, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
+        f! = (resid, x) -> static_system_residual!(resid, x, assembly, pcond, dload, pmass, 
+            gvec, force_scaling, irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
 
-        j! = (jacob, x) -> static_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
+        j! = (jacob, x) -> static_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, 
+            gvec, force_scaling, irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         if linear
             # linear analysis
@@ -331,13 +331,13 @@ function steady_state_analysis!(system, assembly;
         a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-        f! = (resid, x) -> steady_state_system_residual!(resid, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
-            icol_elem, x0, v0, ω0, a0, α0)
+        f! = (resid, x) -> steady_state_system_residual!(resid, x, assembly, pcond, dload, 
+            pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, 
+            icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
-        j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
-            icol_elem, x0, v0, ω0, a0, α0)
+        j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, assembly, pcond, dload, 
+            pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, 
+            icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
         # solve the system of equations
         if linear
@@ -399,6 +399,7 @@ converged.
         corresponding to the beam elements to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
+ - `structural_damping=false`: Flag indicating whether structural damping should be enabled
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
@@ -433,6 +434,7 @@ function eigenvalue_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping = false,
     gravity=SVector(0,0,0),
     method=:newton,
     linear=false,
@@ -461,6 +463,7 @@ function eigenvalue_analysis(assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
+        structural_damping=structural_damping,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -491,6 +494,7 @@ function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=false,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -584,8 +588,8 @@ function eigenvalue_analysis!(system, assembly;
         ω0, a0, α0)
 
     # solve for the system mass matrix
-    M = system_mass_matrix!(M, x, assembly, point_masses, force_scaling, irow_point, 
-        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    M = system_mass_matrix!(M, x, assembly, point_masses, structural_damping, force_scaling, 
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     # construct linear map
     T = eltype(system)
@@ -630,6 +634,7 @@ final system with the new initial conditions.
         corresponding to the beam elements to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
+ - `structural_damping=true`: Flag indicating whether structural damping should be enabled
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -661,6 +666,7 @@ function initial_condition_analysis(assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -691,6 +697,7 @@ function initial_condition_analysis(assembly, t0;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
+        structural_damping=structural_damping,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -722,6 +729,7 @@ function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -785,13 +793,15 @@ function initial_condition_analysis!(system, assembly, t0;
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
     # construct residual and jacobian functions
-    f! = (resid, x) -> initial_condition_system_residual!(resid, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, Fdot0, Mdot0)
+    f! = (resid, x) -> initial_condition_system_residual!(resid, x, assembly, pcond, dload, 
+        pmass, structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, 
+        Fdot0, Mdot0)
 
-    j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, Fdot0, Mdot0)
+    j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, assembly, pcond, dload, 
+        pmass, structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, 
+        Fdot0, Mdot0)
 
     # solve system of equations
     if linear
@@ -887,6 +897,7 @@ converged for each time step.
         corresponding to the beam elements to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
+ - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -925,6 +936,7 @@ function time_domain_analysis(assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -958,6 +970,7 @@ function time_domain_analysis(assembly, tvec;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
+        structural_damping=structural_damping,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -992,6 +1005,7 @@ function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -1029,6 +1043,7 @@ function time_domain_analysis!(system, assembly, tvec;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
+            structural_damping=structural_damping,
             gravity=gravity,
             linear=linear,
             linearization_state=linearization_state,
@@ -1128,13 +1143,15 @@ function time_domain_analysis!(system, assembly, tvec;
         end
 
         # solve for the state variables at the next time step
-        f! = (resid, x) -> newmark_system_residual!(resid, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot, dt)
+        f! = (resid, x) -> newmark_system_residual!(resid, x, assembly, pcond, dload, pmass, 
+            structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, 
+            Vdot, Ωdot, dt)
 
-        j! = (jacob, x) -> newmark_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, Vdot, Ωdot, dt)
+        j! = (jacob, x) -> newmark_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, 
+            structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, 
+            Vdot, Ωdot, dt)
 
         # solve system of equations
         if linear
