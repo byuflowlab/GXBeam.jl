@@ -106,8 +106,8 @@ function static_analysis!(system, assembly;
 
     # unpack pre-allocated storage and pointers
     x = system.x
-    F = system.r
-    J = system.K
+    resid = system.r
+    jacob = system.K
     force_scaling = system.force_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
@@ -129,11 +129,11 @@ function static_analysis!(system, assembly;
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
 
         # solve the system of equations
-        f! = (F, x) -> static_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
+        f! = (resid, x) -> static_system_residual!(resid, x, assembly, pcond, dload, pmass, 
+            gvec, force_scaling, irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
 
-        j! = (J, x) -> static_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
+        j! = (jacob, x) -> static_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, 
+            gvec, force_scaling, irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
 
         if linear
             # linear analysis
@@ -144,12 +144,12 @@ function static_analysis!(system, assembly;
                     x .= linearization_state
                 end
             end
-            f!(F, x)
-            j!(J, x)
-            x .-= safe_lu(J) \ F
+            f!(resid, x)
+            j!(jacob, x)
+            x .-= safe_lu(jacob) \ resid
         else
             # nonlinear analysis
-            df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
+            df = NLsolve.OnceDifferentiable(f!, j!, x, resid, jacob)
 
             result = NLsolve.nlsolve(df, x,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
@@ -160,7 +160,7 @@ function static_analysis!(system, assembly;
 
             # update the solution
             x .= result.zero
-            J .= df.DF
+            jacob .= df.DF
 
             # update convergence flag
             converged = result.f_converged
@@ -304,8 +304,8 @@ function steady_state_analysis!(system, assembly;
 
     # unpack pointers to pre-allocated storage
     x = system.x
-    F = system.r
-    J = system.K
+    resid = system.r
+    jacob = system.K
     force_scaling = system.force_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
@@ -331,13 +331,13 @@ function steady_state_analysis!(system, assembly;
         a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-        f! = (F, x) -> steady_state_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
-            icol_elem, x0, v0, ω0, a0, α0)
+        f! = (resid, x) -> steady_state_system_residual!(resid, x, assembly, pcond, dload, 
+            pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, 
+            icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
-        j! = (J, x) -> steady_state_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, 
-            icol_elem, x0, v0, ω0, a0, α0)
+        j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, assembly, pcond, dload, 
+            pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, 
+            icol_point, icol_elem, x0, v0, ω0, a0, α0)
 
         # solve the system of equations
         if linear
@@ -349,12 +349,12 @@ function steady_state_analysis!(system, assembly;
                     x .= linearization_state
                 end
             end
-            f!(F, x)
-            j!(J, x)
-            x .-= safe_lu(J) \ F
+            f!(resid, x)
+            j!(jacob, x)
+            x .-= safe_lu(jacob) \ resid
         else
             # nonlinear analysis
-            df = NLsolve.OnceDifferentiable(f!, j!, x, F, J)
+            df = NLsolve.OnceDifferentiable(f!, j!, x, resid, jacob)
 
             result = NLsolve.nlsolve(df, x,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
@@ -365,7 +365,7 @@ function steady_state_analysis!(system, assembly;
 
             # update the solution
             x .= result.zero
-            J .= df.DF
+            jacob .= df.DF
 
             # update the convergence flag
             convergence = result.f_converged
@@ -399,6 +399,7 @@ converged.
         corresponding to the beam elements to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
+ - `structural_damping=false`: Flag indicating whether structural damping should be enabled
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.            
  - `linear = false`: Set to `true` for a linear analysis
@@ -433,6 +434,7 @@ function eigenvalue_analysis(assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping = false,
     gravity=SVector(0,0,0),
     method=:newton,
     linear=false,
@@ -461,6 +463,7 @@ function eigenvalue_analysis(assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
+        structural_damping=structural_damping,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -491,6 +494,7 @@ function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=false,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -584,8 +588,8 @@ function eigenvalue_analysis!(system, assembly;
         ω0, a0, α0)
 
     # solve for the system mass matrix
-    M = system_mass_matrix!(M, x, assembly, point_masses, force_scaling, irow_point, 
-        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    M = system_mass_matrix!(M, x, assembly, point_masses, structural_damping, force_scaling, 
+        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
 
     # construct linear map
     T = eltype(system)
@@ -630,6 +634,7 @@ final system with the new initial conditions.
         corresponding to the beam elements to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
+ - `structural_damping=true`: Flag indicating whether structural damping should be enabled
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -661,6 +666,7 @@ function initial_condition_analysis(assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -677,6 +683,8 @@ function initial_condition_analysis(assembly, t0;
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
     thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Fdot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Mdot0=fill((@SVector zeros(3)), length(assembly.elements)),
     )
 
     static = false
@@ -689,6 +697,7 @@ function initial_condition_analysis(assembly, t0;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
+        structural_damping=structural_damping,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -706,6 +715,8 @@ function initial_condition_analysis(assembly, t0;
         theta0=theta0,
         udot0=udot0,
         thetadot0=thetadot0,
+        Fdot0=Fdot0,
+        Mdot0=Mdot0,
         )
 end
 
@@ -718,6 +729,7 @@ function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -735,6 +747,8 @@ function initial_condition_analysis!(system, assembly, t0;
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
     thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Fdot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Mdot0=fill((@SVector zeros(3)), length(assembly.elements)),
     )
 
     # check to make sure the simulation is dynamic
@@ -746,8 +760,8 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # unpack pre-allocated storage and pointers for system
     x = system.x
-    F = system.r
-    J = system.K
+    resid = system.r
+    jacob = system.K
     force_scaling = system.force_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
@@ -757,6 +771,8 @@ function initial_condition_analysis!(system, assembly, t0;
     icol_elem = system.icol_elem
     udot = system.udot
     θdot = system.θdot
+    Fdot = system.Fdot
+    Mdot = system.Mdot
     Vdot = system.Vdot
     Ωdot = system.Ωdot
 
@@ -777,13 +793,15 @@ function initial_condition_analysis!(system, assembly, t0;
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
     # construct residual and jacobian functions
-    f! = (F, x) -> initial_condition_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+    f! = (resid, x) -> initial_condition_system_residual!(resid, x, assembly, pcond, dload, 
+        pmass, structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, 
+        Fdot0, Mdot0)
 
-    j! = (J, x) -> initial_condition_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+    j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, assembly, pcond, dload, 
+        pmass, structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+        irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0, 
+        Fdot0, Mdot0)
 
     # solve system of equations
     if linear
@@ -793,12 +811,12 @@ function initial_condition_analysis!(system, assembly, t0;
         else
             x .= linearization_state
         end
-        f!(F, x)
-        j!(J, x)
-        x .-= safe_lu(J) \ F
+        f!(resid, x)
+        j!(jacob, x)
+        x .-= safe_lu(jacob) \ resid
     else
         # nonlinear analysis
-        df = OnceDifferentiable(f!, j!, x, F, J)
+        df = OnceDifferentiable(f!, j!, x, resid, jacob)
 
         result = NLsolve.nlsolve(df, x,
             linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
@@ -808,7 +826,7 @@ function initial_condition_analysis!(system, assembly, t0;
             iterations=iterations)
 
         x .= result.zero
-        J .= df.DF
+        jacob .= df.DF
     end
 
     # get convergence flag
@@ -834,12 +852,16 @@ function initial_condition_analysis!(system, assembly, t0;
             # save state rates
             udot[ielem] = udot0[ielem]
             θdot[ielem] = thetadot0[ielem]
+            Fdot[ielem] = Fdot0[ielem]
+            Mdot[ielem] = Mdot0[ielem]
             Vdot[ielem] = @SVector zeros(3)
             Ωdot[ielem] = @SVector zeros(3)
         else
             # save state rates
             udot[ielem] = udot0[ielem]
             θdot[ielem] = thetadot0[ielem]
+            Fdot[ielem] = Fdot0[ielem]
+            Mdot[ielem] = Mdot0[ielem]
             Vdot[ielem] = SVector(x[icol], x[icol+1], x[icol+2])
             Ωdot[ielem] = SVector(x[icol+3], x[icol+4], x[icol+5])
 
@@ -875,6 +897,7 @@ converged for each time step.
         corresponding to the beam elements to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
+ - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
         function of time.
  - `linear = false`: Set to `true` for a linear analysis
@@ -913,6 +936,7 @@ function time_domain_analysis(assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -931,6 +955,8 @@ function time_domain_analysis(assembly, tvec;
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
     thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Fdot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Mdot0=fill((@SVector zeros(3)), length(assembly.elements)),
     save=1:length(tvec)
     )
 
@@ -944,6 +970,7 @@ function time_domain_analysis(assembly, tvec;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
+        structural_damping=structural_damping,
         gravity=gravity,
         linear=linear,
         linearization_state=linearization_state,
@@ -963,6 +990,8 @@ function time_domain_analysis(assembly, tvec;
         theta0=theta0,
         udot0=udot0,
         thetadot0=thetadot0,
+        Fdot0=Fdot0,
+        Mdot0=Mdot0,
         save=save,
         )
 end
@@ -976,6 +1005,7 @@ function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
+    structural_damping=true,
     gravity=SVector(0,0,0),
     linear=false,
     linearization_state=nothing,
@@ -995,6 +1025,8 @@ function time_domain_analysis!(system, assembly, tvec;
     theta0=fill((@SVector zeros(3)), length(assembly.elements)),
     udot0=fill((@SVector zeros(3)), length(assembly.elements)),
     thetadot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Fdot0=fill((@SVector zeros(3)), length(assembly.elements)),
+    Mdot0=fill((@SVector zeros(3)), length(assembly.elements)),
     save=1:length(tvec)
     )
 
@@ -1011,6 +1043,7 @@ function time_domain_analysis!(system, assembly, tvec;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
+            structural_damping=structural_damping,
             gravity=gravity,
             linear=linear,
             linearization_state=linearization_state,
@@ -1028,6 +1061,8 @@ function time_domain_analysis!(system, assembly, tvec;
             theta0=theta0,
             udot0=udot0,
             thetadot0=thetadot0,
+            Fdot0=Fdot0,
+            Mdot0=Mdot0
             )
     else
         # converged by default
@@ -1036,8 +1071,8 @@ function time_domain_analysis!(system, assembly, tvec;
 
     # unpack pre-allocated storage and pointers for system
     x = system.x
-    F = system.r
-    J = system.K
+    resid = system.r
+    jacob = system.K
     force_scaling = system.force_scaling
     irow_point = system.irow_point
     irow_elem = system.irow_elem
@@ -1047,6 +1082,8 @@ function time_domain_analysis!(system, assembly, tvec;
     icol_elem = system.icol_elem
     udot = system.udot
     θdot = system.θdot
+    Fdot = system.Fdot
+    Mdot = system.Mdot
     Vdot = system.Vdot
     Ωdot = system.Ωdot
 
@@ -1092,23 +1129,29 @@ function time_domain_analysis!(system, assembly, tvec;
             # extract beam element state variables
             u = SVector(x[icol], x[icol + 1], x[icol + 2])
             θ = SVector(x[icol + 3], x[icol + 4], x[icol + 5])
+            F = SVector(x[icol + 6], x[icol + 7], x[icol + 8]) .* force_scaling
+            M = SVector(x[icol + 9], x[icol + 10], x[icol + 11]) .* force_scaling
             V = SVector(x[icol + 12], x[icol + 13], x[icol + 14])
             Ω = SVector(x[icol + 15], x[icol + 16], x[icol + 17])
             # calculate state rate terms, use storage for state rates
             udot[ielem] = 2 / dt * u + udot[ielem]
             θdot[ielem] = 2 / dt * θ + θdot[ielem]
+            Fdot[ielem] = 2 / dt * F + Fdot[ielem]
+            Mdot[ielem] = 2 / dt * M + Mdot[ielem]
             Vdot[ielem] = 2 / dt * V + Vdot[ielem]
             Ωdot[ielem] = 2 / dt * Ω + Ωdot[ielem]
         end
 
         # solve for the state variables at the next time step
-        f! = (F, x) -> newmark_system_residual!(F, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
+        f! = (resid, x) -> newmark_system_residual!(resid, x, assembly, pcond, dload, pmass, 
+            structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, 
+            Vdot, Ωdot, dt)
 
-        j! = (J, x) -> newmark_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-            x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
+        j! = (jacob, x) -> newmark_system_jacobian!(jacob, x, assembly, pcond, dload, pmass, 
+            structural_damping, gvec, force_scaling, irow_point, irow_elem, irow_elem1, 
+            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Fdot, Mdot, 
+            Vdot, Ωdot, dt)
 
         # solve system of equations
         if linear
@@ -1120,11 +1163,11 @@ function time_domain_analysis!(system, assembly, tvec;
                     x .= linearization_state
                 end
             end
-            f!(F, x)
-            j!(J, x)
-            x .-= safe_lu(J) \ F
+            f!(resid, x)
+            j!(jacob, x)
+            x .-= safe_lu(jacob) \ resid
         else
-            df = OnceDifferentiable(f!, j!, x, F, J)
+            df = OnceDifferentiable(f!, j!, x, resid, jacob)
 
             result = NLsolve.nlsolve(df, x,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
@@ -1134,7 +1177,7 @@ function time_domain_analysis!(system, assembly, tvec;
                 iterations=iterations)
 
             x .= result.zero
-            J .= df.DF
+            jacob .= df.DF
         end
 
         # set new state rates
@@ -1143,11 +1186,15 @@ function time_domain_analysis!(system, assembly, tvec;
             # extract beam element state variables
             u = SVector(x[icol], x[icol + 1], x[icol + 2])
             θ = SVector(x[icol + 3], x[icol + 4], x[icol + 5])
+            F = SVector(x[icol + 6], x[icol + 7], x[icol + 8]) .* force_scaling
+            M = SVector(x[icol + 9], x[icol + 10], x[icol + 11]) .* force_scaling
             V = SVector(x[icol + 12], x[icol + 13], x[icol + 14])
             Ω = SVector(x[icol + 15], x[icol + 16], x[icol + 17])
             # calculate current state rates
             udot[ielem] = 2/dt*u - udot[ielem]
             θdot[ielem] = 2/dt*θ - θdot[ielem]
+            Fdot[ielem] = 2/dt*F - Fdot[ielem]
+            Mdot[ielem] = 2/dt*M - Mdot[ielem]
             Vdot[ielem] = 2/dt*V - Vdot[ielem]
             Ωdot[ielem] = 2/dt*Ω - Ωdot[ielem]
         end
