@@ -327,7 +327,7 @@ function compliancematrix(nodes, connectivity)
 
     # compliance matrix
     XY = [X; dX; Y]
-    S = XY'*[E C R; C' M L; R' L' A]*XY
+    S = XY'*[E C' R; C M L; R' L' A]*XY  # another error in theory manual
 
     # S += 2*X'*L*dY  # NOTE: add additional term from 2015 paper, though I don't see how that follows...
 
@@ -436,8 +436,8 @@ end
 S, K = compliancematrix(nodes, connectivity)
 
 
-# @test isapprox(K[1, 1], 3.4899e-1, atol=0.0001e-1)
-# @test isapprox(K[2, 2], 3.4899e-1, atol=0.0001e-1)
+@test isapprox(K[1, 1], 3.4899e-1, atol=0.0001e-1)
+@test isapprox(K[2, 2], 3.4899e-1, atol=0.0001e-1)
 @test isapprox(K[3, 3], 1.0, atol=1e-4)
 @test isapprox(K[4, 4], 8.3384e-4, atol=0.0001e-4)
 @test isapprox(K[5, 5], 8.3384e-4, atol=0.0001e-4)
