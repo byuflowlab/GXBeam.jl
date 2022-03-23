@@ -118,24 +118,16 @@ function default_force_scaling(assembly)
 
     TF = eltype(assembly)
 
-    # Count and sum all nonzero entries
-    force_sum = 0.0
-    N_entries = 0
+    minimum_nonzero_compliance = 1.0
     for elem in assembly.elements
         for val in elem.compliance
-            if abs(val) > eps(TF)
-                force_sum += abs(val)
-                N_entries += 1
+            if eps(TF) < abs(val) < minimum_nonzero_compliance
+                minimum_nonzero_compliance = abs(val)
             end
         end
     end
 
-    # set force scaling based on nonzero compliance matrix entries
-    if N_entries == 0
-        force_scaling = 1.0
-    else
-        force_scaling = nextpow(2.0, N_entries/force_sum/100)
-    end
+    force_scaling = nextpow(2.0, 1.0/minimum_nonzero_compliance)
 
     return force_scaling
 end
