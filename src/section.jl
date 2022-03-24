@@ -19,6 +19,10 @@ struct Node{TF, TI}
     x::TF
     y::TF
     number::TI
+end
+
+struct Element{VI, TF}
+    nodenum::VI
     material::Material
     theta::TF
     beta::TF
@@ -131,7 +135,7 @@ function elementQ(material, theta, beta)
 end
 
 
-function elementintegrand(ksi, eta, nodes)
+function elementintegrand(ksi, eta, element, nodes)
 
     # shape functions
     N = zeros(4)
@@ -151,11 +155,7 @@ function elementintegrand(ksi, eta, nodes)
     # basic matrices
     Z = [I [0.0 0 -y; 0 0 x; y -x 0]]  # translation and cross product
     S = [zeros(3, 3); I]
-    Q = zeros(6, 6)
-    for i = 1:4  # TODO: is this the right thing to do?
-        Q += elementQ(nodes[i].material, nodes[i].theta, nodes[i].beta)
-    end
-    Q /= 4
+    Q = elementQ(element.material, element.theta, element.beta)
     N = [N[1]*Matrix(1.0I, 3, 3) N[2]*I N[3]*I N[4]*I]
     SZ = S*Z
     SN = S*N
@@ -214,7 +214,8 @@ function elementintegrand(ksi, eta, nodes)
     A = SZ'*Q*SZ*detJ
     R = BN'*Q*SZ*detJ
     E = BN'*Q*BN*detJ
-    C = SN'*Q*BN*detJ  # NOTE: error in implementation sectiono of manual, theory is correct
+    # C = SN'*Q*BN*detJ  # NOTE: error in implementation sectiono of manual, theory is correct
+    C = BN'*Q*SN*detJ  # use Giavottoa definition
     L = SN'*Q*SZ*detJ
     M = SN'*Q*SN*detJ
 
@@ -222,15 +223,15 @@ function elementintegrand(ksi, eta, nodes)
 end
 
 
-function submatrix(nodes)
+function submatrix(element, nodes)
 
     # 2-point Gauss quadrature in both dimensions
     ksi = [1.0/sqrt(3), 1.0/sqrt(3), -1.0/sqrt(3), -1.0/sqrt(3)]
     eta = [1.0/sqrt(3), -1.0/sqrt(3), 1.0/sqrt(3), -1.0/sqrt(3)]
 
-    A, R, E, C, L, M = elementintegrand(ksi[1], eta[1], nodes)
+    A, R, E, C, L, M = elementintegrand(ksi[1], eta[1], element, nodes)
     for i = 2:4
-        Ai, Ri, Ei, Ci, Li, Mi = elementintegrand(ksi[i], eta[i], nodes)
+        Ai, Ri, Ei, Ci, Li, Mi = elementintegrand(ksi[i], eta[i], element, nodes)
         A += Ai; R += Ri; E += Ei
         C += Ci; L += Li; M += Mi
     end
@@ -248,15 +249,15 @@ function node2idx(nodes)
     return idx
 end
 
-function compliancematrix(nodes, connectivity)
+function sectionprops(nodes, elements)
 
     # initialize
-    ne, _ = size(connectivity) # number of elements
+    ne = length(elements) # number of elements
     nn = length(nodes)  # number of nodes
     ndof = 3 * nn  # 3 displacement dof per node
     
     # initialize
-    etype = eltype(nodes[1].theta)  # TODO add others
+    etype = eltype(elements[1].theta)  # TODO add others
     A = zeros(etype, 6, 6)  # 6 x 6
     R = zeros(etype, ndof, 6)  #  nn*3 x 6
     E = zeros(etype, ndof, ndof)  # nn*3 x nn*3
@@ -266,11 +267,9 @@ function compliancematrix(nodes, connectivity)
 
     # place element matrices in global matrices (scatter)
     for i = 1:ne
-        nodenumbers = connectivity[i, :]  # TODO: this assumes nodes are assembled in order so idx matches node number. I guess that's ok...
-        node4 = nodes[nodenumbers]
-        # nodenumbers = [n.number for n in node4]
-        Ae, Re, Ee, Ce, Le, Me = submatrix(nodes[nodenumbers])
-        idx = node2idx(nodenumbers)
+        nodenum = elements[i].nodenum
+        Ae, Re, Ee, Ce, Le, Me = submatrix(elements[i], nodes[nodenum])
+        idx = node2idx(nodenum)
         A += Ae
         R[idx, :] += Re
         E[idx, idx] += Ee
@@ -313,7 +312,7 @@ function compliancematrix(nodes, connectivity)
     dY = X2[ndof+1:ndof+6, :]
 
     # solve second linear system
-    Bsub1 = [C-C'  L;
+    Bsub1 = [C'-C  L;  # NOTE: error in manual should be C' - C
             -L' zeros(6, 6);  # NOTE: sign fix, error in BECAS documentation
             zeros(6, ndof+6)]
     Bsub2 = [zeros(ndof, 6); I; zeros(6, 6)]
@@ -327,7 +326,7 @@ function compliancematrix(nodes, connectivity)
 
     # compliance matrix
     XY = [X; dX; Y]
-    S = XY'*[E C' R; C M L; R' L' A]*XY  # another error in theory manual
+    S = XY'*[E C R; C' M L; R' L' A]*XY
 
     # S += 2*X'*L*dY  # NOTE: add additional term from 2015 paper, though I don't see how that follows...
 
@@ -389,19 +388,19 @@ Q2 = inv(C2)
 @test all(isapprox.(Q1, Q2, atol=1e-6))
 
 
-# Square cross section of isotropic material - S1
+# ---- Case 1: Square cross section of isotropic material - S1
 iso1 = Material(100.0, 100.0, 100.0, 0.2, 0.2, 0.2, 41.667, 41.667, 41.667, 1.0)
 x = range(-0.05, 0.05, length=11)
 y = range(-0.05, 0.05, length=11)
 
 nodes = Vector{Node}(undef, 11*11)
-connectivity = zeros(Int64, 10*10, 4)
+elements = Vector{Element}(undef, 10*10)
 
 let
 m = 1
 for i = 1:11
     for j = 1:11
-        nodes[m] = Node(x[i], y[j], m, iso1, 0.0, 0.0)
+        nodes[m] = Node(x[i], y[j], m)
         m += 1
     end
 end
@@ -409,19 +408,22 @@ end
 m = 1
 for i = 1:10
     for j = 1:10
-        connectivity[m, :] = [11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1]
+        elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso1, 0.0, 0.0)
         m += 1
     end
 end
+
 end
 
 using PyPlot
 close("all"); pygui(true);
 
-ne, _ = size(connectivity)
+# ne, _ = size(connectivity)
+ne = length(elements)
 figure()
 for i = 1:ne
-    node = nodes[connectivity[i, :]]
+    # node = nodes[connectivity[i, :]]
+    node = nodes[elements[i].nodenum]
     for i = 1:4
         text(node[i].x, node[i].y, string(node[i].number))
         iplus = i+1
@@ -430,10 +432,13 @@ for i = 1:ne
         end
         plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
     end
+    barx = sum([n.x/4 for n in node])
+    bary = sum([n.y/4 for n in node])
+    text(barx, bary, string(i))
 end
 
 
-S, K = compliancematrix(nodes, connectivity)
+S, K = sectionprops(nodes, elements)
 
 
 @test isapprox(K[1, 1], 3.4899e-1, atol=0.0001e-1)
@@ -449,25 +454,35 @@ xs, ys, xt, yt = centers(S, 0.0, 1.0)
 @test isapprox(xt, 0.0, atol=1e-8)
 @test isapprox(yt, 0.0, atol=1e-8)
 
-# # --------- Case 2 --------
-# alpha = 1e1
-# iso2 = Material(100.0/alpha, 100.0/alpha, 0.2/alpha, 41.667/alpha, 1.0)
+# --------- Case 2 --------
+alpha = 1e1
+iso2 = Material(100.0/alpha, 100.0/alpha, 0.2, 41.667/alpha, 1.0)
 
-# let
-# m = 1
-# for i = 1:11
-#     for j = 1:11
-#         if i <= 6
-#             nodes[m] = Node(x[i], y[j], m, iso1, 0.0, 0.0)
-#         else
-#             nodes[m] = Node(x[i], y[j], m, iso2, 0.0, 0.0)
-#         end
-#         m += 1
-#     end
-# end
-# end
+let
+m = 1
+for i = 1:10
+    for j = 1:10
+        if i <= 5
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso1, 0.0, 0.0)
+        else
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso2, 0.0, 0.0)
+        end
+        m += 1
+    end
+end
+end
 
-# S, K = compliancematrix(nodes, connectivity)
+
+S, K = sectionprops(nodes, elements)
+
+@test isapprox(K[1, 1], 1.28e-1, atol=0.01e-1)
+@test isapprox(K[2, 2], 1.92e-1, atol=0.01e-1)
+@test isapprox(K[3, 3], 5.50e-1, atol=0.01e-1)
+@test isapprox(K[4, 4], 4.59e-4, atol=0.01e-4)
+@test isapprox(K[5, 5], 4.59e-4, atol=0.01e-4)
+@test isapprox(K[6, 6], 2.77e-4, atol=0.01e-4)
+@test isapprox(K[2, 6], -3.93e-3, atol=0.01e-3)
+@test isapprox(K[3, 5], 1.13e-2, atol=0.01e-2)
 
 # # ------ case 3 -------
 # ortho = Material(480.0, 120.0, 120.0, 0.26, 0.19, 0.19, 50.0, 60.0, 60.0, 1.0)
