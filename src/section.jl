@@ -55,12 +55,12 @@ end
 function rotate_to_ply(K, theta)
     c = cos(theta)
     s = sin(theta)
-    T = [s^2 c^2 2*s*c 0 0 0;
-        0.0 0 0 0 0 1;
-        0 0 0 s c 0;
-        s*c -s*c c^2-s^2 0 0 0;
-        0 0 0 c -s 0;
-        c^2 s^2 -2*s*c 0 0 0]
+    T = [c^2 0 0 2*s*c 0 s^2;
+        0.0 1 0 0 0 0;
+        0 0 c 0 s 0;
+        -s*c 0 0 c^2-s^2 0 s*c;
+        0 0 -s 0 c 0;
+        s^2 0 0 -2*s*c 0 c^2]
 
     return T*K*T'
 end
@@ -297,7 +297,7 @@ function sectionprops(nodes, elements)
     Tr = zeros(6, 6)
     Tr[1, 5] = -1.0
     Tr[2, 4] = 1.0
-    
+
     # solve first linear system
     AM = [E R D;
         R' A zeros(6, 6);
@@ -456,7 +456,7 @@ xs, ys, xt, yt = centers(S, 0.0, 1.0)
 
 # --------- Case 2 --------
 alpha = 1e1
-iso2 = Material(100.0/alpha, 100.0/alpha, 0.2, 41.667/alpha, 1.0)
+iso2 = Material(100.0/alpha, 100.0/alpha, 0.2, 41.667/alpha, 1.0)  # note error in user guide for nu
 
 let
 m = 1
@@ -484,19 +484,45 @@ S, K = sectionprops(nodes, elements)
 @test isapprox(K[2, 6], -3.93e-3, atol=0.01e-3)
 @test isapprox(K[3, 5], 1.13e-2, atol=0.01e-2)
 
-# # ------ case 3 -------
-# ortho = Material(480.0, 120.0, 120.0, 0.26, 0.19, 0.19, 50.0, 60.0, 60.0, 1.0)
-# # ortho = Material(480.0, 120.0, 120.0, 0.19, 0.26, 0.19, 60.0, 50.0, 60.0, 1.0)
+# ------ case 3 -------
+ortho = Material(480.0, 120.0, 120.0, 0.19, 0.26, 0.19, 60.0, 50.0, 60.0, 1.0)
 
-# theta = 0.0
-# let
-#     m = 1
-#     for i = 1:11
-#         for j = 1:11
-#             nodes[m] = Node(x[i], y[j], m, ortho, theta, 0.0)
-#             m += 1
-#         end
-#     end
-# end
+theta = 0.0
+let
+    m = 1
+    for i = 1:10
+        for j = 1:10
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], ortho, theta, 0.0)
+            m += 1
+        end
+    end
+end
 
-# S, K = compliancematrix(nodes, connectivity)
+S, K = sectionprops(nodes, elements)
+@test isapprox(K[1, 1], 5.039E-01, atol=0.001e-1)
+@test isapprox(K[2, 2], 4.201E-01, atol=0.001e-1)
+@test isapprox(K[3, 3], 4.800E+00, atol=0.001e0)
+@test isapprox(K[4, 4], 4.001E-03, atol=0.001e-3)
+@test isapprox(K[5, 5], 4.001E-03, atol=0.001e-3)
+@test isapprox(K[6, 6], 7.737E-04, atol=0.001e-4)
+
+theta = 22.5*pi/180
+let
+    m = 1
+    for i = 1:10
+        for j = 1:10
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], ortho, theta, 0.0)
+            m += 1
+        end
+    end
+end
+
+S, K = sectionprops(nodes, elements)
+@test isapprox(K[1, 1], 7.598E-01, atol=0.001e-1)
+@test isapprox(K[2, 2], 4.129E-01, atol=0.001e-1)
+@test isapprox(K[3, 3], 3.435E+00, atol=0.001e0)
+@test isapprox(K[4, 4], 2.489E-03, atol=0.001e-3)
+@test isapprox(K[5, 5], 2.274E-03, atol=0.001e-3)
+@test isapprox(K[6, 6], 9.499E-04, atol=0.001e-4)
+@test isapprox(K[1, 3], 7.387E-01, atol=0.001e-1)
+@test isapprox(K[4, 6], -4.613E-04, atol=0.001e-4)
