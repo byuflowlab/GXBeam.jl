@@ -1,4 +1,5 @@
-using LinearAlgebra: I, Symmetric, det
+using LinearAlgebra: I, Symmetric, det, factorize
+using SparseArrays: spzeros, sparse
 
 struct Material{TF}
     E1::TF
@@ -25,7 +26,6 @@ struct Element{VI, TF}
     nodenum::VI
     material::Material
     theta::TF
-    beta::TF
 end
 
 function stiffness(material) 
@@ -65,9 +65,7 @@ function rotate_to_ply(K, theta)
     return T*K*T'
 end
 
-function rotate_to_element(K, beta)
-    c = cos(beta)
-    s = sin(beta)
+function rotate_to_element(K, c, s)  # c = cos(beta), s = sin(beta)
     T = [c^2 s^2 -2*s*c 0 0 0;
           s^2 c^2 2*s*c 0 0 0;
           s*c -s*c c^2-s^2 0 0 0;
@@ -126,10 +124,10 @@ end
 #     return Q[idx, idx]
 # end
 
-function elementQ(material, theta, beta)
+function elementQ(material, theta, cbeta, sbeta)
     Q1 = stiffness(material)  # material
     Q2 = rotate_to_ply(Q1, theta)
-    Q3 = rotate_to_element(Q2, beta)
+    Q3 = rotate_to_element(Q2, cbeta, sbeta)
 
     return Q3
 end
@@ -151,11 +149,22 @@ function elementintegrand(ksi, eta, element, nodes)
         x += N[i]*nodes[i].x
         y += N[i]*nodes[i].y
     end
+
+    # orientation (beta)
+    xl = 0.5*(nodes[1].x + nodes[4].x)
+    yl = 0.5*(nodes[1].y + nodes[4].y)
+    xr = 0.5*(nodes[2].x + nodes[3].x)
+    yr = 0.5*(nodes[2].y + nodes[3].y)
+    dx = xr - xl
+    dy = yr - yl
+    ds = sqrt(dx^2 + dy^2)
+    cbeta = dx/ds
+    sbeta = dy/ds
     
     # basic matrices
     Z = [I [0.0 0 -y; 0 0 x; y -x 0]]  # translation and cross product
     S = [zeros(3, 3); I]
-    Q = elementQ(element.material, element.theta, element.beta)
+    Q = elementQ(element.material, element.theta, cbeta, sbeta)
     N = [N[1]*Matrix(1.0I, 3, 3) N[2]*I N[3]*I N[4]*I]
     SZ = S*Z
     SN = S*N
@@ -256,14 +265,16 @@ function sectionprops(nodes, elements)
     nn = length(nodes)  # number of nodes
     ndof = 3 * nn  # 3 displacement dof per node
     
+    # TODO: benchmark sparsity
+
     # initialize
     etype = eltype(elements[1].theta)  # TODO add others
     A = zeros(etype, 6, 6)  # 6 x 6
     R = zeros(etype, ndof, 6)  #  nn*3 x 6
-    E = zeros(etype, ndof, ndof)  # nn*3 x nn*3
-    C = zeros(etype, ndof, ndof)  # nn*3 x nn*3
+    E = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
+    C = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
     L = zeros(etype, ndof, 6)  # nn*3 x 6
-    M = zeros(etype, ndof, ndof)  # nn*3 x nn*3
+    M = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
 
     # place element matrices in global matrices (scatter)
     for i = 1:ne
@@ -279,7 +290,7 @@ function sectionprops(nodes, elements)
     end
 
     # assemble displacement constraint matrix
-    DT = zeros(6, ndof)
+    DT = spzeros(6, ndof)
     for i = 1:nn
         k = nodes[i].number    
         s = 3*(k-1)
@@ -291,10 +302,10 @@ function sectionprops(nodes, elements)
         DT[6, s+1] = -nodes[i].y
         DT[6, s+2] = nodes[i].x
     end
-    D = DT'
+    D = sparse(DT')
 
     # Tr matrix
-    Tr = zeros(6, 6)
+    Tr = spzeros(6, 6)
     Tr[1, 5] = -1.0
     Tr[2, 4] = 1.0
 
@@ -302,11 +313,12 @@ function sectionprops(nodes, elements)
     AM = [E R D;
         R' A zeros(6, 6);
         DT zeros(6, 12)]
+    AM = factorize(Symmetric(sparse(AM)))
     
-    B2 = [zeros(ndof, 6); Tr'; zeros(6, 6)]
+    B2 = sparse([zeros(ndof, 6); Tr'; zeros(6, 6)])
     X2 = zeros(ndof+12, 6)
     for i = 1:6
-        X2[:, i] = AM\B2[:, i]  # TODO: save factorization
+        X2[:, i] = AM\B2[:, i]
     end
     dX = X2[1:ndof, :]
     dY = X2[ndof+1:ndof+6, :]
@@ -316,7 +328,7 @@ function sectionprops(nodes, elements)
             -L' zeros(6, 6);  # NOTE: sign fix, error in BECAS documentation
             zeros(6, ndof+6)]
     Bsub2 = [zeros(ndof, 6); I; zeros(6, 6)]
-    B1 = Bsub1*X2[1:end-6, :] + Bsub2
+    B1 = sparse(Bsub1*X2[1:end-6, :] + Bsub2)
     X1 = zeros(ndof+12, 6)
     for i = 1:6
         X1[:, i] = AM\B1[:, i]
@@ -331,7 +343,7 @@ function sectionprops(nodes, elements)
     # S += 2*X'*L*dY  # NOTE: add additional term from 2015 paper, though I don't see how that follows...
 
     # stiffness matrix
-    K = inv(S)
+    K = inv(Symmetric(S))
 
     # K11 = [E R D; R' A zeros(6, 6); DT zeros(6, 12)]
     # K12 = [C'-C  -L zeros(ndof, 6);
@@ -347,10 +359,13 @@ function sectionprops(nodes, elements)
     return S, K
 end
 
-function centers(S, z, L)
-    xs = -(S[6, 2] + S[6, 4]*(L - z))/S[6, 6]
-    ys = (S[6, 1] + S[6, 5]*(L - z))/S[6, 6]
-    xt = (-S[4, 4]*S[5, 3] + S[4, 5]*S[4, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2)
+function centers(S)  #, z, L)
+    # assume free end
+    # xs = -(S[6, 2] + S[6, 4]*(L - z))/S[6, 6]
+    # ys = (S[6, 1] + S[6, 5]*(L - z))/S[6, 6]
+    xs = -S[6, 2]/S[6, 6]
+    ys = S[6, 1]/S[6, 6]
+    xt = (S[4, 4]*S[5, 3] - S[4, 5]*S[4, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2)
     yt = (-S[4, 3]*S[5, 5] + S[4, 5]*S[5, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2) 
 
     return xs, ys, xt, yt
@@ -408,7 +423,7 @@ end
 m = 1
 for i = 1:10
     for j = 1:10
-        elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso1, 0.0, 0.0)
+        elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso1, 0.0)
         m += 1
     end
 end
@@ -448,7 +463,7 @@ S, K = sectionprops(nodes, elements)
 @test isapprox(K[5, 5], 8.3384e-4, atol=0.0001e-4)
 @test isapprox(K[6, 6], 5.9084e-4, atol=0.0001e-4)
 
-xs, ys, xt, yt = centers(S, 0.0, 1.0)
+xs, ys, xt, yt = centers(S)
 @test isapprox(xs, 0.0, atol=1e-8)
 @test isapprox(ys, 0.0, atol=1e-8)
 @test isapprox(xt, 0.0, atol=1e-8)
@@ -463,9 +478,9 @@ m = 1
 for i = 1:10
     for j = 1:10
         if i <= 5
-            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso1, 0.0, 0.0)
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso1, 0.0)
         else
-            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso2, 0.0, 0.0)
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], iso2, 0.0)
         end
         m += 1
     end
@@ -492,7 +507,7 @@ let
     m = 1
     for i = 1:10
         for j = 1:10
-            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], ortho, theta, 0.0)
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], ortho, theta)
             m += 1
         end
     end
@@ -511,7 +526,7 @@ let
     m = 1
     for i = 1:10
         for j = 1:10
-            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], ortho, theta, 0.0)
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], ortho, theta)
             m += 1
         end
     end
@@ -526,3 +541,309 @@ S, K = sectionprops(nodes, elements)
 @test isapprox(K[6, 6], 9.499E-04, atol=0.001e-4)
 @test isapprox(K[1, 3], 7.387E-01, atol=0.001e-1)
 @test isapprox(K[4, 6], -4.613E-04, atol=0.001e-4)
+
+theta = 90*pi/180
+let
+    m = 1
+    for i = 1:10
+        for j = 1:10
+            elements[m] = Element([11*(i-1)+j, 11*(i)+j, 11*(i)+j+1, 11*(i-1)+j+1], ortho, theta)
+            m += 1
+        end
+    end
+end
+
+S, K = sectionprops(nodes, elements)
+@test isapprox(K[1, 1], 5.0202E-01, atol=0.0001e-1)
+@test isapprox(K[2, 2], 5.0406E-01, atol=0.0001e-1)
+@test isapprox(K[3, 3], 1.2, atol=0.001e0)
+@test isapprox(K[4, 4], 1.0004E-03, atol=0.0001e-3)
+@test isapprox(K[5, 5], 1.0002E-03, atol=0.0001e-3)
+@test isapprox(K[6, 6], 8.5081E-04, atol=0.0001e-4)
+
+
+# --------- cylinder -------
+R = 0.1
+t = 0.01
+nr = 4
+nt = 120
+r = range(R - t, R, length=nr)
+theta = range(0, 2*pi, length=nt)
+
+nodes = Vector{Node}(undef, nr*(nt-1))
+elements = Vector{Element}(undef, (nr-1)*(nt-1))
+let 
+m = 1
+for i = 1:nt-1
+    for j = 1:nr
+        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+        m += 1
+    end
+end
+end
+
+thetam = 0.5* (theta[1:end-1] + theta[2:end])
+beta = thetam .- pi/2
+
+let
+n = 1
+for i = 1:nt-1
+    for j = 1:nr-1
+        if i == nt-1
+            ip = 0
+        else
+            ip = i
+        end
+
+        elements[n] = Element([nr*ip+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*ip+j+1], iso1, 0.0)
+        n += 1
+    end
+end
+end
+
+ne = length(elements)
+nn = length(nodes)
+figure()
+for i = 1:ne
+    node = nodes[elements[i].nodenum]
+    for i = 1:4
+        iplus = i+1
+        if iplus == 5
+            iplus = 1 
+        end
+        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
+    end
+    barx = sum([n.x/4 for n in node])
+    bary = sum([n.y/4 for n in node])
+    # text(barx, bary, string(i), color="r")
+end
+# for i = 1:nn
+#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
+# end
+
+S, K = sectionprops(nodes, elements)
+
+@test isapprox(K[1, 1], 1.249E-01, atol=0.001e-1/2)
+@test isapprox(K[2, 2], 1.249E-01, atol=0.001e-1/2)
+@test isapprox(K[3, 3], 5.965E-01, atol=0.0015e-1)
+@test isapprox(K[4, 4], 2.697E-03, atol=0.002e-3)  # mesh discretization is not the same
+@test isapprox(K[5, 5], 2.697E-03, atol=0.002e-3)
+@test isapprox(K[6, 6], 2.248E-03, atol=0.001e-3)
+
+
+# ---- C2 ----
+
+R = 0.1
+t = 0.01
+nr = 4
+nt = 60
+r = range(R - t, R, length=nr)
+theta = range(pi/2, 3*pi/2, length=nt)
+
+nodes = Vector{Node}(undef, nr*nt)
+elements = Vector{Element}(undef, (nr-1)*(nt-1))
+let 
+m = 1
+for i = 1:nt
+    for j = 1:nr
+        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+        m += 1
+    end
+end
+end
+
+
+let
+n = 1
+for i = 1:nt-1
+    for j = 1:nr-1
+        elements[n] = Element([nr*i+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*i+j+1], iso1, 0.0)
+        n += 1
+    end
+end
+end
+
+ne = length(elements)
+nn = length(nodes)
+figure()
+for i = 1:ne
+    node = nodes[elements[i].nodenum]
+    for i = 1:4
+        iplus = i+1
+        if iplus == 5
+            iplus = 1 
+        end
+        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
+    end
+    barx = sum([n.x/4 for n in node])
+    bary = sum([n.y/4 for n in node])
+    # text(barx, bary, string(i), color="r")
+end
+# for i = 1:nn
+#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
+# end
+
+S, K = sectionprops(nodes, elements)
+
+@test isapprox(K[1, 1], 4.964E-02, atol=0.002e-2)
+@test isapprox(K[2, 2], 6.244E-02, atol=0.002e-2)
+@test isapprox(K[3, 3], 2.982E-01, atol=0.002e-1)
+@test isapprox(K[4, 4], 1.349E-03, atol=0.001e-3)
+@test isapprox(K[5, 5], 1.349E-03, atol=0.001e-3)
+@test isapprox(K[6, 6], 9.120E-04, atol=0.003e-4)
+@test isapprox(K[3, 5], 1.805E-02, atol=0.001e-2)
+@test isapprox(K[2, 6], -7.529E-03, atol=0.003e-3) 
+
+xs, ys, xt, yt = centers(S)
+@test isapprox(xs, -1.206E-01, atol=0.001e-1) 
+@test isapprox(ys, 0.0, atol=1e-6) 
+@test isapprox(xt, -6.051E-02, atol=0.002e-2) 
+@test isapprox(yt, 0.0, atol=1e-6) 
+
+# # A critical assessment of computer tools for calculating composite wind turbine blade properties
+
+# # ----- multi-layer composite pipe --------
+
+# E1 = 141.963e9
+# E2 = 9.79056e9
+# nu12 = 0.42
+# G12 = 59.9844e9
+# rho = 1.0
+# pipemat = Material(E1, E2, nu12, G12, rho)
+
+# nodes = Vector{Node}(undef, 51*21 + 24*21 + 50*21 + 23*21)
+# elements = Vector{Element}(undef, 50*20 + 24*20 + 50*20 + 24*20)
+
+# let
+#     x1 = -50.8e-3/2
+#     y1 = 7.62e-3
+#     x2 = 50.8e-3/2
+#     y2 = 25.4e-3/2
+#     x = range(x1, x2, length=51)
+#     y = range(y1, y2, length=21)
+
+#     m = 1
+#     for i = 1:51
+#         for j = 1:21
+#             nodes[m] = Node(x[i], y[j], m)
+#             m += 1
+#         end
+#     end
+
+#     n = 1
+#     for i = 1:50
+#         for j = 1:20
+#             if j <= 10
+#                 elements[n] = Element([21*(i-1)+j, 21*(i)+j, 21*(i)+j+1, 21*(i-1)+j+1], pipemat, 90*pi/180)
+#             else
+#                 elements[n] = Element([21*(i-1)+j, 21*(i)+j, 21*(i)+j+1, 21*(i-1)+j+1], pipemat, 0.0)
+#             end
+#             n += 1
+#         end
+#     end
+
+#     r = y
+#     theta = reverse(range(-pi/2, pi/2, length=25))
+#     for i = 2:25
+#         for j = 1:21
+#             nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+#             m += 1
+#         end
+#     end
+
+#     I = 50
+
+#     thetam = 0.5* (theta[1:end-1] + theta[2:end])
+
+#     for i = 1:24
+#         for j = 1:20
+#             if j <= 10
+#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, 45*pi/180)
+#             else
+#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, -45*pi/180)
+#             end
+#             n += 1
+#         end
+#     end
+
+#     x1 = 50.8e-3/2
+#     y1 = -7.62e-3
+#     x2 = -50.8e-3/2
+#     y2 = -25.4e-3/2
+
+#     x = reverse(range(x2, x1, length=51))
+#     y = reverse(range(y2, y1, length=21))
+
+#     for i = 2:51
+#         for j = 1:21
+#             nodes[m] = Node(x[i], y[j], m)
+#             m += 1
+#         end
+#     end
+
+#     I += 24
+
+#     for i = 1:50
+#         for j = 1:20
+#             if j <= 10
+#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, 90*pi/180)
+#             else
+#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, 0.0)
+#             end
+#             n += 1
+#         end
+#     end
+
+#     theta = reverse(range(pi/2, 3*pi/2, length=25))
+#     for i = 2:24
+#         for j = 1:21
+#             nodes[m] = Node(-50.8e-3/2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+#             m += 1
+#         end
+#     end
+
+#     I += 50
+
+#     thetam = 0.5* (theta[1:end-1] + theta[2:end])
+
+#     for i = 1:24
+#         for j = 1:20
+#             if i == 24
+#                 Ip = -i
+#             else
+#                 Ip = I
+#             end
+#             if j <= 10
+#                 elements[n] = Element([21*(I+i-1)+j, 21*(Ip+i)+j, 21*(Ip+i)+j+1, 21*(I+i-1)+j+1], pipemat, 45*pi/180)
+#             else
+#                 elements[n] = Element([21*(I+i-1)+j, 21*(Ip+i)+j, 21*(Ip+i)+j+1, 21*(I+i-1)+j+1], pipemat, -45*pi/180)
+#             end
+#             n += 1
+#         end
+#     end
+
+# end
+
+# # ne = length(elements)
+# # nn = length(nodes)
+# # figure()
+# # for i = 1:ne
+# #     node = nodes[elements[i].nodenum]
+# #     for i = 1:4
+# #         iplus = i+1
+# #         if iplus == 5
+# #             iplus = 1 
+# #         end
+# #         plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
+# #     end
+# #     barx = sum([n.x/4 for n in node])
+# #     bary = sum([n.y/4 for n in node])
+# #     text(barx, bary, string(i), color="r")
+# # end
+
+# # for i = 1:nn
+# #     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
+# # end
+
+# S, K = sectionprops(nodes, elements)
+
