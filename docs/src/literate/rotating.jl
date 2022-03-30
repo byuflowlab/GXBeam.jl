@@ -296,7 +296,7 @@ for i = 1:length(sweep)
         midpoints = midpoints)
 
     ## create system
-    system = System(assembly, false)
+    system = System(assembly)
 
     for j = 1:length(rpm)
         ## global frame rotation

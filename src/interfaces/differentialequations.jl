@@ -106,19 +106,8 @@ angular_velocity, linear_acceleration, angular_acceleration)` where each paramet
 """
 function SciMLBase.ODEFunction(system::System, assembly; structural_damping=false)
 
-    # check to make sure the system isn't static
-    @assert !system.static
+    @unpack indices, force_scaling = system
 
-    # unpack system pointers
-    irow_point = system.irow_point
-    irow_elem = system.irow_elem
-    irow_elem1 = system.irow_elem1
-    irow_elem2 = system.irow_elem2
-    icol_point = system.icol_point
-    icol_elem = system.icol_elem
-
-    # unpack scaling parameters
-    force_scaling = system.force_scaling
 
     # DAE function
     f = function(resid, u, p, t)
@@ -127,7 +116,7 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
         prescribed_conditions = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
         distributed_loads = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
         point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
-        gvec = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
+        gravity = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
@@ -135,9 +124,9 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
         α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate residual
-        steady_state_system_residual!(resid, u, assembly, prescribed_conditions,
-            distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
+        steady_state_system_residual!(resid, u, indices, force_scaling, 
+              assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
+              x0, v0, ω0, a0, α0)
 
         return resid
     end
@@ -150,8 +139,8 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
         M .= 0.0
 
         # calculate mass matrix
-        system_mass_matrix!(M, u, assembly, point_masses, structural_damping, force_scaling,
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        system_mass_matrix!(jacob, u, indices, force_scaling, structural_damping, 
+              assembly, prescribed_conditions, point_masses)
 
         return M
     end
@@ -168,7 +157,7 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
         prescribed_conditions = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
         distributed_loads = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
         point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
-        gvec = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
+        gravity = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
@@ -176,18 +165,18 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
         α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate jacobian
-        steady_state_system_jacobian!(J, u, assembly, prescribed_conditions,
-            distributed_loads, point_masses, gvec, force_scaling, irow_point, irow_elem, irow_elem1,
-            irow_elem2, icol_point, icol_elem, x0, v0, ω0, a0, α0)
+        steady_state_system_jacobian!(resid, u, indices, force_scaling, 
+              assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
+              x0, v0, ω0, a0, α0)
 
         return J
     end
 
     # sparsity structure
-    sparsity = get_sparsity(system, assembly)
+    # sparsity = get_sparsity(system, assembly)
 
     # jacobian prototype (use dense since sparse isn't working)
-    jac_prototype = collect(system.K)
+    # jac_prototype = collect(system.K)
 
     # TODO: figure out how to use a sparse matrix here.
     # It's failing with a singular exception during the LU factorization.

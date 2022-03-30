@@ -282,15 +282,13 @@ write_vtk("rotating-geometry", assembly)
 #
 # We won't be applying point masses to our model, but we will demonstrate how to do so.
 # 
-# Point masses are defined by using the constructor [`PointMass`](@ref).  Point masses 
-# may be attached to the center of any beam element.  By using zero length beam elements, 
-# point masses may also be effectively attached to points.  One instance of 
-# [`PointMass`](@ref) must be created for every beam element to which point masses are 
-# attached.  These instances are then stored in a dictionary with keys corresponding to 
-# each beam element index. 
+# Point masses are defined by using the constructor [`PointMass`](@ref) and may be attached
+# to any point.  One instance of [`PointMass`](@ref) must be created for every point 
+# which contains point masses.  These instances of [`PointMass`](@ref) are then stored 
+# in a dictionary with keys corresponding to each point index.
 # 
 # Each [`PointMass`](@ref) contains a 6x6 mass matrix which describes the relationship 
-# between the linear/angular velocity of the beam element and the linear/angular momentum 
+# between the linear/angular velocity of the point and the linear/angular momentum 
 # of the point mass.  For a single point mass, this matrix is defined as
 # ```math
 # \begin{bmatrix}
@@ -329,16 +327,15 @@ write_vtk("rotating-geometry", assembly)
 # mass matrix as described above or by providing the mass, offset, and inertia matrix of 
 # the point mass, with the later being the inertia matrix of the point mass about its 
 # center of gravity rather than the beam center.  To demonstrate, the following code places 
-# a 10 kg tip mass at the end of the beam, which is rigidly attached to the center of the 
-# final beam element
+# a 10 kg tip mass at the end of the beam.
 
 m = 10 # mass
-p = xp_b2[end] - xm_b2[end] # relative location
+p = xp_b2[end] # relative location
 J = zeros(3,3) # inertia matrix (about the point mass center of gravity)
 
 ## create dictionary of point masses
 point_masses = Dict(
-    nelem => PointMass(m, p, J)
+    nelem+1 => PointMass(m, p, J)
     )
 
 #!jl nothing #hide
@@ -448,20 +445,9 @@ prescribed_conditions = Dict(
 # At this point we have everything we need to perform an analysis.  However, since we will 
 # be performing multiple analyses using the same assembly we can save computational time 
 # be pre-allocating memory for the analysis.  This can be done by constructing an object 
-# of type [`System`](@ref).  The constructor for this object requires that we provide the 
-# assembly and a flag indicating whether the system is static.
+# of type [`System`](@ref).
 
-system = System(assembly, false)
-#!jl nothing #hide
-
-# ## Eliminating Unnecessary State Variables
-# 
-# The time needed to perform our analysis can be further reduced by removing unnecessary 
-# state variables and equations from the system of equations.  This optimization may be 
-# enabled by providing the identities of the points with prescribed conditions using the 
-# `prescribed_points` keyword.  
-
-system = System(assembly, false; prescribed_points=[1, nelem+1])
+system = System(assembly)
 #!jl nothing #hide
 
 # ## Performing a Steady State Analysis
@@ -526,14 +512,16 @@ end
 #  - `theta`: point angular displacement (in the global frame)
 #  - `F`: externally applied forces on the point (in the global frame)
 #  - `M`: externally applied moments on the point (in the global frame)
+#  - `V`: linear velocity (in the global frame)
+#  - `Omega`: angular velocity (in the global frame)
 # 
 # The fields of [`ElementState`](@ref) are the following:
 #  - `u`: element displacement (in the global frame )
 #  - `theta`: angular displacement (in the global frame)
-#  - `F`: resultant forces (in the deformed element coordinate frame)
-#  - `M`: resultant moments (in the deformed element coordinate frame)
-#  - `V`: linear velocity (in the deformed element coordinate frame)
-#  - `Omega`: angular velocity (in the deformed element coordinate frame)
+#  - `F`: resultant forces (in the local element frame)
+#  - `M`: resultant moments (in the local element frame)
+#  - `V`: linear velocity (in the global frame)
+#  - `Omega`: angular velocity (in the global frame)
 # 
 # To demonstrate how these fields can be accessed we will now plot the root moment and 
 # tip deflections.

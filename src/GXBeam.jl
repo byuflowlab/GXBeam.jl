@@ -10,6 +10,7 @@ using SparseArrays
 using StaticArrays
 using WriteVTK
 using SciMLBase
+using UnPack
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads, PointMass

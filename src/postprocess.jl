@@ -4,16 +4,20 @@
 Holds the state variables for a point
 
 # Fields:
- - `u`: Displacement variables for the point (in the global coordinate frame)
- - `theta`: Wiener-Milenkovic rotational displacement variables for the point
- - `F`: Externally applied forces on the point (in the global coordinate frame)
- - `M`: Externally applied moments on the point (in the global coordinate frame)
+ - `F`: Externally applied forces on the point
+ - `M`: Externally applied moments on the point
+ - `u`: Displacement variables for the point
+ - `theta`: Displacement Wiener-Milenkovic rotation parameters for the point
+ - `V`: Linear velocity of the point
+ - `Ω`: Angular velocity of the point
 """
 struct PointState{TF}
     u::SVector{3, TF}
     theta::SVector{3, TF}
     F::SVector{3, TF}
     M::SVector{3, TF}
+    V::SVector{3, TF}
+    Omega::SVector{3, TF}
 end
 
 """
@@ -22,9 +26,8 @@ end
 Holds the state variables for an element
 
 # Fields:
- - `u`: Displacement variables for the element (in the global coordinate frame)
- - theta: Wiener-Milenkovic rotational displacement variables for the element
-       (in the global coordinate frame)
+ - `u`: Displacement variables for the element
+ - `theta`: Wiener-Milenkovic rotational displacement variables for the element
  - `F`: Resultant forces for the element (in the deformed local coordinate frame)
  - `M`: Resultant moments for the element (in the deformed local coordinate frame)
  - `V`: Linear velocity of the element (in the deformed local coordinate frame)
@@ -71,7 +74,7 @@ function AssemblyState(system, assembly, x = system.x;
 
     points = extract_point_states(system, assembly, x; prescribed_conditions)
 
-    elements = extract_element_states(system, x)
+    elements = extract_element_states(system, assembly, x; prescribed_conditions)
 
     return AssemblyState(points, elements)
 end
@@ -90,64 +93,23 @@ analysis.
 function extract_point_state(system, assembly, ipoint, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions :
-        prescribed_conditions(system.t)
+    @unpack force_scaling, dynamic_indices, t = system
 
-    force_scaling = system.force_scaling
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
-    icol_p = system.icol_point[ipoint]
-
-    if icol_p <= 0
-        # point variables are not state variables, solve for point variables
-
-        # find the first beam connected to the point, checking both sides
-        ielem = findfirst(x -> x == ipoint, assembly.start)
-        if !isnothing(ielem)
-            side = -1
-        else
-            ielem = findfirst(x -> x == ipoint, assembly.stop)
-            side = 1
-        end
-
-        elem = assembly.elements[ielem]
-
-        # get beam state variables
-        icol_b = system.icol_elem[ielem]
-        u_e = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
-        θ_b = SVector(x[icol_b+3 ], x[icol_b+4 ], x[icol_b+5 ])
-        F_e = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* force_scaling
-        M_e = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* force_scaling
-
-        # get beam element properties
-        ΔL_b = elem.L
-        Ct_b = get_C(θ_b)'
-        Cab_b = elem.Cab
-        γ_b = element_strain(elem, F_e, M_e)
-        κ_b = element_curvature(elem, F_e, M_e)
-
-        # solve for the displacements/rotations of the point
-        u = u_e + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
-        theta = θ_b + side*ΔL_b/2*get_Qinv(θ_b)*Cab_b*κ_b
-        F = zero(u)
-        M = zero(u)
-    else
-        # point variables are state variables, extract point state variables
-        prescribed = haskey(pc, ipoint)
-        if prescribed
-            u, theta, F, M = point_variables(x, icol_p, pc[ipoint], force_scaling)
-        else
-            u, theta, F, M = point_variables(x, icol_p)
-        end
-    end
+    # extract point state variables
+    u, theta = point_displacement(x, ipoint, dynamic_indices.icol_point, pc)
+    F, M = point_loads(x, ipoint, dynamic_indices.icol_point, force_scaling, pc)
+    V, Ω = point_velocities(x, ipoint, dynamic_indices.icol_point)
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(theta)
     theta *= scaling
 
     # promote all variables to the same type
-    u, theta, F, M = promote(u, theta, F, M)
+    u, theta, F, M, V, Ω = promote(u, theta, F, M, V, Ω)
 
-    return PointState(u, theta, F, M)
+    return PointState(u, theta, F, M, V, Ω)
 end
 
 """
@@ -184,23 +146,36 @@ function extract_point_states!(points, system, assembly, x = system.x;
 end
 
 """
-    extract_element_state(system, ielem, x = system.x)
+    extract_element_state(system, assembly, ielem, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
 Return the state variables corresponding to element `ielem` (see [`ElementState`](@ref))
 given the solution vector `x`.
 """
-function extract_element_state(system, ielem, x = system.x)
+function extract_element_state(system, assembly, ielem, x = system.x; 
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    force_scaling = system.force_scaling
+    # system variables
+    @unpack force_scaling, dynamic_indices, t = system
 
-    icol = system.icol_elem[ielem]
-    static = system.irow_elem[ielem] <= 0
-    u = SVector(x[icol], x[icol+1], x[icol+2])
-    theta = SVector(x[icol+3], x[icol+4], x[icol+5])
-    F = SVector(x[icol+6], x[icol+7], x[icol+8]) .* force_scaling
-    M = SVector(x[icol+9], x[icol+10], x[icol+11]) .* force_scaling
-    V = ifelse(static, zero(u), SVector(x[icol+12], x[icol+13], x[icol+14]))
-    Ω = ifelse(static, zero(u), SVector(x[icol+15], x[icol+16], x[icol+17]))
+    # current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    # point properties at the start of the beam element  
+    u1, θ1 = point_displacement(x, assembly.start[ielem], dynamic_indices.icol_point, prescribed_conditions)
+
+    # point properties at the end of the beam element
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], dynamic_indices.icol_point, prescribed_conditions)
+
+    # beam element displacement variables
+    u = (u1 + u2)/2
+    theta = (θ1 + θ2)/2
+
+    # element state variables
+    F, M = element_states(x, ielem, dynamic_indices.icol_elem, force_scaling)
+
+    V = zero(u)
+    Ω = zero(u)
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(theta)
@@ -213,25 +188,27 @@ function extract_element_state(system, ielem, x = system.x)
 end
 
 """
-    extract_element_states(system, x = system.x)
+    extract_element_states(system, assembly, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
 Return the state variables corresponding to each element (see [`ElementState`](@ref))
 given the solution vector `x`.
 """
-function extract_element_states(system, x = system.x)
+function extract_element_states(system, assembly, x = system.x; kwargs...)
     TF = promote_type(eltype(system), eltype(x))
-    elements = Vector{ElementState{TF}}(undef, length(system.icol_elem))
-    return extract_element_states!(elements, system, x)
+    elements = Vector{ElementState{TF}}(undef, length(assembly.elements))
+    return extract_element_states!(elements, system, assembly, x; kwargs...)
 end
 
 """
-    extract_element_states!(elements, system, x = system.x)
+    extract_element_states!(elements, system, assembly, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
 Pre-allocated version of [`extract_element_states`](@ref)
 """
-function extract_element_states!(elements, system, x = system.x)
+function extract_element_states!(elements, system, assembly, x = system.x; kwargs...)
     for ielem = 1:length(elements)
-        elements[ielem] = extract_element_state(system, ielem, x)
+        elements[ielem] = extract_element_state(system, assembly, ielem, x; kwargs...)
     end
     return elements
 end

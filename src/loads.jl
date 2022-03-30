@@ -448,45 +448,36 @@ function combine_masses(masses)
 end
 
 """
-    acceleration_loads(mass11, mass12, mass21, mass22, CtCab, u, a, α)
+    acceleration_loads(R, mass11, mass12, mass21, mass22, a, α)
 
-Calculate the integrated distributed loads on an element caused by acceleration.
+Compute loads due to linear and angular acceleration.
 """
-@inline function acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
+@inline function acceleration_loads(R, mass11, mass12, mass21, mass22, a, α)
    
     # force and moment per unit length due to accelerating reference frame
-    f = -CtCab*(mass11*CtCab'*a + mass12*CtCab'*α)
-    m = -CtCab*(mass21*CtCab'*a + mass22*CtCab'*α)
-
-    # integrate force and moment per unit length
-    f1 = f2 = f/2
-    m1 = m2 = m/2
+    F = -R*(mass11*R'*a + mass12*R'*α)
+    M = -R*(mass21*R'*a + mass22*R'*α)
 
     # return result
-    return f1, f2, m1, m2
+    return F, M
 end
 
-@inline function acceleration_loads_jacobian(mass11, mass12, mass21, mass22, a, α, 
-    Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
+@inline function acceleration_load_jacobians(R, mass11, mass12, mass21, mass22, a, α, 
+    R_θ1, R_θ2, R_θ3)
 
     # force and moment per unit length due to accelerating reference frame
-    f_u = -CtCab*mass11*CtCab'*tilde(α)
-    m_u = -CtCab*mass21*CtCab'*tilde(α)
+    F_u = -R*mass11*R'*tilde(α)
+    M_u = -R*mass21*R'*tilde(α)
 
-    f_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass11*CtCab'*a + mass12*CtCab'*α)) - 
-        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) -
-        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
-    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass21*CtCab'*a + mass22*CtCab'*α)) - 
-        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) -
-        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
+    F_θ = -mul3(R_θ1, R_θ2, R_θ3, mass11*R'*a + mass12*R'*α) - 
+        R*mass11*mul3(R_θ1', R_θ2', R_θ3', a) -
+        R*mass12*mul3(R_θ1', R_θ2', R_θ3', α)
 
-    # calculate integrated force and moment per unit length
-    f1_u = f2_u = f_u/2
-    m1_u = m2_u = m_u/2
-    f1_θ = f2_θ = f_θ/2
-    m1_θ = m2_θ = m_θ/2
+    M_θ = -mul3(R_θ1, R_θ2, R_θ3, mass21*R'*a + mass22*R'*α) - 
+        R*mass21*mul3(R_θ1', R_θ2', R_θ3', a) -
+        R*mass22*mul3(R_θ1', R_θ2', R_θ3', α)
 
-    return f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ
+    return F_u, F_θ, M_u, M_θ
 end
 
 
