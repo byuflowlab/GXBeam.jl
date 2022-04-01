@@ -76,53 +76,11 @@ function rotate_to_element(K, c, s)  # c = cos(beta), s = sin(beta)
     return T*K*T'
 end
 
-# function rotate_to_element(K, x, y)
-#     dx = x[2] - x[1]
-#     dy = y[2] - y[1]
-#     ds = sqrt(dx^2 + dy^2)
-#     c = dx/ds
-#     s = dy/ds
-#     T = [c^2 s^2 0 -2*s*c 0 0;
-#           s^2 c^2 0 2*s*c 0 0;
-#           0.0 0 1 0 0 0;
-#           s*c -s*c 0 c^2-s^2 0 0;
-#           0 0 0 0 c -s;
-#           0 0 0 0 s c]
 
-#     return T*K*T'
-# end
-
-
-# function transformation(Q, R)
-#     Qnew = zeros(6, 6)
-#     for i = 1:3
-#         for j = i:3
-#             for k = 1:3
-#                 for l = 1:3
-#                     Qnew[i, j] = R[i, k]*R[j, l]*Q[k, l]
-#                 end
-#             end
-#         end
-#     end
-#     return Symmetric(Qnew)
-# end
-
-
-# Rmaterial(theta) = [cos(theta) 0.0 sin(theta); 0 1 0; -sin(theta) 0 cos(theta)]
-# Rgeometry(beta) = [cos(beta) -sin(beta) 0.0; sin(beta) cos(beta) 0; 0 0 1]
-# function Rgeometry(y1, y2, z2, z2)
-#     dy = y2 - y1
-#     dz = z2 - z1
-#     ds = sqrt(dy^2 + dz^2)
-#     cb = dx/ds
-#     sb = dy/ds
-#     return [cb -sb 0.0; sb cb 0; 0 0 1]
-# end
-
-# function reorder(Q)
-#     idx = [2, 3, 6, 4, 5, 1]
-#     return Q[idx, idx]
-# end
+function reorder(K)  # reorder to GXBeam format
+    idx = [3, 1, 2, 6, 4, 5]
+    return K[idx, idx]
+end
 
 function elementQ(material, theta, cbeta, sbeta)
     Q1 = stiffness(material)  # material
@@ -700,150 +658,256 @@ xs, ys, xt, yt = centers(S)
 @test isapprox(xt, -6.051E-02, atol=0.002e-2) 
 @test isapprox(yt, 0.0, atol=1e-6) 
 
-# # A critical assessment of computer tools for calculating composite wind turbine blade properties
 
-# # ----- multi-layer composite pipe --------
+# A critical assessment of computer tools for calculating composite wind turbine blade properties
+# ------ circular tube -------
+E = 73e9
+nu = 0.33
+G = E/(2*(1 + nu))
+tratio = 1.0/3
+R = 0.3
+t = tratio*2*R
+circmat = Material(E, E, nu, G, 1.0)
+
+nr = 20
+nt = 100
+r = range(R - t, R, length=nr)
+theta = range(0.0, 2*pi, length=nt)
+
+nodes = Vector{Node}(undef, nr*(nt-1))
+elements = Vector{Element}(undef, (nr-1)*(nt-1))
+let 
+m = 1
+for i = 1:nt-1
+    for j = 1:nr
+        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+        m += 1
+    end
+end
+
+n = 1
+for i = 1:nt-1
+    for j = 1:nr-1
+        if i == nt-1
+            ip = 0
+        else
+            ip = i
+        end
+
+        elements[n] = Element([nr*ip+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*ip+j+1], circmat, 0.0)
+        n += 1
+    end
+end
+end
+
+ne = length(elements)
+nn = length(nodes)
+figure()
+for i = 1:ne
+    node = nodes[elements[i].nodenum]
+    for i = 1:4
+        iplus = i+1
+        if iplus == 5
+            iplus = 1 
+        end
+        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
+    end
+    barx = sum([n.x/4 for n in node])
+    bary = sum([n.y/4 for n in node])
+    # text(barx, bary, string(i), color="r")
+end
+# for i = 1:nn
+#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
+# end
+
+S, K = sectionprops(nodes, elements)
+K2 = reorder(K)
+
+@test isapprox(K2[1, 1], 1.835e10, rtol=0.001)
+@test isapprox(K2[2, 2], 4.682e9, rtol=0.001)
+@test isapprox(K2[3, 3], 4.682e9, rtol=0.001)
+@test isapprox(K2[4, 4], 3.519e8, rtol=0.03)
+@test isapprox(K2[5, 5], 4.587e8, rtol=0.002)
+@test isapprox(K2[6, 6], 4.587e8, rtol=0.002)
+
+#  --- Generalized Timoshenko Theory of the Variational Asymptotic Beam Sectional Analysis ----
+# ----- multi-layer composite pipe --------
 
 # E1 = 141.963e9
 # E2 = 9.79056e9
 # nu12 = 0.42
 # G12 = 59.9844e9
-# rho = 1.0
-# pipemat = Material(E1, E2, nu12, G12, rho)
+E1 = 20.59e6
+E2 = 1.42e6
+nu12 = 0.42
+G12 = 0.87e6
+rho = 1.0
+pipemat = Material(E1, E2, nu12, G12, rho)
 
-# nodes = Vector{Node}(undef, 51*21 + 24*21 + 50*21 + 23*21)
-# elements = Vector{Element}(undef, 50*20 + 24*20 + 50*20 + 24*20)
+nx = 50
+nt = 24
+nr = 20
+nodes = Vector{Node}(undef, (2*(nx-1) + 2*(nt-1))*nr)
+elements = Vector{Element}(undef, (2*(nx-1) + 2*(nt-1))*(nr-1))
 
-# let
-#     x1 = -50.8e-3/2
-#     y1 = 7.62e-3
-#     x2 = 50.8e-3/2
-#     y2 = 25.4e-3/2
-#     x = range(x1, x2, length=51)
-#     y = range(y1, y2, length=21)
+let
+    # x1 = -50.8e-3/2
+    # y1 = 7.62e-3
+    # x2 = 50.8e-3/2
+    # y2 = 25.4e-3/2
+    x1 = -1.0
+    y1 = 0.3
+    x2 = 1.0
+    y2 = 0.5
+    
+    x = range(x1, x2, length=nx)
+    y = range(y1, y2, length=nr)
 
-#     m = 1
-#     for i = 1:51
-#         for j = 1:21
-#             nodes[m] = Node(x[i], y[j], m)
-#             m += 1
-#         end
-#     end
+    m = 1
+    for i = 1:nx
+        for j = 1:nr
+            nodes[m] = Node(x[i], y[j], m)
+            m += 1
+        end
+    end
 
-#     n = 1
-#     for i = 1:50
-#         for j = 1:20
-#             if j <= 10
-#                 elements[n] = Element([21*(i-1)+j, 21*(i)+j, 21*(i)+j+1, 21*(i-1)+j+1], pipemat, 90*pi/180)
-#             else
-#                 elements[n] = Element([21*(i-1)+j, 21*(i)+j, 21*(i)+j+1, 21*(i-1)+j+1], pipemat, 0.0)
-#             end
-#             n += 1
-#         end
-#     end
+    n = 1
+    for i = 1:nx-1
+        for j = 1:nr-1
+            if j <= (nr ÷ 2)
+                theta = 90*pi/180
+            else
+                theta = 0.0
+            end
+            elements[n] = Element([nr*(i-1)+j, nr*(i)+j, nr*(i)+j+1, nr*(i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
 
-#     r = y
-#     theta = reverse(range(-pi/2, pi/2, length=25))
-#     for i = 2:25
-#         for j = 1:21
-#             nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
-#             m += 1
-#         end
-#     end
+    I = nx-1
 
-#     I = 50
+    r = y
+    theta = reverse(range(-pi/2, pi/2, length=nt))
+    for i = 2:nt
+        for j = 1:nr
+            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+            m += 1
+        end
+    end
 
-#     thetam = 0.5* (theta[1:end-1] + theta[2:end])
+    for i = 1:nt-1
+        for j = 1:nr-1
+            if j <= (nr ÷ 2)
+                theta = 45*pi/180
+            else
+                theta = -45*pi/180
+            end
+            elements[n] = Element([nr*(I+i-1)+j, nr*(I+i)+j, nr*(I+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
 
-#     for i = 1:24
-#         for j = 1:20
-#             if j <= 10
-#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, 45*pi/180)
-#             else
-#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, -45*pi/180)
-#             end
-#             n += 1
-#         end
-#     end
+    I += nt-1
 
-#     x1 = 50.8e-3/2
-#     y1 = -7.62e-3
-#     x2 = -50.8e-3/2
-#     y2 = -25.4e-3/2
+    # x1 = 50.8e-3/2
+    # y1 = -7.62e-3
+    # x2 = -50.8e-3/2
+    # y2 = -25.4e-3/2
+    x1 = 1.0
+    y1 = -0.3
+    x2 = -1.0
+    y2 = -0.5
 
-#     x = reverse(range(x2, x1, length=51))
-#     y = reverse(range(y2, y1, length=21))
+    x = reverse(range(x2, x1, length=nx))
+    y = reverse(range(y2, y1, length=nr))
 
-#     for i = 2:51
-#         for j = 1:21
-#             nodes[m] = Node(x[i], y[j], m)
-#             m += 1
-#         end
-#     end
+    for i = 2:nx
+        for j = 1:nr
+            nodes[m] = Node(x[i], y[j], m)
+            m += 1
+        end
+    end
 
-#     I += 24
+    for i = 1:nx-1
+        for j = 1:nr-1
+            if j <= (nr ÷ 2)
+                theta = 90*pi/180
+            else
+                theta = 0.0
+            end
+            elements[n] = Element([nr*(I+i-1)+j, nr*(I+i)+j, nr*(I+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
 
-#     for i = 1:50
-#         for j = 1:20
-#             if j <= 10
-#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, 90*pi/180)
-#             else
-#                 elements[n] = Element([21*(I+i-1)+j, 21*(I+i)+j, 21*(I+i)+j+1, 21*(I+i-1)+j+1], pipemat, 0.0)
-#             end
-#             n += 1
-#         end
-#     end
+    I += nx-1
 
-#     theta = reverse(range(pi/2, 3*pi/2, length=25))
-#     for i = 2:24
-#         for j = 1:21
-#             nodes[m] = Node(-50.8e-3/2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
-#             m += 1
-#         end
-#     end
+    theta = reverse(range(pi/2, 3*pi/2, length=nt))
+    for i = 2:nt-1
+        for j = 1:nr
+            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+            m += 1
+        end
+    end
 
-#     I += 50
+    for i = 1:nt-1
+        for j = 1:nr-1
+            if i == nt-1
+                Ip = -i
+            else
+                Ip = I
+            end
+            if j <= (nr ÷ 2)
+                theta = 45*pi/180
+            else
+                theta = -45*pi/180
+            end
+            elements[n] = Element([nr*(I+i-1)+j, nr*(Ip+i)+j, nr*(Ip+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
 
-#     thetam = 0.5* (theta[1:end-1] + theta[2:end])
+end
 
-#     for i = 1:24
-#         for j = 1:20
-#             if i == 24
-#                 Ip = -i
-#             else
-#                 Ip = I
-#             end
-#             if j <= 10
-#                 elements[n] = Element([21*(I+i-1)+j, 21*(Ip+i)+j, 21*(Ip+i)+j+1, 21*(I+i-1)+j+1], pipemat, 45*pi/180)
-#             else
-#                 elements[n] = Element([21*(I+i-1)+j, 21*(Ip+i)+j, 21*(Ip+i)+j+1, 21*(I+i-1)+j+1], pipemat, -45*pi/180)
-#             end
-#             n += 1
-#         end
-#     end
-
+ne = length(elements)
+nn = length(nodes)
+figure()
+for i = 1:ne
+    node = nodes[elements[i].nodenum]
+    for i = 1:4
+        iplus = i+1
+        if iplus == 5
+            iplus = 1 
+        end
+        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
+    end
+    barx = sum([n.x/4 for n in node])
+    bary = sum([n.y/4 for n in node])
+    # text(barx, bary, string(i), color="r")
+end
+# for i = 1:nn
+#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
 # end
 
-# # ne = length(elements)
-# # nn = length(nodes)
-# # figure()
-# # for i = 1:ne
-# #     node = nodes[elements[i].nodenum]
-# #     for i = 1:4
-# #         iplus = i+1
-# #         if iplus == 5
-# #             iplus = 1 
-# #         end
-# #         plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
-# #     end
-# #     barx = sum([n.x/4 for n in node])
-# #     bary = sum([n.y/4 for n in node])
-# #     text(barx, bary, string(i), color="r")
-# # end
+S, K = sectionprops(nodes, elements)
+K2 = reorder(K)
 
-# # for i = 1:nn
-# #     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
-# # end
+@test isapprox(K2[1, 1], 1.03892e7, rtol=0.04)
+@test isapprox(K2[2, 2], 7.85310e5, rtol=0.01)
+@test isapprox(K2[3, 3], 3.29279e5, rtol=0.02)
+@test isapprox(K2[1, 4], 9.84575e4, rtol=0.12)
+@test isapprox(K2[2, 5], -8.21805e3, rtol=0.11)
+@test isapprox(K2[3, 6], -5.20981e4, rtol=0.21)
+@test isapprox(K2[4, 4], 6.87275e5, rtol=0.01)
+@test isapprox(K2[5, 5], 1.88238e6, rtol=0.04)
+@test isapprox(K2[6, 6], 5.38987e6, rtol=0.03)
 
-# S, K = sectionprops(nodes, elements)
-
+# println("K11 = ", round((K2[1, 1]/1.03892e7 - 1)*100, digits=2), "%")
+# println("K22 = ", round((K2[2, 2]/7.85310e5 - 1)*100, digits=2), "%")
+# println("K33 = ", round((K2[3, 3]/3.29279e5 - 1)*100, digits=2), "%")
+# println("K14 = ", round((K2[1, 4]/9.84575e4 - 1)*100, digits=2), "%")
+# println("K25 = ", round((K2[2, 5]/-8.21805e3 - 1)*100, digits=2), "%")
+# println("K36 = ", round((K2[3, 6]/-5.20981e4 - 1)*100, digits=2), "%")
+# println("K44 = ", round((K2[4, 4]/6.87275e5 - 1)*100, digits=2), "%")
+# println("K55 = ", round((K2[5, 5]/1.88238e6 - 1)*100, digits=2), "%")
+# println("K66 = ", round((K2[6, 6]/5.38987e6 - 1)*100, digits=2), "%")
