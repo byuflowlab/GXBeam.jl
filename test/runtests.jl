@@ -85,7 +85,7 @@ end
     # point masses
     pmass = Dict(
         # point mass at the end of the beam
-        nelem+1 => PointMass(Symmetric(rand(RNG,6,6)))
+        nelem => PointMass(Symmetric(rand(RNG,6,6)))
     )
 
     # gravity vector
@@ -1433,22 +1433,18 @@ end
     # calculate integrated force and moment per unit length
     f = μ*gvec
     m = cross(CtCab*[0, xm2, xm3], f)
-    f1 = f2 = ΔL*f/2
-    m1 = m2 = ΔL*m/2
 
     # test against gravitational load function results
-    mass11 = ΔL*mass[1:3, 1:3]
-    mass12 = ΔL*mass[1:3, 4:6]
-    mass21 = ΔL*mass[4:6, 1:3]
-    mass22 = ΔL*mass[4:6, 4:6]
+    mass11 = mass[1:3, 1:3]
+    mass12 = mass[1:3, 4:6]
+    mass21 = mass[4:6, 1:3]
+    mass22 = mass[4:6, 4:6]
     a = -gvec
     α = zero(a)
-    f1t, f2t, m1t, m2t = GXBeam.acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
+    ft, mt = GXBeam.acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
 
-    @test isapprox(f1, f1t)
-    @test isapprox(f2, f2t)
-    @test isapprox(m1, m1t)
-    @test isapprox(m2, m2t)
+    @test isapprox(f, ft)
+    @test isapprox(m, mt)
 
 end
 
@@ -1459,19 +1455,33 @@ end
     start = 1:nelem
     stop =  2:(nelem+1)
 
-    frames = fill(wiener_milenkovic(rand(RNG, 3)), nelem)
-    compliance = fill(Symmetric(rand(RNG, 6,6)), nelem)
-    mass = fill(Symmetric(rand(RNG, 6,6)), nelem)
-       
+    stiff = [
+        1.0e6  0.0    0.0    -0.5   -1.0  -50000.0
+        0.0    3.0e6  0.0     0.0    0.0       0.0
+        0.0    0.0    3.0e6   0.0    0.0       0.0
+       -0.5    0.0    0.0     7.0    0.1      -0.02
+       -1.0    0.0    0.0     0.1    5.0       0.1
+   -50000.0    0.0    0.0    -0.02   0.1    3000.0
+    ]
+
+    mass = [
+        0.02    0.0      0.0     0.0      -5.0e-7  -1.0e-7
+        0.0     0.02     0.0     5.0e-7    0.0      0.0001
+        0.0     0.0      0.02    1.0e-7   -0.0001   0.0
+        0.0     5.0e-7   1.0e-7  1.0e-5    1.0e-8   2.0e-10
+       -5.0e-7  0.0     -0.0001  1.0e-8    6.0e-7   9.0e-9
+       -1.0e-7  0.0001   0.0     2.0e-10   9.0e-9   1.0e-5
+    ]
+
+    transformation = [0 -1 0; 1 0 0; 0 0 1]
+
+    assembly = GXBeam.Assembly(nodes, start, stop; 
+        stiffness = fill(stiff, nelem), 
+        frames = fill(transformation, nelem), 
+        mass = fill(mass./0.1, nelem));
+    
     prescribed_conditions = Dict(1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0));
 
-    # assembly of mass-containing beam elements
-
-    assembly = GXBeam.Assembly(nodes, start, stop;
-        compliance=compliance, 
-        frames=frames, 
-        mass=mass);
-    
     system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly;
         prescribed_conditions = prescribed_conditions, 
         nev = 14);
@@ -1481,25 +1491,53 @@ end
     freq = imagλ[isort[1:2:10]]/(2*pi)
 
     # assembly of massless beam elements with point masses
-    
-    assembly = GXBeam.Assembly(nodes, start, stop;
-        compliance=compliance, 
-        frames=frames);
-   
-    point_masses = Dict{Int, PointMass{Float64}}()
-    for i = 1:nelem
-        T = [frames[i] zeros(3,3); zeros(3,3) frames[i]]
-        point_masses[i] = PointMass(T * mass[i] * T' .* assembly.elements[i].L)
-    end
 
-    system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly; 
+    point_masses = Dict(1 => PointMass(mass))
+    for i = 2:nelem
+        point_masses[i] = PointMass(mass)
+    end
+    point_masses[nelem+1] = PointMass(mass./2)
+    
+    assembly = GXBeam.Assembly(nodes, start, stop; 
+        stiffness = fill(stiff, nelem), 
+        frames = fill(transformation, nelem));
+
+    system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly;
         prescribed_conditions = prescribed_conditions, 
         point_masses = point_masses,
-        nev = 14);
-   
+        nev = 20);
+
     imagλ = imag(λ)
     isort = sortperm(abs.(imagλ))
     pfreq = imagλ[isort[1:2:10]]/(2*pi)
+
+
+
+    # assembly = GXBeam.Assembly(nodes, start, stop;
+    #     compliance=compliance, 
+    #     frames=frames);
+   
+    # point_masses = Dict{Int, PointMass{Float64}}()
+    # T = [frames[1] zeros(3,3); zeros(3,3) frames[1]]
+    # point_masses[1] = PointMass(T * mass[1] * T' .* assembly.elements[1].L/2)
+    # for i = 2:length(nodes)-1
+    #     T1 = [frames[i-1] zeros(3,3); zeros(3,3) frames[i-1]]
+    #     T2 = [frames[i] zeros(3,3); zeros(3,3) frames[i]]
+    #     point_masses[i] = PointMass(
+    #         T1 * mass[i-1] * T1' .* assembly.elements[i-1].L/2 + 
+    #         T2 * mass[i  ] * T2' .* assembly.elements[i  ].L/2)
+    # end
+    # T = [frames[nelem] zeros(3,3); zeros(3,3) frames[nelem]]
+    # point_masses[nelem+1] = PointMass(T * mass[nelem] * T' .* assembly.elements[nelem].L/2)
+
+    # system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly; 
+    #     prescribed_conditions = prescribed_conditions, 
+    #     point_masses = point_masses,
+    #     nev = 14);
+   
+    # imagλ = imag(λ)
+    # isort = sortperm(abs.(imagλ))
+    # pfreq = imagλ[isort[1:2:10]]/(2*pi)
 
     # test the two equivalent systems
     @test isapprox(freq, pfreq)

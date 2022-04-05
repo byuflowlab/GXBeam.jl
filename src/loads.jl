@@ -446,38 +446,3 @@ function combine_masses(masses)
     end
     return PointMass(M)
 end
-
-"""
-    acceleration_loads(R, mass11, mass12, mass21, mass22, a, α)
-
-Compute loads due to linear and angular acceleration.
-"""
-@inline function acceleration_loads(R, mass11, mass12, mass21, mass22, a, α)
-   
-    # force and moment per unit length due to accelerating reference frame
-    F = -R*(mass11*R'*a + mass12*R'*α)
-    M = -R*(mass21*R'*a + mass22*R'*α)
-
-    # return result
-    return F, M
-end
-
-@inline function acceleration_load_jacobians(R, mass11, mass12, mass21, mass22, a, α, 
-    R_θ1, R_θ2, R_θ3)
-
-    # force and moment per unit length due to accelerating reference frame
-    F_u = -R*mass11*R'*tilde(α)
-    M_u = -R*mass21*R'*tilde(α)
-
-    F_θ = -mul3(R_θ1, R_θ2, R_θ3, mass11*R'*a + mass12*R'*α) - 
-        R*mass11*mul3(R_θ1', R_θ2', R_θ3', a) -
-        R*mass12*mul3(R_θ1', R_θ2', R_θ3', α)
-
-    M_θ = -mul3(R_θ1, R_θ2, R_θ3, mass21*R'*a + mass22*R'*α) - 
-        R*mass21*mul3(R_θ1', R_θ2', R_θ3', a) -
-        R*mass22*mul3(R_θ1', R_θ2', R_θ3', α)
-
-    return F_u, F_θ, M_u, M_θ
-end
-
-

@@ -106,17 +106,16 @@ angular_velocity, linear_acceleration, angular_acceleration)` where each paramet
 """
 function SciMLBase.ODEFunction(system::System, assembly; structural_damping=false)
 
-    @unpack indices, force_scaling = system
-
+    @unpack dynamic_indices, force_scaling = system
 
     # DAE function
     f = function(resid, u, p, t)
 
         # get current parameters
-        prescribed_conditions = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
-        distributed_loads = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
-        point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
-        gravity = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
+        pcond = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
+        dload = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
+        pmass = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
+        gvec = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
@@ -124,23 +123,24 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
         α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate residual
-        steady_state_system_residual!(resid, u, indices, force_scaling, 
-              assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
-              x0, v0, ω0, a0, α0)
+        steady_state_system_residual!(resid, u, dynamic_indices, force_scaling, 
+            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         return resid
     end
 
     update_mass_matrix! = function(M, u, p, t)
 
-       point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
+        # get current parameters
+        pcond = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
+        pmass = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
 
         # zero out all mass matrix entries
         M .= 0.0
 
         # calculate mass matrix
-        system_mass_matrix!(jacob, u, indices, force_scaling, structural_damping, 
-              assembly, prescribed_conditions, point_masses)
+        system_mass_matrix!(jacob, u, dynamic_indices, force_scaling, structural_damping, 
+              assembly, pcond, pmass)
 
         return M
     end
@@ -154,10 +154,10 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
         J .= 0.0
 
         # get current parameters
-        prescribed_conditions = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
-        distributed_loads = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
-        point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
-        gravity = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
+        pcond = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
+        dload = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
+        pmass = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
+        gvec = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
         ω0 = typeof(p[7]) <: AbstractVector ? SVector{3}(p[7]) : SVector{3}(p[7](t))
@@ -166,20 +166,10 @@ function SciMLBase.ODEFunction(system::System, assembly; structural_damping=fals
 
         # calculate jacobian
         steady_state_system_jacobian!(resid, u, indices, force_scaling, 
-              assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
-              x0, v0, ω0, a0, α0)
+              assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         return J
     end
-
-    # sparsity structure
-    # sparsity = get_sparsity(system, assembly)
-
-    # jacobian prototype (use dense since sparse isn't working)
-    # jac_prototype = collect(system.K)
-
-    # TODO: figure out how to use a sparse matrix here.
-    # It's failing with a singular exception during the LU factorization.
 
     return SciMLBase.ODEFunction{true,true}(f; mass_matrix, jac)
 end
@@ -246,19 +236,21 @@ function SciMLBase.DAEProblem(system::System, assembly, tspan;
 
     # use initial state rates from `system`
     du0 = zero(u0)
-    for (ielem, icol) in enumerate(system.icol_elem)
-        du0[icol:icol+2] = system.udot[ielem]
-        du0[icol+3:icol+5] = system.θdot[ielem]
-        du0[icol+12:icol+14] = system.Vdot[ielem]
-        du0[icol+15:icol+17] = system.Ωdot[ielem]
+    for (ipoint, icol) in enumerate(system.dynamic_indices.icol_point)
+        du0[icol:icol+2] = system.udot[ipoint]
+        du0[icol+3:icol+5] = system.θdot[ipoint]
+        du0[icol+6:icol+8] = system.Vdot[ipoint]
+        du0[icol+9:icol+11] = system.Ωdot[ipoint]
     end
 
     # set parameters
     p = (prescribed_conditions, distributed_loads, point_masses, gravity, origin, 
        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
+
     # get differential variables
-    differential_vars = get_differential_vars(system, assembly, structural_damping)
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0.0)
+    differential_vars = get_differential_vars(system, pcond)
 
     return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars)
 end
@@ -302,27 +294,16 @@ where each parameter is defined as follows:
 """
 function SciMLBase.DAEFunction(system::System, assembly; structural_damping=true)
 
-    # check to make sure the system isn't static
-    @assert !system.static
-
     # unpack system pointers
-    irow_point = system.irow_point
-    irow_elem = system.irow_elem
-    irow_elem1 = system.irow_elem1
-    irow_elem2 = system.irow_elem2
-    icol_point = system.icol_point
-    icol_elem = system.icol_elem
-
-    # unpack scaling parameters
-    force_scaling = system.force_scaling
+    @unpack dynamic_indices, force_scaling = system
 
     # DAE function
     f = function(resid, du, u, p, t)
 
         # get current parameters
-        prescribed_conditions = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
-        distributed_loads = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
-        point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
+        pcond = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
+        dload = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
+        pmass = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
         gvec = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
         v0 = typeof(p[6]) <: AbstractVector ? SVector{3}(p[6]) : SVector{3}(p[6](t))
@@ -331,10 +312,8 @@ function SciMLBase.DAEFunction(system::System, assembly; structural_damping=true
         α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate residual
-        dynamic_system_residual!(resid, du, u, assembly, prescribed_conditions,
-            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, 
-            x0, v0, ω0, a0, α0)
+        dynamic_system_residual!(resid, du, u, dynamic_indices, force_scaling, structural_damping, 
+            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         return resid
     end
@@ -346,8 +325,8 @@ function SciMLBase.DAEFunction(system::System, assembly; structural_damping=true
         J .= 0.0
 
         # get current parameters
-        prescribed_conditions = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
-        distributed_loads = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
+        pcond = typeof(p[1]) <: AbstractDict ? p[1] : p[1](t)
+        dload = typeof(p[2]) <: AbstractDict ? p[2] : p[2](t)
         point_masses = typeof(p[3]) <: AbstractDict ? p[3] : p[3](t)
         gvec = typeof(p[4]) <: AbstractVector ? SVector{3}(p[4]) : SVector{3}(p[4](t))
         x0 = typeof(p[5]) <: AbstractVector ? SVector{3}(p[5]) : SVector{3}(p[5](t))
@@ -357,20 +336,18 @@ function SciMLBase.DAEFunction(system::System, assembly; structural_damping=true
         α0 = typeof(p[9]) <: AbstractVector ? SVector{3}(p[9]) : SVector{3}(p[9](t))
 
         # calculate jacobian
-        dynamic_system_jacobian!(J, du, u, assembly, prescribed_conditions,
-            distributed_loads, point_masses, structural_damping, gvec, force_scaling, 
-            irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem, 
-            x0, v0, ω0, a0, α0)
+        dynamic_system_jacobian!(resid, du, u, dynamic_indices, force_scaling, structural_damping, 
+            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         # add gamma multiplied by the mass matrix
-        system_mass_matrix!(J, gamma, u, assembly, point_masses, structural_damping, 
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+        system_mass_matrix!(jacob, gamma, u, dynamic_indices, force_scaling, structural_damping, 
+            assembly, pcond, pmass)
 
         return J
     end
 
-    # sparsity structure
-    sparsity = get_sparsity(system, assembly)
+    # # sparsity structure
+    # sparsity = get_sparsity(system, assembly)
 
     # jacobian prototype (use dense since sparse isn't working)
     # jac_prototype = collect(system.K)
@@ -382,19 +359,19 @@ function SciMLBase.DAEFunction(system::System, assembly; structural_damping=true
     return SciMLBase.DAEFunction{true,true}(f) # TODO: re-add jacobian here once supported
 end
 
-function get_differential_vars(system::System, assembly::Assembly, structural_damping)
+function get_differential_vars(system::System, prescribed_conditions)
+
     differential_vars = fill(false, length(system.x))
-    for (ielem, icol) in enumerate(system.icol_elem)
-       icol = system.icol_elem[ielem]
-       differential_vars[icol:icol+2] .= true # u (for the beam element)
-       differential_vars[icol+3:icol+5] .= true # θ (for the beam element)
-       for i = 1:6
-           if structural_damping && !iszero(assembly.elements[ielem].mu[i])
-              differential_vars[icol+5+i] = true
-           end
-       end
-       differential_vars[icol+12:icol+14] .= true # V (for the beam element)
-       differential_vars[icol+15:icol+17] .= true # Ω (for the beam element)
+
+    for (ipoint, icol) in enumerate(system.dynamic_indices.icol_point)
+
+        if haskey(prescribed_conditions, ipoint)
+            differential_vars[icol:icol+5] .= prescribed_conditions[ipoint].isforce
+            differential_vars[icol+6:icol+11] .= prescribed_conditions[ipoint].isforce
+        else
+            differential_vars[icol:icol+11] .= true
+        end
     end
+
     return differential_vars
 end

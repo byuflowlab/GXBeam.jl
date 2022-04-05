@@ -65,33 +65,33 @@ the element expressed in the deformed beam element frame
 end
 
 """
-    element_linear_momentum(element, V, Ω)
+    element_linear_momentum(element, v, ω)
 
 Calculate the linear momentum of a beam element given the linear and angular velocity of
 the element expressed in the deformed beam element frame
 """
-@inline function element_linear_momentum(element, V, Ω)
+@inline function element_linear_momentum(element, v, ω)
     M = element.mass
     mass11 = M[SVector{3}(1:3), SVector{3}(1:3)]
     mass12 = M[SVector{3}(1:3), SVector{3}(4:6)]
-    return mass11*V + mass12*Ω
+    return mass11*v + mass12*ω
 end
 
 """
-    element_angular_momentum(element, V, Ω)
+    element_angular_momentum(element, v, ω)
 
 Calculate the angular momentum of a beam element given the linear and angular velocity of
 the element expressed in the deformed beam element frame
 """
-@inline function element_angular_momentum(element, V, Ω)
+@inline function element_angular_momentum(element, v, ω)
     M = element.mass
     mass21 = M[SVector{3}(4:6), SVector{3}(1:3)]
     mass22 = M[SVector{3}(4:6), SVector{3}(4:6)]
-    return mass21*V + mass22*Ω
+    return mass21*v + mass22*ω
 end
 
 """
-    point_displacement(x, ielem, icol_elem, force_scaling)
+    element_states(x, ielem, icol_elem, force_scaling)
 
 Extract the state variables `F` and `M` of element `ielem` from the state variable vector.
 """
@@ -130,32 +130,28 @@ analysis
     mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
-    # starting node displacement
-    u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-
-    # ending node displacement
-    u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
-
-    # beam element displacement
-    u = (u1 + u2)/2
-    θ = (θ1 + θ2)/2
-
-    # transformation matrics
-    C = get_C(θ)
-    Ct = C'
-    CtCab = C'*Cab
-    Qinv = get_Qinv(θ)
-
-    # internal loads
+    # forces and moments
     F, M = element_states(x, ielem, indices.icol_elem, force_scaling)
 
     # strain and curvature
     γ = S11*F + S12*M
     κ = S21*F + S22*M
 
-    # effective linear and angular acceleration
+    # linear and angular displacement
+    u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
+    u = (u1 + u2)/2
+    θ = (θ1 + θ2)/2
+
+    # rotation matrices
+    C = get_C(θ)
+    Ct = C'
+    CtCab = C'*Cab
+    Qinv = get_Qinv(θ)
+   
+    # linear and angular acceleration
     a = -gravity
-    α = zero(a)
+    α = @SVector zeros(3)
 
     return (; L, C, Ct, Cab, CtCab, Qinv, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
         u1, u2, θ1, θ2, u, θ, F, M, γ, κ, a, α)
@@ -174,31 +170,26 @@ state analysis
     properties = static_element_properties(x, indices, force_scaling, assembly, ielem, 
         prescribed_conditions, gravity)
 
-    @unpack u, Cab, CtCab, mass11, mass12, mass21, mass22, a, α = properties
+    @unpack u, θ, a, α = properties
 
-    # starting node velocities
+    # distance from the rotation center
+    Δx = assembly.elements[ielem].x - x0
+
+    # undeformed reference frame linear and angular velocity
+    v = v0 + cross(ω0, Δx)
+    ω = ω0
+
+    # linear and angular velocity (prescribed)
     V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
-
-    # ending node velocities
     V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
-
-    # beam element velocities
     V = (V1 + V2)/2
     Ω = (Ω1 + Ω2)/2
 
-    # linear and angular momentum
-    P = CtCab*(mass11*CtCab'*V + mass12*CtCab'*Ω)
-    H = CtCab*(mass21*CtCab'*V + mass22*CtCab'*Ω)
+    # linear and angular acceleration
+    a += a0 + cross(α0, Δx) + cross(α0, u)
+    α += α0
 
-    # undeformed velocities
-    v = v0 + cross(ω0, assembly.elements[ielem].x - x0)
-    ω = ω0
-
-    # effective linear and angular acceleration
-    a += a0 + cross(α0, assembly.elements[ielem].x - x0) + cross(α0, u)
-    α += α0 
-
-    return (; properties..., V1, V2, Ω1, Ω2, V, Ω, P, H, v, ω, a, α) 
+    return (; properties..., V1, V2, Ω1, Ω2, V, Ω, v, ω, a, α) 
 end
 
 """
@@ -221,21 +212,26 @@ analysis initialization
     S21 = compliance[SVector{3}(4:6), SVector{3}(1:3)]
     S22 = compliance[SVector{3}(4:6), SVector{3}(4:6)]
 
-    # mass submatrices
+    # mass matrix submatrices
     mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
     mass12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
     mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
-    # starting node displacement
+    # forces and moments
+    F, M = element_states(x, ielem, indices.icol_elem, force_scaling)
+
+    # strain and curvature
+    γ = S11*F + S12*M
+    κ = S21*F + S22*M
+
+    # linear and angular displacements
     u1 = SVector{3}(u0[assembly.start[ielem]])
     θ1 = SVector{3}(θ0[assembly.start[ielem]])
 
-    # ending node displacement
     u2 = SVector{3}(u0[assembly.stop[ielem]])
     θ2 = SVector{3}(θ0[assembly.stop[ielem]])
 
-    # beam element displacement
     u = (u1 + u2)/2
     θ = (θ1 + θ2)/2
 
@@ -245,63 +241,31 @@ analysis initialization
     CtCab = C'*Cab
     Qinv = get_Qinv(θ)
 
-    # internal loads
-    F, M = element_states(x, ielem, indices.icol_elem, force_scaling)
+    # distance from the rotation center
+    Δx = assembly.elements[ielem].x - x0
 
-    # strain and curvature
-    γ = S11*F + S12*M
-    κ = S21*F + S22*M
+    # undeformed reference frame linear and angular velocity
+    v = v0 + cross(ω0, Δx)
+    ω = ω0
 
-    # starting node velocities
+    # linear and angular velocity
     V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
-
-    # ending node velocities
     V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
-
-    # beam element velocities
     V = (V1 + V2)/2
     Ω = (Ω1 + Ω2)/2
 
-    # linear and angular momentum
-    P = CtCab*(mass11*CtCab'*V + mass12*CtCab'*Ω)
-    H = CtCab*(mass21*CtCab'*V + mass22*CtCab'*Ω)
-
-    # undeformed velocities
-    v = v0 + cross(ω0, assembly.elements[ielem].x - x0)
-    ω = ω0
-
-    # effective linear and angular acceleration
-    a = a0 - gravity + cross(α0, assembly.elements[ielem].x - x0) + cross(α0, u)
-    α = α0 
-
-    # starting node displacement rates
-    u1dot = SVector{3}(udot0[assembly.start[ielem]])
-    θ1dot = SVector{3}(θdot0[assembly.start[ielem]])
-    
-    # ending node displacement rates
-    u2dot = SVector{3}(udot0[assembly.stop[ielem]])
-    θ2dot = SVector{3}(θdot0[assembly.stop[ielem]])
-
-    # beam element displacement rates 
-    udot = (u1dot + u2dot)/2
-    θdot = (θ1dot + θ2dot)/2
-
-    # starting node velocity rates
+    # linear and angular velocity rates
     V1dot, Ω1dot = point_displacement_rates(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-
-    # ending node velocity rates
     V2dot, Ω2dot = point_displacement_rates(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
-
-    # beam element velocity rates
     Vdot = (V1dot + V2dot)/2
     Ωdot = (Ω1dot + Ω2dot)/2
 
-    # linear and angular momentum rates
-    Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot
-    Hdot = CtCab*mass21*CtCab'*Vdot + CtCab*mass22*CtCab'*Ωdot
+    # linear and angular acceleration
+    a = a0 + cross(α0, Δx) + cross(α0, u) + Vdot - gravity
+    α = α0 + Ωdot
 
     return (; L, C, Ct, Cab, CtCab, Qinv, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
-        u1, u2, θ1, θ2, u, θ, F, M, γ, κ, V, Ω, P, H, v, ω, a, α, udot, θdot, Vdot, Ωdot, Pdot, Hdot) 
+        u1, u2, θ1, θ2, F, M, u, θ, V, Ω, γ, κ, v, ω, a, α) 
 end
 
 """
@@ -313,47 +277,32 @@ Calculate/extract the element properties needed to construct the residual for a 
 scheme time stepping analysis
 """
 @inline function newmark_element_properties(x, indices, force_scaling, assembly, ielem,
-    prescribed_conditions, gravity, x0, v0, ω0, a0, α0,
+    prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     properties = steady_state_element_properties(x, indices, force_scaling, assembly, ielem, 
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
-    @unpack C, Ct, Cab, CtCab, mass11, mass12, mass21, mass22, u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, 
-        u, θ, V, Ω, P, H, ω = properties
+    @unpack V1, V2, Ω1, Ω2, u, θ, a, α = properties
 
     # transformation matrices
     Q = get_Q(θ)
 
-    # starting node displacement rates
-    u1dot = 2/dt*u1 - SVector{3}(udot_init[assembly.start[ielem]])
-    θ1dot = 2/dt*θ1 - SVector{3}(θdot_init[assembly.start[ielem]])
-
-    # ending node displacement rates
-    u2dot = 2/dt*u2 - SVector{3}(udot_init[assembly.stop[ielem]])
-    θ2dot = 2/dt*θ2 - SVector{3}(θdot_init[assembly.stop[ielem]])
-
-    # beam element displacement rates
-    udot = (u1dot + u2dot)/2
-    θdot = (θ1dot + θ2dot)/2
-
-    # starting node velocity rates
+    # velocity rates
     V1dot = 2/dt*V1 - SVector{3}(Vdot_init[assembly.start[ielem]])
     Ω1dot = 2/dt*Ω1 - SVector{3}(Ωdot_init[assembly.start[ielem]])
 
-    # ending node velocity rates
     V2dot = 2/dt*V2 - SVector{3}(Vdot_init[assembly.stop[ielem]])
     Ω2dot = 2/dt*Ω2 - SVector{3}(Ωdot_init[assembly.stop[ielem]])
 
-    # beam element velocity rates
     Vdot = (V1dot + V2dot)/2
     Ωdot = (Ω1dot + Ω2dot)/2
 
-    # linear and angular momentum rates
-    Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot
-    Hdot = CtCab*mass21*CtCab'*Vdot + CtCab*mass22*CtCab'*Ωdot
+    # linear and angular acceleration
+    a += Vdot
+    α += Ωdot
 
-    return (; properties..., Q, udot, θdot, Vdot, Ωdot, Pdot, Hdot) 
+    return (; properties..., Q, a, α) 
 end
 
 """
@@ -369,129 +318,93 @@ analysis
     properties = steady_state_element_properties(x, indices, force_scaling, assembly, ielem, 
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
-    @unpack C, Ct, Cab, CtCab, mass11, mass12, mass21, mass22, u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, 
-        u, θ, V, Ω, P, H, ω = properties
+    @unpack u, θ, V, Ω, a, α = properties
 
-    # transformation matrices
+    # rotation parameter matrices
     Q = get_Q(θ)
 
-    # starting node displacement rates
-    u1dot, θ1dot = point_displacement_rates(dx, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-
-    # ending node displacement rates
-    u2dot, θ2dot = point_displacement_rates(dx, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
-
-    # beam element displacement rates
-    udot = (u1dot + u2dot)/2
-    θdot = (θ1dot + θ2dot)/2
-
-    # starting node velocity rates
+    # displacement rates
     V1dot, Ω1dot = point_velocity_rates(dx, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-    
-    # ending node velocity rates
     V2dot, Ω2dot = point_velocity_rates(dx, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
-
-    # beam element velocity rates
     Vdot = (V1dot + V2dot)/2
     Ωdot = (Ω1dot + Ω2dot)/2
 
-    # linear and angular momentum rates
-    Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot
-    Hdot = CtCab*mass21*CtCab'*Vdot + CtCab*mass22*CtCab'*Ωdot
+    # linear and angular acceleration
+    a += Vdot
+    α += Ωdot
 
-    return (; properties..., Q, udot, θdot, Vdot, Ωdot, Pdot, Hdot) 
+    return (; properties..., Q, a, α) 
 end
 
 """
-    element_loads(properties, distributed_loads, ielem)
-
-Calculate/extract the integrated distributed loads acting on an element.
-"""
-@inline function element_loads(properties, distributed_loads, ielem)
-
-    @unpack L, Ct, CtCab, mass11, mass12, mass21, mass22, a, α = properties
-
-    f, m = acceleration_loads(CtCab, mass11, mass12, mass21, mass22, a, α)
-
-    f1 = f2 = L/2*f
-    m1 = m2 = L/2*m
-
-    if haskey(distributed_loads, ielem)
-        dload = distributed_loads[ielem]
-        f1 += dload.f1 + Ct*dload.f1_follower
-        f2 += dload.f2 + Ct*dload.f2_follower
-        m1 += dload.m1 + Ct*dload.m1_follower
-        m2 += dload.m2 + Ct*dload.m2_follower
-    end
-
-    return (; f1, f2, m1, m2)
-end
-
-"""
-    static_element_resultants(properties, loads)
+    static_element_resultants(properties, distributed_loads, ielem)
 
 Calculate the resultant loads applied at each end of a beam element for a static analysis.
 """
-@inline function static_element_resultants(properties, loads)
+@inline function static_element_resultants(properties, distributed_loads, ielem)
   
-    @unpack L, CtCab, F, M, γ = properties
-    @unpack f1, f2, m1, m2 = loads
+    @unpack L, Ct, CtCab, mass11, mass12, mass21, mass22, F, M, γ, κ, a, α = properties
+
+    # loads due to internal loads
 
     tmp = CtCab*F
-    F1 = tmp + f1
-    F2 = tmp - f2
+    F1 = tmp
+    F2 = tmp
 
     tmp1 = CtCab*M
     tmp2 = L/2*CtCab*cross(e1 + γ, F)
-    M1 = tmp1 + m1 + tmp2
-    M2 = tmp1 - m2 - tmp2
+    M1 = tmp1 + tmp2
+    M2 = tmp1 - tmp2
 
-    return (; F1, F2, M1, M2)
-end
-
-"""
-    steady_state_element_resultants(properties, loads)
-
-Calculate the resultant loads applied at each end of a beam element for a steady state 
-analysis.
-"""
-@inline function steady_state_element_resultants(properties, loads)
-
-    resultants = static_element_resultants(properties, loads)
-
-    @unpack F1, F2, M1, M2 = resultants
-
-    @unpack L, CtCab, V, P, H, Ω, v, ω = properties
-
-    tmp = L/2*cross(ω, P) 
-    F1 -= tmp
-    F2 += tmp
-
-    tmp = L/2*(cross(ω, H) + cross(V, P))
-    M1 -= tmp
-    M2 += tmp
-
-    return (; resultants..., F1, F2, M1, M2)
-end
-
-"""
-    dynamic_element_resultants(properties, loads)
-
-Calculate the resultant loads applied at each end of a beam element for a dynamic analysis
-"""
-@inline function dynamic_element_resultants(properties, loads)
-
-    resultants = steady_state_element_resultants(properties, loads)
-
-    @unpack F1, F2, M1, M2 = resultants
-
-    @unpack L, Pdot, Hdot = properties
+    # # add loads due to linear and angular momentum rates (and gravity)
+    Pdot = CtCab*mass11*CtCab'*a + CtCab*mass12*CtCab'*α
+    Hdot = CtCab*mass21*CtCab'*a + CtCab*mass22*CtCab'*α
 
     tmp = L/2*Pdot
     F1 -= tmp
     F2 += tmp
 
     tmp = L/2*Hdot
+    M1 -= tmp
+    M2 += tmp
+
+    # add contributions from distributed loads
+    if haskey(distributed_loads, ielem)
+        dload = distributed_loads[ielem]
+        F1 += dload.f1 + Ct*dload.f1_follower
+        F2 -= dload.f2 + Ct*dload.f2_follower
+        M1 += dload.m1 + Ct*dload.m1_follower
+        M2 -= dload.m2 + Ct*dload.m2_follower
+    end    
+
+    return (; F1, F2, M1, M2)
+end
+
+"""
+    dynamic_element_resultants(properties, distributed_loads, ielem)
+
+Calculate the resultant loads applied at each end of a beam element for a dynamic 
+analysis.
+"""
+@inline function dynamic_element_resultants(properties, distributed_loads, ielem)
+
+    resultants = static_element_resultants(properties, distributed_loads, ielem)
+
+    @unpack F1, F2, M1, M2 = resultants
+
+    @unpack L, CtCab, mass11, mass12, mass21, mass22, V, Ω, v, ω = properties
+
+    # linear and angular momentum
+    P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
+    H = CtCab*mass21*CtCab'*V + CtCab*mass22*CtCab'*Ω
+
+    # resultant forces
+    tmp = L/2*cross(ω, P) 
+    F1 -= tmp
+    F2 += tmp
+
+    # resultant moments
+    tmp = L/2*(cross(ω, H) + cross(V, P))
     M1 -= tmp
     M2 += tmp
 
@@ -560,11 +473,9 @@ analysis into the system residual vector.
     properties = static_element_properties(x, indices, force_scaling, assembly, ielem, 
         prescribed_conditions, gravity)
 
-    loads = element_loads(properties, distributed_loads, ielem) 
-
     compatability = compatability_residuals(properties)
 
-    resultants = static_element_resultants(properties, loads)
+    resultants = static_element_resultants(properties, distributed_loads, ielem)
 
     insert_element_residuals!(resid, indices, force_scaling, assembly, ielem, compatability, resultants)
 
@@ -584,11 +495,9 @@ analysis into the system residual vector.
     properties = steady_state_element_properties(x, indices, force_scaling, assembly, ielem,
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
-    loads = element_loads(properties, distributed_loads, ielem)
-
     compatability = compatability_residuals(properties)
 
-    resultants = steady_state_element_resultants(properties, loads)
+    resultants = dynamic_element_resultants(properties, distributed_loads, ielem)
 
     insert_element_residuals!(resid, indices, force_scaling, assembly, ielem, compatability, resultants)
 
@@ -610,11 +519,9 @@ initialization of a time domain simulation into the system residual vector.
     properties = initial_condition_element_properties(x, indices, force_scaling, assembly, ielem,
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
 
-    loads = element_loads(properties, distributed_loads, ielem)
-
     compatability = compatability_residuals(properties)
 
-    resultants = dynamic_element_resultants(properties, loads)
+    resultants = dynamic_element_resultants(properties, distributed_loads, ielem)
 
     insert_element_residuals!(resid, indices, force_scaling, assembly, ielem, compatability, resultants)
 
@@ -637,11 +544,9 @@ newmark-scheme time marching analysis into the system residual vector.
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
-    loads = element_loads(properties, distributed_loads, ielem)
-
     compatability = compatability_residuals(properties)
 
-    resultants = dynamic_element_resultants(properties, loads)
+    resultants = dynamic_element_resultants(properties, distributed_loads, ielem)
 
     insert_element_residuals!(resid, indices, force_scaling, assembly, ielem, compatability, resultants)
 
@@ -661,11 +566,9 @@ analysis into the system residual vector.
     properties = dynamic_element_properties(dx, x, indices, force_scaling, assembly, ielem,
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
-    loads = element_loads(properties, distributed_loads, ielem)
-
     compatability = compatability_residuals(properties)
 
-    resultants = dynamic_element_resultants(properties, loads)
+    resultants = dynamic_element_resultants(properties, distributed_loads, ielem)
 
     insert_element_residuals!(resid, indices, force_scaling, assembly, ielem, compatability, resultants)
 
@@ -684,22 +587,20 @@ corresponding to a beam element for a static analysis
 
     @unpack θ, C, S11, S12, S21, S22 = properties
 
-    # starting node displacement
-    u1_u1, θ1_θ1 = point_displacement_jacobians(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-    
-    # ending node displacement
-    u2_u2, θ2_θ2 = point_displacement_jacobians(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
-
-    # transformation matrices
-    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
-    Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
-    Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_θ(θ)
-
     # strain and curvature
     γ_F = S11
     γ_M = S12
     κ_F = S21
     κ_M = S22
+
+    # linear and angular displacement
+    u1_u1, θ1_θ1 = point_displacement_jacobians(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
+    u2_u2, θ2_θ2 = point_displacement_jacobians(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
+
+    # rotation matrices
+    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
+    Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_θ(θ)
 
     return (; properties..., u1_u1, u2_u2, θ1_θ1, θ2_θ2, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, 
         Qinv_θ1, Qinv_θ2, Qinv_θ3, γ_F, γ_M, κ_F, κ_M)
@@ -707,34 +608,21 @@ end
 
 """
     steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity)
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0))
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a steady state analysis
 """
 @inline function steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-    assembly, ielem, prescribed_conditions, gravity)
+    assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     properties = static_element_jacobian_properties(properties, x, indices, force_scaling, 
         assembly, ielem, prescribed_conditions, gravity)
 
-    @unpack Cab, CtCab, mass11, mass12, mass21, mass22, V, Ω, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3 = properties
+    # linear and angular acceleration
+    a_u = tilde(α0)
 
-    # linear momentum
-    P_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass11*CtCab'*V + mass12*CtCab'*Ω)) + 
-        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, V) +
-        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ω)
-    P_V = CtCab*mass11*CtCab'
-    P_Ω = CtCab*mass12*CtCab'
-
-    # angular momentum
-    H_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass21*CtCab'*V + mass22*CtCab'*Ω)) + 
-        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, V) +
-        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ω)
-    H_V = CtCab*mass21*CtCab'
-    H_Ω = CtCab*mass22*CtCab'
-
-    return (; properties..., P_θ, P_V, P_Ω, H_θ, H_V, H_Ω)
+    return (; properties..., a_u)
 end
 
 """
@@ -747,7 +635,7 @@ corresponding to a element for a Newmark scheme time marching analysis
 @inline function initial_condition_element_jacobian_properties(properties, x, indices, force_scaling, 
     assembly, ielem, prescribed_conditions, gravity)
 
-    @unpack Cab, CtCab, S11, S12, S21, S22, mass11, mass12, mass21, mass22, V, Ω = properties
+    @unpack Cab, CtCab, S11, S12, S21, S22, v, ω = properties
 
     # strain and curvature
     γ_F = S11
@@ -755,104 +643,63 @@ corresponding to a element for a Newmark scheme time marching analysis
     κ_F = S21
     κ_M = S22
 
-    # linear momentum
-    P_V = CtCab*mass11*CtCab'
-    P_Ω = CtCab*mass12*CtCab'
-
-    # angular momentum
-    H_V = CtCab*mass21*CtCab'
-    H_Ω = CtCab*mass22*CtCab'
-
-    # starting node displacement rates
+    # linear and angular velocity rates
     V1dot_V1dot, Ω1dot_Ω1dot = point_displacement_jacobians(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-
-    # ending node displacement rates
     V2dot_V2dot, Ω2dot_Ω2dot = point_displacement_jacobians(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
 
-    # linear and angular momentum rates
-    Pdot_Vdot = CtCab*mass11*CtCab'
-    Pdot_Ωdot = CtCab*mass12*CtCab'
-
-    Hdot_Vdot = CtCab*mass21*CtCab'
-    Hdot_Ωdot = CtCab*mass22*CtCab'
-
-    return (; properties..., γ_F, γ_M, κ_F, κ_M, P_V, P_Ω, H_V, H_Ω, Pdot_V, Pdot_Ω, Hdot_V, Hdot_Ω,
-        V1dot_V1dot, Ω1dot_Ω1dot, V2dot_V2dot, Ω2dot_Ω2dot, Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot)
+    return (; properties..., γ_F, γ_M, κ_F, κ_M, V1dot_V1dot, Ω1dot_Ω1dot, V2dot_V2dot, Ω2dot_Ω2dot)
 end
 
 """
     newmark_element_jacobian_properties(properties, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity,
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0,
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a Newmark scheme time marching analysis
 """
 @inline function newmark_element_jacobian_properties(properties, x, indices, force_scaling, 
-    assembly, ielem, prescribed_conditions, gravity,
+    assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0,
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     properties = steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity)
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
-    @unpack C, Ct, Cab, CtCab, Q, mass11, mass12, mass21, mass22, θ, V, Ω, P, H, 
-        θdot, Vdot, Ωdot, P_θ, H_θ, P_V, P_Ω, H_V, H_Ω, 
-        C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3 = properties
+    @unpack Q, θ = properties
 
     # transformation matrices
     Q_θ1, Q_θ2, Q_θ3 = get_Q_θ(Q, θ)
 
-    # displacement rates
-    udot_u = 2/dt*I
-    θdot_θ = 2/dt*I
-
     # velocity rates
-    Vdot_V = 2/dt*I
-    Ωdot_Ω = 2/dt*I
+    Vdot_V = 2/dt*I3
+    Ωdot_Ω = 2/dt*I3
 
-    # linear and angular momentum rates
-    Pdot_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass11*CtCab'*Vdot) + CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, Vdot) +
-        mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass12*CtCab'*Ωdot) + CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ωdot)
-    Pdot_V = CtCab*mass11*CtCab'*Vdot_V
-    Pdot_Ω = CtCab*mass12*CtCab'*Ωdot_Ω
+    # linear and angular acceleration
+    a_V = Vdot_V
+    α_Ω = Ωdot_Ω
 
-    Hdot_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass21*CtCab'*Vdot) + CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, Vdot) +
-        mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass22*CtCab'*Ωdot) + CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ωdot)
-    Hdot_V = CtCab*mass21*CtCab'*Vdot_V
-    Hdot_Ω = CtCab*mass22*CtCab'*Ωdot_Ω
-
-    return (; properties..., Q_θ1, Q_θ2, Q_θ3, udot_u, θdot_θ, 
-        Pdot_θ, Pdot_V, Pdot_Ω, Hdot_θ, Hdot_V, Hdot_Ω) 
+    return (; properties..., Q_θ1, Q_θ2, Q_θ3, a_V, α_Ω) 
 end
 
 """
     dynamic_element_jacobian_properties(properties, dx, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity)
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a dynamic analysis
 """
 @inline function dynamic_element_jacobian_properties(properties, dx, x, indices, force_scaling, 
-    assembly, ielem, prescribed_conditions, gravity)
+    assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     properties = steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity)
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
-    @unpack C, Ct, Cab, CtCab, Q, mass11, mass12, mass21, mass22, θ, V, Ω, P, H, 
-        θdot, Vdot, Ωdot, P_θ, H_θ, P_V, P_Ω, H_V, H_Ω, 
-        C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3 = properties
+    @unpack Q, θ = properties
 
     # transformation matrices
     Q_θ1, Q_θ2, Q_θ3 = get_Q_θ(Q, θ)
 
-    # linear and angular momentum rates
-    Pdot_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass11*CtCab'*Vdot) + CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, Vdot) +
-        mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass12*CtCab'*Ωdot) + CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ωdot)
-
-    Hdot_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass21*CtCab'*Vdot) + CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, Vdot) +
-        mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*mass22*CtCab'*Ωdot) + CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ωdot)
-
-    return (; properties..., Q_θ1, Q_θ2, Q_θ3, Pdot_θ, Hdot_θ)
+    return (; properties..., Q_θ1, Q_θ2, Q_θ3)
 end
 
 """
@@ -874,13 +721,9 @@ corresponding to a beam element
     mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
-    # starting node displacement
+    # linear and angular displacement
     u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-
-    # ending node displacement
     u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
-
-    # beam element displacement
     u = (u1 + u2)/2
     θ = (θ1 + θ2)/2
 
@@ -889,68 +732,12 @@ corresponding to a beam element
     Ct = C'
     CtCab = Ct*Cab
 
-    # starting node velocities
-    V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
-
-    # ending node velocities
-    V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
-
-    # beam element velocities
-    V = (V1 + V2)/2
-    Ω = (Ω1 + Ω2)/2
-
-    # beam element linear and angular momentum
-    P = CtCab*(mass11*CtCab'*V + mass12*CtCab'*Ω)
-    H = CtCab*(mass21*CtCab'*V + mass22*CtCab'*Ω)
-
-    # starting node displacement rates
-    u1dot_u1dot, θ1dot_θ1dot = point_displacement_jacobians(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-
-    # ending node displacement rates
-    u2dot_u2dot, θ2dot_θ2dot = point_displacement_jacobians(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
-
-    # rotation matrix derivatives
-    # TODO
-    
-    # starting node velocity rates
+    # linear and angular velocity rates
     V1dot_V1dot, Ω1dot_Ω1dot = point_displacement_jacobians(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-
-    # ending node velocity rates
     V2dot_V2dot, Ω2dot_Ω2dot = point_displacement_jacobians(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
 
-    # linear and angular momentum rates
-    Pdot_Vdot = CtCab*mass11*CtCab'
-    Pdot_Ωdot = CtCab*mass12*CtCab'
-
-    Hdot_Vdot = CtCab*mass21*CtCab'
-    Hdot_Ωdot = CtCab*mass22*CtCab'
-
-    return (; L, θ1dot_θ1dot, V1dot_V1dot, Ω1dot_Ω1dot, θ2dot_θ2dot, V2dot_V2dot, Ω2dot_Ω2dot,
-        Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot)
-end
-
-@inline function element_load_jacobians(properties, distributed_loads, ielem)
-
-    @unpack L, Cab, CtCab, mass11, mass12, mass21, mass22, a, α, C_θ1, C_θ2, C_θ3, 
-        Ct_θ1, Ct_θ2, Ct_θ3 = properties
-
-    f_u, f_θ, m_u, m_θ = acceleration_load_jacobians(
-        CtCab, mass11, mass12, mass21, mass22, a, α, Ct_θ1*Cab, Ct_θ2*Cab, Ct_θ3*Cab)
-
-    f1_u = f2_u = L/2*f_u
-    f1_θ = f2_θ = L/2*f_θ
-    m1_u = m2_u = L/2*m_u
-    m1_θ = m2_θ = L/2*m_θ
-
-    if haskey(distributed_loads, ielem)
-        dload = distributed_loads[ielem]
-        f1_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.f1_follower)
-        f2_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.f2_follower)
-        m1_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.m1_follower)
-        m2_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.m2_follower)
-    end
-
-    return (; f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ)
+    return (; L, C, Ct, Cab, CtCab, mass11, mass12, mass21, mass22, 
+        V1dot_V1dot, Ω1dot_Ω1dot, V2dot_V2dot, Ω2dot_Ω2dot)
 end
 
 @inline function compatability_jacobians(properties)
@@ -1001,41 +788,42 @@ end
 end
 
 """
-    static_element_resultant_jacobians(properties, loads)
+    static_element_resultant_jacobians(properties, distributed_loads, ielem)
 
 Calculate the jacobians for the resultant loads applied at each end of a beam element 
 for a static analysis.
 """
-@inline function static_element_resultant_jacobians(properties, loads)
+@inline function static_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    jacobians = _static_element_resultant_jacobians(properties, loads)
+    jacobians = _static_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     return finalize_static_element_resultant_jacobians(properties, jacobians)
 end
 
-@inline function _static_element_resultant_jacobians(properties, loads)
+@inline function _static_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    @unpack L, Cab, CtCab, F, M, γ, κ, Ct_θ1, Ct_θ2, Ct_θ3, γ_F, γ_M = properties
+    @unpack L, Cab, CtCab, mass11, mass12, mass21, mass22, a, α, F, M, γ, κ, 
+        C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, γ_F, γ_M = properties
 
-    @unpack f1_u, f2_u, f1_θ, f2_θ, m1_u, m2_u, m1_θ, m2_θ = loads
+    # loads due to internal loads
 
-    F1_u = f1_u
-    F2_u = -f2_u
+    F1_u = @SMatrix zeros(3,3)
+    F2_u = @SMatrix zeros(3,3)
 
     tmp = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*F)
-    F1_θ = tmp + f1_θ
-    F2_θ = tmp - f2_θ
+    F1_θ = tmp
+    F2_θ = tmp
 
     F1_F = CtCab
     F2_F = CtCab
 
-    M1_u = m1_u
-    M2_u = -m2_u
+    M1_u = @SMatrix zeros(3,3)
+    M2_u = @SMatrix zeros(3,3)
 
     tmp1 = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*M)
     tmp2 = L/2*mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*cross(e1 + γ, F))
-    M1_θ = tmp1 + m1_θ + tmp2
-    M2_θ = tmp1 - m2_θ - tmp2
+    M1_θ = tmp1 + tmp2
+    M2_θ = tmp1 - tmp2
 
     tmp = L/2*CtCab*(tilde(e1 + γ) - tilde(F)*γ_F)
     M1_F = tmp
@@ -1044,6 +832,32 @@ end
     tmp = L/2*CtCab*tilde(F)*γ_M
     M1_M = -tmp + CtCab
     M2_M = tmp + CtCab
+
+    # add loads due to linear and angular momentum rates (and gravity)
+    Pdot_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass11*CtCab'*a + mass12*CtCab'*α)) + 
+        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) + 
+        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
+    
+    Hdot_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass21*CtCab'*a + mass22*CtCab'*α)) + 
+        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) + 
+        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
+    
+    tmp = L/2*Pdot_θ
+    F1_θ -= tmp
+    F2_θ += tmp
+
+    tmp = L/2*Hdot_θ
+    M1_θ -= tmp
+    M2_θ += tmp
+
+    # add distributed loads
+    if haskey(distributed_loads, ielem)
+        dload = distributed_loads[ielem]
+        F1_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.f1_follower)
+        F2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.f2_follower)
+        M1_θ += mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.m1_follower)
+        M2_θ -= mul3(Ct_θ1, Ct_θ2, Ct_θ3, dload.m2_follower)
+    end
 
     return (; F1_u, F1_θ, F1_F, F2_u, F2_θ, F2_F,
         M1_u, M1_θ, M1_F, M1_M, M2_u, M2_θ, M2_F, M2_M)
@@ -1081,25 +895,53 @@ end
 end
 
 """
-    steady_state_element_resultant_jacobians(properties, loads)
+    steady_state_element_resultant_jacobians(properties, distributed_loads, ielem)
 
 Calculate the jacobians for the resultant loads applied at each end of a beam element 
 for a steady state analysis.
 """
-@inline function steady_state_element_resultant_jacobians(properties, loads)
+@inline function steady_state_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    jacobians = _steady_state_element_resultant_jacobians(properties, loads)
+    jacobians = _steady_state_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     return finalize_dynamic_element_resultant_jacobians(properties, jacobians)
 end
 
-@inline function _steady_state_element_resultant_jacobians(properties, loads)
+@inline function _steady_state_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    jacobians = _static_element_resultant_jacobians(properties, loads)
+    jacobians = _static_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    @unpack L, V, Ω, P, H, v, ω, P_θ, P_V, P_Ω, H_θ, H_V, H_Ω = properties
+    @unpack L, Cab, CtCab, mass11, mass12, mass21, mass22, V, Ω, v, ω, 
+        C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3, a_u = properties
 
-    @unpack F1_θ, F2_θ, M1_θ, M2_θ = jacobians
+    @unpack F1_u, F1_θ, F2_u, F2_θ, M1_u, M1_θ, M2_u, M2_θ = jacobians
+
+    # add loads due to linear and angular momentum rates
+    Pdot_u = CtCab*mass11*CtCab'*a_u
+    Hdot_u = CtCab*mass21*CtCab'*a_u
+
+    tmp = L/2*Pdot_u
+    F1_u -= tmp
+    F2_u += tmp
+
+    tmp = L/2*Hdot_u
+    M1_u -= tmp
+    M2_u += tmp
+
+    # add loads due to linear and angular momentum
+    P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
+
+    P_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass11*CtCab'*V + mass12*CtCab'*Ω)) + 
+        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, V) + 
+        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ω)
+    P_V = CtCab*mass11*CtCab'
+    P_Ω = CtCab*mass12*CtCab'
+
+    H_θ = mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass21*CtCab'*V + mass22*CtCab'*Ω)) + 
+        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, V) + 
+        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ω)
+    H_V = CtCab*mass21*CtCab'
+    H_Ω = CtCab*mass22*CtCab'
 
     tmp = L/2*tilde(ω)*P_θ
     F1_θ -= tmp
@@ -1125,7 +967,7 @@ end
     M1_Ω = -tmp
     M2_Ω = tmp
 
-    return (; jacobians..., F1_θ, F1_V, F1_Ω, F2_θ, F2_V, F2_Ω, M1_θ, M1_V, M1_Ω, M2_θ, M2_V, M2_Ω)
+    return (; jacobians..., F1_u, F1_θ, F1_V, F1_Ω, F2_u, F2_θ, F2_V, F2_Ω, M1_u, M1_θ, M1_V, M1_Ω, M2_u, M2_θ, M2_V, M2_Ω)
 end
 
 @inline function finalize_dynamic_element_resultant_jacobians(properties, jacobians)
@@ -1159,42 +1001,18 @@ end
 end
 
 """
-    initial_condition_element_resultant_jacobians(properties, loads)
+    initial_condition_element_resultant_jacobians(properties)
 
 Calculate the jacobians for the resultant loads applied at each end of a beam element 
 for the initialization of a time domain analysis.
 """
 @inline function initial_condition_element_resultant_jacobians(properties)
 
-    @unpack L, Cab, CtCab, F, M, γ, κ, V, Ω, P, H, v, ω, γ_F, γ_M, P_V, P_Ω, H_V, H_Ω,
-        Pdot_V, Pdot_Ω, Hdot_V, Hdot_Ω, Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot = properties
+    @unpack L, CtCab, mass11, mass12, mass21, mass22, F, M, γ, κ, V, Ω, v, ω, γ_F, γ_M = properties
 
-    tmp = L/2*Pdot_Vdot
-    F1_Vdot = -tmp
-    F2_Vdot = tmp
-
-    tmp = L/2*Pdot_Ωdot
-    F1_Ωdot = -tmp
-    F2_Ωdot = tmp
-
+    # loads due to internal forces/moments
     F1_F = CtCab
     F2_F = CtCab
-
-    tmp = L/2*(tilde(ω)*P_V + Pdot_V)
-    F1_V = -tmp
-    F2_V = tmp
-
-    tmp = L/2*(tilde(ω)*P_Ω + Pdot_Ω)
-    F1_Ω = -tmp
-    F2_Ω = tmp
-
-    tmp = L/2*Hdot_Vdot
-    M1_Vdot = -tmp 
-    M2_Vdot = tmp
-
-    tmp = L/2*Hdot_Ωdot
-    M1_Ωdot = -tmp
-    M2_Ωdot = tmp
 
     tmp = L/2*CtCab*(tilde(e1 + γ) - tilde(F)*γ_F)
     M1_F = tmp
@@ -1204,11 +1022,50 @@ for the initialization of a time domain analysis.
     M1_M = -tmp + CtCab
     M2_M = tmp + CtCab
 
-    tmp = L/2*(tilde(ω)*H_V + Hdot_V + tilde(V)*P_V - tilde(P))
+    # add loads due to linear and angular momentum rates (and gravity)
+    Pdot_Vdot = CtCab*mass11*CtCab'
+    Pdot_Ωdot = CtCab*mass12*CtCab'
+    Hdot_Vdot = CtCab*mass21*CtCab'
+    Hdot_Ωdot = CtCab*mass22*CtCab'
+    
+    tmp = L/2*Pdot_Vdot
+    F1_Vdot = -tmp
+    F2_Vdot = tmp
+
+    tmp = L/2*Pdot_Ωdot
+    F1_Ωdot = -tmp
+    F2_Ωdot = tmp
+
+    tmp = L/2*Hdot_Vdot
+    M1_Vdot = -tmp 
+    M2_Vdot = tmp
+
+    tmp = L/2*Hdot_Ωdot
+    M1_Ωdot = -tmp
+    M2_Ωdot = tmp
+
+    # add loads due to linear and angular momentum
+    P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
+
+    P_V = CtCab*mass11*CtCab'
+    P_Ω = CtCab*mass12*CtCab'
+
+    H_V = CtCab*mass21*CtCab'
+    H_Ω = CtCab*mass22*CtCab'
+
+    tmp = L/2*tilde(ω)*P_V
+    F1_V = -tmp
+    F2_V = tmp
+
+    tmp = L/2*tilde(ω)*P_Ω
+    F1_Ω = -tmp
+    F2_Ω = tmp
+
+    tmp = L/2*(tilde(ω)*H_V + tilde(V)*P_V - tilde(P))
     M1_V = -tmp
     M2_V = tmp
 
-    tmp = L/2*(tilde(ω)*H_Ω + Hdot_Ω + tilde(V)*P_Ω)
+    tmp = L/2*(tilde(ω)*H_Ω + tilde(V)*P_Ω)
     M1_Ω = -tmp
     M2_Ω = tmp
 
@@ -1265,51 +1122,60 @@ for the initialization of a time domain analysis.
 end
 
 """
-    dynamic_element_resultant_jacobians(properties, loads)
+    newmark_element_resultant_jacobians(properties, distributed_loads, ielem)
 
 Calculate the jacobians for the resultant loads applied at each end of a beam element 
-for a dynamic analysis.
+for a Newmark scheme time marching analysis.
 """
-@inline function dynamic_element_resultant_jacobians(properties, loads)
+@inline function newmark_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    jacobians = _dynamic_element_resultant_jacobians(properties, loads)
+    jacobians = _newmark_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     return finalize_dynamic_element_resultant_jacobians(properties, jacobians)
 end
 
-@inline function _dynamic_element_resultant_jacobians(properties, loads)
+@inline function _newmark_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    jacobians = _steady_state_element_resultant_jacobians(properties, loads)
+    jacobians = _steady_state_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    @unpack L, Pdot_θ, Pdot_V, Pdot_Ω, Hdot_θ, Hdot_V, Hdot_Ω = properties
+    @unpack L, CtCab, mass11, mass12, mass21, mass22, a_V, α_Ω = properties
     
-    @unpack F1_θ, F1_V, F1_Ω, F2_θ, F2_V, F2_Ω, M1_θ, M1_V, M1_Ω, M2_θ, M2_V, M2_Ω = jacobians
+    @unpack F1_V, F1_Ω, F2_V, F2_Ω, M1_V, M1_Ω, M2_V, M2_Ω = jacobians
 
-    tmp = L/2*Pdot_θ
-    F1_θ -= tmp
-    F2_θ += tmp
+    # add loads due to linear and angular momentum rates (and gravity)
+    Pdot_a = CtCab*mass11*CtCab'
+    Pdot_α = CtCab*mass12*CtCab'
+    Hdot_a = CtCab*mass21*CtCab'
+    Hdot_α = CtCab*mass22*CtCab'
 
-    tmp = L/2*Pdot_V
+    tmp = L/2*Pdot_a*a_V
     F1_V -= tmp
     F2_V += tmp
 
-    tmp = L/2*Pdot_Ω
+    tmp = L/2*Pdot_α*α_Ω
     F1_Ω -= tmp
     F2_Ω += tmp
 
-    tmp = L/2*Hdot_θ
-    M1_θ -= tmp
-    M2_θ += tmp
-
-    tmp = L/2*Hdot_V
+    tmp = L/2*Hdot_a*a_V
     M1_V -= tmp
     M2_V += tmp
 
-    tmp = L/2*Hdot_Ω
+    tmp = L/2*Hdot_α*α_Ω
     M1_Ω -= tmp
     M2_Ω += tmp
 
-    return (; jacobians..., F1_θ, F1_V, F1_Ω, F2_θ, F2_V, F2_Ω, M1_θ, M1_V, M1_Ω, M2_θ, M2_V, M2_Ω)
+    return (; jacobians..., F1_V, F1_Ω, F2_V, F2_Ω, M1_V, M1_Ω, M2_V, M2_Ω)
+end
+
+"""
+    dynamic_element_resultant_jacobians(properties, distributed_loads, ielem)
+
+Calculate the jacobians for the resultant loads applied at each end of a beam element 
+for a dynamic analysis.
+"""
+@inline function dynamic_element_resultant_jacobians(properties, distributed_loads, ielem)
+
+    return steady_state_element_resultant_jacobians(properties, distributed_loads, ielem)
 end
 
 """
@@ -1319,7 +1185,13 @@ Calculate the mass matrix jacobians for the resultant loads applied at each end 
 """
 @inline function mass_matrix_element_resultant_jacobians(properties)
 
-    @unpack L, Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot = properties
+    @unpack L, CtCab, mass11, mass12, mass21, mass22 = properties
+
+    # add loads due to linear and angular momentum rates (and gravity)
+    Pdot_Vdot = CtCab*mass11*CtCab'
+    Pdot_Ωdot = CtCab*mass12*CtCab'
+    Hdot_Vdot = CtCab*mass21*CtCab'
+    Hdot_Ωdot = CtCab*mass22*CtCab'
 
     tmp = L/2*Pdot_Vdot
     F1_Vdot = -tmp
@@ -1639,11 +1511,9 @@ analysis into the system jacobian matrix.
     properties = static_element_jacobian_properties(properties, x, indices, force_scaling, 
         assembly, ielem, prescribed_conditions, gravity)
 
-    loads = element_load_jacobians(properties, distributed_loads, ielem)
-
     compatability = compatability_jacobians(properties)
 
-    resultants = static_element_resultant_jacobians(properties, loads)
+    resultants = static_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     insert_static_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
         compatability, resultants)
@@ -1665,13 +1535,11 @@ analysis into the system jacobian matrix.
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     properties = steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity)
-
-    loads = element_load_jacobians(properties, distributed_loads, ielem)
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     compatability = compatability_jacobians(properties)
 
-    resultants = steady_state_element_resultant_jacobians(properties, loads)
+    resultants = steady_state_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     insert_dynamic_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
         compatability, resultants)
@@ -1724,14 +1592,12 @@ time marching analysis into the system jacobian matrix.
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     properties = newmark_element_jacobian_properties(properties, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity,
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0,
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
-
-    loads = element_load_jacobians(properties, distributed_loads, ielem)
 
     compatability = compatability_jacobians(properties)
 
-    resultants = dynamic_element_resultant_jacobians(properties, loads)
+    resultants = newmark_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     insert_dynamic_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
         compatability, resultants)
@@ -1754,13 +1620,11 @@ analysis into the system jacobian matrix.
         prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     properties = dynamic_element_jacobian_properties(properties, dx, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity)
-
-    loads = element_load_jacobians(properties, distributed_loads, ielem)
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     compatability = compatability_jacobians(properties)
 
-    resultants = dynamic_element_resultant_jacobians(properties, loads)
+    resultants = dynamic_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     insert_dynamic_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
         compatability, resultants)
