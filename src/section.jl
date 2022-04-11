@@ -1,6 +1,22 @@
 using LinearAlgebra: I, Symmetric, det, factorize
 using SparseArrays: spzeros, sparse
 
+"""
+    Material(E1, E2, E2, nu12, nu13, nu23, G12, G13, G23, rho)
+
+General orthotropic material properties. 
+The "1" direction is along the beam axis for a fiber orientation of zero (theta=0).
+"2" corresponds to the local x-direction and "3" the local y at theta=0. (see documentation for figures).  
+If the two in-plane directions have the same stiffness properties then only one 
+needs to be specified (e.g., compatible with the plane-stress assumption of CLT-based tools):
+`Material(E1, E2, nu12, G12, rho)`
+
+**Arguments**
+- `E::float`: Young's modulus along 1st, 2nd and 3rd axes.
+- `nu::float`: Poisson's ratio.  nu_ij E_j = nu_ji E_i
+- `G::float`: shear moduli
+- `rho::float`: density
+"""
 struct Material{TF}
     E1::TF
     E2::TF
@@ -16,18 +32,42 @@ end
 
 Material(E1, E2, nu12, G12, rho) = Material(E1, E2, E2, nu12, nu12, nu12, G12, G12, G12, rho)
 
+"""
+    Node(x, y, number)
+
+A node in the finite element mesh at location x, y with a given index number.
+
+**Arguments**
+- `x::float`: x location of node in global coordinate system
+- `y::float`: y location of node in global coordinate system
+- `number::integer`: unique index of this node, elements use this indices
+"""
 struct Node{TF, TI}
     x::TF
     y::TF
     number::TI
 end
 
+"""
+    Element(nodenum, material, theta)
+
+An element in the mesh, consisting of four ordered nodes, a material, and a fiber orientation.
+
+**Arguments**
+- `nodenum::Vector{integer}`: a vector of four node numbers corresponding the the four nodes defining this element. 
+    Node order should be counterclockwise starting from the bottom left node using the local coordinate sytem (see figure).
+- `material::Material`: material properties of this element
+- `theta::float`: fiber orientation
+"""
 struct Element{VI, TF}
     nodenum::VI
     material::Material
     theta::TF
 end
 
+"""
+Constituitive matrix of this material using the internal ordering.
+"""
 function stiffness(material) 
     E1 = material.E1; E2 = material.E2; E3 = material.E3
     nu12 = material.nu12; nu13 = material.nu13; nu23 = material.nu23
@@ -52,6 +92,9 @@ function stiffness(material)
     return Symmetric(Q)
 end
 
+"""
+Rotate constituitive matrix by ply angle
+"""
 function rotate_to_ply(K, theta)
     c = cos(theta)
     s = sin(theta)
@@ -65,6 +108,9 @@ function rotate_to_ply(K, theta)
     return T*K*T'
 end
 
+"""
+Rotate constituitive matrix by element orientation where `c = cos(beta)` and `s = sin(beta)`
+"""
 function rotate_to_element(K, c, s)  # c = cos(beta), s = sin(beta)
     T = [c^2 s^2 -2*s*c 0 0 0;
           s^2 c^2 2*s*c 0 0 0;
@@ -77,11 +123,9 @@ function rotate_to_element(K, c, s)  # c = cos(beta), s = sin(beta)
 end
 
 
-function reorder(K)  # reorder to GXBeam format
-    idx = [3, 1, 2, 6, 4, 5]
-    return K[idx, idx]
-end
-
+"""
+Get element constituitive matrix accounting for fiber orientation and element orientation
+"""
 function elementQ(material, theta, cbeta, sbeta)
     Q1 = stiffness(material)  # material
     Q2 = rotate_to_ply(Q1, theta)
@@ -90,7 +134,9 @@ function elementQ(material, theta, cbeta, sbeta)
     return Q3
 end
 
-
+"""
+Compute the integrand for a single element with a given ksi, eta.
+"""
 function elementintegrand(ksi, eta, element, nodes)
 
     # shape functions
@@ -189,7 +235,9 @@ function elementintegrand(ksi, eta, element, nodes)
     return A, R, E, C, L, M
 end
 
-
+"""
+2-point Gauss quadrature of one element
+"""
 function submatrix(element, nodes)
 
     # 2-point Gauss quadrature in both dimensions
@@ -206,7 +254,9 @@ function submatrix(element, nodes)
     return A, R, E, C, L, M
 end
 
-
+"""
+Convenience function to map node numbers to locations in global matrix.
+"""
 function node2idx(nodes)
     nn = 4
     idx = Vector{Int64}(undef, nn*3)
@@ -216,7 +266,24 @@ function node2idx(nodes)
     return idx
 end
 
-function sectionprops(nodes, elements)
+
+"""
+    compliance(nodes, elements)
+
+Compute compliance matrix given the finite element mesh described by nodes and elements.
+
+**Arguments**
+- `nodes::Vector{Node}`: all the nodes in the mesh
+- `elements::Vector{Element}`: all the elements in the mesh
+
+**Returns**
+- `S::Matrix`: compliance matrix
+- `sc::Vector{float}`: x, y location of shear center
+    (location where a transverse/shear force will not produce any torsion, i.e., beam will not twist)
+- `tc::Vector{float}`: x, y location of tension center, aka elastic center, aka centroid 
+    (location where an axial force will not produce any bending, i.e., beam will remain straight)
+"""
+function compliance(nodes, elements)
 
     # initialize
     ne = length(elements) # number of elements
@@ -300,8 +367,15 @@ function sectionprops(nodes, elements)
 
     # S += 2*X'*L*dY  # NOTE: add additional term from 2015 paper, though I don't see how that follows...
 
-    # stiffness matrix
-    K = inv(Symmetric(S))
+    # # stiffness matrix
+    # K = inv(Symmetric(S))
+
+    xs = -S[6, 2]/S[6, 6]
+    ys = S[6, 1]/S[6, 6]
+    xt = (S[4, 4]*S[5, 3] - S[4, 5]*S[4, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2)
+    yt = (-S[4, 3]*S[5, 5] + S[4, 5]*S[5, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2) 
+    sc = [xs, ys]
+    tc = [xt, yt]
 
     # K11 = [E R D; R' A zeros(6, 6); DT zeros(6, 12)]
     # K12 = [C'-C  -L zeros(ndof, 6);
@@ -314,20 +388,47 @@ function sectionprops(nodes, elements)
     # G = [G11 G12; G12' G22]
     # Fs = W'*G*W
 
-    return S, K
+    return S, sc, tc
 end
 
-function centers(S)  #, z, L)
-    # assume free end
-    # xs = -(S[6, 2] + S[6, 4]*(L - z))/S[6, 6]
-    # ys = (S[6, 1] + S[6, 5]*(L - z))/S[6, 6]
-    xs = -S[6, 2]/S[6, 6]
-    ys = S[6, 1]/S[6, 6]
-    xt = (S[4, 4]*S[5, 3] - S[4, 5]*S[4, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2)
-    yt = (-S[4, 3]*S[5, 5] + S[4, 5]*S[5, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2) 
+# function centers(S)  #, z, L)
+#     # assume free end
+#     # xs = -(S[6, 2] + S[6, 4]*(L - z))/S[6, 6]
+#     # ys = (S[6, 1] + S[6, 5]*(L - z))/S[6, 6]
+#     xs = -S[6, 2]/S[6, 6]
+#     ys = S[6, 1]/S[6, 6]
+#     xt = (S[4, 4]*S[5, 3] - S[4, 5]*S[4, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2)
+#     yt = (-S[4, 3]*S[5, 5] + S[4, 5]*S[5, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2) 
 
-    return xs, ys, xt, yt
+#     return xs, ys, xt, yt
+# end
+
+"""
+Reorder stiffness or compliance matrix from internal order to GXBeam order
+"""
+function reorder(K)  # reorder to GXBeam format
+    idx = [3, 1, 2, 6, 4, 5]
+    return K[idx, idx]
 end
+
+
+"""
+    Layer(material, t, theta)
+
+A layer (could be one ply or many plys of same material).
+A layup is a vector of layers.
+
+**Arguments**
+- `material::Material`: corresponding material
+- `t::float`: thickness of ply 
+- `theta::float`: fiber orientation (rad)
+"""
+struct Layer{TF}
+    material::Material
+    t::TF
+    theta::TF
+end
+
 
 
 # --------- Unit Tests --------
@@ -411,8 +512,8 @@ for i = 1:ne
 end
 
 
-S, K = sectionprops(nodes, elements)
-
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 
 @test isapprox(K[1, 1], 3.4899e-1, atol=0.0001e-1)
 @test isapprox(K[2, 2], 3.4899e-1, atol=0.0001e-1)
@@ -421,11 +522,10 @@ S, K = sectionprops(nodes, elements)
 @test isapprox(K[5, 5], 8.3384e-4, atol=0.0001e-4)
 @test isapprox(K[6, 6], 5.9084e-4, atol=0.0001e-4)
 
-xs, ys, xt, yt = centers(S)
-@test isapprox(xs, 0.0, atol=1e-8)
-@test isapprox(ys, 0.0, atol=1e-8)
-@test isapprox(xt, 0.0, atol=1e-8)
-@test isapprox(yt, 0.0, atol=1e-8)
+@test isapprox(sc[1], 0.0, atol=1e-8)
+@test isapprox(sc[2], 0.0, atol=1e-8)
+@test isapprox(tc[1], 0.0, atol=1e-8)
+@test isapprox(tc[2], 0.0, atol=1e-8)
 
 # --------- Case 2 --------
 alpha = 1e1
@@ -446,7 +546,8 @@ end
 end
 
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 
 @test isapprox(K[1, 1], 1.28e-1, atol=0.01e-1)
 @test isapprox(K[2, 2], 1.92e-1, atol=0.01e-1)
@@ -471,7 +572,8 @@ let
     end
 end
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 @test isapprox(K[1, 1], 5.039E-01, atol=0.001e-1)
 @test isapprox(K[2, 2], 4.201E-01, atol=0.001e-1)
 @test isapprox(K[3, 3], 4.800E+00, atol=0.001e0)
@@ -490,7 +592,8 @@ let
     end
 end
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 @test isapprox(K[1, 1], 7.598E-01, atol=0.001e-1)
 @test isapprox(K[2, 2], 4.129E-01, atol=0.001e-1)
 @test isapprox(K[3, 3], 3.435E+00, atol=0.001e0)
@@ -511,7 +614,8 @@ let
     end
 end
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 @test isapprox(K[1, 1], 5.0202E-01, atol=0.0001e-1)
 @test isapprox(K[2, 2], 5.0406E-01, atol=0.0001e-1)
 @test isapprox(K[3, 3], 1.2, atol=0.001e0)
@@ -579,7 +683,8 @@ end
 #     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
 # end
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 
 @test isapprox(K[1, 1], 1.249E-01, atol=0.001e-1/2)
 @test isapprox(K[2, 2], 1.249E-01, atol=0.001e-1/2)
@@ -641,7 +746,8 @@ end
 #     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
 # end
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 
 @test isapprox(K[1, 1], 4.964E-02, atol=0.002e-2)
 @test isapprox(K[2, 2], 6.244E-02, atol=0.002e-2)
@@ -652,11 +758,10 @@ S, K = sectionprops(nodes, elements)
 @test isapprox(K[3, 5], 1.805E-02, atol=0.001e-2)
 @test isapprox(K[2, 6], -7.529E-03, atol=0.003e-3) 
 
-xs, ys, xt, yt = centers(S)
-@test isapprox(xs, -1.206E-01, atol=0.001e-1) 
-@test isapprox(ys, 0.0, atol=1e-6) 
-@test isapprox(xt, -6.051E-02, atol=0.002e-2) 
-@test isapprox(yt, 0.0, atol=1e-6) 
+@test isapprox(sc[1], -1.206E-01, atol=0.001e-1) 
+@test isapprox(sc[2], 0.0, atol=1e-6) 
+@test isapprox(tc[1], -6.051E-02, atol=0.002e-2) 
+@test isapprox(tc[2], 0.0, atol=1e-6) 
 
 
 # A critical assessment of computer tools for calculating composite wind turbine blade properties
@@ -720,7 +825,8 @@ end
 #     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
 # end
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 K2 = reorder(K)
 
 @test isapprox(K2[1, 1], 1.835e10, rtol=0.001)
@@ -889,7 +995,8 @@ end
 #     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
 # end
 
-S, K = sectionprops(nodes, elements)
+S, sc, tc = compliance(nodes, elements)
+K = inv(S)
 K2 = reorder(K)
 
 @test isapprox(K2[1, 1], 1.03892e7, rtol=0.04)
