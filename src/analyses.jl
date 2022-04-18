@@ -667,27 +667,7 @@ function initial_condition_analysis!(system, assembly, t0;
     end
 
     # restore original state vector
-    for ipoint = 1:length(assembly.points)
-
-        icol = dynamic_indices.icol_point[ipoint]
-
-        if haskey(pcond, ipoint)
-            pcond[ipoint].isforce[1] && setindex!(x, u0[ipoint][1], icol) 
-            pcond[ipoint].isforce[2] && setindex!(x, u0[ipoint][2], icol+1) 
-            pcond[ipoint].isforce[3] && setindex!(x, u0[ipoint][3], icol+2) 
-            pcond[ipoint].isforce[4] && setindex!(x, theta0[ipoint][1], icol+3) 
-            pcond[ipoint].isforce[5] && setindex!(x, theta0[ipoint][2], icol+4) 
-            pcond[ipoint].isforce[6] && setindex!(x, theta0[ipoint][3], icol+5) 
-        else
-            x[icol] = u0[ipoint][1] 
-            x[icol+1] = u0[ipoint][2] 
-            x[icol+2] = u0[ipoint][3] 
-            x[icol+3] = theta0[ipoint][1] 
-            x[icol+4] = theta0[ipoint][2] 
-            x[icol+5] = theta0[ipoint][3] 
-        end
-
-    end
+    set_state_variables!(system, pcond; u=u0, theta=theta0)
 
     return system, converged
 end

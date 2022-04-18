@@ -446,13 +446,13 @@ Insert the residual entries corresponding to a beam element into the system resi
 
     # equilibrium equations for the start of the beam element
     irow = indices.irow_point[assembly.start[ielem]]
-    resid[irow:irow+2] .-= F1 ./ force_scaling
-    resid[irow+3:irow+5] .-= M1 ./ force_scaling
+    @views resid[irow:irow+2] .-= F1 ./ force_scaling
+    @views resid[irow+3:irow+5] .-= M1 ./ force_scaling
 
     # equilibrium equations for the end of the beam element
     irow = indices.irow_point[assembly.stop[ielem]]
-    resid[irow:irow+2] .+= F2 ./ force_scaling
-    resid[irow+3:irow+5] .+= M2 ./ force_scaling
+    @views resid[irow:irow+2] .+= F2 ./ force_scaling
+    @views resid[irow+3:irow+5] .+= M2 ./ force_scaling
 
     return resid
 end
@@ -1397,13 +1397,13 @@ end
     # equilibrium equations for the start of the beam element
     irow1 = indices.irow_point[assembly.start[ielem]]
 
-    jacob[irow1:irow1+2, icol1+3:icol1+5] .-= F1_θ1 ./ force_scaling
-    jacob[irow1:irow1+2, icol2+3:icol2+5] .-= F1_θ2 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+3:icol1+5] .-= F1_θ1 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+3:icol2+5] .-= F1_θ2 ./ force_scaling
 
     jacob[irow1:irow1+2, icol:icol+2] .= -F1_F
 
-    jacob[irow1+3:irow1+5, icol1+3:icol1+5] .-= M1_θ1 ./ force_scaling
-    jacob[irow1+3:irow1+5, icol2+3:icol2+5] .-= M1_θ2 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+3:icol1+5] .-= M1_θ1 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+3:icol2+5] .-= M1_θ2 ./ force_scaling
 
     jacob[irow1+3:irow1+5, icol:icol+2] .= -M1_F
     jacob[irow1+3:irow1+5, icol+3:icol+5] .= -M1_M
@@ -1411,13 +1411,13 @@ end
     # equilibrium equations for the end of the beam element
     irow2 = indices.irow_point[assembly.stop[ielem]]
     
-    jacob[irow2:irow2+2, icol1+3:icol1+5] .+= F2_θ1 ./ force_scaling
-    jacob[irow2:irow2+2, icol2+3:icol2+5] .+= F2_θ2 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+3:icol1+5] .+= F2_θ1 ./ force_scaling
+    jacob[irow2:irow2+2, icol2+3:icol2+5] .= F2_θ2 ./ force_scaling
 
     jacob[irow2:irow2+2, icol:icol+2] .= F2_F
 
-    jacob[irow2+3:irow2+5, icol1+3:icol1+5] .+= M2_θ1 ./ force_scaling
-    jacob[irow2+3:irow2+5, icol2+3:icol2+5] .+= M2_θ2 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+3:icol1+5] .+= M2_θ1./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+3:icol2+5] .+= M2_θ2 ./ force_scaling
 
     jacob[irow2+3:irow2+5, icol:icol+2] .= M2_F
     jacob[irow2+3:irow2+5, icol+3:icol+5] .= M2_M
@@ -1451,66 +1451,66 @@ end
     # equilibrium equations for the start of the beam element
     irow1 = indices.irow_point[assembly.start[ielem]]
 
-    jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_V1dot ./ force_scaling
-    jacob[irow1:irow1+2, icol1+3:icol1+5] .-= F1_Ω1dot ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_V1dot ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+3:icol1+5] .-= F1_Ω1dot ./ force_scaling
 
-    jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_V2dot ./ force_scaling
-    jacob[irow1:irow1+2, icol2+3:icol2+5] .-= F1_Ω2dot ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_V2dot ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+3:icol2+5] .-= F1_Ω2dot ./ force_scaling
 
     jacob[irow1:irow1+2, icol:icol+2] .= -F1_F
 
-    jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1 ./ force_scaling
-    jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1 ./ force_scaling
 
-    jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2 ./ force_scaling
-    jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2 ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_V1dot ./ force_scaling
-    jacob[irow1+3:irow1+5, icol1+3:icol1+5] .-= M1_Ω1dot ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_V1dot ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+3:icol1+5] .-= M1_Ω1dot ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol2:icol2+2] .-= M1_V2dot ./ force_scaling
-    jacob[irow1+3:irow1+5, icol2+3:icol2+5] .-= M1_Ω2dot ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2:icol2+2] .-= M1_V2dot ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+3:icol2+5] .-= M1_Ω2dot ./ force_scaling
 
     jacob[irow1+3:irow1+5, icol:icol+2] .= -M1_F
     jacob[irow1+3:irow1+5, icol+3:icol+5] .= -M1_M
 
-    jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1 ./ force_scaling
-    jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1 ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2 ./ force_scaling
-    jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2 ./ force_scaling
 
     # equilibrium equations for the end of the beam element
     irow2 = indices.irow_point[assembly.stop[ielem]]
 
-    jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_V1dot ./ force_scaling
-    jacob[irow2:irow2+2, icol1+3:icol1+5] .+= F2_Ω1dot ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_V1dot ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+3:icol1+5] .+= F2_Ω1dot ./ force_scaling
 
-    jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_V2dot ./ force_scaling
-    jacob[irow2:irow2+2, icol2+3:icol2+5] .+= F2_Ω2dot ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_V2dot ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+3:icol2+5] .+= F2_Ω2dot ./ force_scaling
 
     jacob[irow2:irow2+2, icol:icol+2] .= F2_F
 
-    jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1 ./ force_scaling
-    jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1 ./ force_scaling
 
-    jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2 ./ force_scaling
-    jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2 ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_V1dot ./ force_scaling
-    jacob[irow2+3:irow2+5, icol1+3:icol1+5] .+= M2_Ω1dot ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_V1dot ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+3:icol1+5] .+= M2_Ω1dot ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol2:icol2+2] .+= M2_V2dot ./ force_scaling
-    jacob[irow2+3:irow2+5, icol2+3:icol2+5] .+= M2_Ω2dot ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2:icol2+2] .+= M2_V2dot ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+3:icol2+5] .+= M2_Ω2dot ./ force_scaling
 
     jacob[irow2+3:irow2+5, icol:icol+2] .= M2_F
     jacob[irow2+3:irow2+5, icol+3:icol+5] .= M2_M
 
-    jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1 ./ force_scaling
-    jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1 ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2 ./ force_scaling
-    jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2 ./ force_scaling
 
     return jacob
 end
@@ -1532,48 +1532,48 @@ end
     # equilibrium equations for the start of the beam element
     irow1 = indices.irow_point[assembly.start[ielem]]
 
-    jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_u1 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_u1 ./ force_scaling
 
-    jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_u2 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_u2 ./ force_scaling
 
-    jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1 ./ force_scaling
-    jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1 ./ force_scaling
 
-    jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2 ./ force_scaling
-    jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2 ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2 ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_u1 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_u1 ./ force_scaling
     
-    jacob[irow1+3:irow1+5, icol2:icol2+2] .-= M1_u2 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2:icol2+2] .-= M1_u2 ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1 ./ force_scaling
-    jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1 ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2 ./ force_scaling
-    jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2 ./ force_scaling
 
     # equilibrium equations for the end of the beam element
     irow2 = indices.irow_point[assembly.stop[ielem]]
 
-    jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_u1 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_u1 ./ force_scaling
 
-    jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_u2 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_u2 ./ force_scaling
 
-    jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1 ./ force_scaling
-    jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1 ./ force_scaling
 
-    jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2 ./ force_scaling
-    jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2 ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2 ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_u1 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_u1 ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol2:icol2+2] .+= M2_u2 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2:icol2+2] .+= M2_u2 ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1 ./ force_scaling
-    jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1 ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2 ./ force_scaling
-    jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2 ./ force_scaling
 
     return jacob
 end
@@ -1592,32 +1592,32 @@ end
     # equilibrium equations for the start of the beam element
     irow1 = indices.irow_point[assembly.start[ielem]]
 
-    jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1dot .* gamma ./ force_scaling
-    jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1dot .* gamma ./ force_scaling
 
-    jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2dot .* gamma ./ force_scaling
-    jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2dot .* gamma ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1dot .* gamma ./ force_scaling
-    jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1dot .* gamma ./ force_scaling
 
-    jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2dot .* gamma ./ force_scaling
-    jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2dot .* gamma ./ force_scaling
 
     # equilibrium equations for the end of the beam element
     irow2 = indices.irow_point[assembly.stop[ielem]]
 
-    jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1dot .* gamma ./ force_scaling
-    jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1dot .* gamma ./ force_scaling
 
-    jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2dot .* gamma ./ force_scaling
-    jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2dot .* gamma ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1dot .* gamma ./ force_scaling
-    jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1dot .* gamma ./ force_scaling
 
-    jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2dot .* gamma ./ force_scaling
-    jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2dot .* gamma ./ force_scaling
 
     return jacob
 end

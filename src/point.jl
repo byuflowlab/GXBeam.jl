@@ -1363,7 +1363,7 @@ system jacobian matrix.
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
 
-    jacob[irow:irow+2, icol:icol+2] .-= F_u ./ force_scaling
+    jacob[irow:irow+2, icol:icol+2] .= -F_u ./ force_scaling
     jacob[irow:irow+2, icol+6:icol+8] .= -F_V ./ force_scaling
     jacob[irow:irow+2, icol+9:icol+11] .= -F_Ω ./ force_scaling
 
@@ -1418,14 +1418,14 @@ matrix.
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
 
-    jacob[irow:irow+2, icol+6:icol+8] .-= F_Vdot .* gamma ./ force_scaling
-    jacob[irow:irow+2, icol+9:icol+11] .-= F_Ωdot .* gamma ./ force_scaling
+    @views jacob[irow:irow+2, icol+6:icol+8] .-= F_Vdot .* gamma ./ force_scaling
+    @views jacob[irow:irow+2, icol+9:icol+11] .-= F_Ωdot .* gamma ./ force_scaling
 
-    jacob[irow+3:irow+5, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
-    jacob[irow+3:irow+5, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
+    @views jacob[irow+3:irow+5, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+3:irow+5, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
 
-    jacob[irow+6:irow+8, icol:icol+2] .+= rV_udot .* gamma
-    jacob[irow+9:irow+11, icol+3:icol+5] .+= rΩ_θdot .* gamma
+    @views jacob[irow+6:irow+8, icol:icol+2] .+= rV_udot .* gamma
+    @views jacob[irow+9:irow+11, icol+3:icol+5] .+= rΩ_θdot .* gamma
 
     return jacob
 end

@@ -4,20 +4,20 @@
 Holds the state variables for a point
 
 # Fields:
- - `F`: Externally applied forces on the point
- - `M`: Externally applied moments on the point
- - `u`: Displacement variables for the point
- - `theta`: Displacement Wiener-Milenkovic rotation parameters for the point
- - `V`: Linear velocity of the point
- - `Ω`: Angular velocity of the point
+ - `u`: Linear deflection
+ - `theta`: Angular deflection (Wiener-Milenkovic parameters)
+ - `V`: Linear velocity
+ - `Ω`: Angular velocity
+ - `F`: External forces
+ - `M`: External moments
 """
 struct PointState{TF}
     u::SVector{3, TF}
     theta::SVector{3, TF}
-    F::SVector{3, TF}
-    M::SVector{3, TF}
     V::SVector{3, TF}
     Omega::SVector{3, TF}
+    F::SVector{3, TF}
+    M::SVector{3, TF}
 end
 
 """
@@ -26,20 +26,20 @@ end
 Holds the state variables for an element
 
 # Fields:
- - `u`: Displacement variables for the element
- - `theta`: Wiener-Milenkovic rotational displacement variables for the element
- - `F`: Resultant forces for the element (in the deformed local coordinate frame)
- - `M`: Resultant moments for the element (in the deformed local coordinate frame)
- - `V`: Linear velocity of the element (in the deformed local coordinate frame)
- - `Omega`: Angular velocity of the element (in the deformed local coordinate frame)
+ - `u`: Linear deflection
+ - `theta`: Angular deflection
+ - `V`: Linear velocity
+ - `Omega`: Angular velocity
+ - `Fi`: Internal forces
+ - `Mi`: Internal moments
 """
 struct ElementState{TF}
     u::SVector{3, TF}
     theta::SVector{3, TF}
-    F::SVector{3, TF}
-    M::SVector{3, TF}
     V::SVector{3, TF}
     Omega::SVector{3, TF}
+    Fi::SVector{3, TF}
+    Mi::SVector{3, TF}
 end
 
 """
@@ -98,18 +98,18 @@ function extract_point_state(system, assembly, ipoint, x = system.x;
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     # extract point state variables
-    u, theta = point_displacement(x, ipoint, dynamic_indices.icol_point, pc)
-    F, M = point_loads(x, ipoint, dynamic_indices.icol_point, force_scaling, pc)
+    u, θ = point_displacement(x, ipoint, dynamic_indices.icol_point, pc)
     V, Ω = point_velocities(x, ipoint, dynamic_indices.icol_point)
+    F, M = point_loads(x, ipoint, dynamic_indices.icol_point, force_scaling, pc)
 
     # convert rotation parameter to Wiener-Milenkovic parameters
-    scaling = rotation_parameter_scaling(theta)
-    theta *= scaling
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
 
     # promote all variables to the same type
-    u, theta, F, M, V, Ω = promote(u, theta, F, M, V, Ω)
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
 
-    return PointState(u, theta, F, M, V, Ω)
+    return PointState(u, θ, V, Ω, F, M)
 end
 
 """
@@ -181,9 +181,9 @@ function extract_element_state(system, assembly, ielem, x = system.x;
     θ *= scaling
 
     # promote all variables to the same type
-    u, θ, F, M, V, Ω = promote(u, θ, F, M, V, Ω)
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
 
-    return ElementState(u, θ, F, M, V, Ω)
+    return ElementState(u, θ, V, Ω, F, M)
 end
 
 """
@@ -285,40 +285,6 @@ Pre-allocated version of [`deform_cross_section`](@ref)
 deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)
 
 """
-    cross_section_velocities(xyz, r, v, ω)
-
-Calculate the velocities of the points in `xyz` given the linear velocity `v`,
-and the angular velocity `ω` about point `r`.
-"""
-function cross_section_velocities(xyz, r, v, ω)
-    TF = promote_type(eltype(xyz), eltype(r), eltype(v), eltype(ω))
-    vxyz = similar(xyz, TF)
-    return cross_section_velocities!(vxyz, xyz, r, v, ω)
-end
-
-"""
-    cross_section_velocities!(vxyz, xyz, r, v, ω)
-
-Pre-allocated version of [`cross_section_velocities`](@ref)
-"""
-function cross_section_velocities!(vxyz, xyz, r, v, ω)
-    # reshape cross section points (if necessary)
-    rxyz = reshape(xyz, 3, :)
-    rvxyz = reshape(vxyz, 3, :)
-    # convert inputs to static arrays
-    r = SVector{3}(r)
-    v = SVector{3}(v)
-    ω = SVector{3}(ω)
-    # calculate velocities at each point
-    for ipt = 1:size(rxyz, 2)
-        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
-        rvxyz[:,ipt] .= v .+ cross(ω, p - r)
-    end
-    # return the result
-    return vxyz
-end
-
-"""
     write_vtk(name, assembly::Assembly; kwargs...)
     write_vtk(name, assembly::Assembly, state::AssemblyState; kwargs...)
     write_vtk(name, assembly::Assembly, history::Vector{<:AssemblyState}], dt;
@@ -334,7 +300,7 @@ If the solution time `history` is provided, the time step must also be provided
 
 # Keyword Arguments
  - `sections = nothing`: Cross section geometry corresponding to each point,
-    defined in a frame aligned with the global frame but centered around the
+    defined in a frame aligned with the body frame but centered around the
     corresponding point. Defined as an array with shape `(3, ncross, np)` where `ncross`
     is the number of points in each cross section and `np` is the number of points.
  - `scaling=1.0`: Parameter to scale the deflections (only valid if state is provided)
@@ -791,7 +757,6 @@ function write_vtk(name, assembly, state, λ, eigenstate;
     return nothing
 end
 
-
 """
     left_eigenvectors(system, λ, V)
     left_eigenvectors(K, M, λ, V)
@@ -908,7 +873,6 @@ function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
 
     return U
 end
-
 
 """
     correlate_eigenmodes(C)

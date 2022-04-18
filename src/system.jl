@@ -281,6 +281,294 @@ function set_static_state!(system, x)
     return system
 end
 
+"""
+    set_state_variables!([x,] system, prescribed_conditions; kwargs...)
+
+Set the state variables in `system` (or in the vector `x`) to the provided values.
+
+# Keyword Arguments
+- `u`: Vector containing the linear displacement of each point.
+- `theta`: Vector containing the angular displacement of each point.
+- `V`: Vector containing the linear velocity of each point.
+- `Omega` Vector containing the angular velocity of each point
+- `F`: Vector containing the externally applied forces acting on each point
+- `M`: Vector containing the externally applied moments acting on each point
+- `Fi`: Vector containing internal forces for each beam element
+- `Mi`: Vector containing internal moments for each beam element
+"""
+set_state_variables!
+
+function set_state_variables!(system, prescribed_conditions; kwargs...)
+    x = set_state_variables!(system.x, system, prescribed_conditions; kwargs...)
+    return system
+end
+
+function set_state_variables!(x, system, prescribed_conditions; u = nothing, theta = nothing, 
+    V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing) 
+
+    if !isnothing(u)
+        for ipoint = 1:length(u)
+            set_linear_deflection!(x, system, prescribed_conditions, u, ipoint)
+        end
+    end
+
+    if !isnothing(theta)
+        for ipoint = 1:length(theta)
+            set_angular_deflection!(x, system, prescribed_conditions, theta, ipoint)
+        end
+    end
+
+    if !isnothing(V)
+        for ipoint = 1:length(V)
+            set_linear_velocity!(x, system, V, ipoint)
+        end
+    end
+
+    if !isnothing(Omega)
+        for ipoint = 1:length(Omega)
+            set_angular_velocity!(x, system, Omega, ipoint)
+        end
+    end
+
+    if !isnothing(F)
+        for ipoint = 1:length(F)
+            set_external_forces!(x, system, F, ipoint)
+        end
+    end
+
+    if !isnothing(M)
+        for ipoint = 1:length(M)
+            set_external_moments!(x, system, M, ipoint)
+        end
+    end
+
+    if !isnothing(Fi)
+        for ielem = 1:length(Fi)
+            set_internal_forces!(x, system, Fi, ielem)
+        end
+    end
+
+    if !isnothing(Mi)
+        for ielem = 1:length(Mi)
+            set_internal_moments!(x, system, Mi, ielem)
+        end
+    end
+
+    return x
+end
+
+"""
+    set_linear_deflection!([x,] system, prescribed_conditions, u, ipoint)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+linear deflection of point `ipoint` to the provided values.
+"""
+function set_linear_deflection!(system::System, prescribed_conditions, u, ipoint)
+    set_linear_deflection!(system.x, system, prescribed_conditions, u, ipoint)
+    return system
+end
+
+function set_linear_deflection!(x, system::System, prescribed_conditions, u, ipoint)
+    
+    icol = system.dynamic_indices.icol_point[ipoint]
+    
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    if haskey(prescribed, ipoint)
+        prescribed.isforce[1] && setindex!(x, u[1], icol)
+        prescribed.isforce[2] && setindex!(x, u[2], icol+1)
+        prescribed.isforce[3] && setindex!(x, u[3], icol+2)
+    else
+        x[icol  ] = u[1]
+        x[icol+1] = u[2]
+        x[icol+2] = u[3]
+    end
+
+    return x
+end
+
+"""
+    set_angular_deflection!([x,] system, prescribed_conditions, theta, ipoint)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+angular deflection of point `ipoint` to the provided values.
+"""
+function set_angular_deflection!(system::System, prescribed_conditions, theta, ipoint)
+    set_angular_deflection!(system.x, system, prescribed_conditions, theta, ipoint)
+    return system
+end
+
+function set_angular_deflection!(x, system::System, prescribed_conditions, theta, ipoint)
+
+    icol = system.dynamic_indices.icol_point[ipoint]
+    
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    if haskey(prescribed, ipoint)
+        prescribed.isforce[4] && setindex!(x, theta[1], icol+3)
+        prescribed.isforce[5] && setindex!(x, theta[2], icol+4)
+        prescribed.isforce[6] && setindex!(x, theta[3], icol+5)
+    else
+        x[icol+3] = theta[1]
+        x[icol+4] = theta[2]
+        x[icol+5] = theta[3]
+    end
+
+    return x
+end
+
+"""
+    set_linear_velocity([x,] system, V, ipoint)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+linear velocity of point `ipoint` to the provided values.
+"""
+function set_linear_velocity(system::System, V, ipoint)
+    set_linear_velocity(system.x, system, V, ipoint)
+    return system
+end
+
+function set_linear_velocity(x, system::System, V, ipoint)
+
+    icol = system.dynamic_indices.icol_point[ipoint]
+
+    x[icol  ] = V[1]
+    x[icol+1] = V[2]
+    x[icol+2] = V[3]
+
+    return x
+end
+
+"""
+    set_angular_velocity!([x,] system, Omega, ipoint)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+angular velocity of point `ipoint` to the provided values.
+"""
+function set_angular_velocity!(system::System, Omega, ipoint)
+    set_angular_velocity!(system.x, system, Omega, ipoint)
+    return system
+end
+
+function set_angular_velocity!(x, system::System, Omega, ipoint)
+
+    icol = system.dynamic_indices.icol_elem[ipoint]
+
+    x[icol+3] = Omega[1]
+    x[icol+4] = Omega[2]
+    x[icol+5] = Omega[3]
+
+    return x
+end
+
+
+"""
+    set_external_forces!([x,] system, prescribed_conditions, F, ipoint)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+external forces applied at point `ipoint` to the provided values.
+"""
+function set_external_forces!(system::System, prescribed_conditions, F, ipoint)
+    set_external_forces!(system.x, system, prescribed_conditions, F, ipoint)
+    return system
+end
+
+function set_external_forces!(x, system::System, prescribed_conditions, F, ipoint)
+    
+    icol = system.dynamic_indices.icol_point[ipoint]
+    
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    if haskey(prescribed, ipoint)
+        !prescribed.isforce[1] && setindex!(x, F[1], icol)
+        !prescribed.isforce[2] && setindex!(x, F[2], icol+1)
+        !prescribed.isforce[3] && setindex!(x, F[3], icol+2)
+    else
+        x[icol  ] = F[1]
+        x[icol+1] = F[2]
+        x[icol+2] = F[3]
+    end
+
+    return x
+end
+
+"""
+    set_external_moments([x,] system, prescribed_conditions, M, ipoint)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+external moments applied at point `ipoint` to the provided values.
+"""
+function set_external_moments(system::System, prescribed_conditions, M, ipoint)
+    set_external_moments(system.x, system, prescribed_conditions, M, ipoint)
+    return system
+end
+
+function set_external_moments(x, system::System, prescribed_conditions, M, ipoint)
+
+    icol = system.dynamic_indices.icol_point[ipoint]
+    
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    if haskey(prescribed, ipoint)
+        !prescribed.isforce[4] && setindex!(x, M[1], icol+3)
+        !prescribed.isforce[5] && setindex!(x, M[2], icol+4)
+        !prescribed.isforce[6] && setindex!(x, M[3], icol+5)
+    else
+        x[icol+3] = M[1]
+        x[icol+4] = M[2]
+        x[icol+5] = M[3]
+    end
+
+    return x
+end
+
+"""
+    set_internal_forces!([x,] system, Fi, ielem)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+internal forces of element `ielem` to the provided values.
+"""
+function set_internal_forces!(system::System, Fi, ielem)
+    set_internal_forces!(system.x, system, Fi, ielem)
+    return system
+end
+
+function set_internal_forces!(x, system::System, Fi, ielem)
+
+    icol = system.dynamic_indices.icol_elem[ielem]
+
+    force_scaling = system.force_scaling
+
+    x[icol  ] = Fi[1] / force_scaling
+    x[icol+1] = Fi[2] / force_scaling
+    x[icol+2] = Fi[3] / force_scaling
+
+    return x
+end
+
+"""
+    set_internal_moments!([x,] system, Mi, ielem)
+
+Set the state variables in `system` (or in the vector `x`) corresponding to the
+internal moments of element `ielem` to the provided values.
+"""
+function set_internal_moments!(system::System, Mi, ielem)
+    set_internal_moments!(system.x, system, Mi, ielem)
+    return system
+end
+
+function set_internal_moments!(x, system::System, Mi, ielem)
+
+    icol = system.dynamic_indices.icol_elem[ielem]
+
+    force_scaling = system.force_scaling
+
+    x[icol+3] = Mi[1] / force_scaling
+    x[icol+4] = Mi[2] / force_scaling
+    x[icol+5] = Mi[3] / force_scaling
+
+    return x
+end
 
 """
     static_system_residual!(resid, x, indices, force_scaling, 
