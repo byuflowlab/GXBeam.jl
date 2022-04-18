@@ -205,13 +205,6 @@ function default_force_scaling(assembly)
 
     TF = eltype(assembly)
 
-<<<<<<< HEAD
-    minimum_nonzero_compliance = 1.0
-    for elem in assembly.elements
-        for val in elem.compliance
-            if eps(TF) < abs(val) < minimum_nonzero_compliance
-                minimum_nonzero_compliance = abs(val)
-=======
     nsum = 0
     csum = zero(TF)
     for elem in assembly.elements
@@ -219,16 +212,11 @@ function default_force_scaling(assembly)
             csum += abs(val)
             if eps(TF) < abs(val)
                 nsum += 1
->>>>>>> ae8c4f5744e078b155d108d2b54770139fd55473
             end
         end
     end
 
-<<<<<<< HEAD
-    force_scaling = nextpow(2.0, 1.0/minimum_nonzero_compliance)
-=======
     force_scaling = nextpow(2.0, nsum/csum/100)
->>>>>>> ae8c4f5744e078b155d108d2b54770139fd55473
 
     return force_scaling
 end
