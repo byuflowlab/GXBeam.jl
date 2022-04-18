@@ -161,30 +161,29 @@ function extract_element_state(system, assembly, ielem, x = system.x;
     # current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
-    # point properties at the start of the beam element  
-    u1, θ1 = point_displacement(x, assembly.start[ielem], dynamic_indices.icol_point, prescribed_conditions)
-
-    # point properties at the end of the beam element
-    u2, θ2 = point_displacement(x, assembly.stop[ielem], dynamic_indices.icol_point, prescribed_conditions)
-
-    # beam element displacement variables
+    # linear and angular displacement
+    u1, θ1 = point_displacement(x, assembly.start[ielem], dynamic_indices.icol_point, pc)
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], dynamic_indices.icol_point, pc)
     u = (u1 + u2)/2
-    theta = (θ1 + θ2)/2
+    θ = (θ1 + θ2)/2
 
     # element state variables
-    F, M = element_states(x, ielem, dynamic_indices.icol_elem, force_scaling)
+    F, M = element_loads(x, ielem, dynamic_indices.icol_elem, force_scaling)
 
-    V = zero(u)
-    Ω = zero(u)
+    # linear and angular velocity
+    V1, Ω1 = point_velocities(x, assembly.start[ielem], dynamic_indices.icol_point)
+    V2, Ω2 = point_velocities(x, assembly.stop[ielem], dynamic_indices.icol_point)
+    V = (V1 + V2)/2
+    Ω = (Ω1 + Ω2)/2
 
     # convert rotation parameter to Wiener-Milenkovic parameters
-    scaling = rotation_parameter_scaling(theta)
-    theta *= scaling
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
 
     # promote all variables to the same type
-    u, theta, F, M, V, Ω = promote(u, theta, F, M, V, Ω)
+    u, θ, F, M, V, Ω = promote(u, θ, F, M, V, Ω)
 
-    return ElementState(u, theta, F, M, V, Ω)
+    return ElementState(u, θ, F, M, V, Ω)
 end
 
 """

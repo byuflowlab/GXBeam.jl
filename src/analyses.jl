@@ -35,47 +35,22 @@ iteration procedure converged.
  - `tvec = 0`: Time vector/value. May be used in conjunction with time varying
         prescribed conditions and distributed loads to gradually increase
         displacements/loads.
+ - `show_trace = false`: Flag indicating whether to show solution progress
  - `reset_state = true`: Flag indicating whether the state variables should be
         reset prior to performing the analysis.  This keyword argument is only valid
         for the pre-allocated version of this function.
 """
-function static_analysis(assembly;
-    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,PointMass{Float64}}(),
-    gravity=SVector(0,0,0),
-    linear=false,
-    linearization_state=nothing,
-    update_linearization_state=false,
-    method=:newton,
-    linesearch=LineSearches.BackTracking(maxstep=1e6),
-    ftol=1e-9,
-    iterations=1000,
-    tvec=0.0,
-    )
+function static_analysis(assembly; kwargs...)
 
     system = System(assembly)
 
-    return static_analysis!(system, assembly;
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        gravity=gravity,
-        linear=linear,
-        linearization_state=linearization_state,
-        update_linearization_state=update_linearization_state,
-        method=method,
-        linesearch=linesearch,
-        ftol=ftol,
-        iterations=iterations,
-        tvec=tvec,
-        reset_state=false)
+    return static_analysis!(system, assembly; kwargs..., reset_state=false)
 end
 
 """
     static_analysis!(system, assembly; kwargs...)
 
-Pre-allocated version of `static_analysis`.
+Pre-allocated version of [`static_analysis`](@ref).
 """
 function static_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
@@ -90,6 +65,7 @@ function static_analysis!(system, assembly;
     ftol=1e-9,
     iterations=1000,
     tvec=0.0,
+    show_trace=false,
     reset_state=true)
 
     # reset state, if specified
@@ -110,6 +86,10 @@ function static_analysis!(system, assembly;
     
     # begin time stepping
     for t in tvec
+
+        if show_trace
+            println("Solving for t=$t")
+        end
 
         # update stored time
         system.t = t
@@ -149,9 +129,7 @@ function static_analysis!(system, assembly;
             df = NLsolve.OnceDifferentiable(f!, j!, xs, rs, Ks)
 
             result = NLsolve.nlsolve(df, xs,
-            # result = NLsolve.nlsolve(f!, xs,
-                # autodiff=:forward,
-                show_trace=true,
+                show_trace=show_trace,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
@@ -203,8 +181,9 @@ iteration procedure converged.
  - `update_linearization_state`: Flag indicating whether to update the linearization state 
     variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
- - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
+ - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to 
+    solve the nonlinear system of equations
+ - `ftol = 1e-9`: tolerance for solving the nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
  - `origin = zeros(3)`: Global frame origin vector. If time varying, this input
     may be provided as a function of time.
@@ -219,58 +198,22 @@ iteration procedure converged.
  - `tvec = 0.0`: Time vector/value. May be used in conjunction with time varying
     prescribed conditions, distributed loads, and global motion to gradually
     increase displacements/loads.
+ - `show_trace = false`: Flag indicating whether to show solution progress
  - `reset_state = true`: Flag indicating whether the state variables should be
     reset prior to performing the analysis.  This keyword argument is only valid
     for the pre-allocated version of this function.
 """
-function steady_state_analysis(assembly;
-    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,PointMass{Float64}}(),
-    gravity=SVector(0,0,0),
-    linear=false,
-    linearization_state=nothing,
-    update_linearization_state=false,
-    method=:newton,
-    linesearch=LineSearches.BackTracking(maxstep=1e6),
-    ftol=1e-9,
-    iterations=1000,
-    origin=(@SVector zeros(3)),
-    linear_velocity=(@SVector zeros(3)),
-    angular_velocity=(@SVector zeros(3)),
-    linear_acceleration=(@SVector zeros(3)),
-    angular_acceleration=(@SVector zeros(3)),
-    tvec=0.0,
-    )
+function steady_state_analysis(assembly; kwargs...)
 
     system = System(assembly)
 
-    return steady_state_analysis!(system, assembly;
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        gravity=gravity,
-        linear=linear,
-        linearization_state=linearization_state,
-        update_linearization_state=update_linearization_state,
-        method=method,
-        linesearch=linesearch,
-        ftol=ftol,
-        iterations=iterations,
-        origin=origin,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        tvec=tvec,
-        reset_state=false,
-        )
+    return steady_state_analysis!(system, assembly; kwargs..., reset_state=true)
 end
 
 """
     steady_state_analysis!(system, assembly; kwargs...)
 
-Pre-allocated version of `steady_state_analysis`.
+Pre-allocated version of [`steady_state_analysis`](@ref).
 """
 function steady_state_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
@@ -290,6 +233,7 @@ function steady_state_analysis!(system, assembly;
     linear_acceleration=(@SVector zeros(3)),
     angular_acceleration=(@SVector zeros(3)),
     tvec=0.0,
+    show_trace=false,
     reset_state=true,
     )
 
@@ -306,6 +250,10 @@ function steady_state_analysis!(system, assembly;
 
     # begin time stepping
     for t in tvec
+
+        if show_trace
+            println("Solving for t=$t")
+        end
 
         # update stored time
         system.t = t
@@ -350,9 +298,7 @@ function steady_state_analysis!(system, assembly;
             df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
 
             result = NLsolve.nlsolve(df, x,
-            # result = NLsolve.nlsolve(f!, x,
-            #     autodiff=:forward,
-                show_trace = true,
+                show_trace=show_trace,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
@@ -403,9 +349,11 @@ converged.
  - `update_linearization_state`: Flag indicating whether to update the linearization state 
     variables for a linear analysis with the current state variables.
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
- - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
+ - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to 
+    solve nonlinear system of equations
+ - `ftol = 1e-9`: tolerance for solving the nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
+ - `show_trace = false`: Flag indicating whether to show solution progress
  - `reset_state = true`: Flag indicating whether the state variables should be
     reset prior to performing the steady-state analysis.  This keyword argument
     is only valid for the pre-allocated version of this function.
@@ -426,54 +374,11 @@ converged.
     increase displacements/loads during the steady-state analysis.
  - `nev = 6`: Number of eigenvalues to compute
 """
-function eigenvalue_analysis(assembly;
-    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,PointMass{Float64}}(),
-    structural_damping = false,
-    gravity=SVector(0,0,0),
-    method=:newton,
-    linear=false,
-    linearization_state=nothing,
-    update_linearization_state=false,
-    linesearch=LineSearches.BackTracking(maxstep=1e6),
-    ftol=1e-9,
-    iterations=1000,
-    find_steady_state=!linear,
-    origin=(@SVector zeros(3)),
-    linear_velocity=(@SVector zeros(3)),
-    angular_velocity=(@SVector zeros(3)),
-    linear_acceleration=(@SVector zeros(3)),
-    angular_acceleration=(@SVector zeros(3)),
-    tvec=0.0,
-    nev=6
-    )
+function eigenvalue_analysis(assembly; kwargs...)
 
     system = System(assembly)
 
-    return eigenvalue_analysis!(system, assembly;
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        structural_damping=structural_damping,
-        gravity=gravity,
-        linear=linear,
-        linearization_state=linearization_state,
-        update_linearization_state=update_linearization_state,
-        method=method,
-        linesearch=linesearch,
-        ftol=ftol,
-        iterations=iterations,
-        reset_state=false,
-        find_steady_state=find_steady_state,
-        origin=origin,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        tvec=tvec,
-        nev=nev,
-        )
+    return eigenvalue_analysis!(system, assembly; kwargs..., reset_state=true)
 end
 
 """
@@ -495,6 +400,7 @@ function eigenvalue_analysis!(system, assembly;
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
     iterations=1000,
+    show_trace=false,
     reset_state=true,
     find_steady_state=!linear && reset_state,
     origin=(@SVector zeros(3)),
@@ -512,6 +418,10 @@ function eigenvalue_analysis!(system, assembly;
 
     # perform steady state analysis (if nonlinear)
     if find_steady_state
+        if show_trace
+            println("Finding a Steady-State Solution")
+        end
+
         system, converged = steady_state_analysis!(system, assembly;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
@@ -530,6 +440,8 @@ function eigenvalue_analysis!(system, assembly;
             linear_acceleration=linear_acceleration,
             angular_acceleration=angular_acceleration,
             tvec=tvec,
+            show_trace=show_trace,
+            reset_state=reset_state,
             )
     else
         # set linearization state variables
@@ -542,6 +454,10 @@ function eigenvalue_analysis!(system, assembly;
         end
         # converged by default
         converged = true
+    end
+
+    if show_trace
+        println("Solving Eigensystem")
     end
 
     # unpack state vector, stiffness, and mass matrices
@@ -618,6 +534,7 @@ final system with the new initial conditions.
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
+ - `show_trace = false`: Flag indicating whether to show solution progress
  - `reset_state = true`: Flag indicating whether the state variables should be
     reset prior to performing the analysis.  This keyword argument is only valid
     for the pre-allocated version of this function.
@@ -636,54 +553,11 @@ final system with the new initial conditions.
  - `udot0=fill(zeros(3), length(assembly.points))`: Initial linear displacement rate of each point
  - `thetadot0=fill(zeros(3), length(assembly.points))`: Initial angular displacement rate of each point
 """
-function initial_condition_analysis(assembly, t0;
-    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,PointMass{Float64}}(),
-    structural_damping=true,
-    gravity=SVector(0,0,0),
-    linear=false,
-    linearization_state=nothing,
-    method=:newton,
-    linesearch=LineSearches.BackTracking(maxstep=1e6),
-    ftol=1e-9,
-    iterations=1000,
-    origin=(@SVector zeros(3)),
-    linear_velocity=(@SVector zeros(3)),
-    angular_velocity=(@SVector zeros(3)),
-    linear_acceleration=(@SVector zeros(3)),
-    angular_acceleration=(@SVector zeros(3)),
-    u0=fill((@SVector zeros(3)), length(assembly.points)),
-    theta0=fill((@SVector zeros(3)), length(assembly.points)),
-    udot0=fill((@SVector zeros(3)), length(assembly.points)),
-    thetadot0=fill((@SVector zeros(3)), length(assembly.points)),
-    )
+function initial_condition_analysis(assembly, t0; kwargs...)
 
     system = System(assembly)
 
-    return initial_condition_analysis!(system, assembly, t0;
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        structural_damping=structural_damping,
-        gravity=gravity,
-        linear=linear,
-        linearization_state=linearization_state,
-        method=method,
-        linesearch=linesearch,
-        ftol=ftol,
-        iterations=iterations,
-        reset_state=false,
-        origin=origin,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        u0=u0,
-        theta0=theta0,
-        udot0=udot0,
-        thetadot0=thetadot0,
-        )
+    return initial_condition_analysis!(system, assembly, t0; kwargs...)
 end
 
 """
@@ -703,6 +577,7 @@ function initial_condition_analysis!(system, assembly, t0;
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
     iterations=1000,
+    show_trace=false,
     reset_state=true,
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
@@ -722,6 +597,10 @@ function initial_condition_analysis!(system, assembly, t0;
     # unpack pre-allocated storage and pointers for system
     @unpack x, r, K, force_scaling, dynamic_indices, udot, θdot, Vdot, Ωdot = system
 
+    if show_trace
+        println("Solving for t=$(t0)")
+    end
+    
     # set current time
     system.t = t0
 
@@ -766,6 +645,7 @@ function initial_condition_analysis!(system, assembly, t0;
         df = OnceDifferentiable(f!, j!, x, r, K)
 
         result = NLsolve.nlsolve(df, x,
+            show_trace=show_trace,
             linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
             method=method,
             linesearch=linesearch,
@@ -780,19 +660,33 @@ function initial_condition_analysis!(system, assembly, t0;
         converged = result.f_converged
     end
 
-    # save states and state rates
+    # save calculated variables
     for ipoint = 1:length(assembly.points)
+        udot[ipoint], θdot[ipoint] = udot0[ipoint], thetadot0[ipoint]
+        Vdot[ipoint], Ωdot[ipoint] = point_displacement_rates(x, ipoint, dynamic_indices.icol_point, pcond)
+    end
+
+    # restore original state vector
+    for ipoint = 1:length(assembly.points)
+
         icol = dynamic_indices.icol_point[ipoint]
-        # save state rates
-        udot[ipoint] = udot0[ipoint]
-        θdot[ipoint] = thetadot0[ipoint]
-        Vdot[ipoint] = SVector(x[icol], x[icol+1], x[icol+2])
-        Ωdot[ipoint] = SVector(x[icol+3], x[icol+4], x[icol+5])
-        # restore original state vector 
-        
-        #TODO: FIX THIS (sometimes state variables are forces rather than displacements)
-        x[icol:icol+2] .= u0[ipoint]
-        x[icol+3:icol+5] .= theta0[ipoint]
+
+        if haskey(pcond, ipoint)
+            pcond[ipoint].isforce[1] && setindex!(x, u0[ipoint][1], icol) 
+            pcond[ipoint].isforce[2] && setindex!(x, u0[ipoint][2], icol+1) 
+            pcond[ipoint].isforce[3] && setindex!(x, u0[ipoint][3], icol+2) 
+            pcond[ipoint].isforce[4] && setindex!(x, theta0[ipoint][1], icol+3) 
+            pcond[ipoint].isforce[5] && setindex!(x, theta0[ipoint][2], icol+4) 
+            pcond[ipoint].isforce[6] && setindex!(x, theta0[ipoint][3], icol+5) 
+        else
+            x[icol] = u0[ipoint][1] 
+            x[icol+1] = u0[ipoint][2] 
+            x[icol+2] = u0[ipoint][3] 
+            x[icol+3] = theta0[ipoint][1] 
+            x[icol+4] = theta0[ipoint][2] 
+            x[icol+5] = theta0[ipoint][3] 
+        end
+
     end
 
     return system, converged
@@ -832,6 +726,7 @@ converged for each time step.
  - `linesearch = LineSearches.LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
+ - `show_trace = false`: Flag indicating whether to show solution progress
  - `reset_state = true`: Flag indicating whether the state variables should be
     reset prior to performing the analysis.  This keyword argument is only valid
     for the pre-allocated version of this function.
@@ -856,66 +751,17 @@ converged for each time step.
  - `thetadot0=fill(zeros(3), length(assembly.points))`: Initial time derivative with respect to `theta`
  - `save=1:length(tvec)`: Steps at which to save the time history
 """
-function time_domain_analysis(assembly, tvec;
-    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
-    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    point_masses=Dict{Int,PointMass{Float64}}(),
-    structural_damping=true,
-    gravity=SVector(0,0,0),
-    linear=false,
-    linearization_state=nothing,
-    update_linearization_state=false,
-    method=:newton,
-    linesearch=LineSearches.BackTracking(maxstep=1e6),
-    ftol=1e-9,
-    iterations=1000,
-    initialize=true,
-    origin=(@SVector zeros(3)),
-    linear_velocity=(@SVector zeros(3)),
-    angular_velocity=(@SVector zeros(3)),
-    linear_acceleration=(@SVector zeros(3)),
-    angular_acceleration=(@SVector zeros(3)),
-    u0=fill((@SVector zeros(3)), length(assembly.points)),
-    theta0=fill((@SVector zeros(3)), length(assembly.points)),
-    udot0=fill((@SVector zeros(3)), length(assembly.points)),
-    thetadot0=fill((@SVector zeros(3)), length(assembly.points)),
-    save=1:length(tvec)
-    )
+function time_domain_analysis(assembly, tvec; kwargs...)
 
     system = System(assembly)
 
-    return time_domain_analysis!(system, assembly, tvec;
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        structural_damping=structural_damping,
-        gravity=gravity,
-        linear=linear,
-        linearization_state=linearization_state,
-        update_linearization_state=update_linearization_state,
-        method=method,
-        linesearch=linesearch,
-        ftol=ftol,
-        iterations=iterations,
-        reset_state=false,
-        initialize=initialize,
-        origin=origin,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        u0=u0,
-        theta0=theta0,
-        udot0=udot0,
-        thetadot0=thetadot0,
-        save=save,
-        )
+    return time_domain_analysis!(system, assembly, tvec; kwargs...)
 end
 
 """
     time_domain_analysis!(system, assembly, tvec; kwargs...)
 
-Pre-allocated version of `time_domain_analysis`.
+Pre-allocated version of [`time_domain_analysis`](@ref).
 """
 function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
@@ -930,6 +776,7 @@ function time_domain_analysis!(system, assembly, tvec;
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
     iterations=1000,
+    show_trace=false,
     reset_state=true,
     initialize=true,
     origin=(@SVector zeros(3)),
@@ -962,6 +809,7 @@ function time_domain_analysis!(system, assembly, tvec;
             linesearch=linesearch,
             ftol=ftol,
             iterations=iterations,
+            show_trace=show_trace,
             reset_state=false,
             origin=origin,
             linear_velocity=linear_velocity,
@@ -997,11 +845,15 @@ function time_domain_analysis!(system, assembly, tvec;
 
     for it = 2:length(tvec)
 
+        if show_trace
+            println("Solving for t=$(tvec[it])")
+        end
+
         # update current time
         system.t = tvec[it]
 
         # current time step size
-        dt = tvec[it] - tvec[it - 1]
+        dt = tvec[it] - tvec[it-1]
 
         # current parameters
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(tvec[it])
@@ -1052,9 +904,7 @@ function time_domain_analysis!(system, assembly, tvec;
             df = OnceDifferentiable(f!, j!, x, r, K)
 
             result = NLsolve.nlsolve(df, x,
-            # result = NLsolve.nlsolve(f!, x,
-            #     autodiff=:forward,
-                show_trace=true,
+                show_trace=show_trace,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
                 linesearch=linesearch,
@@ -1067,13 +917,8 @@ function time_domain_analysis!(system, assembly, tvec;
 
         # set new state rates
         for ipoint = 1:length(assembly.points)
-            icol = dynamic_indices.icol_point[ipoint]
-            # extract beam element state variables
-            u = SVector(x[icol], x[icol + 1], x[icol + 2])
-            θ = SVector(x[icol + 3], x[icol + 4], x[icol + 5])
-            V = SVector(x[icol + 6], x[icol + 7], x[icol + 8])
-            Ω = SVector(x[icol + 9], x[icol + 10], x[icol + 11])
-            # calculate current state rates
+            u, θ = point_displacement(x, ipoint, dynamic_indices.icol_point, pcond)
+            V, Ω = point_velocities(x, ipoint, dynamic_indices.icol_point)
             udot[ipoint] = 2/dt*u - udot[ipoint]
             θdot[ipoint] = 2/dt*θ - θdot[ipoint]
             Vdot[ipoint] = 2/dt*V - Vdot[ipoint]
@@ -1088,6 +933,9 @@ function time_domain_analysis!(system, assembly, tvec;
 
         # stop early if unconverged
         if !linear && !result.f_converged
+            if show_trace
+                println("Solution failed to converge")
+            end
             history = history[1:it]
             converged = false
             break
