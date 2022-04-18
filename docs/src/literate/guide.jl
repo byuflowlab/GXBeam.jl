@@ -31,7 +31,7 @@ using GXBeam, LinearAlgebra
 # ![](../assets/rotating-drawing.svg)
 # 
 # This geometry has a fixed boundary condition on the left side of the beam and rotates 
-# around a point 2.5 inches to the left of the beam.  We will investigating the steady 
+# around a point 2.5 inches to the left of the beam.  We will investigate the steady 
 # behavior of this system for a variety of RPM settings at a constant sweep of 45°.
 #
 # ## Creating an Assembly
