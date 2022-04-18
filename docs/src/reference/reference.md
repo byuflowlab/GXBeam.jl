@@ -106,10 +106,7 @@ GXBeam.tilde
 GXBeam.transform_properties
 GXBeam.rotation_parameter_scaling
 GXBeam.get_C
-GXBeam.get_C_t
 GXBeam.get_C_θ
-GXBeam.get_C_t_θ
-GXBeam.get_C_t_θdot
 GXBeam.get_Q
 GXBeam.get_Q_θ
 GXBeam.get_Qinv

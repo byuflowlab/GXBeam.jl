@@ -121,7 +121,7 @@ Fz = range(0, 70e3, length=141)
 ijoint = nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1
 prescribed_points = [1, ijoint, nelem+1]
 static = true
-system = System(assembly, static; prescribed_points)
+system = System(assembly)
 
 linear_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
 for i = 1:length(Fz)

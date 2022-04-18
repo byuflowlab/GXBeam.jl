@@ -64,7 +64,8 @@ state = AssemblyState(system, assembly;
 #!jl nothing #hide
 
 #
-# We can construct the analytical solution for this problem by integrating from the free end of the beam and applying the appropriate boundary conditions.
+# We can construct the analytical solution for this problem by integrating from the free 
+# end of the beam and applying the appropriate boundary conditions.
 #
 
 ## construct analytical solution
