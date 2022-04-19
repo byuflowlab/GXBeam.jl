@@ -1,36 +1,37 @@
 using LinearAlgebra: I, Symmetric, det, factorize
 using SparseArrays: spzeros, sparse
+using StaticArrays
 
 """
-    Material(E1, E2, E2, nu12, nu13, nu23, G12, G13, G23, rho)
+    Material(E1, E2, E2, G12, G13, G23, nu12, nu13, nu23, rho)
 
 General orthotropic material properties. 
 The "1" direction is along the beam axis for a fiber orientation of zero (theta=0).
 "2" corresponds to the local x-direction and "3" the local y at theta=0. (see documentation for figures).  
 If the two in-plane directions have the same stiffness properties then only one 
 needs to be specified (e.g., compatible with the plane-stress assumption of CLT-based tools):
-`Material(E1, E2, nu12, G12, rho)`
+`Material(E1, E2, G12, nu12, rho)`
 
 **Arguments**
 - `E::float`: Young's modulus along 1st, 2nd and 3rd axes.
-- `nu::float`: Poisson's ratio.  nu_ij E_j = nu_ji E_i
 - `G::float`: shear moduli
+- `nu::float`: Poisson's ratio.  nu_ij E_j = nu_ji E_i
 - `rho::float`: density
 """
 struct Material{TF}
     E1::TF
     E2::TF
     E3::TF
-    nu12::TF
-    nu13::TF
-    nu23::TF
     G12::TF
     G13::TF
     G23::TF
+    nu12::TF
+    nu13::TF
+    nu23::TF
     rho::TF
 end
 
-Material(E1, E2, nu12, G12, rho) = Material(E1, E2, E2, nu12, nu12, nu12, G12, G12, G12, rho)
+Material(E1, E2, G12, nu12, rho) = Material(E1, E2, E2, G12, G12, G12, nu12, nu12, nu12, rho)
 
 """
     Node(x, y, number)
@@ -66,9 +67,156 @@ struct Element{VI, TF}
 end
 
 """
+internal cache so allocations happen only once upfront
+"""
+struct Cache{TM, TSM, TFM, TV}
+    Q::TM
+    Ttheta::TSM
+    Tbeta::TSM
+    Z::TSM
+    S::TFM
+    N::TSM
+    SZ::TSM
+    SN::TSM
+    Bksi::TSM
+    Beta::TSM
+    dNM_dksi::TSM
+    dNM_deta::TSM
+    BN::TSM
+    Ae::TM
+    Re::TM
+    Ee::TM
+    Ce::TM
+    Le::TM
+    Me::TM
+    idx::TV
+end
+
+"""
+create chace.  set sizes of static matrices, and set sparsity patterns for those that are fixed.
+"""
+function initializecache(etype=Float64)
+
+    # create cache (TODO: set sparsity patterns)
+    Q = zeros(etype, 6, 6)
+    
+    Ttheta = zeros(etype, 6, 6)
+    Ttheta[1, 1] = 1.0; Ttheta[1, 4] = 1.0; Ttheta[1, 6] = 1.0
+    Ttheta[2, 2] = 1.0
+    Ttheta[3, 3] = 1.0; Ttheta[3, 5] = 1.0
+    Ttheta[4, 1] = 1.0; Ttheta[4, 4] = 1.0; Ttheta[4, 6] = 1.0
+    Ttheta[5, 3] = 1.0; Ttheta[5, 5] = 1.0
+    Ttheta[6, 1] = 1.0; Ttheta[6, 4] = 1.0; Ttheta[6, 6] = 1.0
+    Ttheta = sparse(Ttheta)
+    
+    Tbeta = zeros(etype, 6, 6)
+    Tbeta[1, 1] = 1.0; Tbeta[1, 2] = 1.0; Tbeta[1, 3] = 1.0
+    Tbeta[2, 1] = 1.0; Tbeta[2, 2] = 1.0; Tbeta[2, 3] = 1.0
+    Tbeta[3, 1] = 1.0; Tbeta[3, 2] = 1.0; Tbeta[3, 3] = 1.0
+    Tbeta[4, 4] = 1.0; Tbeta[4, 5] = 1.0
+    Tbeta[5, 4] = 1.0; Tbeta[5, 5] = 1.0
+    Tbeta[6, 6] = 1.0
+    Tbeta = sparse(Tbeta)
+    
+    Z = zeros(etype, 3, 6)  # [I zeros(etype, 3, 3)]
+    Z[1, 1] = 1.0
+    Z[2, 2] = 1.0
+    Z[3, 3] = 1.0
+    Z[1, 6] = 1.0
+    Z[2, 6] = 1.0
+    Z[3, 4] = 1.0
+    Z[3, 5] = 1.0
+    Z = sparse(Z)
+
+    S = [zeros(3, 3); I]
+    S = sparse(S)
+
+    N = zeros(etype, 3, 12)
+    N[1, 1] = 1.0
+    N[2, 2] = 1.0
+    N[3, 3] = 1.0
+    N[1, 4] = 1.0
+    N[2, 5] = 1.0
+    N[3, 6] = 1.0
+    N[1, 7] = 1.0
+    N[2, 8] = 1.0
+    N[3, 9] = 1.0
+    N[1, 10] = 1.0
+    N[2, 11] = 1.0
+    N[3, 12] = 1.0
+    N = sparse(N)
+
+    SZ = spzeros(etype, 6, 6)
+    SN = spzeros(etype, 6, 12)
+    
+    Bksi = zeros(etype, 6, 3)
+    Bksi[1, 1] = 1.0
+    Bksi[2, 2] = 1.0
+    Bksi[3, 1] = 1.0
+    Bksi[3, 2] = 1.0
+    Bksi[4, 3] = 1.0
+    Bksi[5, 3] = 1.0
+    Bksi = sparse(Bksi)
+    
+    Beta = zeros(etype, 6, 3)
+    Beta[1, 1] = 1.0
+    Beta[2, 2] = 1.0
+    Beta[3, 1] = 1.0
+    Beta[3, 2] = 1.0
+    Beta[4, 3] = 1.0
+    Beta[5, 3] = 1.0
+    Beta = sparse(Beta)
+    
+    dNM_dksi = zeros(etype, 3, 12)
+    dNM_dksi[1, 1] = 1.0
+    dNM_dksi[2, 2] = 1.0
+    dNM_dksi[3, 3] = 1.0
+    dNM_dksi[1, 4] = 1.0
+    dNM_dksi[2, 5] = 1.0
+    dNM_dksi[3, 6] = 1.0
+    dNM_dksi[1, 7] = 1.0
+    dNM_dksi[2, 8] = 1.0
+    dNM_dksi[3, 9] = 1.0
+    dNM_dksi[1, 10] = 1.0
+    dNM_dksi[2, 11] = 1.0
+    dNM_dksi[3, 12] = 1.0
+    dNM_dksi = sparse(dNM_dksi)
+    
+    dNM_deta = zeros(etype, 3, 12)
+    dNM_deta[1, 1] = 1.0
+    dNM_deta[2, 2] = 1.0
+    dNM_deta[3, 3] = 1.0
+    dNM_deta[1, 4] = 1.0
+    dNM_deta[2, 5] = 1.0
+    dNM_deta[3, 6] = 1.0
+    dNM_deta[1, 7] = 1.0
+    dNM_deta[2, 8] = 1.0
+    dNM_deta[3, 9] = 1.0
+    dNM_deta[1, 10] = 1.0
+    dNM_deta[2, 11] = 1.0
+    dNM_deta[3, 12] = 1.0
+    dNM_deta = sparse(dNM_deta)
+    
+    BN = spzeros(etype, 6, 12)
+
+    Ae = zeros(etype, 6, 6)
+    Re = zeros(etype, 12, 6)
+    Ee = zeros(etype, 12, 12)
+    Ce = zeros(etype, 12, 12)
+    Le = zeros(etype, 12, 6)
+    Me = zeros(etype, 12, 12)
+
+    idx = zeros(Int64, 12)
+
+    cache = Cache(Q, Ttheta, Tbeta, Z, S, N, SZ, SN, Bksi, Beta, dNM_dksi, dNM_deta, BN, Ae, Re, Ee, Ce, Le, Me, idx)
+
+    return cache
+end
+
+"""
 Constituitive matrix of this material using the internal ordering.
 """
-function stiffness(material) 
+function stiffness!(material, cache) 
     E1 = material.E1; E2 = material.E2; E3 = material.E3
     nu12 = material.nu12; nu13 = material.nu13; nu23 = material.nu23
     G12 = material.G12; G13 = material.G13; G23 = material.G23
@@ -78,66 +226,91 @@ function stiffness(material)
     nu32 = nu23*E3/E2
     delta = 1.0 / (1 - nu12*nu21 - nu23*nu32 - nu13*nu31 - 2*nu21*nu32*nu13)
 
-    Q = zeros(eltype(E1), 6, 6)
-    Q[6, 6] = E1*(1 - nu23*nu32)*delta
-    Q[1, 1] = E2*(1 - nu13*nu31)*delta
-    Q[2, 2] = E3*(1 - nu12*nu21)*delta
-    Q[1, 6] = E1*(nu21 + nu31*nu23)*delta
-    Q[2, 6] = E1*(nu31 + nu21*nu32)*delta
-    Q[1, 2] = E2*(nu32 + nu12*nu31)*delta
-    Q[4, 4] = G12
-    Q[5, 5] = G13
-    Q[3, 3] = G23
+    cache.Q .= 0.0  # reset
+    cache.Q[6, 6] = E1*(1 - nu23*nu32)*delta
+    cache.Q[1, 1] = E2*(1 - nu13*nu31)*delta
+    cache.Q[2, 2] = E3*(1 - nu12*nu21)*delta
+    cache.Q[1, 6] = E1*(nu21 + nu31*nu23)*delta
+    cache.Q[6, 1] = E1*(nu21 + nu31*nu23)*delta
+    cache.Q[2, 6] = E1*(nu31 + nu21*nu32)*delta
+    cache.Q[6, 2] = E1*(nu31 + nu21*nu32)*delta
+    cache.Q[1, 2] = E2*(nu32 + nu12*nu31)*delta
+    cache.Q[2, 1] = E2*(nu32 + nu12*nu31)*delta
+    cache.Q[4, 4] = G12
+    cache.Q[5, 5] = G13
+    cache.Q[3, 3] = G23
 
-    return Symmetric(Q)
+    
+    
+    return nothing
 end
 
 """
 Rotate constituitive matrix by ply angle
 """
-function rotate_to_ply(K, theta)
+function rotate_to_ply!(theta, cache)
     c = cos(theta)
     s = sin(theta)
-    T = [c^2 0 0 2*s*c 0 s^2;
-        0.0 1 0 0 0 0;
-        0 0 c 0 s 0;
-        -s*c 0 0 c^2-s^2 0 s*c;
-        0 0 -s 0 c 0;
-        s^2 0 0 -2*s*c 0 c^2]
 
-    return T*K*T'
+    cache.Ttheta[1, 1] = c^2
+    cache.Ttheta[1, 4] = 2*s*c
+    cache.Ttheta[1, 6] = s^2
+    cache.Ttheta[2, 2] = 1.0
+    cache.Ttheta[3, 3] = c
+    cache.Ttheta[3, 5] = s
+    cache.Ttheta[4, 1] = -s*c
+    cache.Ttheta[4, 4] = c^2 - s^2
+    cache.Ttheta[4, 6] = s*c
+    cache.Ttheta[5, 3] = -s
+    cache.Ttheta[5, 5] = c
+    cache.Ttheta[6, 1] = s^2
+    cache.Ttheta[6, 4] = -2*s*c
+    cache.Ttheta[6, 6] = c^2
+
+    cache.Q .= cache.Ttheta * Symmetric(cache.Q) * cache.Ttheta'
+    return nothing
 end
 
 """
 Rotate constituitive matrix by element orientation where `c = cos(beta)` and `s = sin(beta)`
 """
-function rotate_to_element(K, c, s)  # c = cos(beta), s = sin(beta)
-    T = [c^2 s^2 -2*s*c 0 0 0;
-          s^2 c^2 2*s*c 0 0 0;
-          s*c -s*c c^2-s^2 0 0 0;
-          0 0 0 c -s 0;
-          0 0 0 s c 0;
-          0.0 0 0 0 0 1]
+function rotate_to_element!(c, s, cache)  # c = cos(beta), s = sin(beta)
 
-    return T*K*T'
+    cache.Tbeta[1, 1] = c^2
+    cache.Tbeta[1, 2] = s^2
+    cache.Tbeta[1, 3] = -2*s*c
+    cache.Tbeta[2, 1] = s^2
+    cache.Tbeta[2, 2] = c^2
+    cache.Tbeta[2, 3] = 2*s*c
+    cache.Tbeta[3, 1] = s*c
+    cache.Tbeta[3, 2] = -s*c
+    cache.Tbeta[3, 3] = c^2-s^2
+    cache.Tbeta[4, 4] = c
+    cache.Tbeta[4, 5] = -s
+    cache.Tbeta[5, 4] = s
+    cache.Tbeta[5, 5] = c
+    cache.Tbeta[6, 6] = 1.0
+
+    cache.Q .= cache.Tbeta * Symmetric(cache.Q) * cache.Tbeta'
+    return nothing
 end
 
 
 """
 Get element constituitive matrix accounting for fiber orientation and element orientation
 """
-function elementQ(material, theta, cbeta, sbeta)
-    Q1 = stiffness(material)  # material
-    Q2 = rotate_to_ply(Q1, theta)
-    Q3 = rotate_to_element(Q2, cbeta, sbeta)
+function elementQ!(material, theta, cbeta, sbeta, cache)
+    stiffness!(material, cache)
+    rotate_to_ply!(theta, cache)
+    rotate_to_element!(cbeta, sbeta, cache)
 
-    return Q3
+    return nothing
 end
 
 """
 Compute the integrand for a single element with a given ksi, eta.
 """
-function elementintegrand(ksi, eta, element, nodes)
+function addelementintegrand!(ksi, eta, element, nodes, cache)
 
     # shape functions
     N = zeros(4)
@@ -145,7 +318,7 @@ function elementintegrand(ksi, eta, element, nodes)
     N[2] = 0.25*(1 + ksi)*(1 - eta)
     N[3] = 0.25*(1 + ksi)*(1 + eta)
     N[4] = 0.25*(1 - ksi)*(1 + eta)
-
+    
     # x, y position
     x = 0.0
     y = 0.0
@@ -166,12 +339,27 @@ function elementintegrand(ksi, eta, element, nodes)
     sbeta = dy/ds
     
     # basic matrices
-    Z = [I [0.0 0 -y; 0 0 x; y -x 0]]  # translation and cross product
-    S = [zeros(3, 3); I]
-    Q = elementQ(element.material, element.theta, cbeta, sbeta)
-    N = [N[1]*Matrix(1.0I, 3, 3) N[2]*I N[3]*I N[4]*I]
-    SZ = S*Z
-    SN = S*N
+    # Z = [I [0.0 0 -y; 0 0 x; y -x 0]]  # translation and cross product
+    cache.Z[1, 6] = -y
+    cache.Z[2, 6] = x
+    cache.Z[3, 4] = y
+    cache.Z[3, 5] = -x
+    # S = [zeros(3, 3); I]
+    elementQ!(element.material, element.theta, cbeta, sbeta, cache)
+    cache.N[1, 1] = N[1]
+    cache.N[2, 2] = N[1]
+    cache.N[3, 3] = N[1]
+    cache.N[1, 4] = N[2]
+    cache.N[2, 5] = N[2]
+    cache.N[3, 6] = N[2]
+    cache.N[1, 7] = N[3]
+    cache.N[2, 8] = N[3]
+    cache.N[3, 9] = N[3]
+    cache.N[1, 10] = N[4]
+    cache.N[2, 11] = N[4]
+    cache.N[3, 12] = N[4]
+    cache.SZ .= cache.S * cache.Z
+    cache.SN .= cache.S * cache.N
 
     # derivatives of shape functions
     dN_dksi = zeros(4)
@@ -205,66 +393,97 @@ function elementintegrand(ksi, eta, element, nodes)
            -dx_deta dx_dksi] / detJ
 
     # BN matrix
-    Bksi = [Jinv[1, 1] 0 0;
-            0 Jinv[2, 1] 0;
-            Jinv[2, 1] Jinv[1, 1] 0;
-            0 0 Jinv[1, 1];
-            0 0 Jinv[2, 1];
-            0 0 0]
-    Beta = [Jinv[1, 2] 0 0;
-            0 Jinv[2, 2] 0;
-            Jinv[2, 2] Jinv[1, 2] 0;
-            0 0 Jinv[1, 2];
-            0 0 Jinv[2, 2];
-            0 0 0]
+    cache.Bksi[1, 1] = Jinv[1, 1]
+    cache.Bksi[2, 2] = Jinv[2, 1]
+    cache.Bksi[3, 1] = Jinv[2, 1]
+    cache.Bksi[3, 2] = Jinv[1, 1]
+    cache.Bksi[4, 3] = Jinv[1, 1]
+    cache.Bksi[5, 3] = Jinv[2, 1]
 
-    dNM_dksi = [dN_dksi[1]*Matrix(1.0I, 3, 3) dN_dksi[2]*I dN_dksi[3]*I dN_dksi[4]*I]
-    dNM_deta = [dN_deta[1]*Matrix(1.0I, 3, 3) dN_deta[2]*I dN_deta[3]*I dN_deta[4]*I]
+    cache.Beta[1, 1] = Jinv[1, 2]
+    cache.Beta[2, 2] = Jinv[2, 2]
+    cache.Beta[3, 1] = Jinv[2, 2]
+    cache.Beta[3, 2] = Jinv[1, 2]
+    cache.Beta[4, 3] = Jinv[1, 2]
+    cache.Beta[5, 3] = Jinv[2, 2]
 
-    BN = Bksi*dNM_dksi + Beta*dNM_deta
+    # dNM_dksi = [dN_dksi[1]*Matrix(1.0I, 3, 3) dN_dksi[2]*I dN_dksi[3]*I dN_dksi[4]*I]
+    cache.dNM_dksi[1, 1] = dN_dksi[1]
+    cache.dNM_dksi[2, 2] = dN_dksi[1]
+    cache.dNM_dksi[3, 3] = dN_dksi[1]
+    cache.dNM_dksi[1, 4] = dN_dksi[2]
+    cache.dNM_dksi[2, 5] = dN_dksi[2]
+    cache.dNM_dksi[3, 6] = dN_dksi[2]
+    cache.dNM_dksi[1, 7] = dN_dksi[3]
+    cache.dNM_dksi[2, 8] = dN_dksi[3]
+    cache.dNM_dksi[3, 9] = dN_dksi[3]
+    cache.dNM_dksi[1, 10] = dN_dksi[4]
+    cache.dNM_dksi[2, 11] = dN_dksi[4]
+    cache.dNM_dksi[3, 12] = dN_dksi[4]
+    # dNM_deta = [dN_deta[1]*Matrix(1.0I, 3, 3) dN_deta[2]*I dN_deta[3]*I dN_deta[4]*I]
+    cache.dNM_deta[1, 1] = dN_deta[1]
+    cache.dNM_deta[2, 2] = dN_deta[1]
+    cache.dNM_deta[3, 3] = dN_deta[1]
+    cache.dNM_deta[1, 4] = dN_deta[2]
+    cache.dNM_deta[2, 5] = dN_deta[2]
+    cache.dNM_deta[3, 6] = dN_deta[2]
+    cache.dNM_deta[1, 7] = dN_deta[3]
+    cache.dNM_deta[2, 8] = dN_deta[3]
+    cache.dNM_deta[3, 9] = dN_deta[3]
+    cache.dNM_deta[1, 10] = dN_deta[4]
+    cache.dNM_deta[2, 11] = dN_deta[4]
+    cache.dNM_deta[3, 12] = dN_deta[4]
+
+    cache.BN .= sparse(cache.Bksi) * sparse(cache.dNM_dksi) + sparse(cache.Beta) * sparse(cache.dNM_deta)
     
     # integrands
-    A = SZ'*Q*SZ*detJ
-    R = BN'*Q*SZ*detJ
-    E = BN'*Q*BN*detJ
-    # C = SN'*Q*BN*detJ  # NOTE: error in implementation sectiono of manual, theory is correct
-    C = BN'*Q*SN*detJ  # use Giavottoa definition
-    L = SN'*Q*SZ*detJ
-    M = SN'*Q*SN*detJ
+    cache.Ae .+= cache.SZ' * cache.Q * cache.SZ * detJ
+    cache.Re .+= cache.BN' * cache.Q * cache.SZ * detJ
+    cache.Ee .+= cache.BN' * cache.Q * cache.BN * detJ
+    cache.Ce .+= cache.BN' * cache.Q * cache.SN * detJ  # use Giavottoa definition
+    cache.Le .+= cache.SN' * cache.Q * cache.SZ * detJ
+    cache.Me .+= cache.SN' * cache.Q * cache.SN * detJ
 
-    return A, R, E, C, L, M
+    return nothing
 end
 
 """
 2-point Gauss quadrature of one element
 """
-function submatrix(element, nodes)
+function submatrix!(element, nodes, cache)
+
+    # initialize
+    cache.Ae .= 0.0
+    cache.Re .= 0.0
+    cache.Ee .= 0.0
+    cache.Ce .= 0.0
+    cache.Le .= 0.0
+    cache.Me .= 0.0
 
     # 2-point Gauss quadrature in both dimensions
     ksi = [1.0/sqrt(3), 1.0/sqrt(3), -1.0/sqrt(3), -1.0/sqrt(3)]
     eta = [1.0/sqrt(3), -1.0/sqrt(3), 1.0/sqrt(3), -1.0/sqrt(3)]
-
-    A, R, E, C, L, M = elementintegrand(ksi[1], eta[1], element, nodes)
-    for i = 2:4
-        Ai, Ri, Ei, Ci, Li, Mi = elementintegrand(ksi[i], eta[i], element, nodes)
-        A += Ai; R += Ri; E += Ei
-        C += Ci; L += Li; M += Mi
+    
+    for i = 1:4
+        addelementintegrand!(ksi[i], eta[i], element, nodes, cache)
     end
     
-    return A, R, E, C, L, M
+    return nothing
 end
 
 """
 Convenience function to map node numbers to locations in global matrix.
 """
-function node2idx(nodes)
+function node2idx!(nodes, cache)
     nn = 4
-    idx = Vector{Int64}(undef, nn*3)
+    # idx = Vector{Int64}(undef, nn*3)
     for i = 1:nn
-        idx[((i-1)*3+1):i*3] = ((nodes[i]-1)*3+1):nodes[i]*3
+        cache.idx[((i-1)*3+1):i*3] = ((nodes[i]-1)*3+1):nodes[i]*3
     end
-    return idx
+    return nothing
 end
+
+
 
 
 """
@@ -289,8 +508,6 @@ function compliance(nodes, elements)
     ne = length(elements) # number of elements
     nn = length(nodes)  # number of nodes
     ndof = 3 * nn  # 3 displacement dof per node
-    
-    # TODO: benchmark sparsity
 
     # initialize
     etype = eltype(elements[1].theta)  # TODO add others
@@ -301,17 +518,20 @@ function compliance(nodes, elements)
     L = zeros(etype, ndof, 6)  # nn*3 x 6
     M = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
 
+    cache = initializecache(etype)    
+
     # place element matrices in global matrices (scatter)
     for i = 1:ne
         nodenum = elements[i].nodenum
-        Ae, Re, Ee, Ce, Le, Me = submatrix(elements[i], nodes[nodenum])
-        idx = node2idx(nodenum)
-        A += Ae
-        R[idx, :] += Re
-        E[idx, idx] += Ee
-        C[idx, idx] += Ce
-        L[idx, :] += Le
-        M[idx, idx] += Me
+        submatrix!(elements[i], nodes[nodenum], cache)
+
+        node2idx!(nodenum, cache)
+        A .+= cache.Ae
+        view(R, cache.idx, :) .+= cache.Re
+        view(E, cache.idx, cache.idx) .+= cache.Ee
+        view(C, cache.idx, cache.idx) .+= cache.Ce
+        view(L, cache.idx, :) .+= cache.Le
+        view(M, cache.idx, cache.idx) .+= cache.Me
     end
 
     # assemble displacement constraint matrix
@@ -430,22 +650,23 @@ struct Layer{TF}
 end
 
 
-
 # --------- Unit Tests --------
 using Test
 
 E1 = rand()
 E2 = rand()
 E3 = rand()
-nu12 = rand()
-nu23 = rand()
-nu13 = rand()
 G12 = rand()
 G13 = rand()
 G23 = rand()
+nu12 = rand()
+nu23 = rand()
+nu13 = rand()
 rho = 1.0
-mat = Material(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, rho)
-Q1 = stiffness(mat)
+mat = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
+cache = initializecache()
+stiffness!(mat, cache)
+Q1 = cache.Q
 
 nu21 = nu12*E2/E1
 nu31 = nu13*E3/E1
@@ -463,7 +684,7 @@ Q2 = inv(C2)
 
 
 # ---- Case 1: Square cross section of isotropic material - S1
-iso1 = Material(100.0, 100.0, 100.0, 0.2, 0.2, 0.2, 41.667, 41.667, 41.667, 1.0)
+iso1 = Material(100.0, 100.0, 100.0, 41.667, 41.667, 41.667, 0.2, 0.2, 0.2, 1.0)
 x = range(-0.05, 0.05, length=11)
 y = range(-0.05, 0.05, length=11)
 
@@ -529,7 +750,7 @@ K = inv(S)
 
 # --------- Case 2 --------
 alpha = 1e1
-iso2 = Material(100.0/alpha, 100.0/alpha, 0.2, 41.667/alpha, 1.0)  # note error in user guide for nu
+iso2 = Material(100.0/alpha, 100.0/alpha, 41.667/alpha, 0.2, 1.0)  # note error in user guide for nu
 
 let
 m = 1
@@ -559,7 +780,7 @@ K = inv(S)
 @test isapprox(K[3, 5], 1.13e-2, atol=0.01e-2)
 
 # ------ case 3 -------
-ortho = Material(480.0, 120.0, 120.0, 0.19, 0.26, 0.19, 60.0, 50.0, 60.0, 1.0)
+ortho = Material(480.0, 120.0, 120.0, 60.0, 50.0, 60.0, 0.19, 0.26, 0.19, 1.0)
 
 theta = 0.0
 let
@@ -772,7 +993,7 @@ G = E/(2*(1 + nu))
 tratio = 1.0/3
 R = 0.3
 t = tratio*2*R
-circmat = Material(E, E, nu, G, 1.0)
+circmat = Material(E, E, G, nu, 1.0)
 
 nr = 20
 nt = 100
@@ -848,7 +1069,7 @@ E2 = 1.42e6
 nu12 = 0.42
 G12 = 0.87e6
 rho = 1.0
-pipemat = Material(E1, E2, nu12, G12, rho)
+pipemat = Material(E1, E2, G12, nu12, rho)
 
 nx = 50
 nt = 24
@@ -999,12 +1220,18 @@ S, sc, tc = compliance(nodes, elements)
 K = inv(S)
 K2 = reorder(K)
 
+# using BenchmarkTools
+# @btime compliance($nodes, $elements)
+# @profview compliance(nodes, elements)
+
+
+
 @test isapprox(K2[1, 1], 1.03892e7, rtol=0.04)
 @test isapprox(K2[2, 2], 7.85310e5, rtol=0.01)
 @test isapprox(K2[3, 3], 3.29279e5, rtol=0.02)
 @test isapprox(K2[1, 4], 9.84575e4, rtol=0.12)
 @test isapprox(K2[2, 5], -8.21805e3, rtol=0.11)
-@test isapprox(K2[3, 6], -5.20981e4, rtol=0.21)
+@test isapprox(K2[3, 6], -5.20981e4, rtol=0.21)   
 @test isapprox(K2[4, 4], 6.87275e5, rtol=0.01)
 @test isapprox(K2[5, 5], 1.88238e6, rtol=0.04)
 @test isapprox(K2[6, 6], 5.38987e6, rtol=0.03)
@@ -1018,3 +1245,44 @@ K2 = reorder(K)
 # println("K44 = ", round((K2[4, 4]/6.87275e5 - 1)*100, digits=2), "%")
 # println("K55 = ", round((K2[5, 5]/1.88238e6 - 1)*100, digits=2), "%")
 # println("K66 = ", round((K2[6, 6]/5.38987e6 - 1)*100, digits=2), "%")
+
+# # ------ Airfoil MH-104 ----------
+# xaf = [1.00000000, 0.99619582, 0.98515158, 0.96764209, 0.94421447, 0.91510964, 0.88074158, 0.84177999, 0.79894110, 0.75297076, 0.70461763, 0.65461515, 0.60366461, 0.55242353, 0.50149950, 0.45144530, 0.40276150, 0.35589801, 0.31131449, 0.26917194, 0.22927064, 0.19167283, 0.15672257, 0.12469599, 0.09585870, 0.07046974, 0.04874337, 0.03081405, 0.01681379, 0.00687971, 0.00143518, 0.00053606, 0.00006572, 0.00001249, 0.00023032, 0.00079945, 0.00170287, 0.00354717, 0.00592084, 0.01810144, 0.03471169, 0.05589286, 0.08132751, 0.11073805, 0.14391397, 0.18067874, 0.22089879, 0.26433734, 0.31062190, 0.35933893, 0.40999990, 0.46204424, 0.51483073, 0.56767889, 0.61998250, 0.67114514, 0.72054815, 0.76758733, 0.81168064, 0.85227225, 0.88883823, 0.92088961, 0.94797259, 0.96977487, 0.98607009, 0.99640466, 1.00000000]
+# yaf = [0.00000000, 0.00017047, 0.00100213, 0.00285474, 0.00556001, 0.00906779, 0.01357364, 0.01916802, 0.02580144, 0.03334313, 0.04158593, 0.05026338, 0.05906756, 0.06766426, 0.07571157, 0.08287416, 0.08882939, 0.09329359, 0.09592864, 0.09626763, 0.09424396, 0.09023579, 0.08451656, 0.07727756, 0.06875796, 0.05918984, 0.04880096, 0.03786904, 0.02676332, 0.01592385, 0.00647946, 0.00370956, 0.00112514, -0.00046881, -0.00191488, -0.00329201, -0.00470585, -0.00688469, -0.00912202, -0.01720842, -0.02488211, -0.03226730, -0.03908459, -0.04503763, -0.04986836, -0.05338180, -0.05551392, -0.05636585, -0.05605816, -0.05472399, -0.05254383, -0.04969990, -0.04637175, -0.04264894, -0.03859653, -0.03433153, -0.02996944, -0.02560890, -0.02134397, -0.01726049, -0.01343567, -0.00993849, -0.00679919, -0.00402321, -0.00180118, -0.00044469, 0.00000000]
+
+# uni = Material(37.00e9, 9.00e9, 9.00e9, 4.00e9, 4.00e9, 4.00e9, 0.28, 0.28, 0.28, 1.86e3)
+# double = Material(10.30e9, 10.30e9, 10.30e9, 8.00e9, 8.00e9, 8.00e9, 0.30, 0.30, 0.30, 1.83e3)
+# gelcoat = Material(1e1, 1e1, 1e1, 1.0, 1.0, 1.0, 0.30, 0.30, 0.30, 1.83e3)
+# nexus = Material(10.30e9, 10.30e9, 10.30e9, 8.00e9, 8.00e9, 8.00e9, 0.30, 0.30, 0.30, 1.664e3)
+# balsa = Material(0.01e9, 0.01e9, 0.01e9, 2e5, 2e5, 2e5, 0.30, 0.30, 0.30, 0.128e3)
+# mat = [uni, double, gelcoat, nexus, balsa]
+
+# chord = 1.9
+# twist = 0.0
+# nodes = [0.0, 0.0041, 0.1147, 0.5366, 1.0]
+# webl = [0.2, 0.5]
+
+# idx = [3, 4, 2]
+# t = [0.000381, 0.00051, 18*0.00053]
+# theta = [0, 0, 20]*pi/180
+# layup1 = Layer.(mat[idx], t, theta)
+# idx = [3, 4, 2]
+# t = [0.000381, 0.00051, 33*0.00053]
+# theta = [0, 0, 20]*pi/180
+# layup2 = Layer.(mat[idx], t, theta)
+# idx = [3, 4, 2, 1, 5, 1, 2]
+# t = [0.000381, 0.00051, 17*0.00053, 38*0.00053, 1*0.003125, 37*0.00053, 16*0.00053]
+# theta = [0, 0, 20, 30, 0, 30, 20]*pi/180
+# layup3 = Layer.(mat[idx], t, theta)
+# idx = [3, 4, 2, 5, 2]
+# t = [0.000381, 0.00051, 17*0.00053, 0.003125, 16*0.00053]
+# theta = [0, 0, 20, 0, 0]*pi/180
+# layup4 = Layer.(mat[idx], t, theta)
+# idx = [1, 5, 1]
+# t = [38*0.00053, 0.003125, 38*0.00053]
+# theta = [0, 0, 0]*pi/180
+# webs = Layer.(mat[idx], t, theta)
+
+# segments = [layup1, layup2, layup3, layup4, webs]
+
+
