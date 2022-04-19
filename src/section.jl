@@ -632,6 +632,34 @@ function reorder(K)  # reorder to GXBeam format
 end
 
 
+function plotmesh(nodes, elements; plotnumbers=false)
+    ne = length(elements)
+    
+    figure()
+    for i = 1:ne
+        node = nodes[elements[i].nodenum]
+        for i = 1:4
+            iplus = i+1
+            if iplus == 5
+                iplus = 1 
+            end
+            plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
+        end
+        if plotnumbers
+            barx = sum([n.x/4 for n in node])
+            bary = sum([n.y/4 for n in node])
+            text(barx, bary, string(i), color="r")
+        end
+    end
+    if plotnumbers
+        nn = length(nodes)
+        for i = 1:nn
+            text(nodes[i].x, nodes[i].y, string(nodes[i].number))
+        end
+    end
+end
+
+
 """
     Layer(material, t, theta)
 
@@ -713,25 +741,7 @@ end
 using PyPlot
 close("all"); pygui(true);
 
-# ne, _ = size(connectivity)
-ne = length(elements)
-figure()
-for i = 1:ne
-    # node = nodes[connectivity[i, :]]
-    node = nodes[elements[i].nodenum]
-    for i = 1:4
-        text(node[i].x, node[i].y, string(node[i].number))
-        iplus = i+1
-        if iplus == 5
-            iplus = 1 
-        end
-        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
-    end
-    barx = sum([n.x/4 for n in node])
-    bary = sum([n.y/4 for n in node])
-    text(barx, bary, string(i))
-end
-
+# plotmesh(nodes, elements, plotnumbers=true)
 
 S, sc, tc = compliance(nodes, elements)
 K = inv(S)
@@ -884,25 +894,7 @@ for i = 1:nt-1
 end
 end
 
-ne = length(elements)
-nn = length(nodes)
-figure()
-for i = 1:ne
-    node = nodes[elements[i].nodenum]
-    for i = 1:4
-        iplus = i+1
-        if iplus == 5
-            iplus = 1 
-        end
-        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
-    end
-    barx = sum([n.x/4 for n in node])
-    bary = sum([n.y/4 for n in node])
-    # text(barx, bary, string(i), color="r")
-end
-# for i = 1:nn
-#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
-# end
+# plotmesh(nodes, elements)
 
 S, sc, tc = compliance(nodes, elements)
 K = inv(S)
@@ -947,25 +939,7 @@ for i = 1:nt-1
 end
 end
 
-ne = length(elements)
-nn = length(nodes)
-figure()
-for i = 1:ne
-    node = nodes[elements[i].nodenum]
-    for i = 1:4
-        iplus = i+1
-        if iplus == 5
-            iplus = 1 
-        end
-        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
-    end
-    barx = sum([n.x/4 for n in node])
-    bary = sum([n.y/4 for n in node])
-    # text(barx, bary, string(i), color="r")
-end
-# for i = 1:nn
-#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
-# end
+# plotmesh(nodes, elements)
 
 S, sc, tc = compliance(nodes, elements)
 K = inv(S)
@@ -1026,25 +1000,7 @@ for i = 1:nt-1
 end
 end
 
-ne = length(elements)
-nn = length(nodes)
-figure()
-for i = 1:ne
-    node = nodes[elements[i].nodenum]
-    for i = 1:4
-        iplus = i+1
-        if iplus == 5
-            iplus = 1 
-        end
-        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
-    end
-    barx = sum([n.x/4 for n in node])
-    bary = sum([n.y/4 for n in node])
-    # text(barx, bary, string(i), color="r")
-end
-# for i = 1:nn
-#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
-# end
+# plotmesh(nodes, elements)
 
 S, sc, tc = compliance(nodes, elements)
 K = inv(S)
@@ -1196,25 +1152,7 @@ let
 
 end
 
-ne = length(elements)
-nn = length(nodes)
-figure()
-for i = 1:ne
-    node = nodes[elements[i].nodenum]
-    for i = 1:4
-        iplus = i+1
-        if iplus == 5
-            iplus = 1 
-        end
-        plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y])
-    end
-    barx = sum([n.x/4 for n in node])
-    bary = sum([n.y/4 for n in node])
-    # text(barx, bary, string(i), color="r")
-end
-# for i = 1:nn
-#     text(nodes[i].x, nodes[i].y, string(nodes[i].number))
-# end
+# plotmesh(nodes, elements)
 
 S, sc, tc = compliance(nodes, elements)
 K = inv(S)
