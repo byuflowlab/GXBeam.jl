@@ -138,13 +138,13 @@ for the expanded system.
 
     # equilibrium equations for the start of the beam element
     irow = indices.irow_point[assembly.start[ielem]]
-    resid[irow:irow+2] .-= F1 ./ force_scaling
-    resid[irow+3:irow+5] .-= M1 ./ force_scaling
+    @views resid[irow:irow+2] .-= F1 ./ force_scaling
+    @views resid[irow+3:irow+5] .-= M1 ./ force_scaling
 
     # equilibrium equations for the end of the beam element
     irow = indices.irow_point[assembly.stop[ielem]]
-    resid[irow:irow+2] .+= F2 ./ force_scaling
-    resid[irow+3:irow+5] .+= M2 ./ force_scaling
+    @views resid[irow:irow+2] .+= F2 ./ force_scaling
+    @views resid[irow+3:irow+5] .+= M2 ./ force_scaling
 
     return resid
 end

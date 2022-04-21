@@ -38,7 +38,7 @@ Keyword Arguments:
         containing vectors of objects of type [`PointMass`](@ref) which describe 
         the point masses attached at those points.  If time varying, this input may
         be provided as a function of time.
- - `structural_damping = false`: Flag indicating whether structural damping should be enabled
+ - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `gravity`: Gravity vector. If time varying, this input may be provided as a 
         function of time.
  - `origin = zeros(3)`: Global frame origin vector. If time varying, this input
@@ -56,7 +56,7 @@ function SciMLBase.ODEFunction(system::System, assembly;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     point_masses = Dict{Int,Vector{PointMass{Float64}}}(),
-    structural_damping=false,
+    structural_damping=true,
     gravity = (@SVector zeros(3)),
     origin = (@SVector zeros(3)),
     linear_velocity = (@SVector zeros(3)),
@@ -82,7 +82,7 @@ function SciMLBase.ODEFunction(system::System, assembly;
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
         # calculate residual
-        steady_state_system_residual!(resid, u, dynamic_indices, force_scaling, 
+        steady_state_system_residual!(resid, u, dynamic_indices, force_scaling, structural_damping,
             assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         return resid
@@ -98,8 +98,9 @@ function SciMLBase.ODEFunction(system::System, assembly;
         M .= 0.0
 
         # calculate mass matrix
-        system_mass_matrix!(M, u, dynamic_indices, force_scaling, structural_damping, 
-                assembly, pcond, pmass)
+        system_mass_matrix!(M, u, dynamic_indices, force_scaling, assembly, pcond, pmass)
+
+        M .*= -1
 
         return M
     end
@@ -121,7 +122,7 @@ function SciMLBase.ODEFunction(system::System, assembly;
         J .= 0.0
 
         # calculate jacobian
-        steady_state_system_jacobian!(J, u, dynamic_indices, force_scaling, 
+        steady_state_system_jacobian!(J, u, dynamic_indices, force_scaling, structural_damping, 
               assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         return J
@@ -130,7 +131,7 @@ function SciMLBase.ODEFunction(system::System, assembly;
     return SciMLBase.ODEFunction{true,true}(f; 
         mass_matrix = SciMLBase.DiffEqArrayOperator(system.M, update_func = update_mass_matrix!),
         jac = update_jacobian!,
-        jac_prototype = typeof(system.K)
+        #jac_prototype = typeof(system.K)
         )
 end
 
@@ -142,10 +143,14 @@ may be used with the DifferentialEquations package.
 """
 function SciMLBase.DAEProblem(system::System, assembly, tspan; 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
+    point_masses = Dict{Int,PointMass{Float64}}(),
     kwargs...)
 
     # create SciMLBase.DAEFunction
-    func = SciMLBase.DAEFunction(system, assembly; prescribed_conditions, kwargs...)
+    func = SciMLBase.DAEFunction(system, assembly; 
+        prescribed_conditions = prescribed_conditions,
+        point_masses = point_masses,
+        kwargs...)
 
     # use initial state from `system`
     u0 = copy(system.x)
@@ -160,7 +165,7 @@ function SciMLBase.DAEProblem(system::System, assembly, tspan;
     end
 
     # get differential variables
-    differential_vars = get_differential_vars(system, assembly, prescribed_conditions)
+    differential_vars = get_differential_vars(system, assembly, prescribed_conditions, point_masses)
 
     return SciMLBase.DAEProblem{true}(func, du0, u0, tspan; differential_vars)
 end
@@ -188,7 +193,7 @@ Keyword Arguments:
         containing vectors of objects of type [`PointMass`](@ref) which describe 
         the point masses attached at those points.  If time varying, this input may
         be provided as a function of time.
- - `structural_damping = false`: Flag indicating whether structural damping should be enabled
+ - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `gravity`: Gravity vector. If time varying, this input may be provided as a 
         function of time.
  - `origin = zeros(3)`: Global frame origin vector. If time varying, this input
@@ -261,7 +266,7 @@ function SciMLBase.DAEFunction(system::System, assembly;
             assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         # add gamma multiplied by the mass matrix
-        system_mass_matrix!(J, gamma, u, dynamic_indices, force_scaling, structural_damping, 
+        system_mass_matrix!(J, gamma, u, dynamic_indices, force_scaling, 
             assembly, pcond, pmass)
 
         return J
@@ -270,23 +275,37 @@ function SciMLBase.DAEFunction(system::System, assembly;
     return SciMLBase.DAEFunction{true,true}(f) # TODO: re-add jacobian here once supported
 end
 
-function get_differential_vars(system::System, assembly, prescribed_conditions)
+function get_differential_vars(system::System, assembly, prescribed_conditions, point_masses)
+
+    # NOTE: If a point and the elements connected to it are massless, then Vdot and Ωdot for
+    # the point do not appear in the system of equations and thus not differentiable variables.
+    
+    differential_vars = zeros(Bool, length(system.x))
 
     pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0.0)
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : pmass(0.0)
 
-    differential_vars = fill(false, length(system.x))
+    for ipoint = 1:length(assembly.points)
 
-    for (ipoint, icol) in enumerate(system.dynamic_indices.icol_point)
+        # check if Vdot and Ωdot are used
+        hasmass = haskey(pmass, ipoint)
+        for ielem = 1:length(assembly.elements)
+            if ipoint == assembly.start[ielem] || ipoint == assembly.stop[ielem]
+                hasmass = hasmass || (!iszero(assembly.elements[ielem].L) && !iszero(assembly.elements[ielem].mass))
+            end
+        end
 
         if haskey(pcond, ipoint)
             # displacements are differential variables, forces and moments are not
             differential_vars[icol:icol+5] .= pcond[ipoint].isforce
-            # velocities are differential variables
-            differential_vars[icol+6:icol+11] .= true
         else
             # displacements and velocities are differentiable variables
             differential_vars[icol:icol+11] .= true
         end
+
+        # velocities are differentiable variables if the point or adjacent elements have mass
+        differential_vars[icol+6:icol+11] .= hasmass
+
     end
 
     return differential_vars

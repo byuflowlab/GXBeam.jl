@@ -308,49 +308,49 @@ function set_state_variables!(x, system, prescribed_conditions; u = nothing, the
 
     if !isnothing(u)
         for ipoint = 1:length(u)
-            set_linear_deflection!(x, system, prescribed_conditions, u, ipoint)
+            set_linear_deflection!(x, system, prescribed_conditions, u[ipoint], ipoint)
         end
     end
 
     if !isnothing(theta)
         for ipoint = 1:length(theta)
-            set_angular_deflection!(x, system, prescribed_conditions, theta, ipoint)
+            set_angular_deflection!(x, system, prescribed_conditions, theta[ipoint], ipoint)
         end
     end
 
     if !isnothing(V)
         for ipoint = 1:length(V)
-            set_linear_velocity!(x, system, V, ipoint)
+            set_linear_velocity!(x, system, V[ipoint], ipoint)
         end
     end
 
     if !isnothing(Omega)
         for ipoint = 1:length(Omega)
-            set_angular_velocity!(x, system, Omega, ipoint)
+            set_angular_velocity!(x, system, Omega[ipoint], ipoint)
         end
     end
 
     if !isnothing(F)
         for ipoint = 1:length(F)
-            set_external_forces!(x, system, F, ipoint)
+            set_external_forces!(x, system, F[ipoint], ipoint)
         end
     end
 
     if !isnothing(M)
         for ipoint = 1:length(M)
-            set_external_moments!(x, system, M, ipoint)
+            set_external_moments!(x, system, M[ipoint], ipoint)
         end
     end
 
     if !isnothing(Fi)
         for ielem = 1:length(Fi)
-            set_internal_forces!(x, system, Fi, ielem)
+            set_internal_forces!(x, system, Fi[ielem], ielem)
         end
     end
 
     if !isnothing(Mi)
         for ielem = 1:length(Mi)
-            set_internal_moments!(x, system, Mi, ielem)
+            set_internal_moments!(x, system, Mi[ielem], ielem)
         end
     end
 
@@ -375,9 +375,9 @@ function set_linear_deflection!(x, system::System, prescribed_conditions, u, ipo
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     if haskey(prescribed, ipoint)
-        prescribed.isforce[1] && setindex!(x, u[1], icol)
-        prescribed.isforce[2] && setindex!(x, u[2], icol+1)
-        prescribed.isforce[3] && setindex!(x, u[3], icol+2)
+        prescribed[ipoint].isforce[1] && setindex!(x, u[1], icol)
+        prescribed[ipoint].isforce[2] && setindex!(x, u[2], icol+1)
+        prescribed[ipoint].isforce[3] && setindex!(x, u[3], icol+2)
     else
         x[icol  ] = u[1]
         x[icol+1] = u[2]
@@ -405,9 +405,9 @@ function set_angular_deflection!(x, system::System, prescribed_conditions, theta
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     if haskey(prescribed, ipoint)
-        prescribed.isforce[4] && setindex!(x, theta[1], icol+3)
-        prescribed.isforce[5] && setindex!(x, theta[2], icol+4)
-        prescribed.isforce[6] && setindex!(x, theta[3], icol+5)
+        prescribed[ipoint].isforce[4] && setindex!(x, theta[1], icol+3)
+        prescribed[ipoint].isforce[5] && setindex!(x, theta[2], icol+4)
+        prescribed[ipoint].isforce[6] && setindex!(x, theta[3], icol+5)
     else
         x[icol+3] = theta[1]
         x[icol+4] = theta[2]
@@ -480,9 +480,9 @@ function set_external_forces!(x, system::System, prescribed_conditions, F, ipoin
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     if haskey(prescribed, ipoint)
-        !prescribed.isforce[1] && setindex!(x, F[1], icol)
-        !prescribed.isforce[2] && setindex!(x, F[2], icol+1)
-        !prescribed.isforce[3] && setindex!(x, F[3], icol+2)
+        !prescribed[ipoint].isforce[1] && setindex!(x, F[1], icol)
+        !prescribed[ipoint].isforce[2] && setindex!(x, F[2], icol+1)
+        !prescribed[ipoint].isforce[3] && setindex!(x, F[3], icol+2)
     else
         x[icol  ] = F[1]
         x[icol+1] = F[2]
@@ -510,9 +510,9 @@ function set_external_moments(x, system::System, prescribed_conditions, M, ipoin
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     if haskey(prescribed, ipoint)
-        !prescribed.isforce[4] && setindex!(x, M[1], icol+3)
-        !prescribed.isforce[5] && setindex!(x, M[2], icol+4)
-        !prescribed.isforce[6] && setindex!(x, M[3], icol+5)
+        !prescribed[ipoint].isforce[4] && setindex!(x, M[1], icol+3)
+        !prescribed[ipoint].isforce[5] && setindex!(x, M[2], icol+4)
+        !prescribed[ipoint].isforce[6] && setindex!(x, M[3], icol+5)
     else
         x[icol+3] = M[1]
         x[icol+4] = M[2]
@@ -593,13 +593,13 @@ Populate the system residual vector `resid` for a static analysis
 end
 
 """
-    steady_state_system_residual!(resid, x, indices, force_scaling, 
+    steady_state_system_residual!(resid, x, indices, force_scaling, structural_damping, 
         assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
         x0, v0, ω0, a0, α0)
 
 Populate the system residual vector `resid` for a steady state analysis
 """
-@inline function steady_state_system_residual!(resid, x, indices, force_scaling, 
+@inline function steady_state_system_residual!(resid, x, indices, force_scaling, structural_damping,
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
     x0, v0, ω0, a0, α0)
 
@@ -609,8 +609,8 @@ Populate the system residual vector `resid` for a steady state analysis
     end
 
     for ielem = 1:length(assembly.elements)
-        steady_state_element_residual!(resid, x, indices, force_scaling, assembly, ielem, 
-            prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+        steady_state_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
     end
 
     return resid
@@ -634,8 +634,8 @@ simulation.
     end
     
     for ielem = 1:length(assembly.elements)
-        initial_condition_element_residual!(resid, x, indices, force_scaling, assembly, ielem,
-            prescribed_conditions, distributed_loads, gravity, 
+        initial_condition_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
             x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
     end
     
@@ -700,9 +700,9 @@ Populate the system residual vector `resid` for a Newmark scheme time marching a
     end
     
     for ielem = 1:length(assembly.elements)
-        newmark_element_residual!(resid, x, indices, force_scaling, assembly, ielem,
-            prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0, 
-            Vdot_init, Ωdot_init, dt)
+        newmark_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
     end
     
     return resid
@@ -724,8 +724,9 @@ Populate the system residual vector `resid` for a general dynamic analysis.
     end
     
     for ielem = 1:length(assembly.elements)
-        dynamic_element_residual!(resid, dx, x, indices, force_scaling, assembly, ielem,
-            prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+        dynamic_element_residual!(resid, dx, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            x0, v0, ω0, a0, α0)
     end
     
     return resid
@@ -756,13 +757,13 @@ Populate the system jacobian matrix `jacob` for a static analysis
 end
 
 """
-    steady_state_system_jacobian!(jacob, x, indices, force_scaling, 
+    steady_state_system_jacobian!(jacob, x, indices, force_scaling, structural_damping,
         assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
         x0, v0, ω0, a0, α0)
 
 Populate the system jacobian matrix `jacob` for a steady-state analysis
 """
-@inline function steady_state_system_jacobian!(jacob, x, indices, force_scaling, 
+@inline function steady_state_system_jacobian!(jacob, x, indices, force_scaling, structural_damping,
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
     x0, v0, ω0, a0, α0)
 
@@ -774,7 +775,7 @@ Populate the system jacobian matrix `jacob` for a steady-state analysis
     end
     
     for ielem = 1:length(assembly.elements)
-        steady_state_element_jacobian!(jacob, x, indices, force_scaling, assembly, ielem, 
+        steady_state_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, assembly, ielem, 
             prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
     end
     
@@ -801,8 +802,9 @@ simulation.
     end
     
     for ielem = 1:length(assembly.elements)
-        initial_condition_element_jacobian!(jacob, x, indices, force_scaling, assembly, ielem,
-            prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+        initial_condition_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
     end
 
     # NOTE: If a point and the elements connected to it are massless, then Vdot and Ωdot for
@@ -896,9 +898,9 @@ Populate the system jacobian matrix `jacob` for a Newmark scheme time marching a
     end
     
     for ielem = 1:length(assembly.elements)
-        newmark_element_jacobian!(jacob, x, indices, force_scaling, assembly, ielem,
-            prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0, 
-            Vdot_init, Ωdot_init, dt)
+        newmark_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
     end
     
     return jacob
@@ -922,41 +924,42 @@ Populate the system jacobian matrix `jacob` for a general dynamic analysis.
     end
     
     for ielem = 1:length(assembly.elements)
-        dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, assembly, ielem,
-            prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+        dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            x0, v0, ω0, a0, α0)
     end
     
     return jacob
 end
 
 """
-    system_mass_matrix!(jacob, x, indices, force_scaling, structural_damping, 
-        assembly, prescribed_conditions, point_masses)
+    system_mass_matrix!(jacob, x, indices, force_scaling,  assembly, prescribed_conditions, 
+        point_masses)
 
 Calculate the jacobian of the residual expressions with respect to the state rates.
 """
-function system_mass_matrix!(jacob, x, indices, force_scaling, structural_damping, 
-    assembly, prescribed_conditions, point_masses)
+function system_mass_matrix!(jacob, x, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
 
     jacob .= 0
 
     gamma = 1
 
-    system_mass_matrix!(jacob, gamma, x, indices, force_scaling, structural_damping, 
-        assembly, prescribed_conditions, point_masses)
+    system_mass_matrix!(jacob, gamma, x, indices, force_scaling,  assembly, 
+        prescribed_conditions, point_masses)
 
     return jacob
 end
 
 """
-    system_mass_matrix!(jacob, `gamma`, x, indices, force_scaling, structural_damping, 
-        assembly, prescribed_conditions, point_masses)
+    system_mass_matrix!(jacob, `gamma`, x, indices, force_scaling, assembly, 
+        prescribed_conditions, point_masses)
 
 Calculate the jacobian of the residual expressions with respect to the state rates and 
 add the result multiplied by `gamma` to `jacob`.
 """
-function system_mass_matrix!(jacob, gamma, x, indices, force_scaling, structural_damping, 
-    assembly, prescribed_conditions, point_masses)
+function system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
 
     for ipoint = 1:length(assembly.points)
         point_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, ipoint, 

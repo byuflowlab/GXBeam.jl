@@ -248,6 +248,9 @@ function steady_state_analysis!(system, assembly;
     # assume converged until proven otherwise
     converged = true
 
+    # structural damping does not impact the solution
+    structural_damping = false
+
     # begin time stepping
     for t in tvec
 
@@ -270,10 +273,10 @@ function steady_state_analysis!(system, assembly;
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
         f! = (resid, x) -> steady_state_system_residual!(resid, x, dynamic_indices, force_scaling, 
-            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, dynamic_indices, force_scaling, 
-            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         # solve the system of equations
         if linear
@@ -475,11 +478,11 @@ function eigenvalue_analysis!(system, assembly;
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
     # solve for the system stiffness matrix
-    steady_state_system_jacobian!(K, x, dynamic_indices, force_scaling, 
+    steady_state_system_jacobian!(K, x, dynamic_indices, force_scaling, structural_damping,
         assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
     # solve for the system mass matrix
-    system_mass_matrix!(M, x, dynamic_indices, force_scaling, structural_damping, 
+    system_mass_matrix!(M, x, dynamic_indices, force_scaling, 
         assembly, prescribed_conditions, point_masses)
 
     # construct linear map

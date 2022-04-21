@@ -10,26 +10,36 @@ const RNG = MersenneTwister(1234)
 
 @testset "Math" begin
     
-    c = 1e3*rand(RNG, 3)
-    cdot = 1e3*rand(RNG, 3)
+    θ = 1e3*rand(RNG, 3)
+    Δθ = 1e3*rand(RNG, 3)
 
     # get_C_θ
-    C_θ1, C_θ2, C_θ3 = GXBeam.get_C_θ(c)
-    @test isapprox(C_θ1, ForwardDiff.derivative(c1 -> GXBeam.get_C([c1, c[2], c[3]]), c[1]))
-    @test isapprox(C_θ2, ForwardDiff.derivative(c2 -> GXBeam.get_C([c[1], c2, c[3]]), c[2]))
-    @test isapprox(C_θ3, ForwardDiff.derivative(c3 -> GXBeam.get_C([c[1], c[2], c3]), c[3]))
+    C_θ1, C_θ2, C_θ3 = GXBeam.get_C_θ(θ)
+    @test isapprox(C_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_C([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(C_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_C([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(C_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_C([θ[1], θ[2], θ3]), θ[3]))
 
     # get_Q_θ
-    Q_θ1, Q_θ2, Q_θ3 = GXBeam.get_Q_θ(c)
-    @test isapprox(Q_θ1, ForwardDiff.derivative(c1 -> GXBeam.get_Q([c1, c[2], c[3]]), c[1]))
-    @test isapprox(Q_θ2, ForwardDiff.derivative(c2 -> GXBeam.get_Q([c[1], c2, c[3]]), c[2]))
-    @test isapprox(Q_θ3, ForwardDiff.derivative(c3 -> GXBeam.get_Q([c[1], c[2], c3]), c[3]))
+    Q_θ1, Q_θ2, Q_θ3 = GXBeam.get_Q_θ(θ)
+    @test isapprox(Q_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_Q([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(Q_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_Q([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(Q_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_Q([θ[1], θ[2], θ3]), θ[3]))
 
     # get_Qinv_θ
-    Qinv_θ1, Qinv_θ2, Qinv_θ3 = GXBeam.get_Qinv_θ(c)
-    @test isapprox(Qinv_θ1, ForwardDiff.derivative(c1 -> GXBeam.get_Qinv([c1, c[2], c[3]]), c[1]))
-    @test isapprox(Qinv_θ2, ForwardDiff.derivative(c2 -> GXBeam.get_Qinv([c[1], c2, c[3]]), c[2]))
-    @test isapprox(Qinv_θ3, ForwardDiff.derivative(c3 -> GXBeam.get_Qinv([c[1], c[2], c3]), c[3]))
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = GXBeam.get_Qinv_θ(θ)
+    @test isapprox(Qinv_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_Qinv([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(Qinv_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_Qinv([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(Qinv_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_Qinv([θ[1], θ[2], θ3]), θ[3]))
+
+    # get_ΔQ
+    ΔQ = GXBeam.get_ΔQ(θ, Δθ)
+    @test isapprox(ΔQ, GXBeam.mul3(Q_θ1, Q_θ2, Q_θ3, Δθ))
+
+    # get_ΔQ_θ
+    ΔQ_θ1, ΔQ_θ2, ΔQ_θ3 = GXBeam.get_ΔQ_θ(θ, Δθ)
+    @test isapprox(ΔQ_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_ΔQ([θ1, θ[2], θ[3]], Δθ), θ[1]))
+    @test isapprox(ΔQ_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_ΔQ([θ[1], θ2, θ[3]], Δθ), θ[2]))
+    @test isapprox(ΔQ_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_ΔQ([θ[1], θ[2], θ3], Δθ), θ[3]))
 
 end
 
@@ -114,6 +124,8 @@ end
 
     indices = system.dynamic_indices
 
+    structural_damping = true
+
     x0 = rand(RNG, 3)
     v0 = rand(RNG, 3)
     ω0 = rand(RNG, 3)
@@ -121,10 +133,10 @@ end
     α0 = rand(RNG, 3)
 
     f = (x) -> GXBeam.steady_state_system_residual!(similar(x), x, indices, force_scaling, 
-        assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    GXBeam.steady_state_system_jacobian!(J, x, indices, force_scaling, 
-    assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+    GXBeam.steady_state_system_jacobian!(J, x, indices, force_scaling, structural_damping,
+        assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -134,8 +146,6 @@ end
     theta0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
     udot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
     thetadot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
-
-    structural_damping = true
 
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
@@ -183,8 +193,7 @@ end
     GXBeam.dynamic_system_jacobian!(J, dx, x, indices, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    GXBeam.system_mass_matrix!(M, x, indices, force_scaling, structural_damping, 
-        assembly, pcond, pmass)
+    GXBeam.system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(fx, x), atol=1e-10))
 
@@ -279,7 +288,7 @@ end
         xi = assembly.elements[i].x[1]
         @test isapprox(state.elements[i].u[3], analytical_deflection(xi), atol=1e-9)
         @test isapprox(state.elements[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-9)
-        @test isapprox(state.elements[i].M[2], -analytical_M(xi), atol=2)
+        @test isapprox(state.elements[i].Mi[2], -analytical_M(xi), atol=2)
     end
 
     # test point properties
@@ -345,7 +354,7 @@ end
         xi = assembly.elements[i].x[1]
         @test isapprox(state.elements[i].u[3], analytical_deflection(xi), atol=1e-8)
         @test isapprox(state.elements[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-7)
-        @test isapprox(state.elements[i].M[2], -analytical_M(xi), atol=1)
+        @test isapprox(state.elements[i].Mi[2], -analytical_M(xi), atol=1)
     end
 
     # test point properties

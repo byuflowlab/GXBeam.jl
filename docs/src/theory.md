@@ -28,10 +28,10 @@ We then differentiate this equation with respect to time to obtain an expression
 \dot{\gamma}_i = C^{ba} C \frac{\Delta \dot{u}}{\Delta L} + C^{ba} \dot{C} \frac{\Delta u}{\Delta L} + C^{ba} \dot{C} C^{ab} e_1 
 ```
 
-We can then use the identity ``C^{ba} \dot{C} = -\widetilde{(\Omega-\omega)} C^{ba} C`` to express the strain rates as a function of our state variables. 
+The derivative of the rotation matrix ``\dot{C}`` can be defined in terms of angular velocity as ``\dot{C} = -\widetilde{(\Omega-\omega)} C``.  The linear displacement rates ``\dot{u}`` can be defined in terms of linear velocity as ``\dot{u} = V - v - \tilde{\omega} u``.  Using these two expressions allows us to write the strain rates in terms of the state variables.
 
 ```math
-\dot{\gamma}_i = C^{ba} C \frac{\Delta \dot{u}}{\Delta L} - \widetilde{(\Omega-\omega)} C^{ba} C \frac{\Delta u}{\Delta L} -  \widetilde{(\Omega-\omega)} C^{ba} C C^{ab} e_1 
+\dot{\gamma}_i = C^{ba} C \frac{\Delta \dot{u}}{\Delta L} - C^{ba} \widetilde{(\Omega-\omega)} C \frac{\Delta u}{\Delta L} -  C^{ba} \widetilde{(\Omega-\omega)} C C^{ab} e_1 
 ```
 
 ## Curvature Rates
@@ -73,6 +73,6 @@ Our expression for the curvature rates is then
 We can then use the following expression for the angular displacement rates to express the curvature rates as a function of our state variables.
 
 ```math
-\dot{\theta} = C^T Q^{-1} (\Omega - \omega)
+\dot{\theta} = Q^{-1} C (\Omega - \omega)
 ```
 

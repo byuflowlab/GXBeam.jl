@@ -1109,7 +1109,7 @@ state analysis.
     M_u = -C'*mass21*C*a_u*u_u
 
     # add loads due to linear and angular momentum
-    F_θ -= (tilde(ω)*P_θ)*θ_θ
+    F_θ -= tilde(ω)*P_θ*θ_θ
     F_V = -tilde(ω)*P_V
     F_Ω = -tilde(ω)*P_Ω
 
@@ -1363,11 +1363,11 @@ system jacobian matrix.
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
 
-    jacob[irow:irow+2, icol:icol+2] .= -F_u ./ force_scaling
+    @views jacob[irow:irow+2, icol:icol+2] .-= F_u ./ force_scaling
     jacob[irow:irow+2, icol+6:icol+8] .= -F_V ./ force_scaling
     jacob[irow:irow+2, icol+9:icol+11] .= -F_Ω ./ force_scaling
 
-    jacob[irow+3:irow+5, icol:icol+2] .= -M_u ./ force_scaling
+    @views jacob[irow+3:irow+5, icol:icol+2] .-= M_u ./ force_scaling
     jacob[irow+3:irow+5, icol+6:icol+8] .= -M_V ./ force_scaling
     jacob[irow+3:irow+5, icol+9:icol+11] .= -M_Ω ./ force_scaling
 

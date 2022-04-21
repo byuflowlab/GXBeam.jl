@@ -121,7 +121,8 @@ end
 t = range(0, 0.04, length=1001)
 
 system, history, converged = time_domain_analysis(assembly, t;
-    prescribed_conditions=prescribed_conditions)
+    prescribed_conditions=prescribed_conditions,
+    structural_damping=false)
 
 #!jl nothing #hide
 

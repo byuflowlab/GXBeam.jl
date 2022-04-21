@@ -79,6 +79,16 @@ end
     
     return ifelse(isone(scaling), zero(θ), (1 - scaling)*θ/(θ'*θ))
 end
+
+@inline function rotation_parameter_scaling_θ_θ(θ)
+    
+    return rotation_parameter_scaling_θ_θ(rotation_parameter_scaling(θ), θ)
+end
+
+@inline function rotation_parameter_scaling_θ_θ(scaling, θ)
+    
+    return ifelse(isone(scaling), (@SMatrix zeros(eltype(θ),3,3)), (1 - scaling)/(θ'*θ)*(I - 3*θ*θ'/(θ'*θ)))
+end
         
 """
     get_C(θ)
@@ -167,7 +177,7 @@ end
     get_Q_θ(Q, θ)
 
 Calculate the derivative of the matrix `Q` with respect to each of the rotation
-parameters in `c`.
+parameters in `θ`.
 """
 @inline get_Q_θ(θ) = get_Q_θ(get_Q(θ), θ)
 
@@ -180,10 +190,10 @@ parameters in `c`.
     c_θ = scaling_θ*θ' + scaling*I3
 
     c0 = 2 - c'*c/8
-    c0_θ = -c/4
+    c0_c = -c/4
 
     tmp = 1/(4-c0)^2
-    tmp_c = 2/(4-c0)^3*c0_θ
+    tmp_c = 2/(4-c0)^3*c0_c
 
     Q_c1 = tmp_c[1]*Q/tmp + tmp*(-c[1]/2*I - 2*tilde(e1) + (e1*c' + c*e1')/2)
 
@@ -196,6 +206,81 @@ parameters in `c`.
     Q_θ3 = Q_c1*c_θ[1,3] + Q_c2*c_θ[2,3] + Q_c3*c_θ[3,3]
 
     return Q_θ1, Q_θ2, Q_θ3
+end
+
+"""
+    get_ΔQ(θ, Δθ [, Q])
+
+Calculate the matrix `ΔQ` for structural damping calculations
+"""
+@inline function get_ΔQ(θ, Δθ, Q=get_Q(θ))
+
+    scaling = rotation_parameter_scaling(θ)
+    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
+
+    c = scaling*θ
+    c_θ = scaling_θ*θ' + scaling*I3
+
+    c0 = 2 - c'*c/8
+    c0_θ = -c'/4*c_θ
+
+    tmp1 = 1/(4-c0)^2
+    tmp1_θ = 2/(4-c0)^3*c0_θ
+
+    tmp2 = -Δθ*c' + 4*tilde(Δθ) + c'*Δθ*I3 + c*Δθ'
+
+    ΔQ = Q*Δθ*tmp1_θ/tmp1 + 1/2*tmp1*tmp2*(scaling*I3 + scaling_θ*θ')
+
+    return ΔQ
+end
+
+"""
+    get_ΔQ_θ(θ, Δθ, [Q, Q_θ1, Q_θ2, Q_θ3])
+
+Calculate the derivative of the matrix `ΔQ` with respect to each of the rotation
+parameters in `θ`.
+"""
+get_ΔQ_θ(θ, Δθ, Q=get_Q(θ)) = get_ΔQ_θ(θ, Δθ, Q, get_Q_θ(Q, θ)...)
+
+@inline function get_ΔQ_θ(θ, Δθ, Q, Q_θ1, Q_θ2, Q_θ3)
+
+    # calculate scaling factor
+    scaling = GXBeam.rotation_parameter_scaling(θ)
+    scaling_θ = GXBeam.rotation_parameter_scaling_θ(scaling, θ)
+    scaling_θ_θ = GXBeam.rotation_parameter_scaling_θ_θ(scaling, θ)
+
+    # scale rotation parameters
+    c = scaling*θ    
+    c_θ = scaling_θ*θ' + scaling*I3
+
+    # calculate c0 constant
+    c0 = 2 - c'*c/8
+    c0_θ = -c'/4*c_θ
+    c0_θ_θ = -I/4*c_θ'*c_θ - 1/2*c*scaling_θ' - 1/4*c'*θ*scaling_θ_θ
+
+    # calculate tmp1 constant
+    tmp1 = 1/(4-c0)^2    
+    tmp1_θ = 2/(4-c0)^3*c0_θ
+    tmp1_θ_θ = 6/(4-c0)^4*c0_θ'*c0_θ + 2/(4-c0)^3*c0_θ_θ
+
+    # calculate tmp2 matrix
+    tmp2 = -Δθ*c' + 4*tilde(Δθ) + c'*Δθ*I3 + c*Δθ'
+    tmp2_θ1 = -Δθ*c_θ[1,:]' + c_θ[1,:]'*Δθ*I3 + c_θ[1,:]*Δθ'
+    tmp2_θ2 = -Δθ*c_θ[2,:]' + c_θ[2,:]'*Δθ*I3 + c_θ[2,:]*Δθ'
+    tmp2_θ3 = -Δθ*c_θ[3,:]' + c_θ[3,:]'*Δθ*I3 + c_θ[3,:]*Δθ'
+
+    # calculate ΔQ
+    ΔQ_θ1 = (Q_θ1*Δθ*tmp1_θ)/tmp1 + (Q*Δθ*tmp1_θ_θ[1,:]')/tmp1 - (Q*Δθ*tmp1_θ)/tmp1^2*tmp1_θ[1] +
+        1/2*tmp1_θ[1]*tmp2*(scaling*I3 + scaling_θ*θ') + 1/2*tmp1*tmp2_θ1*(scaling*I3 + scaling_θ*θ') +
+        1/2*tmp1*tmp2*(scaling_θ[1]*I3 + scaling_θ_θ[1,:]*θ' + scaling_θ*e1')
+    ΔQ_θ2 = (Q_θ2*Δθ*tmp1_θ)/tmp1 + (Q*Δθ*tmp1_θ_θ[2,:]')/tmp1 - (Q*Δθ*tmp1_θ)/tmp1^2*tmp1_θ[2] +
+        1/2*tmp1_θ[2]*tmp2*(scaling*I3 + scaling_θ*θ') + 1/2*tmp1*tmp2_θ2*(scaling*I3 + scaling_θ*θ') +
+        1/2*tmp1*tmp2*(scaling_θ[2]*I3 + scaling_θ_θ[2,:]*θ' + scaling_θ*e2')
+    ΔQ_θ3 = (Q_θ3*Δθ*tmp1_θ)/tmp1 + (Q*Δθ*tmp1_θ_θ[3,:]')/tmp1 - (Q*Δθ*tmp1_θ)/tmp1^2*tmp1_θ[3] +
+        1/2*tmp1_θ[3]*tmp2*(scaling*I3 + scaling_θ*θ') + 1/2*tmp1*tmp2_θ3*(scaling*I3 + scaling_θ*θ') +
+        1/2*tmp1*tmp2*(scaling_θ[3]*I3 + scaling_θ_θ[3,:]*θ' + scaling_θ*e3')
+
+    return ΔQ_θ1, ΔQ_θ2, ΔQ_θ3
 end
 
 """
