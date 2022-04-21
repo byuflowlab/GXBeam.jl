@@ -64,7 +64,8 @@ state = AssemblyState(system, assembly;
 #!jl nothing #hide
 
 #
-# We can construct the analytical solution for this problem by integrating from the free end of the beam and applying the appropriate boundary conditions.
+# We can construct the analytical solution for this problem by integrating from the free 
+# end of the beam and applying the appropriate boundary conditions.
 #
 
 ## construct analytical solution
@@ -168,7 +169,7 @@ plot(
 
 x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for
     ielem = 1:length(assembly.elements)]
-M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+M = [state.elements[ielem].Mi[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
 #!nb plot!(show=true)

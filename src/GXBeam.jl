@@ -10,6 +10,7 @@ using SparseArrays
 using StaticArrays
 using WriteVTK
 using SciMLBase
+using UnPack
 
 export curve_length, discretize_beam
 export System, Assembly, PrescribedConditions, DistributedLoads, PointMass
@@ -49,7 +50,7 @@ include("system.jl")
 include("analyses.jl")
 include("postprocess.jl")
 
-include("interfaces/differentialequations.jl")
+include("interfaces/diffeq.jl")
 include("interfaces/forwarddiff.jl")
 
 end

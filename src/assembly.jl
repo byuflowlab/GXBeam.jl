@@ -2,14 +2,13 @@
     Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}},
         TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
 
-Composite type that defines an assembly of connected nonlinear beam elements for
-analysis.
+Composite type that defines an assembly of connected nonlinear beam elements.
 
 # Fields
  - `points`: Array of all beam element endpoints
  - `start`: Array containing point index where each beam element starts
  - `stop`: Array containing point index where each beam element stops
- - `elements`: Array of `Element`s
+ - `elements`: Array containing beam element definitions (see [`Element`](@ref))
 """
 struct Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
     points::TP
@@ -22,9 +21,8 @@ Base.eltype(::Assembly{TF, TP, TC, TE}) where {TF, TP, TC, TE} = TF
 """
     Assembly(points, start, stop; kwargs...)
 
-Construct an assembly of connected nonlinear beam elements for analysis.  Beam lengths
-and midpoints may be manually specified in case beam elements are curved rather than
-straight.
+Construct an assembly of connected nonlinear beam elements.  Beam lengths and midpoints 
+may be manually specified in case beam elements are curved rather than straight.
 
 # Arguments
  - `points`: Array of all beam element endpoints
@@ -51,6 +49,7 @@ function Assembly(points, start, stop;
     compliance = nothing,
     mass = nothing,
     frames = nothing,
+    damping = nothing,
     lengths = norm.(points[stop] - points[start]),
     midpoints = (points[stop] + points[start])/2)
 
@@ -77,7 +76,11 @@ function Assembly(points, start, stop;
         frames = fill(I3, nelem)
     end
 
-    elements = Element.(lengths, midpoints, compliance, mass, frames)
+    if isnothing(damping)
+        damping = fill(0.01*(@SVector ones(6)), nelem)
+    end
+
+    elements = Element.(lengths, midpoints, compliance, mass, frames, damping)
 
     return Assembly(points, promote(start, stop)..., elements)
 end

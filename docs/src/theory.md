@@ -1,100 +1,80 @@
+
 # Theory
 
-To understand the underlying theory for this package, we recommend you review the provided [references](@ref References).  This page describes some of the additional features introduced by this package.
+## Structural Damping
 
-```@contents
-Pages = ["theory.md"]
-Depth = 3
+When stiffness proportional structural damping is used, the relationship between stresses and strains takes the following form:
+
+```math
+\begin{bmatrix} F \\  M \end{bmatrix} = S \begin{bmatrix} \gamma \\ \kappa \end{bmatrix} + \mu S \begin{bmatrix} \dot{\gamma} \\ \dot{\kappa} \end{bmatrix}  \\
 ```
 
-## Constant Mass Matrix Form
+where ``\mu`` is a diagonal matrix with damping coefficients.
 
-The governing equations associated with this package are a set of fully implicit differential algebraic equations.  While these equations may be solved as is, it is often more efficient to reformulate the governing equations into constant mass matrix form.
+Rearranging this equations yields a new expression for the strains and curvatures when stiffness proportional structural damping is assumed.
 
-$$
-M \dot{x} = f(x, p, t)
-$$
+```math
+\begin{bmatrix} \gamma \\ \kappa \end{bmatrix} = S^{-1} \begin{bmatrix} F \\  M \end{bmatrix} - \mu \begin{bmatrix} \dot{\gamma} \\ \dot{\kappa} \end{bmatrix}
+```
 
-To do so, we introduce the new algebraic variables $F_i^-$, $M_i^-$, $F_i^+$, $M_i^+$ which are defined using the following constraints
+### Strain Rates
 
-$$
-f_{u_i}^- - F_i^- = 0 \quad 
-f_{\psi_i}^- - M_i^- = 0 \quad 
-f_{u_i}^+ - F_i^+ = 0 \quad 
-f_{\psi_N}^+ - M_i^+ = 0 \quad 
-$$
+The strain rates may be expressed as a function of our state variables using the strain compatability relationship.  We first rearrange the strain compatability equation to yield the following expression for the element strain.
 
-If beam element $i$ ends and beam elements $j$ and $k$ start at a connection point $C$, the corresponding equilibrium equations for the connection point is then
-$$
-F_i^+ + F_j^- + F_k^- - F_C^* = 0 \quad
-M_i^+ + M_j^- + M_k^- - M_C^* = 0
-$$
-where $F_C^*$ and $M_C^*$ are the concentrated forces and moments applied at the connection point, respectively.  Similar equilibrium equations may be constructed for any given node.
+```math
+\gamma_i = C^{ba} C \frac{\Delta u}{\Delta L} + C^{ba} C C^{ab} e_1 - e_1 
+```
 
-The constraints associated with any given beam element are then
+We then differentiate this equation with respect to time to obtain an expression for the strain rates:
 
-$$
-f_{u_i}^{-} - F_i^- = 0 \\
-f_{\psi_i}^{-} - M_i^- = 0 \\ 
-f_{F_i}^{-} - \hat{u}_i = 0 \\
-f_{M_i}^{-} - \hat{\theta}_i = 0 \\
-f_{u_i}^{+} - F_{i}^+ = 0 \\
-f_{\psi_i}^{+} - M_{i}^+ = 0 \\ 
-f_{F_i}^{+} + \hat{u}_{i+1} = 0 \\ 
-f_{M_i}^{+} + \hat{\theta}_{i+1} = 0 \\
-f_P = 0 \\
-f_H = 0 \\
-$$
-where 
-$$
-f_{u_i}^{\mp} = 
-\mp C^T C^{ab} F_i
-- \bar{f}_i^{\mp} 
-+ \frac{\Delta L}{2} 
-[ \tilde{\omega} C^T C^{ab} P_i + \dot{\overline{C^T C^{ab} P_i}}] 
-\\
-f_{\psi_i}^{\mp} = 
-\mp C^T C^{ab} M_i 
-- \bar{m}_i^{\mp} 
-+ \frac{\Delta L}{2} 
-[ 
-  \tilde{\omega} C^T C^{ab} H_i 
-  + \dot{\overline{C^T C^{ab} H_i}}
-  + C^T C^{ab} (\tilde{V}_i P_i - (\tilde{e}_i + \tilde{\gamma}_i) F_i) 
-] \\
-f_{F_i}^{\mp} = \pm u_i - \frac{\Delta L}{2} [C^T C^{ab} (e_i + \gamma_i) - C^{ab} e_i] \\
-f_{M_i}^{\mp} = \pm \theta_i - \frac{\Delta L}{2} Q_a^{-1} C^{ab} \kappa_i \\
-f_{P_i} = C^T C^{ab} V_i - v_i - \tilde{\omega_a} u_i - \dot{u}_i \\
-f_{H_i} = \Omega_i - C^{ba} C \omega_a - C^{ba} Q_a \dot{\theta} \\
-$$
-and
-$$
-\gamma = S^{11}_i F_i + S^{12}_i M_i \\
-\kappa = S^{21}_i F_i + S^{22}_i M_i \\
-P = M^{11}_i V_i + M^{12}_i \Omega_i \\
-H = M^{21}_i V_i + M^{22}_i \Omega_i \\
-$$
+```math
+\dot{\gamma}_i = C^{ba} C \frac{\Delta \dot{u}}{\Delta L} + C^{ba} \dot{C} \frac{\Delta u}{\Delta L} + C^{ba} \dot{C} C^{ab} e_1 
+```
 
-We can now perform some algebraic manipulations to be able to represent the constraints for any given beam element in constant mass matrix form.
+The derivative of the rotation matrix ``\dot{C}`` can be defined in terms of angular velocity as ``\dot{C} = -\widetilde{(\Omega-\omega)} C``.  The linear displacement rates ``\dot{u}`` can be defined in terms of linear velocity as ``\dot{u} = V - v - \tilde{\omega} u``.  Using these two expressions allows us to write the strain rates in terms of the state variables.
 
-$$
--\frac{\Delta L}{2} M^{11}_i \dot{V}_i - \frac{\Delta L}{2} M^{12}_i \dot{\Omega}_i = \mp F_i + C^{ba} C \left(
-- \bar{f}_i^{\mp} 
-+ \frac{\Delta L}{2} 
-[ \tilde{\omega} C^T C^{ab} P_i + \dot{C}^T C^{ab} P_i] - F_i^\mp \right)
-\\
--\frac{\Delta L}{2} M^{21}_i \dot{V}_i - \frac{\Delta L}{2} M^{22}_i \dot{\Omega}_i = \mp M_i + C^{ba} C \left( 
- 
-- \bar{m}_i^{\mp} 
-+ \frac{\Delta L}{2} 
-[ 
-  \tilde{\omega} C^T C^{ab} H_i 
-  + \dot{C}^T C^{ab} H_i
-  + C^T C^{ab} (\tilde{V}_i P_i - (\tilde{e}_i + \tilde{\gamma}_i) F_i) 
-] - M_i^\mp
-\right) \\
-0 = \pm u_i - \frac{\Delta L}{2} [C^T C^{ab} (e_i + \gamma_i) - C^{ab} e_i] \mp u_i^\mp \\
-0 = \pm \theta_i - \frac{\Delta L}{2} Q_a^{-1} C^{ab} \kappa_i \mp \theta_i^\mp \\
-\dot{u}_i = C^T C^{ab} V_i - v_i - \tilde{\omega_a} u_i  \\
-\dot{\theta_i} = Q_a^{-1} C^{ab} \left( \Omega_i - C^{ba} C \omega_a \right) \\
-$$
+```math
+\dot{\gamma}_i = C^{ba} C \frac{\Delta \dot{u}}{\Delta L} - C^{ba} \widetilde{(\Omega-\omega)} C \frac{\Delta u}{\Delta L} -  C^{ba} \widetilde{(\Omega-\omega)} C C^{ab} e_1 
+```
+
+### Curvature Rates
+
+The curvature rates may be expressed as a function of our state variables using the curvature compatability relationship.  We first rearrange the curvature compatability equation to yield the following expression for the element curvature.
+
+```math
+\kappa_i = C^{ba} Q \frac{\Delta \theta}{\Delta L}
+```
+
+Differentiating this equation with respect to time yields:
+
+```math
+\dot{\kappa}_i = C^{ba} Q \frac{\Delta \dot{\theta}}{\Delta L} + C^{ba} \dot{Q} \frac{\Delta \theta}{\Delta L}
+```
+
+We can expand ``\dot{Q}`` using its partial derivatives 
+
+```math
+\dot{Q} = Q_{\theta_1} \dot{\theta_1} + Q_{\theta_2} \dot{\theta_2} + Q_{\theta_3} \dot{\theta_3}
+```
+
+so that
+
+```math
+\dot{Q} \Delta \theta = 
+(Q_{\theta_1} \Delta \theta) \dot{\theta_1} + 
+(Q_{\theta_2} \Delta \theta) \dot{\theta_2} + 
+(Q_{\theta_3} \Delta \theta) \dot{\theta_3} 
+\equiv \Delta Q \dot{\theta}
+```
+
+Our expression for the curvature rates is then
+
+```math
+\dot{\kappa}_i = C^{ba} Q \frac{\Delta \dot{\theta}}{\Delta L} + C^{ba} \Delta Q \frac{\dot{\theta}}{\Delta L}
+```
+
+We can then use the following expression for the angular displacement rates to express the curvature rates as a function of our state variables.
+
+```math
+\dot{\theta} = Q^{-1} C (\Omega - \omega)
+```

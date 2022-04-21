@@ -45,7 +45,7 @@ compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 ## pre-initialize system storage
-system = System(assembly, true)
+system = System(assembly)
 
 ## run an analysis for each prescribed bending moment
 states = Vector{AssemblyState{Float64}}(undef, length(M))
@@ -131,8 +131,9 @@ for i = 1:length(M)
     y = getindex.(deflection, 2)
     plot!(x/L, y/L, label="\$\\lambda\$=$(λ[i])", color=i)
 end
+#nb plot!()
 #!nb plot!(show=true)
-#md savefig("tipmoment-deflection.svg") #hide
+#md savefig("../assets/tipmoment-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
 #md nothing #hide

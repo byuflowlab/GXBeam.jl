@@ -1,6 +1,8 @@
 # generate examples
 import Literate
 
+is_ci = haskey(ENV, "GITHUB_ACTIONS")
+
 EXAMPLEDIR = joinpath(@__DIR__, "src", "literate")
 GENERATEDDIR = joinpath(@__DIR__, "src", "examples")
 mkpath(GENERATEDDIR)

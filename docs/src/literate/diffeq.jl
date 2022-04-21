@@ -12,22 +12,26 @@
 #md # ```
 #
 #-
+#
 #md # !!! tip
 #md #     This guide is also available as a Jupyter notebook:
 #md #     [`diffeq.ipynb`](@__NBVIEWER_ROOT_URL__/examples/diffeq.ipynb).
+#
 #-
 # 
-# ## Interface Functions
+#md # ## Interface Functions
+#md #
+#md # The following constructors are available for modeling the differential algebraic 
+#md # equations from GXBeam in DifferentialEquations.
+#md #
+#md # ```@docs
+#md # GXBeam.ODEFunction(system::System, assembly; kwargs...)
+#md # GXBeam.ODEProblem(system::System, assembly, tspan; kwargs...)
+#md # GXBeam.DAEFunction(system::System, assembly; kwargs...)
+#md # GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
+#md # ```
 #
-# The following constructors are available for modeling the differential algebraic 
-# equations from GXBeam in DifferentialEquations.
-#
-# ```@docs
-# GXBeam.ODEFunction(system::System, assembly; kwargs...)
-# GXBeam.ODEProblem(system::System, assembly, tspan; kwargs...)
-# GXBeam.DAEFunction(system::System, assembly; kwargs...)
-# GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
-# ```
+#-
 #
 # ## Example Usage
 #
@@ -94,7 +98,8 @@ end
 t = 0:0.001:2.0
 
 system, gxbeam_history, converged = time_domain_analysis(assembly, t;
-    prescribed_conditions = prescribed_conditions)
+    prescribed_conditions = prescribed_conditions,
+    structural_damping = false)
 
 #!jl nothing #hide
 
@@ -110,7 +115,9 @@ tspan = (0.0, 2.0)
 system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
 
 ## construct a DAEProblem
-prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
+prob = DAEProblem(system, assembly, tspan; 
+    prescribed_conditions = prescribed_conditions,
+    structural_damping = false)
 
 ## solve DAEProblem
 sol = solve(prob, DABDF2())
@@ -309,4 +316,4 @@ end
 
 write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, sol.t; sections = sections)
 
-# ![](../assets/dynamic-wind-turbine-simulation.gif)
+# ![](../assets/wind-turbine-blade-simulation.gif)

@@ -4,14 +4,18 @@
 Holds the state variables for a point
 
 # Fields:
- - `u`: Displacement variables for the point (in the global coordinate frame)
- - `theta`: Wiener-Milenkovic rotational displacement variables for the point
- - `F`: Externally applied forces on the point (in the global coordinate frame)
- - `M`: Externally applied moments on the point (in the global coordinate frame)
+ - `u`: Linear deflection
+ - `theta`: Angular deflection (Wiener-Milenkovic parameters)
+ - `V`: Linear velocity
+ - `Ω`: Angular velocity
+ - `F`: External forces
+ - `M`: External moments
 """
 struct PointState{TF}
     u::SVector{3, TF}
     theta::SVector{3, TF}
+    V::SVector{3, TF}
+    Omega::SVector{3, TF}
     F::SVector{3, TF}
     M::SVector{3, TF}
 end
@@ -22,21 +26,20 @@ end
 Holds the state variables for an element
 
 # Fields:
- - `u`: Displacement variables for the element (in the global coordinate frame)
- - theta: Wiener-Milenkovic rotational displacement variables for the element
-       (in the global coordinate frame)
- - `F`: Resultant forces for the element (in the deformed local coordinate frame)
- - `M`: Resultant moments for the element (in the deformed local coordinate frame)
- - `V`: Linear velocity of the element (in the deformed local coordinate frame)
- - `Omega`: Angular velocity of the element (in the deformed local coordinate frame)
+ - `u`: Linear deflection
+ - `theta`: Angular deflection
+ - `V`: Linear velocity
+ - `Omega`: Angular velocity
+ - `Fi`: Internal forces
+ - `Mi`: Internal moments
 """
 struct ElementState{TF}
     u::SVector{3, TF}
     theta::SVector{3, TF}
-    F::SVector{3, TF}
-    M::SVector{3, TF}
     V::SVector{3, TF}
     Omega::SVector{3, TF}
+    Fi::SVector{3, TF}
+    Mi::SVector{3, TF}
 end
 
 """
@@ -71,7 +74,7 @@ function AssemblyState(system, assembly, x = system.x;
 
     points = extract_point_states(system, assembly, x; prescribed_conditions)
 
-    elements = extract_element_states(system, x)
+    elements = extract_element_states(system, assembly, x; prescribed_conditions)
 
     return AssemblyState(points, elements)
 end
@@ -90,64 +93,23 @@ analysis.
 function extract_point_state(system, assembly, ipoint, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions :
-        prescribed_conditions(system.t)
+    @unpack force_scaling, dynamic_indices, t = system
 
-    force_scaling = system.force_scaling
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
-    icol_p = system.icol_point[ipoint]
-
-    if icol_p <= 0
-        # point variables are not state variables, solve for point variables
-
-        # find the first beam connected to the point, checking both sides
-        ielem = findfirst(x -> x == ipoint, assembly.start)
-        if !isnothing(ielem)
-            side = -1
-        else
-            ielem = findfirst(x -> x == ipoint, assembly.stop)
-            side = 1
-        end
-
-        elem = assembly.elements[ielem]
-
-        # get beam state variables
-        icol_b = system.icol_elem[ielem]
-        u_e = SVector(x[icol_b   ], x[icol_b+1 ], x[icol_b+2 ])
-        θ_b = SVector(x[icol_b+3 ], x[icol_b+4 ], x[icol_b+5 ])
-        F_e = SVector(x[icol_b+6 ], x[icol_b+7 ], x[icol_b+8 ]) .* force_scaling
-        M_e = SVector(x[icol_b+9 ], x[icol_b+10], x[icol_b+11]) .* force_scaling
-
-        # get beam element properties
-        ΔL_b = elem.L
-        Ct_b = get_C(θ_b)'
-        Cab_b = elem.Cab
-        γ_b = element_strain(elem, F_e, M_e)
-        κ_b = element_curvature(elem, F_e, M_e)
-
-        # solve for the displacements/rotations of the point
-        u = u_e + side*ΔL_b/2*(Ct_b*Cab_b*(e1 + γ_b) - Cab_b*e1)
-        theta = θ_b + side*ΔL_b/2*get_Qinv(θ_b)*Cab_b*κ_b
-        F = zero(u)
-        M = zero(u)
-    else
-        # point variables are state variables, extract point state variables
-        prescribed = haskey(pc, ipoint)
-        if prescribed
-            u, theta, F, M = point_variables(x, icol_p, pc[ipoint], force_scaling)
-        else
-            u, theta, F, M = point_variables(x, icol_p)
-        end
-    end
+    # extract point state variables
+    u, θ = point_displacement(x, ipoint, dynamic_indices.icol_point, pc)
+    V, Ω = point_velocities(x, ipoint, dynamic_indices.icol_point)
+    F, M = point_loads(x, ipoint, dynamic_indices.icol_point, force_scaling, pc)
 
     # convert rotation parameter to Wiener-Milenkovic parameters
-    scaling = rotation_parameter_scaling(theta)
-    theta *= scaling
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
 
     # promote all variables to the same type
-    u, theta, F, M = promote(u, theta, F, M)
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
 
-    return PointState(u, theta, F, M)
+    return PointState(u, θ, V, Ω, F, M)
 end
 
 """
@@ -184,54 +146,68 @@ function extract_point_states!(points, system, assembly, x = system.x;
 end
 
 """
-    extract_element_state(system, ielem, x = system.x)
+    extract_element_state(system, assembly, ielem, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
 Return the state variables corresponding to element `ielem` (see [`ElementState`](@ref))
 given the solution vector `x`.
 """
-function extract_element_state(system, ielem, x = system.x)
+function extract_element_state(system, assembly, ielem, x = system.x; 
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    force_scaling = system.force_scaling
+    # system variables
+    @unpack force_scaling, dynamic_indices, t = system
 
-    icol = system.icol_elem[ielem]
-    static = system.irow_elem[ielem] <= 0
-    u = SVector(x[icol], x[icol+1], x[icol+2])
-    theta = SVector(x[icol+3], x[icol+4], x[icol+5])
-    F = SVector(x[icol+6], x[icol+7], x[icol+8]) .* force_scaling
-    M = SVector(x[icol+9], x[icol+10], x[icol+11]) .* force_scaling
-    V = ifelse(static, zero(u), SVector(x[icol+12], x[icol+13], x[icol+14]))
-    Ω = ifelse(static, zero(u), SVector(x[icol+15], x[icol+16], x[icol+17]))
+    # current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    # linear and angular displacement
+    u1, θ1 = point_displacement(x, assembly.start[ielem], dynamic_indices.icol_point, pc)
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], dynamic_indices.icol_point, pc)
+    u = (u1 + u2)/2
+    θ = (θ1 + θ2)/2
+
+    # element state variables
+    F, M = element_loads(x, ielem, dynamic_indices.icol_elem, force_scaling)
+
+    # linear and angular velocity
+    V1, Ω1 = point_velocities(x, assembly.start[ielem], dynamic_indices.icol_point)
+    V2, Ω2 = point_velocities(x, assembly.stop[ielem], dynamic_indices.icol_point)
+    V = (V1 + V2)/2
+    Ω = (Ω1 + Ω2)/2
 
     # convert rotation parameter to Wiener-Milenkovic parameters
-    scaling = rotation_parameter_scaling(theta)
-    theta *= scaling
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
 
     # promote all variables to the same type
-    u, theta, F, M, V, Ω = promote(u, theta, F, M, V, Ω)
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
 
-    return ElementState(u, theta, F, M, V, Ω)
+    return ElementState(u, θ, V, Ω, F, M)
 end
 
 """
-    extract_element_states(system, x = system.x)
+    extract_element_states(system, assembly, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
 Return the state variables corresponding to each element (see [`ElementState`](@ref))
 given the solution vector `x`.
 """
-function extract_element_states(system, x = system.x)
+function extract_element_states(system, assembly, x = system.x; kwargs...)
     TF = promote_type(eltype(system), eltype(x))
-    elements = Vector{ElementState{TF}}(undef, length(system.icol_elem))
-    return extract_element_states!(elements, system, x)
+    elements = Vector{ElementState{TF}}(undef, length(assembly.elements))
+    return extract_element_states!(elements, system, assembly, x; kwargs...)
 end
 
 """
-    extract_element_states!(elements, system, x = system.x)
+    extract_element_states!(elements, system, assembly, x = system.x;
+        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
 Pre-allocated version of [`extract_element_states`](@ref)
 """
-function extract_element_states!(elements, system, x = system.x)
+function extract_element_states!(elements, system, assembly, x = system.x; kwargs...)
     for ielem = 1:length(elements)
-        elements[ielem] = extract_element_state(system, ielem, x)
+        elements[ielem] = extract_element_state(system, assembly, ielem, x; kwargs...)
     end
     return elements
 end
@@ -309,40 +285,6 @@ Pre-allocated version of [`deform_cross_section`](@ref)
 deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)
 
 """
-    cross_section_velocities(xyz, r, v, ω)
-
-Calculate the velocities of the points in `xyz` given the linear velocity `v`,
-and the angular velocity `ω` about point `r`.
-"""
-function cross_section_velocities(xyz, r, v, ω)
-    TF = promote_type(eltype(xyz), eltype(r), eltype(v), eltype(ω))
-    vxyz = similar(xyz, TF)
-    return cross_section_velocities!(vxyz, xyz, r, v, ω)
-end
-
-"""
-    cross_section_velocities!(vxyz, xyz, r, v, ω)
-
-Pre-allocated version of [`cross_section_velocities`](@ref)
-"""
-function cross_section_velocities!(vxyz, xyz, r, v, ω)
-    # reshape cross section points (if necessary)
-    rxyz = reshape(xyz, 3, :)
-    rvxyz = reshape(vxyz, 3, :)
-    # convert inputs to static arrays
-    r = SVector{3}(r)
-    v = SVector{3}(v)
-    ω = SVector{3}(ω)
-    # calculate velocities at each point
-    for ipt = 1:size(rxyz, 2)
-        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
-        rvxyz[:,ipt] .= v .+ cross(ω, p - r)
-    end
-    # return the result
-    return vxyz
-end
-
-"""
     write_vtk(name, assembly::Assembly; kwargs...)
     write_vtk(name, assembly::Assembly, state::AssemblyState; kwargs...)
     write_vtk(name, assembly::Assembly, history::Vector{<:AssemblyState}], dt;
@@ -358,7 +300,7 @@ If the solution time `history` is provided, the time step must also be provided
 
 # Keyword Arguments
  - `sections = nothing`: Cross section geometry corresponding to each point,
-    defined in a frame aligned with the global frame but centered around the
+    defined in a frame aligned with the body frame but centered around the
     corresponding point. Defined as an array with shape `(3, ncross, np)` where `ncross`
     is the number of points in each cross section and `np` is the number of points.
  - `scaling=1.0`: Parameter to scale the deflections (only valid if state is provided)
@@ -815,7 +757,6 @@ function write_vtk(name, assembly, state, λ, eigenstate;
     return nothing
 end
 
-
 """
     left_eigenvectors(system, λ, V)
     left_eigenvectors(K, M, λ, V)
@@ -932,7 +873,6 @@ function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
 
     return U
 end
-
 
 """
     correlate_eigenmodes(C)

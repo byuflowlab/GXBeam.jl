@@ -10,38 +10,36 @@ const RNG = MersenneTwister(1234)
 
 @testset "Math" begin
     
-    c = rand(RNG, 3)
-    cdot = rand(RNG, 3)
+    θ = 1e3*rand(RNG, 3)
+    Δθ = 1e3*rand(RNG, 3)
 
     # get_C_θ
-    C_θ1, C_θ2, C_θ3 = GXBeam.get_C_θ(c)
-    @test isapprox(C_θ1, ForwardDiff.derivative(c1 -> GXBeam.get_C([c1, c[2], c[3]]), c[1]))
-    @test isapprox(C_θ2, ForwardDiff.derivative(c2 -> GXBeam.get_C([c[1], c2, c[3]]), c[2]))
-    @test isapprox(C_θ3, ForwardDiff.derivative(c3 -> GXBeam.get_C([c[1], c[2], c3]), c[3]))
+    C_θ1, C_θ2, C_θ3 = GXBeam.get_C_θ(θ)
+    @test isapprox(C_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_C([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(C_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_C([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(C_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_C([θ[1], θ[2], θ3]), θ[3]))
 
-    # get_C_t_θ
-    Cdot_θ1, Cdot_θ2, Cdot_θ3 = GXBeam.get_C_t_θ(c, cdot)
-    @test isapprox(Cdot_θ1, ForwardDiff.derivative(c1 -> GXBeam.get_C_t([c1, c[2], c[3]], cdot), c[1]))
-    @test isapprox(Cdot_θ2, ForwardDiff.derivative(c2 -> GXBeam.get_C_t([c[1], c2, c[3]], cdot), c[2]))
-    @test isapprox(Cdot_θ3, ForwardDiff.derivative(c3 -> GXBeam.get_C_t([c[1], c[2], c3], cdot), c[3]))
-
-    # get_C_t_θdot
-    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = GXBeam.get_C_t_θdot(c)
-    @test isapprox(Cdot_θdot1, ForwardDiff.derivative(cdot1 -> GXBeam.get_C_t(c, [cdot1, cdot[2], cdot[3]]), cdot[1]))
-    @test isapprox(Cdot_θdot2, ForwardDiff.derivative(cdot2 -> GXBeam.get_C_t(c, [cdot[1], cdot2, cdot[3]]), cdot[2]))
-    @test isapprox(Cdot_θdot3, ForwardDiff.derivative(cdot3 -> GXBeam.get_C_t(c, [cdot[1], cdot[2], cdot3]), cdot[3]))
-    
     # get_Q_θ
-    Q_θ1, Q_θ2, Q_θ3 = GXBeam.get_Q_θ(c)
-    @test isapprox(Q_θ1, ForwardDiff.derivative(c1 -> GXBeam.get_Q([c1, c[2], c[3]]), c[1]))
-    @test isapprox(Q_θ2, ForwardDiff.derivative(c2 -> GXBeam.get_Q([c[1], c2, c[3]]), c[2]))
-    @test isapprox(Q_θ3, ForwardDiff.derivative(c3 -> GXBeam.get_Q([c[1], c[2], c3]), c[3]))
+    Q_θ1, Q_θ2, Q_θ3 = GXBeam.get_Q_θ(θ)
+    @test isapprox(Q_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_Q([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(Q_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_Q([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(Q_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_Q([θ[1], θ[2], θ3]), θ[3]))
 
     # get_Qinv_θ
-    Qinv_θ1, Qinv_θ2, Qinv_θ3 = GXBeam.get_Qinv_θ(c)
-    @test isapprox(Qinv_θ1, ForwardDiff.derivative(c1 -> GXBeam.get_Qinv([c1, c[2], c[3]]), c[1]))
-    @test isapprox(Qinv_θ2, ForwardDiff.derivative(c2 -> GXBeam.get_Qinv([c[1], c2, c[3]]), c[2]))
-    @test isapprox(Qinv_θ3, ForwardDiff.derivative(c3 -> GXBeam.get_Qinv([c[1], c[2], c3]), c[3]))
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = GXBeam.get_Qinv_θ(θ)
+    @test isapprox(Qinv_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_Qinv([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(Qinv_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_Qinv([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(Qinv_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_Qinv([θ[1], θ[2], θ3]), θ[3]))
+
+    # get_ΔQ
+    ΔQ = GXBeam.get_ΔQ(θ, Δθ)
+    @test isapprox(ΔQ, GXBeam.mul3(Q_θ1, Q_θ2, Q_θ3, Δθ))
+
+    # get_ΔQ_θ
+    ΔQ_θ1, ΔQ_θ2, ΔQ_θ3 = GXBeam.get_ΔQ_θ(θ, Δθ)
+    @test isapprox(ΔQ_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_ΔQ([θ1, θ[2], θ[3]], Δθ), θ[1]))
+    @test isapprox(ΔQ_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_ΔQ([θ[1], θ2, θ[3]], Δθ), θ[2]))
+    @test isapprox(ΔQ_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_ΔQ([θ[1], θ[2], θ3], Δθ), θ[3]))
 
 end
 
@@ -80,8 +78,10 @@ end
          -71.6871     0.0        0.0      0.0      0.0       46.418],
          nelem)
 
+    damping = fill(rand(6), nelem)
+
     # create assembly of interconnected nonlinear beams
-    assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
+    assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass, damping=damping)
 
     # prescribed conditions
     pcond = Dict(
@@ -95,102 +95,85 @@ end
     # point masses
     pmass = Dict(
         # point mass at the end of the beam
-        nelem => PointMass(Symmetric(rand(RNG,6,6)))
+        nelem+1 => PointMass(Symmetric(1e3*rand(RNG,6,6)))
     )
 
     # gravity vector
-    gvec = rand(RNG, 3)
+    gvec = 1e3*rand(RNG, 3)
 
-    # --- Static Analysis --- #
-    static_system = System(assembly, true)
+    system = System(assembly)
 
-    force_scaling = static_system.force_scaling
-    irow_point = static_system.irow_point
-    irow_elem = static_system.irow_elem
-    irow_elem1 = static_system.irow_elem1
-    irow_elem2 = static_system.irow_elem2
-    icol_point = static_system.icol_point
-    icol_elem = static_system.icol_elem
-
-    x = rand(RNG, length(static_system.x))
+    force_scaling = system.force_scaling
+    indices = system.static_indices
+    x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
+    xs = GXBeam.get_static_state(system, x)
+    Js = similar(xs, length(xs), length(xs))
+   
+    # --- Static Analysis --- #
 
-    f = (x) -> GXBeam.static_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
-        force_scaling, irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
+    f = (x) -> GXBeam.static_system_residual!(similar(x), x, indices, force_scaling, 
+        assembly, pcond, dload, pmass, gvec)
 
-    GXBeam.static_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem1, irow_elem2, icol_point, icol_elem)
+    GXBeam.static_system_jacobian!(Js, xs, indices, force_scaling,
+        assembly, pcond, dload, pmass, gvec)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+    @test all(isapprox.(Js, ForwardDiff.jacobian(f, xs), atol=1e-10))
 
     # --- Steady State Analysis --- #
 
-    system = System(assembly, false)
+    indices = system.dynamic_indices
 
-    force_scaling = system.force_scaling
-    irow_point = system.irow_point
-    irow_elem = system.irow_elem
-    irow_elem1 = system.irow_elem1
-    irow_elem2 = system.irow_elem2
-    icol_point = system.icol_point
-    icol_elem = system.icol_elem
+    structural_damping = true
+
     x0 = rand(RNG, 3)
     v0 = rand(RNG, 3)
     ω0 = rand(RNG, 3)
     a0 = rand(RNG, 3)
     α0 = rand(RNG, 3)
 
-    x = rand(RNG, length(system.x))
-    J = similar(x, length(x), length(x))
+    f = (x) -> GXBeam.steady_state_system_residual!(similar(x), x, indices, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    f = (x) -> GXBeam.steady_state_system_residual!(similar(x), x, assembly, pcond, dload, 
-        pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0)
-
-    GXBeam.steady_state_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, a0, α0)
+    GXBeam.steady_state_system_jacobian!(J, x, indices, force_scaling, structural_damping,
+        assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
     # --- Initial Condition Analysis --- #
 
-    u0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
-    theta0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
-    udot0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
-    thetadot0 = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    u0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    theta0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    udot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    thetadot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
 
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+    f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, indices, force_scaling, structural_damping, 
+        assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
-    GXBeam.initial_condition_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+    GXBeam.initial_condition_system_jacobian!(J, x, indices, force_scaling, structural_damping, 
+        assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
     # --- Newmark Scheme Time-Marching Analysis --- #
 
-    udot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
-    θdot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
-    Vdot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
-    Ωdot = [rand(RNG, 3) for ielem = 1:length(assembly.elements)]
+    udot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
+    θdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
+    Vdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
+    Ωdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
     dt = rand(RNG)
 
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, assembly, pcond, dload, pmass, gvec,
-        force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
+    f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, indices, force_scaling, structural_damping, 
+    assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
 
-    GXBeam.newmark_system_jacobian!(J, x, assembly, pcond, dload, pmass, gvec, force_scaling,
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point,
-        icol_elem, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
+    GXBeam.newmark_system_jacobian!(J, x, indices, force_scaling, structural_damping, 
+    assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0, udot, θdot, Vdot, Ωdot, dt)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
@@ -201,24 +184,20 @@ end
     J = similar(x, length(x), length(x))
     M = similar(x, length(x), length(x))
 
-    fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), dx, x, assembly, pcond, dload, 
-        pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0)
+    fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), dx, x, indices, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), dx, x, assembly, pcond, dload, 
-        pmass, gvec, force_scaling, irow_point, irow_elem, irow_elem1, irow_elem2,
-        icol_point, icol_elem, x0, v0, ω0, a0, α0)
+    fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), dx, x, indices, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    GXBeam.dynamic_system_jacobian!(J, dx, x, assembly, pcond, dload, pmass, gvec, force_scaling, 
-        irow_point, irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem,
-        x0, v0, ω0, a0, α0)
+    GXBeam.dynamic_system_jacobian!(J, dx, x, indices, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    GXBeam.system_mass_matrix!(M, x, assembly, pmass, force_scaling, irow_point,
-        irow_elem, irow_elem1, irow_elem2, icol_point, icol_elem)
+    GXBeam.system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(fx, x), atol=1e-10))
 
-    @test all(isapprox.(M, ForwardDiff.jacobian(fdx, x), atol=1e-10))
+    @test all(isapprox.(M, ForwardDiff.jacobian(fdx, dx), atol=1e-10))
 
 end
 
@@ -309,7 +288,7 @@ end
         xi = assembly.elements[i].x[1]
         @test isapprox(state.elements[i].u[3], analytical_deflection(xi), atol=1e-9)
         @test isapprox(state.elements[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-9)
-        @test isapprox(state.elements[i].M[2], -analytical_M(xi), atol=2)
+        @test isapprox(state.elements[i].Mi[2], -analytical_M(xi), atol=2)
     end
 
     # test point properties
@@ -375,7 +354,7 @@ end
         xi = assembly.elements[i].x[1]
         @test isapprox(state.elements[i].u[3], analytical_deflection(xi), atol=1e-8)
         @test isapprox(state.elements[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-7)
-        @test isapprox(state.elements[i].M[2], -analytical_M(xi), atol=1)
+        @test isapprox(state.elements[i].Mi[2], -analytical_M(xi), atol=1)
     end
 
     # test point properties
@@ -414,7 +393,7 @@ end
     assembly = Assembly(points, start, stop, compliance=compliance)
 
     # pre-initialize system storage
-    system = System(assembly, true)
+    system = System(assembly)
 
     # run an analysis for each prescribed tip load
     states = Vector{AssemblyState{Float64}}(undef, length(P))
@@ -491,7 +470,7 @@ end
     assembly = Assembly(points, start, stop, compliance=compliance)
 
     # pre-initialize system storage
-    system = System(assembly, true)
+    system = System(assembly)
 
     # run an analysis for each prescribed bending moment
     states = Vector{AssemblyState{Float64}}(undef, length(M))
@@ -740,7 +719,7 @@ end
         assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
 
         # create system
-        system = System(assembly, false)
+        system = System(assembly)
 
         for j = 1:length(rpm)
             # global frame rotation
@@ -982,7 +961,7 @@ end
     Fz = range(0, 70e3, length=141)
 
     # pre-allocate memory to reduce run-time
-    system = System(assembly, true)
+    system = System(assembly)
 
     linear_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
     for i = 1:length(Fz)
@@ -1188,7 +1167,7 @@ end
     end
 
     # define simulation time
-    tspan = (0.0, 2.0)
+    tspan = (0.0, 0.1)
 
     # run initial condition analysis to get consistent set of initial conditions
     system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
@@ -1199,8 +1178,8 @@ end
     # solve ODEProblem
     sol = solve(prob, Rodas4())
 
-    # test that the solution worked
-    @test sol.t[end] == 2.0
+    # test that solution worked (at least for a little bit)
+    @test sol.t[end] == 0.1
 
     # construct DAEProblem
     prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
@@ -1209,7 +1188,7 @@ end
     sol = solve(prob, DABDF2())
 
     # test that solution worked
-    @test sol.t[end] == 2.0
+    @test sol.t[end] == 0.1
 end
 
 @testset "ForwardDiff" begin
@@ -1370,14 +1349,14 @@ end
 
     # combine elements and points into one array
     nelem = nelem_b1 + nelem_b12 + nelem_b2
-    points = vcat(xp_b1, xp_b2[2:end]) # don't duplicate points
+    points = vcat(xp_b1, xp_b2)
     lengths = vcat(lengths_b1, lengths_b12, lengths_b2)
     midpoints = vcat(xm_b1, xm_b12, xm_b2)
     Cab = vcat(Cab_b1, Cab_b12, Cab_b2)
 
     # specify connectivity
-    start = vcat(1:nelem_b1+1, nelem_b1+1:nelem_b1+nelem_b2)
-    stop = vcat(2:nelem_b1+1, nelem_b1+1:nelem_b1+nelem_b2+1)
+    start = 1:nelem
+    stop = 2:nelem+1
 
     # cross section
     w = 1 # inch
@@ -1430,106 +1409,118 @@ end
     @test converged
 end
 
-@testset "Element Gravitational Loads" begin
-
-    # use arbitrary length
-    ΔL = rand(RNG)
-
-    # use random rotation matrix  
-    CtCab = GXBeam.get_C(rand(RNG, 3))
-
-    # create random mass matrix
-    μ = rand(RNG)
-    xm2 = rand(RNG)
-    xm3 = rand(RNG)
-    i22 = rand(RNG)
-    i33 = rand(RNG)
-    i23 = rand(RNG)
-
-    mass = [
-        μ 0 0 0 μ*xm3 -μ*xm2; 
-        0 μ 0 -μ*xm3 0 0; 
-        0 0 μ μ*xm2 0 0; 
-        0 -μ*xm3 μ*xm2 i22+i33 0 0; 
-        μ*xm3 0 0 0 i22 0; 
-        -μ*xm2 0 0 0 0 i33
-        ]
-
-    # use random gravity vector
-    gvec = rand(RNG, 3)
-
-    # calculate integrated force and moment per unit length
-    f = μ*gvec
-    m = cross(CtCab*[0, xm2, xm3], f)
-    f1 = f2 = ΔL*f/2
-    m1 = m2 = ΔL*m/2
-
-    # test against gravitational load function results
-    mass11 = ΔL*mass[1:3, 1:3]
-    mass12 = ΔL*mass[1:3, 4:6]
-    mass21 = ΔL*mass[4:6, 1:3]
-    mass22 = ΔL*mass[4:6, 4:6]
-    a = -gvec
-    α = zero(a)
-    f1t, f2t, m1t, m2t = GXBeam.acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
-
-    @test isapprox(f1, f1t)
-    @test isapprox(f2, f2t)
-    @test isapprox(m1, m1t)
-    @test isapprox(m2, m2t)
-
-end
-
 @testset "Point Masses" begin
 
-    nodes = [[0,i,0] for i in 0:.1:1]
+    nodes = [[0,i,0] for i in 0:0.1:1]
     nelem = length(nodes)-1
     start = 1:nelem
     stop =  2:(nelem+1)
 
-    frames = fill(wiener_milenkovic(rand(RNG, 3)), nelem)
-    compliance = fill(Symmetric(rand(RNG, 6,6)), nelem)
-    mass = fill(Symmetric(rand(RNG, 6,6)), nelem)
-       
-    prescribed_conditions = Dict(1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0));
+    stiff = [
+        1.0e6  0.0    0.0    -0.5   -1.0  -50000.0
+        0.0    3.0e6  0.0     0.0    0.0       0.0
+        0.0    0.0    3.0e6   0.0    0.0       0.0
+       -0.5    0.0    0.0     7.0    0.1      -0.02
+       -1.0    0.0    0.0     0.1    5.0       0.1
+   -50000.0    0.0    0.0    -0.02   0.1    3000.0
+    ]
 
-    # assembly of mass-containing beam elements
+    mass = [
+        0.02    0.0      0.0     0.0      -5.0e-7  -1.0e-7
+        0.0     0.02     0.0     5.0e-7    0.0      0.0001
+        0.0     0.0      0.02    1.0e-7   -0.0001   0.0
+        0.0     5.0e-7   1.0e-7  1.0e-5    1.0e-8   2.0e-10
+       -5.0e-7  0.0     -0.0001  1.0e-8    6.0e-7   9.0e-9
+       -1.0e-7  0.0001   0.0     2.0e-10   9.0e-9   1.0e-5
+    ]
 
-    assembly = GXBeam.Assembly(nodes, start, stop;
-        compliance=compliance, 
-        frames=frames, 
-        mass=mass);
+    transformation = [0 -1 0; 1 0 0; 0 0 1]
+
+    assembly = GXBeam.Assembly(nodes, start, stop; 
+        frames = fill(transformation, nelem),
+        stiffness = fill(stiff, nelem));
+
+    pmass = GXBeam.transform_properties(mass, transformation)
+
+    point_masses = Dict(1 => PointMass(pmass./2))
+    for i = 2:nelem
+        point_masses[i] = PointMass(pmass)
+    end
+    point_masses[nelem+1] = PointMass(pmass./2)
+
+    prescribed_conditions = Dict(1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0))
     
     system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly;
         prescribed_conditions = prescribed_conditions, 
+        point_masses = point_masses,
         nev = 14);
 
     imagλ = imag(λ)
     isort = sortperm(abs.(imagλ))
     freq = imagλ[isort[1:2:10]]/(2*pi)
 
-    # assembly of massless beam elements with point masses
-    
-    assembly = GXBeam.Assembly(nodes, start, stop;
-        compliance=compliance, 
-        frames=frames);
-   
-    point_masses = Dict{Int, PointMass{Float64}}()
-    for i = 1:nelem
-        T = [frames[i] zeros(3,3); zeros(3,3) frames[i]]
-        point_masses[i] = PointMass(T * mass[i] * T' .* assembly.elements[i].L)
-    end
+    # frequencies
+    frequencies = [
+        2.8182004347800804, 
+        17.66611982731975, 
+        27.978670985969078, 
+        49.93431945680836, 
+        66.07594270678581]
 
-    system, λ, V, converged = GXBeam.eigenvalue_analysis(assembly; 
-        prescribed_conditions = prescribed_conditions, 
-        point_masses = point_masses,
-        nev = 14);
-   
-    imagλ = imag(λ)
-    isort = sortperm(abs.(imagλ))
-    pfreq = imagλ[isort[1:2:10]]/(2*pi)
-
-    # test the two equivalent systems
-    @test isapprox(freq, pfreq)
+    @test isapprox(freq, frequencies)
 
 end
+
+@testset "Massless Element Time Domain Initialization" begin
+
+    comp = Symmetric([
+        6.00001e-6  0.0         0.0          7.25923e-7  -8.1452e-7    0.0001;
+        0.0         3.33333e-7  0.0          0.0          0.0          0.0;
+        0.0         0.0         3.33333e-7   0.0          0.0          0.0;
+        7.25923e-7  0.0         0.0          0.142898    -0.00285808   1.31466e-5;
+       -8.1452e-7   0.0         0.0         -0.00285808   0.200057    -2.0263e-5;
+        0.0001      0.0         0.0          1.31466e-5  -2.0263e-5    0.002;
+        ])
+    
+    mass = Symmetric([
+        0.02    0.0      0.0     0.0      -5.0e-7  -1.0e-7;
+        0.0     0.02     0.0     5.0e-7    0.0      0.0001;
+        0.0     0.0      0.02    1.0e-7   -0.0001   0.0;
+        0.0     5.0e-7   1.0e-7  1.0e-5    1.0e-8   2.0e-10;
+       -5.0e-7  0.0     -0.0001  1.0e-8    6.0e-7   9.0e-9;
+       -1.0e-7  0.0001   0.0     2.0e-10   9.0e-9   1.0e-5;
+        ])
+    
+    nodes = [[0,i,0] for i in 0:.1:1]
+    
+    nElements = length(nodes)-1
+    start = 1:nElements
+    stop =  2:nElements+1
+    transformation = [[0 -1 0; 1 0 0; 0 0 1] for _ in 1:nElements];
+    
+    compliance = [comp for i in 1:nElements]
+    
+    pointmass = Dict(2 => PointMass(GXBeam.transform_properties(mass, transformation[2]')))
+    for i in 4:2:nElements
+        pointmass[i] = PointMass(GXBeam.transform_properties(mass, transformation[i]'))
+    end
+    pointmass[nElements] = PointMass(GXBeam.transform_properties(mass, transformation[nElements]')./2) # last lumped mass is half of the others, as it represents the last half of an element
+    
+    assembly = GXBeam.Assembly(nodes, start, stop, 
+        compliance=compliance, 
+        frames=transformation);
+    
+    prescribed_conditions = Dict(
+        1 => GXBeam.PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        length(nodes) => GXBeam.PrescribedConditions(Fz=30, My=-0.2))
+    
+    t0 = 0.0
+    
+    system, converged = initial_condition_analysis(assembly, t0;
+                                                   prescribed_conditions = prescribed_conditions,
+                                                   point_masses = pointmass);
+    
+    @test converged
+
+end
+
