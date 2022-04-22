@@ -12,10 +12,10 @@ Author: Taylor McDonnell
 **GXBeam** is a pure Julia implementation of Geometrically Exact Beam Theory, originally based on the open source code [GEBT](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2).
 
 As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a joined wing subjected to a simulated gust, scaled up in order to visualize the deflections:
-![](docs/src/assets/dynamic-joined-wing.gif)
+![](docs/src/assets/dynamic-joined-wing-simulation.gif)
 
 And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip load.
-![](docs/src/assets/dynamic-wind-turbine.gif)
+![](docs/src/assets/wind-turbine-blade-simulation.gif)
 
 ## Package Features
  - Performs multiple types of analyses including:
