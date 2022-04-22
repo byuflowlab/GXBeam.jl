@@ -76,6 +76,10 @@ This package relies on the results of linear cross-sectional analyses.  Most not
 
 [BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html): Open source geometrically exact beam theory code developed in Fortran by NREL as part of the OpenFAST project.  This code was also developed based on [GEBT](https://cdmhub.org/resources/367), but uses Legendre spectral finite elements.  This allows for exponential rather than algebraic convergence when the solution is smooth.  This makes this code a good candidate for use when analyzing beams with smoothly varying properties.  Unfortunately, this code is limited to analyzing a single beam, rather than an assembly of beams, which limits its applicability.
 
+## Contributing
+
+Contributions are welcome and encouraged.  If at any point you experience issues or have suggestions related to this package, create a new Github issue so we can discuss it.  If you're willing to help solve an issue yourself, we encourage you to create a fork of this repository and submit a pull request with the requested change.  Pull requests should generally also add a unit test in `test/runtests.jl` to ensure that issues do not reoccur along with future changes.
+
 ## References
 <a id="1">[1]</a>
 Yu, W., & Blair, M. (2012).
