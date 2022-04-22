@@ -733,6 +733,30 @@ Populate the system residual vector `resid` for a general dynamic analysis.
 end
 
 """
+    expanded_system_residual!(resid, x, indices, force_scaling, structural_damping, 
+        assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
+        x0, v0, ω0, a0, α0)
+
+Populate the system residual vector `resid` for a constant mass matrix system.
+"""
+@inline function expanded_system_residual!(resid, x, indices, force_scaling, structural_damping, 
+    assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    for ipoint = 1:length(assembly.points)
+        expanded_point_residual!(resid, x, indices, force_scaling, assembly, ipoint, 
+            prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    end
+    
+    for ielem = 1:length(assembly.elements)
+        expanded_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            x0, v0, ω0, a0, α0)
+    end
+    
+    return resid
+end
+
+"""
     static_system_jacobian!(jacob, x, indices, force_scaling, 
         assembly, prescribed_conditions, distributed_loads, point_masses, gravity)
 

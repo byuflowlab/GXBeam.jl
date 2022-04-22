@@ -153,6 +153,161 @@ end
 end
 
 """
+    expanded_point_loads(x, ipoint, icol, force_scaling, prescribed_conditions)
+
+Extract the loads `CF` and `CM` of point `ipoint` from the state variable vector or 
+prescribed conditions for a constant mass matrix system.
+"""
+@inline function expanded_point_loads(x, ipoint, icol, force_scaling, prescribed_conditions)
+
+    if haskey(prescribed_conditions, ipoint)
+        F, M = expanded_point_loads(x, icol[ipoint], force_scaling, prescribed_conditions[ipoint])
+    else
+        F, M = expanded_point_loads(x, icol[ipoint], force_scaling)
+    end
+
+    return F, M
+end
+
+@inline function expanded_point_loads(x, icol, force_scaling, prescribed_conditions)
+
+    # unpack prescribed conditions for the node
+    @unpack value, follower, isforce = prescribed_conditions
+
+    # displacements
+    u, θ = point_displacement(x, icol, prescribed_conditions)
+
+    # transformation matrix
+    C = get_C(θ)
+
+    # calculate prescribed external forces
+    CF = zero(u)
+    for i = 1:3
+        if isforce[i]
+            # add dead force
+            CF += SVector(C[1,i], C[2,i], C[3,i])*value[i]
+            # add follower force
+            CF += SVector(I3[1,i], I3[2,i], I3[3,i])*follower[i]
+        end
+    end
+
+    # overwrite prescribed external forces if linear displacements are prescribed instead
+    CF = SVector(ifelse(isforce[1], CF[1], x[icol  ]*force_scaling),
+                 ifelse(isforce[2], CF[2], x[icol+1]*force_scaling),
+                 ifelse(isforce[3], CF[3], x[icol+2]*force_scaling))
+
+    # calculate prescribed external moments
+    CM = zero(θ)
+    for i = 4:6
+        if isforce[i]
+            # add dead moment
+            CM += SVector(C[1,i-3], C[2,i-3], C[3,i-3])*value[i]
+            # add follower moment
+            CM += SVector(I3[1,i-3], I3[2,i-3], I3[3,i-3])*follower[i]
+        end
+    end
+
+    # overwrite prescribed external moments if angular displacements are prescribed instead
+    CM = SVector(ifelse(isforce[4], CM[1], x[icol+3]*force_scaling),
+                 ifelse(isforce[5], CM[2], x[icol+4]*force_scaling),
+                 ifelse(isforce[6], CM[3], x[icol+5]*force_scaling))
+
+    return CF, CM
+end
+
+@inline function expanded_point_loads(x, icol, force_scaling)
+
+    CF = @SVector zeros(eltype(x), 3)
+    CM = @SVector zeros(eltype(x), 3)
+
+    return CF, CM
+end
+
+"""
+    expanded_point_load_jacobians(x, ipoint, icol, force_scaling, prescribed_conditions)
+
+Calculate the load jacobians `CF_θ`, `CF_CF`, `CM_θ`, and `CM_CM` of point `ipoint` for a 
+constant mass matrix system.
+"""
+@inline function expanded_point_load_jacobians(x, ipoint, icol, force_scaling, prescribed_conditions)
+
+    if haskey(prescribed_conditions, ipoint)
+        F_θ, F_F, M_θ, M_M = expanded_point_load_jacobians(x, icol[ipoint], force_scaling, prescribed_conditions[ipoint])
+    else
+        F_θ, F_F, M_θ, M_M = expanded_point_load_jacobians(x, icol[ipoint], force_scaling)
+    end
+
+    return F_θ, F_F, M_θ, M_M
+end
+
+@inline function expanded_point_load_jacobians(x, icol, force_scaling, prescribed_conditions)
+
+    @unpack value, follower, isforce = prescribed_conditions
+
+    u, θ = point_displacement(x, icol, prescribed_conditions)
+
+    CF_CF = hcat(ifelse(isforce[1], zero(e1), e1),
+                 ifelse(isforce[2], zero(e2), e2),
+                 ifelse(isforce[3], zero(e3), e3))
+
+    CM_CM = hcat(ifelse(isforce[4], zero(e1), e1),
+                 ifelse(isforce[5], zero(e2), e2),
+                 ifelse(isforce[6], zero(e3), e3))
+
+    C = get_C(θ)
+    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)           
+
+    # solve for the jacobian wrt theta of the follower forces
+    CFp_θ = @SMatrix zeros(eltype(x), 3, 3)
+    for i = 1:3
+        if isforce[i]
+            rot_θ = @SMatrix [
+                C_θ1[1,i] C_θ2[1,i] C_θ3[1,i];
+                C_θ1[2,i] C_θ2[2,i] C_θ3[2,i];
+                C_θ1[3,i] C_θ2[3,i] C_θ3[3,i]
+                ]
+            CFp_θ += rot_θ*value[i]
+        end
+    end
+
+    # solve for the jacobian wrt theta of the follower moments
+    CMp_θ = @SMatrix zeros(eltype(x), 3, 3)
+    for i = 1:3
+        if isforce[i+3]
+            rot_θ = @SMatrix [
+                C_θ1[1,i] C_θ2[1,i] C_θ3[1,i];
+                C_θ1[2,i] C_θ2[2,i] C_θ3[2,i];
+                C_θ1[3,i] C_θ2[3,i] C_θ3[3,i]
+                ]
+            CMp_θ += rot_θ*value[i+3]
+        end
+    end
+
+    # if displacement is specified, corresponding component of follower jacobian is zero
+    CF1_θ = ifelse(isforce[1], SVector(CFp_θ[1,1], CFp_θ[1,2], CFp_θ[1,3]), (@SVector zeros(3)))
+    CF2_θ = ifelse(isforce[2], SVector(CFp_θ[2,1], CFp_θ[2,2], CFp_θ[2,3]), (@SVector zeros(3)))
+    CF3_θ = ifelse(isforce[3], SVector(CFp_θ[3,1], CFp_θ[3,2], CFp_θ[3,3]), (@SVector zeros(3)))
+    CF_θ = vcat(CF1_θ', CF2_θ', CF3_θ')
+
+    CM1_θ = ifelse(isforce[4], SVector(CMp_θ[1,1], CMp_θ[1,2], CMp_θ[1,3]), (@SVector zeros(3)))
+    CM2_θ = ifelse(isforce[5], SVector(CMp_θ[2,1], CMp_θ[2,2], CMp_θ[2,3]), (@SVector zeros(3)))
+    CM3_θ = ifelse(isforce[6], SVector(CMp_θ[3,1], CMp_θ[3,2], CMp_θ[3,3]), (@SVector zeros(3)))
+    CM_θ = vcat(CM1_θ', CM2_θ', CM3_θ')
+
+    return CF_θ, CF_CF, CM_θ, CM_CM
+end
+
+@inline function expanded_point_load_jacobians(x, icol, force_scaling)
+
+    CF_θ = @SMatrix zeros(eltype(x), 3, 3)
+    CF_CF = @SMatrix zeros(eltype(x), 3, 3)
+    CM_θ = @SMatrix zeros(eltype(x), 3, 3)
+    CM_CM = @SMatrix zeros(eltype(x), 3, 3)
+
+    return CF_θ, CF_CF, CM_θ, CM_CM
+end
+
+"""
     point_displacement(x, ipoint, icol_point, prescribed_conditions)
 
 Extract the displacements `u` and `θ` of point `ipoint` from the state variable vector or 
@@ -527,7 +682,8 @@ end
     dynamic_point_properties(dx, x, indices, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-Calculate/extract the point properties needed to construct the residual for a dynamic analysis
+Calculate/extract the point properties needed to construct the residual for a dynamic 
+analysis
 """
 @inline function dynamic_point_properties(dx, x, indices, force_scaling, assembly, ipoint,  
     prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
@@ -555,6 +711,57 @@ Calculate/extract the point properties needed to construct the residual for a dy
         Cdot'*mass21*C*V + Cdot'*mass22*C*Ω
 
     return (; properties..., udot, θdot, Cdot, Vdot, Ωdot, Pdot, Hdot) 
+end
+
+"""
+    expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
+        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+Calculate/extract the point properties needed to construct the residual for a constant 
+mass matrix system.
+"""
+@inline function expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
+    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    # mass matrix
+    mass = haskey(point_masses, ipoint) ? point_masses[ipoint].mass : @SMatrix zeros(6,6)
+    
+    # mass submatrices
+    mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
+    mass12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
+    mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
+    mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
+
+    # linear and angular displacement
+    u, θ = point_displacement(x, ipoint, indices.icol_point, prescribed_conditions)
+
+    # rotation parameter matrices
+    C = get_C(θ)
+    Qinv = get_Qinv(θ)
+
+    # linear and angular velocity
+    CV, CΩ = expanded_point_velocities(x, ipoint, indices.icol_point)
+
+    # linear and angular momentum
+    CP = mass11*CV + mass12*CΩ
+    CH = mass21*CV + mass22*CΩ
+
+    # forces and moments
+    CF, CM = point_loads(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
+
+    # distance from the rotation center
+    Δx = assembly.points[ipoint] - x0
+
+    # undeformed linear and angular velocity
+    v = v0 + cross(ω0, Δx)
+    ω = ω0
+
+    # linear and angular acceleration
+    a += a0 + cross(α0, Δx) + cross(α0, u) - gravity
+    α += α0
+
+    return (; properties..., C, Qinv, mass11, mass12, mass21, mass22, u, θ, CV, CΩ, CP, CH, 
+        CF, CM, v, ω, a, α) 
 end
 
 """
@@ -587,6 +794,21 @@ Calculate the velocity residuals `rV` and `rΩ` for a point for a dynamic analys
     
     rV -= udot
     rΩ -= θdot
+
+    return (; rV, rΩ)
+end
+
+"""
+    expanded_point_velocity_residuals(properties)
+
+Calculate the velocity residuals `rV` and `rΩ` for a point for a steady state analysis.
+"""
+@inline function expanded_point_velocity_residuals(properties)
+
+    @unpack u, C, Qinv, CV, CΩ, v, ω = properties
+    
+    rV = C'*CV - v - cross(ω, u)
+    rΩ = Qinv*(CΩ - C*ω)
 
     return (; rV, rΩ)
 end
@@ -641,6 +863,30 @@ Calculate the net loads `F` and `M` applied at a point for a dynamic analysis.
     M -= Hdot
 
     return F, M
+end
+
+"""
+    expanded_point_resultants(properties)
+
+Calculate the net loads `CF` and `CM` applied at a point for a constant mass matrix system.
+"""
+@inline function expanded_point_resultants(properties)
+
+    @unpack C, mass11, mass12, mass21, mass22, CF, CM, CV, CΩ, CP, CH, ω, a, α = properties
+
+    # add loads due to linear and angular acceleration (including gravity)
+    CF -= mass11*C*a + mass12*C*α
+    CM -= mass21*C*a + mass22*C*α
+
+    # add loads due to linear and angular momentum
+    CF -= cross(C*ω, CP)
+    CM -= cross(C*ω, CH) + cross(CV, CP)
+
+    # add loads due to linear and angular momentum rates  
+    CF -= tilde(C'*CΩ - ω)*CP
+    CM -= tilde(C'*CΩ - ω)*CH
+
+    return CF, CM
 end
 
 """
@@ -781,6 +1027,33 @@ system residual vector.
 end
 
 """
+    expanded_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
+        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+Calculate and insert the residual entries corresponding to a point into the system residual 
+vector for a constant mass matrix system.
+"""
+@inline function expanded_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
+    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    irow = indices.irow_point[ipoint]
+
+    properties = expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
+        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    CF, CM = expanded_point_resultants(properties)
+
+    rV, rΩ = expanded_point_velocity_residuals(properties)
+
+    resid[irow:irow+2] .= -CF ./ force_scaling
+    resid[irow+3:irow+5] .= -CM ./ force_scaling
+    resid[irow+6:irow+8] .= rV
+    resid[irow+9:irow+11] .= rΩ
+
+    return resid
+end
+
+"""
     static_point_jacobian_properties(properties, x, indices, 
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity)
 
@@ -860,7 +1133,6 @@ corresponding to a point for a Newmark scheme time marching analysis
     Vdot_Vdot, Ωdot_Ωdot = point_displacement_jacobians(ipoint, prescribed_conditions)
 
     # linear and angular momentum
-
     P_V = C'*mass11*C
     P_Ω = C'*mass12*C
 
@@ -1025,6 +1297,41 @@ corresponding to a point for a dynamic analysis
 end
 
 """
+    expanded_point_jacobian_properties(properties, x, indices, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+Calculate/extract the point properties needed to calculate the jacobian entries 
+corresponding to a point for a constant mass matrix system
+"""
+@inline function expanded_point_jacobian_properties(properties, x, indices, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    @unpack C, mass11, mass12, mass21, mass22, θ, CV, CΩ, C_θ1, C_θ2, C_θ3 = properties
+
+    # forces and moments
+    CF_θ, CF_CF, CM_θ, CM_CM = point_load_jacobians(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
+
+    # linear and angular displacement
+    u_u, θ_θ = point_displacement_jacobians(ipoint, prescribed_conditions)
+
+    # rotation parameter matrices
+    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_θ(θ)
+
+    # linear and angular momentum
+    CP_CV = mass11
+    CP_CΩ = mass12
+    CH_CV = mass21
+    CH_CΩ = mass22
+
+    # linear and angular acceleration
+    a_u = tilde(α0)
+
+    return (; C_θ1, C_θ2, C_θ3, u_u, θ_θ, CF_θ, CF_CF, CM_θ, CM_CM, 
+        Qinv_θ1, Qinv_θ2, Qinv_θ3, CP_θ, CP_CV, CP_CΩ, CH_θ, CH_CV, CH_CΩ, a_u) 
+end
+
+"""
     mass_matrix_point_jacobian_properties(x, indices, force_scaling, 
         assembly, ipoint, prescribed_conditions, point_masses)
 
@@ -1059,6 +1366,37 @@ corresponding to a point
     Hdot_Ωdot = C'*mass22*C
 
     return (; udot_udot, θdot_θdot, Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot)
+end
+
+"""
+    expanded_mass_matrix_point_jacobian_properties(x, indices, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses)
+
+Calculate/extract the point properties needed to calculate the mass matrix jacobian entries 
+corresponding to a point for a constant mass matrix system
+"""
+@inline function expanded_mass_matrix_point_jacobian_properties(x, indices, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses)
+
+    # mass matrix
+    mass = haskey(point_masses, ipoint) ? point_masses[ipoint].mass : @SMatrix zeros(6,6)
+    
+    # mass submatrices
+    mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
+    mass12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
+    mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
+    mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
+
+    # linear and angular displacement rates (in the body frame)
+    udot_udot, θdot_θdot = point_displacement_jacobians(ipoint, prescribed_conditions)
+
+    # linear and angular momentum rates
+    CPdot_CVdot = mass11
+    CPdot_CΩdot = mass12
+    CHdot_CVdot = mass21
+    CHdot_CΩdot = mass22
+
+    return (; udot_udot, θdot_θdot, CPdot_CVdot, CPdot_CΩdot, CHdot_CVdot, CHdot_CΩdot)
 end
 
 """
@@ -1192,6 +1530,47 @@ analysis.
 end
 
 """
+    expanded_point_resultant_jacobians(properties)
+
+Calculate the jacobians for the net loads `F` and `M` applied at a point for a constant
+mass matrix system
+"""
+@inline function expanded_point_resultant_jacobians(properties)
+
+    @unpack C, mass11, mass12, mass21, mass22, CV, CΩ, CP, CH, ω, a, α, 
+        C_θ1, C_θ2, C_θ3, u_u, θ_θ, CP_θ, CP_CV, CP_CΩ, CH_θ, CH_CV, CH_CΩ, a_u = properties
+
+    @unpack CF_θ, CM_θ, CF_CF, CM_CM = properties
+
+    # add loads due to linear and angular acceleration (including gravity)
+    CF_u = -mass11*C*a_u*u_u
+    CM_u = -mass21*C*a_u*u_u
+
+    CF_θ -= (mass11*mul3(C_θ1, C_θ2, C_θ3, a) + mass12*mul3(C_θ1, C_θ2, C_θ3, α))*θ_θ
+    CM_θ -= (mass21*mul3(C_θ1, C_θ2, C_θ3, a) + mass22*mul3(C_θ1, C_θ2, C_θ3, α))*θ_θ
+
+    # add loads due to linear and angular momentum
+    CF_θ += tilde(CP)*mul3(C_θ1, C_θ2, C_θ3, ω)*θ_θ
+    CF_CV = -tilde(C*ω)*CP_CV
+    CF_CΩ = -tilde(C*ω)*CP_CΩ
+
+    CM_θ += tilde(CH)*mul3(C_θ1, C_θ2, C_θ3, ω)*θ_θ
+    CM_CV -= tilde(C*ω)*CH_CV + tilde(CV)*CP_CV - tilde(CP)
+    CM_CΩ -= tilde(C*ω)*CH_CΩ + tilde(CV)*CP_CΩ
+
+    # add loads due to linear and angular momentum rates  
+    CF_θ += tilde(CP)*mul3(C_θ1', C_θ2', C_θ3', CΩ)
+    CF_CV -= tilde(C'*CΩ - ω)*CP_CV
+    CF_CΩ -= tilde(C'*CΩ - ω)*CP_CΩ - tilde(CP)*C'
+
+    CM_θ += tilde(CH)*mul3(C_θ1', C_θ2', C_θ3', CΩ)
+    CM_CV -= tilde(C'*CΩ - ω)*CH_CV
+    CM_CΩ -= tilde(C'*CΩ - ω)*CH_CΩ - tilde(CH)*C'
+
+    (; CF_CF, CF_u, CF_θ, CF_CV, CF_CΩ, CM_CM, CM_u, CM_θ, CM_CV, CM_CΩ)
+end
+
+"""
     mass_matrix_point_resultant_jacobians(properties)
 
 Calculate the mass matrix jacobians for the net loads `F` and `M` applied at a point
@@ -1210,12 +1589,30 @@ Calculate the mass matrix jacobians for the net loads `F` and `M` applied at a p
 end
 
 """
-    steady_state_velocity_jacobians(properties)
+    expanded_mass_matrix_point_resultant_jacobians(properties)
+
+Calculate the mass matrix jacobians for the net loads `F` and `M` applied at a point
+"""
+@inline function expanded_mass_matrix_point_resultant_jacobians(properties)
+
+    @unpack CPdot_CVdot, CPdot_CΩdot, CHdot_CVdot, CHdot_CΩdot = properties
+
+    # add loads due to linear and angular momentum rates (and gravity)
+    CF_CVdot = -CPdot_CVdot
+    CF_CΩdot = -CPdot_CΩdot
+    CM_CVdot = -CHdot_CVdot
+    CM_CΩdot = -CHdot_CΩdot
+
+    return (; CF_CVdot, CF_CΩdot, CM_CVdot, CM_CΩdot) 
+end
+
+"""
+    steady_state_point_velocity_jacobians(properties)
 
 Calculate the jacobians of the velocity residuals `rV` and `rΩ` of a point for a steady 
 state analysis.
 """
-@inline function steady_state_velocity_jacobians(properties)
+@inline function steady_state_point_velocity_jacobians(properties)
 
     @unpack C, Qinv, Ω, ω, u_u, θ_θ, C_θ1, C_θ2, C_θ3, Qinv_θ1, Qinv_θ2, Qinv_θ3 = properties
     
@@ -1230,12 +1627,12 @@ state analysis.
 end
 
 """
-    initial_condition_velocity_jacobians(properties)
+    initial_condition_point_velocity_jacobians(properties)
 
 Calculate the jacobians of the velocity residuals `rV` and `rΩ` of a point for the
 initialization of a time domain analysis.
 """
-@inline function initial_condition_velocity_jacobians(properties)
+@inline function initial_condition_point_velocity_jacobians(properties)
    
     @unpack C, Qinv = properties
 
@@ -1246,14 +1643,14 @@ initialization of a time domain analysis.
 end
 
 """
-    newmark_velocity_jacobians(properties)
+    newmark_point_velocity_jacobians(properties)
 
 Calculate the jacobians of the velocity residuals `rV` and `rΩ` of a point for a Newmark 
 scheme time-marching analysis.
 """
-@inline function newmark_velocity_jacobians(properties)
+@inline function newmark_point_velocity_jacobians(properties)
 
-    jacobians = steady_state_velocity_jacobians(properties)
+    jacobians = steady_state_point_velocity_jacobians(properties)
 
     @unpack u_u, θ_θ, udot_u, θdot_θ = properties
 
@@ -1267,22 +1664,42 @@ scheme time-marching analysis.
 end
 
 """
-    dynamic_velocity_jacobians(properties)
+    dynamic_point_velocity_jacobians(properties)
 
 Calculate the jacobians of the velocity residuals `rV` and `rΩ` of a point for a dynamic 
 analysis.
 """
-@inline function dynamic_velocity_jacobians(properties)
+@inline function dynamic_point_velocity_jacobians(properties)
 
-    return steady_state_velocity_jacobians(properties)
+    return steady_state_point_velocity_jacobians(properties)
 end
 
 """
-    mass_matrix_velocity_jacobians(properties)
+    expanded_point_velocity_jacobians(properties)
+
+Calculate the jacobians of the velocity residuals `rV` and `rΩ` of a point for a constant 
+mass matrix system
+"""
+@inline function expanded_point_velocity_jacobians(properties)
+
+    @unpack C, Qinv, Ω, ω, u_u, θ_θ, C_θ1, C_θ2, C_θ3, Qinv_θ1, Qinv_θ2, Qinv_θ3 = properties
+    
+    rV_u = -tilde(ω)*u_u
+    rV_θ = mul3(C_θ1', C_θ2', C_θ3', CV)
+    rV_CV = C'
+
+    rΩ_θ = (mul3(Qinv_θ1, Qinv_θ2, Qinv_θ3, CΩ - C*ω) - Qinv*mul3(C_θ1, C_θ2, C_θ3, ω))*θ_θ
+    rΩ_CΩ = Qinv
+
+    return (; rV_u, rV_θ, rV_CV, rΩ_θ, rΩ_CΩ)
+end
+
+"""
+    mass_matrix_point_velocity_jacobians(properties)
 
 Calculate the mass matrix jacobians of the velocity residuals `rV` and `rΩ` of a point
 """
-@inline function mass_matrix_velocity_jacobians(properties)
+@inline function mass_matrix_point_velocity_jacobians(properties)
 
     @unpack udot_udot, θdot_θdot = properties
 
@@ -1291,6 +1708,14 @@ Calculate the mass matrix jacobians of the velocity residuals `rV` and `rΩ` of 
 
     return (; rV_udot, rΩ_θdot)
 end
+
+"""
+    mass_matrix_point_velocity_jacobians(properties)
+
+Calculate the mass matrix jacobians of the velocity residuals `rV` and `rΩ` of a point for 
+a constant mass matrix system.
+"""
+const expanded_mass_matrix_velocity_jacobians = mass_matrix_point_velocity_jacobians
 
 """
     insert_static_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants)
@@ -1403,13 +1828,51 @@ analysis into the system jacobian matrix.
 end
 
 """
-    insert_point_mass_matrix_jacobians!(jacob, gamma, indices, force_scaling, ipoint, 
+    insert_expanded_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants, 
+        velocities)
+
+Insert the jacobian entries corresponding to a point for a constant mass matrix system into 
+the system jacobian matrix for a constant mass matrix system.
+"""
+@inline function insert_expanded_point_jacobians!(jacob, indices, force_scaling, ipoint,  
+    resultants, velocities)
+
+    insert_static_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants)
+
+    @unpack CF_u, CF_θ, CF_CV, CF_CΩ, CM_u, CM_θ, CM_CV, CM_CΩ = resultants
+    @unpack rV_u, rV_θ, rV_CV, rΩ_θ, rΩ_CΩ = velocities
+
+    irow = indices.irow_point[ipoint]
+    icol = indices.icol_point[ipoint]
+
+    jacob[irow:irow+2, icol:icol+2] .= -CF_CF - CF_u ./ force_scaling
+    jacob[irow:irow+2, icol+3:icol+5] .= -CF_θ ./ force_scaling
+    jacob[irow:irow+2, icol+6:icol+8] .= -CF_CV ./ force_scaling
+    jacob[irow:irow+2, icol+9:icol+11] .= -CF_CΩ ./ force_scaling
+
+    jacob[irow+3:irow+5, icol:icol+2] .= -CM_u ./ force_scaling
+    jacob[irow+3:irow+5, icol+3:icol+5] .= -CM_CM - CM_θ ./ force_scaling
+    jacob[irow+3:irow+5, icol+6:icol+8] .= -CM_CV ./ force_scaling
+    jacob[irow+3:irow+5, icol+9:icol+11] .= -CM_CΩ ./ force_scaling
+
+    jacob[irow+6:irow+8, icol:icol+2] .= rV_u
+    jacob[irow+6:irow+8, icol+3:icol+5] .= rV_θ
+    jacob[irow+6:irow+8, icol+6:icol+8] .= rV_CV
+
+    jacob[irow+9:irow+11, icol+3:icol+5] .= rΩ_θ
+    jacob[irow+9:irow+11, icol+9:icol+11] .= rΩ_CΩ
+
+    return jacob
+end
+
+"""
+    insert_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint, 
         resultants, velocities)
 
 Insert the mass matrix jacobian entries corresponding to a point into the system jacobian 
 matrix.
 """
-@inline function insert_point_mass_matrix_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
+@inline function insert_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
     resultants, velocities)
 
     @unpack F_Vdot, F_Ωdot, M_Vdot, M_Ωdot = resultants
@@ -1423,6 +1886,34 @@ matrix.
 
     @views jacob[irow+3:irow+5, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
     @views jacob[irow+3:irow+5, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
+
+    @views jacob[irow+6:irow+8, icol:icol+2] .+= rV_udot .* gamma
+    @views jacob[irow+9:irow+11, icol+3:icol+5] .+= rΩ_θdot .* gamma
+
+    return jacob
+end
+
+"""
+    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint, 
+        resultants, velocities)
+
+Insert the mass matrix jacobian entries corresponding to a point into the system jacobian 
+matrix for a constant mass matrix system.
+"""
+@inline function insert_expanded_point_mass_matrix_jacobians!(jacob, gamma, indices, 
+    force_scaling, ipoint, resultants, velocities)
+
+    @unpack CF_CVdot, CF_CΩdot, CM_CVdot, CM_CΩdot = resultants
+    @unpack rV_udot, rΩ_θdot = velocities
+
+    irow = indices.irow_point[ipoint]
+    icol = indices.icol_point[ipoint]
+
+    @views jacob[irow:irow+2, icol+6:icol+8] .-= CF_CVdot .* gamma ./ force_scaling
+    @views jacob[irow:irow+2, icol+9:icol+11] .-= CF_CΩdot .* gamma ./ force_scaling
+
+    @views jacob[irow+3:irow+5, icol+6:icol+8] .-= CM_CVdot .* gamma ./ force_scaling
+    @views jacob[irow+3:irow+5, icol+9:icol+11] .-= CM_CΩdot .* gamma ./ force_scaling
 
     @views jacob[irow+6:irow+8, icol:icol+2] .+= rV_udot .* gamma
     @views jacob[irow+9:irow+11, icol+3:icol+5] .+= rΩ_θdot .* gamma
@@ -1472,7 +1963,7 @@ analysis into the system jacobian matrix.
 
     resultants = steady_state_point_resultant_jacobians(properties)
 
-    velocities = steady_state_velocity_jacobians(properties)
+    velocities = steady_state_point_velocity_jacobians(properties)
 
     insert_dynamic_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants, velocities)
 
@@ -1498,7 +1989,7 @@ of a time domain analysis into the system jacobian matrix.
 
     resultants = initial_condition_point_resultant_jacobians(properties)
 
-    velocities = initial_condition_velocity_jacobians(properties)
+    velocities = initial_condition_point_velocity_jacobians(properties)
 
     insert_initial_condition_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants, velocities)
 
@@ -1526,7 +2017,7 @@ time marching analysis into the system jacobian matrix.
 
     resultants = newmark_point_resultant_jacobians(properties)
 
-    velocities = newmark_velocity_jacobians(properties)
+    velocities = newmark_point_velocity_jacobians(properties)
 
     insert_dynamic_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants, velocities)
 
@@ -1551,7 +2042,7 @@ analysis into the system jacobian matrix.
 
     resultants = dynamic_point_resultant_jacobians(properties)
 
-    velocities = dynamic_velocity_jacobians(properties)
+    velocities = dynamic_point_velocity_jacobians(properties)
 
     insert_dynamic_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants, velocities)
 
@@ -1559,23 +2050,72 @@ analysis into the system jacobian matrix.
 end
 
 """
-    point_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
+    expanded_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
+        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+Calculate and insert the jacobian entries corresponding to a point for a constant mass 
+matrix system into the system jacobian matrix.
+"""
+@inline function expanded_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
+    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    properties = expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
+        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    properties = expanded_point_jacobian_properties(properties, x, indices, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0)
+
+    resultants = expanded_point_resultant_jacobians(properties)
+
+    velocities = expanded_point_velocity_jacobians(properties)
+
+    insert_expanded_point_jacobians!(jacob, indices, force_scaling, ipoint, resultants, velocities)
+
+    return jacob
+end
+
+"""
+    mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
         ipoint, prescribed_conditions)
 
 Calculate and insert the mass_matrix jacobian entries corresponding to a point into the 
 system jacobian matrix.
 """
-@inline function point_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
+@inline function mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
     ipoint, prescribed_conditions, point_masses)
 
     properties = mass_matrix_point_jacobian_properties(x, indices, force_scaling, assembly, ipoint, prescribed_conditions, point_masses)
 
     resultants = mass_matrix_point_resultant_jacobians(properties)
 
-    velocities = mass_matrix_velocity_jacobians(properties)
+    velocities = mass_matrix_point_velocity_jacobians(properties)
     
-    insert_point_mass_matrix_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
+    insert_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
         resultants, velocities)
+
+    return jacob
+end
+
+"""
+    expanded_mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
+        ipoint, prescribed_conditions)
+
+Calculate and insert the mass_matrix jacobian entries corresponding to a point into the 
+system jacobian matrix for a constant mass matrix system
+"""
+@inline function expanded_mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
+    ipoint, prescribed_conditions, point_masses)
+
+    properties = expanded_mass_matrix_point_jacobian_properties(x, indices, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses)
+
+    resultants = expanded_mass_matrix_point_resultant_jacobians(properties)
+
+    velocities = expanded_mass_matrix_point_velocity_jacobians(properties)
+    
+    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, 
+        ipoint, resultants, velocities)
 
     return jacob
 end
