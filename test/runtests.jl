@@ -313,6 +313,29 @@ end
         @test isapprox(state.points[i].u[3], analytical_deflection(xi), atol=1e-8)
         @test isapprox(state.points[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-7)
     end
+
+    # now check the state variables for a constant mass matrix system
+    system, converged = steady_state_analysis(assembly, 
+        prescribed_conditions = prescribed_conditions,
+        distributed_loads = distributed_loads,
+        expanded = true, 
+        linear = true)
+
+    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+    for i = 1:length(assembly.elements)
+        xi = assembly.elements[i].x[1]
+        @test isapprox(state.elements[i].u[3], analytical_deflection(xi), atol=1e-9)
+        @test isapprox(state.elements[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-9)
+        @test isapprox(state.elements[i].Mi[2], -analytical_M(xi), atol=2)
+    end
+
+    for i = 1:length(assembly.points)
+        xi = assembly.points[i][1]
+        @test isapprox(state.points[i].u[3], analytical_deflection(xi), atol=1e-8)
+        @test isapprox(state.points[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-7)
+    end
+
 end
 
 @testset "Linear Analysis of a Beam Under a Linear Distributed Load" begin
@@ -364,6 +387,30 @@ end
     analytical_deflection = (x) -> qmax*(1-x)^2/(120*EI)*(4 - 8*(1-x) + 5*(1-x)^2 - (1-x)^3)
     analytical_slope = (x) -> -qmax*(1-x)/(120*EI)*(8 - 24*(1-x) + 20*(1-x)^2 - 5*(1-x)^3)
     analytical_M = (x) -> qmax/120*(8 - 48*(1-x) + 60*(1-x)^2 - 20*(1-x)^3)
+
+    # test element properties
+    for i = 1:length(assembly.elements)
+        xi = assembly.elements[i].x[1]
+        @test isapprox(state.elements[i].u[3], analytical_deflection(xi), atol=1e-8)
+        @test isapprox(state.elements[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-7)
+        @test isapprox(state.elements[i].Mi[2], -analytical_M(xi), atol=1)
+    end
+
+    # test point properties
+    for i = 1:length(assembly.points)
+        xi = assembly.points[i][1]
+        @test isapprox(state.points[i].u[3], analytical_deflection(xi), atol=1e-8)
+        @test isapprox(state.points[i].theta[2], -4*analytical_slope(xi)/4, atol=1e-8)
+    end
+
+    # now check the state variables for a constant mass matrix system
+    system, converged = steady_state_analysis(assembly, 
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads, 
+        expanded=true,
+        linear=true)
+
+    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
     # test element properties
     for i = 1:length(assembly.elements)
@@ -450,6 +497,31 @@ end
         @test isapprox(states[i].points[end].u[3]/L, η_a[i_a], atol=1e-3)
         @test isapprox(states[i].points[end].theta[2], -4*tan(θ_a[i_a]/4), atol=1e-2)
     end
+
+    # perform the same analysis for a constant mass matrix system
+    states = Vector{AssemblyState{Float64}}(undef, length(P))
+    for i = 1:length(P)
+
+        prescribed_conditions = Dict(
+            1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+            nelem+1 => PrescribedConditions(Fz = P[i])
+        )
+
+        steady_state_analysis!(system, assembly, 
+            prescribed_conditions = prescribed_conditions,
+            expanded = true)
+
+        states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    end
+
+    # test tip displacements
+    for i = 1:length(P)
+        i_a = argmin(abs.(λ[i] .- λ_a))
+        @test isapprox(states[i].points[end].u[1]/L, ξ_a[i_a], atol=1e-3)
+        @test isapprox(states[i].points[end].u[3]/L, η_a[i_a], atol=1e-3)
+        @test isapprox(states[i].points[end].theta[2], -4*tan(θ_a[i_a]/4), atol=1e-2)
+    end
+
 end
 
 @testset "Nonlinear Analysis of a Cantilever Subjected to a Constant Moment" begin
@@ -528,6 +600,40 @@ end
             @test isapprox(states[i].points[ipoint].u[2], v_a, atol=5e-2)
         end
     end
+
+    # perform the same analysis for a constant mass matrix system
+    states = Vector{AssemblyState{Float64}}(undef, length(M))
+    for i = 1:length(M)
+
+        prescribed_conditions = Dict(
+            1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+            nelem+1 => PrescribedConditions(Mz = M[i])
+        )
+
+        steady_state_analysis!(system, assembly, 
+            prescribed_conditions = prescribed_conditions,
+            expanded = true)
+
+        states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    end
+
+    for i = 1:length(M)
+        # test element properties
+        for ielem = 1:length(assembly.elements)
+            xi = assembly.elements[ielem].x[1]
+            u_a, v_a, w_a = analytical(xi, E*Iyy/M[i])
+            @test isapprox(states[i].elements[ielem].u[1], u_a, atol=5e-2)
+            @test isapprox(states[i].elements[ielem].u[2], v_a, atol=5e-2)
+        end
+
+        # test point properties
+        for ipoint = 1:length(assembly.points)
+            xi = assembly.points[ipoint][1]
+            u_a, v_a, w_a = analytical(xi, E*Iyy/M[i])
+            @test isapprox(states[i].points[ipoint].u[1], u_a, atol=5e-2)
+            @test isapprox(states[i].points[ipoint].u[2], v_a, atol=5e-2)
+        end
+    end
 end
 
 @testset "Nonlinear Analysis of the Bending of a Curved Beam in 3D Space" begin
@@ -585,6 +691,11 @@ end
     # post-process results
     state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
+    # test tip deflections
+    @test isapprox(state.points[end].u[1], -13.4, atol=0.2) # -13.577383726758564
+    @test isapprox(state.points[end].u[2], -23.5, atol=0.1) # -23.545303336988038
+    @test isapprox(state.points[end].u[3],  53.4, atol=0.1) #  53.45800757548929
+
     # Results from "Large Displacement Analysis of Three-Dimensional Beam
     # Structures" by Bathe and Bolourch:
     # - Tip Displacement: [-13.4, -23.5, 53.4]
@@ -592,9 +703,18 @@ end
     # Note that these results are comparing computational solutions, rather than
     # the computational to the analytical solution, so some variation is expected.
 
+    # perform the same analysis for a constant mass matrix system
+    system, converged = steady_state_analysis(assembly, 
+        prescribed_conditions = prescribed_conditions,
+        expanded = true)
+
+    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    
+    # test tip deflections
     @test isapprox(state.points[end].u[1], -13.4, atol=0.2) # -13.577383726758564
     @test isapprox(state.points[end].u[2], -23.5, atol=0.1) # -23.545303336988038
     @test isapprox(state.points[end].u[3],  53.4, atol=0.1) #  53.45800757548929
+
 end
 
 @testset "Rotating Beam with a Swept Tip" begin
@@ -685,7 +805,6 @@ end
         linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
     end
 
-
     sweep = (0:2.5:45) * pi/180
     rpm = [0, 500, 750]
     nev = 30
@@ -761,6 +880,150 @@ end
         end
     end
 
+    # set previous left eigenvector matrix
+    U_p = copy(U[1,1])
+
+    for j = 1:length(rpm)
+        for i = 1:length(sweep)
+            # construct correlation matrix
+            C = U_p*MV[i,j]
+
+            # correlate eigenmodes
+            perm, corruption = correlate_eigenmodes(C)
+
+            # re-arrange eigenvalues and eigenvectors
+            λ[i,j] = λ[i,j][perm]
+            U[i,j] = U[i,j][perm,:]
+            MV[i,j] = MV[i,j][:,perm]
+            eigenstates[i,j] = eigenstates[i,j][perm]
+
+            # update previous eigenvector matrix
+            U_p .= U[i,j]
+        end
+        # update previous eigenvector matrix
+        U_p .= U[1,j]
+    end
+
+    frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 1:2:nev]
+
+    indices = [1, 2, 4]
+    experiment_rpm = [0, 500, 750]
+    experiment_sweep = [0, 15, 30, 45]
+    experiment_frequencies = [
+        [1.4 1.8 1.7 1.6;
+         10.2 10.1 10.2 10.2;
+         14.8 14.4 14.9 14.7],
+        [10.3 10.2 10.4 10.4;
+         25.2 25.2 23.7 21.6;
+         36.1 34.8 30.7 26.1],
+        [27.7 27.2 26.6 24.8;
+         47.0 44.4 39.3 35.1;
+         62.9 55.9 48.6 44.8]
+    ]
+
+    for k = 1:length(experiment_frequencies)
+        for j = 1:length(experiment_sweep)
+            for i = 1:length(experiment_rpm)
+                ii = argmin(abs.(rpm .- experiment_rpm[i]))
+                jj = argmin(abs.(sweep*180/pi .- experiment_sweep[j]))
+                kk = indices[k]
+                @test isapprox(frequency[kk][jj,ii], experiment_frequencies[k][i,j], atol=1, rtol=0.1)
+            end
+        end
+    end
+
+    indices = [5, 7, 6]
+    experiment_frequencies = [
+        95.4 87.5 83.7 78.8;
+        106.6 120.1 122.6 117.7;
+        132.7 147.3 166.2 162.0
+    ]
+
+    for k = 1:size(experiment_frequencies, 1)
+        for j = 1:length(experiment_sweep)
+            ii = argmin(abs.(rpm .- 750))
+            jj = argmin(abs.(sweep*180/pi .- experiment_sweep[j]))
+            kk = indices[k]
+            @test isapprox(frequency[kk][jj,ii], experiment_frequencies[k,j], rtol=0.1)
+        end
+    end
+
+    # perform the same analysis for a constant mass matrix system
+    sweep = (0:2.5:45) * pi/180
+    rpm = [0, 500, 750]
+    nev = 30
+
+    λ = Matrix{Vector{ComplexF64}}(undef, length(sweep), length(rpm))
+    U = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
+    MV = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
+    state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
+    eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
+    for i = 1:length(sweep)
+        local L_b1, r_b1, nelem_b1, lengths_b1 #hide
+        local xp_b1, xm_b1, Cab_b1 #hide
+        local cs, ss #hide
+        local L_b2, r_b2, nelem_b2, frame_b2, lengths_b2 #hide
+        local xp_b2, xm_b2, Cab_b2 #hide
+        local nelem, points, start, stop #hide
+        local lengths, midpoints, Cab, compliance, mass, assembly #hide
+
+        # straight section of the beam
+        L_b1 = 31.5 # inch
+        r_b1 = [2.5, 0, 0]
+        nelem_b1 = 20
+        lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
+
+        # swept section of the beam
+        L_b2 = 6 # inch
+        r_b2 = [34, 0, 0]
+        nelem_b2 = 20
+        cs, ss = cos(sweep[i]), sin(sweep[i])
+        frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+        lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
+
+        # combine elements and points into one array
+        nelem = nelem_b1 + nelem_b2
+        points = vcat(xp_b1, xp_b2[2:end])
+        start = 1:nelem_b1 + nelem_b2
+        stop = 2:nelem_b1 + nelem_b2 + 1
+        lengths = vcat(lengths_b1, lengths_b2)
+        midpoints = vcat(xm_b1, xm_b2)
+        Cab = vcat(Cab_b1, Cab_b2)
+
+        compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+        mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+        # create assembly
+        assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
+
+        # create system
+        system = System(assembly)
+
+        for j = 1:length(rpm)
+            # global frame rotation
+            w0 = [0, 0, rpm[j]*(2*pi)/60]
+
+            # eigenvalues and (right) eigenvectors
+            system, λ[i,j], V, converged = eigenvalue_analysis!(system, assembly,
+                angular_velocity = w0,
+                prescribed_conditions = prescribed_conditions,
+                expanded = true,
+                nev=nev)
+
+            # corresponding left eigenvectors
+            U[i,j] = left_eigenvectors(system, λ[i,j], V)
+
+            # post-multiply mass matrix with right eigenvector matrix
+            # (we use this later for correlating eigenvalues)
+            MV[i,j] = system.M * V
+
+            # process state and eigenstates
+            state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
+            eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
+                prescribed_conditions=prescribed_conditions) for k = 1:nev]
+        end
+    end
 
     # set previous left eigenvector matrix
     U_p = copy(U[1,1])
@@ -882,7 +1145,15 @@ end
             )
     end
 
-    system, history, converged = time_domain_analysis(assembly, tvec; prescribed_conditions=prescribed_conditions)
+    system, history, converged = time_domain_analysis(assembly, tvec; 
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = false)
+
+    @test converged
+
+    system, history, converged = time_domain_analysis(assembly, tvec; 
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = true)
 
     @test converged
 end
@@ -1129,242 +1400,16 @@ end
     end
 
     system, history, converged = time_domain_analysis(assembly, tvec;
-        prescribed_conditions=prescribed_conditions)
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = false)
 
     @test converged
-end
 
-@testset "Constant Mass Matrix" begin
-    sweep = 45 * pi/180
-    rpm = 0:25:750
+    system, history, converged = time_domain_analysis(assembly, tvec;
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = true)
 
-    # straight section of the beam
-    L_b1 = 31.5 # inch
-    r_b1 = [2.5, 0, 0]
-    nelem_b1 = 13
-    lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
-
-    # swept section of the beam
-    L_b2 = 6 # inch
-    r_b2 = [34, 0, 0]
-    nelem_b2 = 3
-    cs, ss = cos(sweep), sin(sweep)
-    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
-    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
-
-    # combine elements and points into one array
-    nelem = nelem_b1 + nelem_b2
-    points = vcat(xp_b1, xp_b2[2:end])
-    start = 1:nelem_b1 + nelem_b2
-    stop = 2:nelem_b1 + nelem_b2 + 1
-    lengths = vcat(lengths_b1, lengths_b2)
-    midpoints = vcat(xm_b1, xm_b2)
-    Cab = vcat(Cab_b1, Cab_b2)
-
-    # cross section
-    w = 1 # inch
-    h = 0.063 # inch
-
-    # material properties
-    E = 1.06e7 # lb/in^2
-    ν = 0.325
-    ρ = 2.51e-4 # lb sec^2/in^4
-
-    # shear and torsion correction factors
-    ky = 1.2000001839588001
-    kz = 14.625127919304001
-    kt = 65.85255016982444
-
-    A = h*w
-    Iyy = w*h^3/12
-    Izz = w^3*h/12
-    J = Iyy + Izz
-
-    # apply corrections
-    Ay = A/ky
-    Az = A/kz
-    Jx = J/kt
-
-    G = E/(2*(1+ν))
-
-    compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
-
-    mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
-
-    # create assembly
-    assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
-
-    # create dictionary of prescribed conditions
-    prescribed_conditions = Dict(
-        # root section is fixed
-        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
-        )
-
-    nonlinear_states = Vector{AssemblyState{Float64}}(undef, length(rpm))
-    linear_states = Vector{AssemblyState{Float64}}(undef, length(rpm))
-    for i = 1:length(rpm)
-        # global frame rotation
-        w0 = [0, 0, rpm[i]*(2*pi)/60]
-
-        # perform nonlinear steady state analysis
-        system, converged = steady_state_analysis(assembly,
-            angular_velocity = w0,
-            prescribed_conditions = prescribed_conditions)
-
-        nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-
-        # perform linear steady state analysis
-        system, converged = steady_state_analysis(assembly,
-            angular_velocity = w0,
-            prescribed_conditions = prescribed_conditions,
-            linear = true)
-
-        linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-    end
-
-    sweep = (0:2.5:45) * pi/180
-    rpm = [0, 500, 750]
-    nev = 30
-
-    λ = Matrix{Vector{ComplexF64}}(undef, length(sweep), length(rpm))
-    U = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
-    MV = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
-    state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
-    eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
-    for i = 1:length(sweep)
-        local L_b1, r_b1, nelem_b1, lengths_b1 #hide
-        local xp_b1, xm_b1, Cab_b1 #hide
-        local cs, ss #hide
-        local L_b2, r_b2, nelem_b2, frame_b2, lengths_b2 #hide
-        local xp_b2, xm_b2, Cab_b2 #hide
-        local nelem, points, start, stop #hide
-        local lengths, midpoints, Cab, compliance, mass, assembly #hide
-
-        # straight section of the beam
-        L_b1 = 31.5 # inch
-        r_b1 = [2.5, 0, 0]
-        nelem_b1 = 20
-        lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
-
-        # swept section of the beam
-        L_b2 = 6 # inch
-        r_b2 = [34, 0, 0]
-        nelem_b2 = 20
-        cs, ss = cos(sweep[i]), sin(sweep[i])
-        frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
-        lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
-
-        # combine elements and points into one array
-        nelem = nelem_b1 + nelem_b2
-        points = vcat(xp_b1, xp_b2[2:end])
-        start = 1:nelem_b1 + nelem_b2
-        stop = 2:nelem_b1 + nelem_b2 + 1
-        lengths = vcat(lengths_b1, lengths_b2)
-        midpoints = vcat(xm_b1, xm_b2)
-        Cab = vcat(Cab_b1, Cab_b2)
-
-        compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
-
-        mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
-
-        # create assembly
-        assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
-
-        # create system
-        system = System(assembly)
-
-        for j = 1:length(rpm)
-            # global frame rotation
-            w0 = [0, 0, rpm[j]*(2*pi)/60]
-
-            # eigenvalues and (right) eigenvectors
-            system, λ[i,j], V, converged = eigenvalue_analysis!(system, assembly,
-                angular_velocity = w0,
-                prescribed_conditions = prescribed_conditions,
-                nev=nev)
-
-            # corresponding left eigenvectors
-            U[i,j] = left_eigenvectors(system, λ[i,j], V)
-
-            # post-multiply mass matrix with right eigenvector matrix
-            # (we use this later for correlating eigenvalues)
-            MV[i,j] = system.M * V
-
-            # process state and eigenstates
-            state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
-            eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
-                prescribed_conditions=prescribed_conditions) for k = 1:nev]
-        end
-    end
-
-
-    # set previous left eigenvector matrix
-    U_p = copy(U[1,1])
-
-    for j = 1:length(rpm)
-        for i = 1:length(sweep)
-            # construct correlation matrix
-            C = U_p*MV[i,j]
-
-            # correlate eigenmodes
-            perm, corruption = correlate_eigenmodes(C)
-
-            # re-arrange eigenvalues and eigenvectors
-            λ[i,j] = λ[i,j][perm]
-            U[i,j] = U[i,j][perm,:]
-            MV[i,j] = MV[i,j][:,perm]
-            eigenstates[i,j] = eigenstates[i,j][perm]
-
-            # update previous eigenvector matrix
-            U_p .= U[i,j]
-        end
-        # update previous eigenvector matrix
-        U_p .= U[1,j]
-    end
-
-    frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 1:2:nev]
-
-    indices = [1, 2, 4]
-    experiment_rpm = [0, 500, 750]
-    experiment_sweep = [0, 15, 30, 45]
-    experiment_frequencies = [
-        [1.4 1.8 1.7 1.6;
-         10.2 10.1 10.2 10.2;
-         14.8 14.4 14.9 14.7],
-        [10.3 10.2 10.4 10.4;
-         25.2 25.2 23.7 21.6;
-         36.1 34.8 30.7 26.1],
-        [27.7 27.2 26.6 24.8;
-         47.0 44.4 39.3 35.1;
-         62.9 55.9 48.6 44.8]
-    ]
-
-    for k = 1:length(experiment_frequencies)
-        for j = 1:length(experiment_sweep)
-            for i = 1:length(experiment_rpm)
-                ii = argmin(abs.(rpm .- experiment_rpm[i]))
-                jj = argmin(abs.(sweep*180/pi .- experiment_sweep[j]))
-                kk = indices[k]
-                @test isapprox(frequency[kk][jj,ii], experiment_frequencies[k][i,j], atol=1, rtol=0.1)
-            end
-        end
-    end
-
-    indices = [5, 7, 6]
-    experiment_frequencies = [
-        95.4 87.5 83.7 78.8;
-        106.6 120.1 122.6 117.7;
-        132.7 147.3 166.2 162.0
-    ]
-
-    for k = 1:size(experiment_frequencies, 1)
-        for j = 1:length(experiment_sweep)
-            ii = argmin(abs.(rpm .- 750))
-            jj = argmin(abs.(sweep*180/pi .- experiment_sweep[j]))
-            kk = indices[k]
-            @test isapprox(frequency[kk][jj,ii], experiment_frequencies[k,j], rtol=0.1)
-        end
-    end
+    @test converged
 end
 
 @testset "DifferentialEquations" begin
@@ -1422,21 +1467,72 @@ end
     system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan; prescribed_conditions)
+    prob = ODEProblem(system, assembly, tspan; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = false)
 
     # solve ODEProblem
     sol = solve(prob, Rodas4())
 
-    # test that solution worked (at least for a little bit)
+    # test solution convergence
+    @test sol.t[end] == 0.1
+
+    # construct ODEProblem
+    prob = ODEProblem(system, assembly, tspan; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = false,
+        structural_damping = true)
+
+    # solve ODEProblem
+    sol = solve(prob, Rodas4())
+
+    # test solution convergence
+    @test sol.t[end] == 0.1
+
+    # construct ODEProblem
+    prob = ODEProblem(system, assembly, tspan; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = true,
+        structural_damping = false)
+
+    # solve ODEProblem
+    sol = solve(prob, Rodas4())
+
+    # test solution convergence
+    @test sol.t[end] == 0.1
+
+    # construct ODEProblem
+    prob = ODEProblem(system, assembly, tspan; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = true,
+        structural_damping = true)
+
+    # solve ODEProblem
+    sol = solve(prob, Rodas4())
+
+    # test solution convergence
     @test sol.t[end] == 0.1
 
     # construct DAEProblem
-    prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
+    prob = DAEProblem(system, assembly, tspan; 
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = false)
 
     # solve DAEProblem
     sol = solve(prob, DABDF2())
 
-    # test that solution worked
+    # test solution convergence
+    @test sol.t[end] == 0.1
+
+    # construct DAEProblem
+    prob = DAEProblem(system, assembly, tspan; 
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = true)
+
+    # solve DAEProblem
+    sol = solve(prob, DABDF2())
+
+    # test solution convergence
     @test sol.t[end] == 0.1
 end
 
@@ -1773,7 +1869,7 @@ end
 
 end
 
-@testset "Constant Mass Matrix" begin
+@testset "Prescribed Forces" begin
 
     x = rand(6)
 
