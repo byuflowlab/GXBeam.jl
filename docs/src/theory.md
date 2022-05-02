@@ -31,7 +31,7 @@ We then differentiate this equation with respect to time to obtain an expression
 \dot{\gamma}_i = C^{ba} C \frac{\Delta \dot{u}}{\Delta L} + C^{ba} \dot{C} \frac{\Delta u}{\Delta L} + C^{ba} \dot{C} C^{ab} e_1 
 ```
 
-The derivative of the rotation matrix ``\dot{C}`` can be defined in terms of angular velocity as ``\dot{C} = -\widetilde{(\Omega-\omega)} C``.  The linear displacement rates ``\dot{u}`` can be defined in terms of linear velocity as ``\dot{u} = V - v - \tilde{\omega} u``.  Using these two expressions allows us to write the strain rates in terms of the state variables.
+The derivative of the rotation matrix ``\dot{C}`` can be defined in terms of angular velocity as ``\dot{C} = -\left(\tilde{\Omega}-\tilde{\omega} \right) C``.  The linear displacement rates ``\dot{u}`` can be defined in terms of linear velocity as ``\dot{u} = V - v - \tilde{\omega} u``.  Using these two expressions allows us to write the strain rates in terms of the state variables.
 
 ```math
 \dot{\gamma}_i = C^{ba} C \frac{\Delta \dot{u}}{\Delta L} - C^{ba} \widetilde{(\Omega-\omega)} C \frac{\Delta u}{\Delta L} -  C^{ba} \widetilde{(\Omega-\omega)} C C^{ab} e_1 
