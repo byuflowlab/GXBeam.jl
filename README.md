@@ -27,18 +27,19 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
     - Captures all geometric nonlinearities due to large deflections and rotations
     - Capable of using the full 6x6 Timoshenko beam stiffness matrix
     - Singularity-free rotational deflections of any magnitude using only 3 rotational parameters
- - Models arbitrary time-varying distributed forces/moments on beam elements using:
+ - Models arbitrary time-varying distributed forces/moments on beam elements including:
     - Dead forces/moments (which do not rotate as the beam element rotates)
     - Follower forces/moments (which rotate as the beam element rotates)
     - Forces/moments due to the presence of rigidly attached point masses
     - Forces/moments due to gravitational loads
     - Forces/moments due to body frame linear/angular velocities and accelerations
+    - Forces/moments due to stiffness-proportional structural damping
  - Models arbitrary time-varying prescribed forces/moments and/or displacements/rotations at the connection points between beam elements using:
     - Dead forces/moments (which do not rotate as the point rotates)
     - Follower forces/moments (which rotate as the point rotates)
  - Capable of using arbitrary units (as long as they are compatible)
  - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
- - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface for time domain simulations.
+ - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface.
  - Extensively validated against published analytical and computational results.  See the examples in the [documentation](https://flow.byu.edu/GXBeam.jl/dev/).
 
 ## Installation
