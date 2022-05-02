@@ -11,10 +11,10 @@ Author: Taylor McDonnell
 **GXBeam** is a pure Julia implementation of Geometrically Exact Beam Theory, originally based on the open source code [GEBT](https://cdmhub.org/resources/367) and its associated papers[[1]](@ref References)[[2]](@ref References).
 
 As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a joined wing subjected to a simulated gust, scaled up in order to visualize the deflections:
-![](assets/dynamic-joined-wing.gif)
+![](assets/dynamic-joined-wing-simulation.gif)
 
 And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip load.
-![](assets/dynamic-wind-turbine.gif)
+![](assets/wind-turbine-blade-simulation.gif)
 
 ## Package Features
  - Performs multiple types of analyses including:
@@ -75,6 +75,10 @@ This package relies on the results of linear cross-sectional analyses.  Most not
 [GEBT](https://cdmhub.org/resources/367): Open source geometrically exact beam theory code developed in Fortran as a companion to the proprietary cross sectional analysis tool [VABS](https://analyswift.com/vabs-cross-sectional-analysis-tool-for-composite-beams/).  The theory for this code is provided in references [1](#1) and [2](#2).  GXBeam was originally developed based on this package and its associated papers, but has since been augmented with additional features.
 
 [BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html): Open source geometrically exact beam theory code developed in Fortran by NREL as part of the OpenFAST project.  This code was also developed based on [GEBT](https://cdmhub.org/resources/367), but uses Legendre spectral finite elements.  This allows for exponential rather than algebraic convergence when the solution is smooth.  This makes this code a good candidate for use when analyzing beams with smoothly varying properties.  Unfortunately, this code is limited to analyzing a single beam, rather than an assembly of beams, which limits its applicability.
+
+## Contributing
+
+Contributions are welcome and encouraged.  If at any point you experience issues or have suggestions related to this package, create a new Github issue so we can discuss it.  If you're willing to help solve an issue yourself, we encourage you to create a fork of this repository and submit a pull request with the requested change.  Pull requests should generally also add a unit test in `test/runtests.jl` to ensure that issues do not reoccur along with future changes.
 
 ## References
 [1] Yu, W., & Blair, M. (2012).
