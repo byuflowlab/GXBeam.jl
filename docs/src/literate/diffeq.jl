@@ -103,8 +103,9 @@ system, gxbeam_history, converged = time_domain_analysis(assembly, t;
 
 #!jl nothing #hide
 
-# To instead use the capabilities of the DifferentialEquations package we can do the 
-# following.
+# To instead use the capabilities of the DifferentialEquations package we first initialize 
+# our system using the `initial_condition_analysis` function and then construct and solve
+# a `ODEProblem` (or `DAEProblem`).
 
 using DifferentialEquations
 
@@ -114,17 +115,18 @@ tspan = (0.0, 2.0)
 ## run initial condition analysis to get consistent set of initial conditions
 system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
 
-## construct a DAEProblem
-prob = DAEProblem(system, assembly, tspan; 
+## construct an ODEProblem (with a non-constant mass matrix)
+prob = ODEProblem(system, assembly, tspan; 
     prescribed_conditions = prescribed_conditions,
-    structural_damping = false)
+    structural_damping = false,
+    constant_mass_matrix = false)
 
-## solve DAEProblem
-sol = solve(prob, DABDF2())
+## solve the problem
+sol = solve(prob, Rodas4())
 
 #!jl nothing #hide
 
-# We can extract the outputs from the solution in a easy to understand format using the 
+# We can then extract the outputs from the solution in a easy to understand format using the 
 # [`AssemblyState`](@ref) constructor.
 
 diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions)
@@ -132,7 +134,7 @@ diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions
 
 #!jl nothing #hide
 
-# Let's now compare the solutions from GXBeam's internal solver and the `DABDF2` solver 
+# Let's now compare the solutions from GXBeam's internal solver and the `Rodas4()` solver 
 # from DifferentialEquations.
 
 using Plots
@@ -193,6 +195,7 @@ end
 #md end #hide
 #md nothing #hide
 
+#nb #-
 #nb ph[1]
 #nb #-
 #nb ph[2]
