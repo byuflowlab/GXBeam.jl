@@ -511,8 +511,8 @@ function eigenvalue_analysis!(system, assembly;
             assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         # solve for the system mass matrix
-        expanded_system_mass_matrix!(M, x, dynamic_indices, force_scaling, 
-            assembly, prescribed_conditions, point_masses)
+        expanded_system_mass_matrix!(M, dynamic_indices, force_scaling, assembly, 
+            prescribed_conditions, point_masses)
 
     else
 
