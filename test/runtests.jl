@@ -201,8 +201,11 @@ end
 
     # --- Constant Mass Matrix --- #
 
-    x = rand(RNG, length(system.x))
-    J = similar(x, length(x), length(x))
+    indices = system.expanded_indices
+
+    nx = indices.nstates
+    x = rand(RNG, nx)
+    J = similar(x, nx, nx)
 
     f = (x) -> GXBeam.expanded_system_residual!(similar(x), x, indices, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
@@ -210,7 +213,7 @@ end
     GXBeam.expanded_system_jacobian!(J, x, indices, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(fx, x), atol=1e-10))
+    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 
 end
 
@@ -1219,7 +1222,6 @@ end
         linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
     end
 
-
     sweep = (0:2.5:45) * pi/180
     rpm = [0, 500, 750]
     nev = 30
@@ -1771,3 +1773,80 @@ end
 
 end
 
+@testset "Constant Mass Matrix" begin
+
+    x = rand(6)
+
+    icol = 1
+
+    force_scaling = 1.0
+
+    prescribed_conditions = PrescribedConditions(;
+        Fx = rand(),
+        Fy = rand(),
+        Fz = rand(),
+        Mx = rand(),
+        My = rand(),
+        Mz = rand(),
+        Fx_follower = rand(),
+        Fy_follower = rand(),
+        Fz_follower = rand(),
+        Mx_follower = rand(),
+        My_follower = rand(),
+        Mz_follower = rand())
+
+    # point_displacement_jacobians
+    u, θ = GXBeam.point_displacement(x, icol, prescribed_conditions)
+    
+    u_u, θ_θ = GXBeam.point_displacement_jacobians(prescribed_conditions)
+
+    f = x -> vcat(GXBeam.point_displacement(x, icol, prescribed_conditions)...)
+
+    dx = ForwardDiff.jacobian(f, x)
+
+    @test isapprox(u_u, dx[1:3,1:3])
+    @test isapprox(θ_θ, dx[4:6,4:6])
+
+    # point_load_jacobians
+    F, M = GXBeam.point_loads(x, icol, force_scaling, prescribed_conditions)
+
+    F_θ, F_F, M_θ, M_M = GXBeam.point_load_jacobians(x, icol, force_scaling, prescribed_conditions)
+
+    f = x -> vcat(GXBeam.point_loads(x, icol, force_scaling, prescribed_conditions)...)
+
+    dx = ForwardDiff.jacobian(f, x)
+
+    @test iszero(F_F)
+    @test iszero(M_M)
+
+    @test isapprox(F_θ, dx[1:3,4:6])
+    @test isapprox(M_θ, dx[4:6,4:6])
+
+    # expanded_point_loads
+    u, θ = GXBeam.point_displacement(x, icol, prescribed_conditions)
+
+    F, M = GXBeam.point_loads(x, icol, force_scaling, prescribed_conditions)
+
+    CF, CM = GXBeam.expanded_point_loads(x, icol, force_scaling, prescribed_conditions)
+
+    C = GXBeam.get_C(θ)
+
+    @test isapprox(C*F, CF)
+    @test isapprox(C*M, CM)
+
+    # expanded_point_load_jacobians
+    F, M = GXBeam.expanded_point_loads(x, icol, force_scaling, prescribed_conditions)
+
+    F_θ, F_F, M_θ, M_M = GXBeam.expanded_point_load_jacobians(x, icol, force_scaling, prescribed_conditions)
+
+    f = x -> vcat(GXBeam.expanded_point_loads(x, icol, force_scaling, prescribed_conditions)...)
+
+    dx = ForwardDiff.jacobian(f, x)
+
+    @test iszero(F_F)
+    @test iszero(M_M)
+
+    @test isapprox(F_θ, dx[1:3,4:6])
+    @test isapprox(M_θ, dx[4:6,4:6])
+
+end

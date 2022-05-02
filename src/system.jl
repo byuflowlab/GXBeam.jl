@@ -5,6 +5,7 @@ Structure for holding indices for accessing the state variables and equations as
 with each point and beam element in a system.
 """
 struct SystemIndices
+    nstates::Int
     irow_point::Vector{Int}
     irow_elem::Vector{Int}
     icol_point::Vector{Int}
@@ -105,7 +106,9 @@ function SystemIndices(start, stop; static=false, expanded=false)
         end
     end
 
-    return SystemIndices(irow_point, irow_elem, icol_point, icol_elem)
+    nstates = icol - 1
+
+    return SystemIndices(nstates, irow_point, irow_elem, icol_point, icol_elem)
 end
 
 """
@@ -168,23 +171,20 @@ end
 
 function System(TF, assembly; force_scaling = default_force_scaling(assembly))
 
-    # system dimensions
-    np = length(assembly.points)
-    ne = length(assembly.elements)
-    nx = 12*np + 6*ne
-
     # initialize system pointers
     static_indices = SystemIndices(assembly.start, assembly.stop, static=true, expanded=false)
     dynamic_indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=false)
     expanded_indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=true)
 
     # initialize system matrices
+    nx = dynamic_indices.nstates
     x = zeros(TF, nx)
     r = zeros(TF, nx)
     K = spzeros(TF, nx, nx)
     M = spzeros(TF, nx, nx)
 
     # initialize storage for time domain simulations
+    np = length(assembly.points)
     udot = [@SVector zeros(TF, 3) for i = 1:np]
     θdot = [@SVector zeros(TF, 3) for i = 1:np]
     Vdot = [@SVector zeros(TF, 3) for i = 1:np]
@@ -262,20 +262,159 @@ function get_static_state(system, x=system.x)
 end
 
 """
-    set_static_state!(system, x)
+    set_static_state!(system, xs)
 
-Set the static state variables in `system` to the values in the state vector `x`
+Set the static state variables in `system` to the values in the static state vector `xs`
 """
-function set_static_state!(system, x)
+function set_static_state!(system, xs)
 
     system.x .= 0
 
     for (is, id) in zip(system.static_indices.icol_point, system.dynamic_indices.icol_point)
-        system.x[id:id+5] .= x[is:is+5]
+        system.x[id:id+5] .= xs[is:is+5]
     end
 
     for (is, id) in zip(system.static_indices.icol_elem, system.dynamic_indices.icol_elem)
-        system.x[id:id+5] .= x[is:is+5]
+        system.x[id:id+5] .= xs[is:is+5]
+    end
+
+    return system
+end
+
+"""
+    get_expanded_state(system, assembly, prescribed_conditions, x=system.x)
+
+Return the state vector `x` for a constant mass matrix system
+"""
+function get_expanded_state(system, assembly, prescribed_conditions, x = system.x)
+    
+    xe = zeros(eltype(x), system.expanded_indices.nstates)
+
+    force_scaling = 1.0
+
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0)
+
+    for ipoint = 1:length(assembly.points)
+
+        icol = system.expanded_indices.icol_point[ipoint]
+
+        # linear and angular displacements
+        u, θ = point_displacement(x, ipoint, system.dynamic_indices.icol_point, pcond)
+        
+        # external forces and moments
+        F, M = point_loads(x, ipoint, system.dynamic_indices.icol_point, force_scaling, pcond)
+
+        # linear and angular velocities
+        V, Ω = point_velocities(x, ipoint, system.dynamic_indices.icol_point)
+
+        # rotation matrices
+        C = get_C(θ)
+
+        # rotate external forces for the point into the deformed frame
+        F = C*F
+        M = C*M
+
+        # rotate linear and angular velocities into the deformed frame
+        V = C*V
+        Ω = C*Ω
+
+        # set load and deflection state variables
+        if haskey(pcond, ipoint)
+            !pcond[ipoint].isforce[1] ? setindex!(xe, F[1], icol)   : setindex!(xe, u[1], icol)  
+            !pcond[ipoint].isforce[2] ? setindex!(xe, F[2], icol+1) : setindex!(xe, u[2], icol+1)
+            !pcond[ipoint].isforce[3] ? setindex!(xe, F[3], icol+2) : setindex!(xe, u[3], icol+2)
+            !pcond[ipoint].isforce[4] ? setindex!(xe, M[1], icol+3) : setindex!(xe, u[1], icol+3)  
+            !pcond[ipoint].isforce[5] ? setindex!(xe, M[2], icol+4) : setindex!(xe, u[2], icol+4)
+            !pcond[ipoint].isforce[6] ? setindex!(xe, M[3], icol+5) : setindex!(xe, u[3], icol+5)
+        else
+            xe[icol  ] = F[1]
+            xe[icol+1] = F[2]
+            xe[icol+2] = F[3]
+            xe[icol+3] = M[1]
+            xe[icol+4] = M[2]
+            xe[icol+5] = M[3]
+        end
+        
+        # set velocity state variables
+        xe[icol+6:icol+8] .= V
+        xe[icol+9:icol+11] .= Ω
+    end
+
+    for ielem = 1:length(assembly.elements)
+
+        icol = system.expanded_indices.icol_elem[ielem]
+
+        # unpack element parameters
+        @unpack L, Cab, compliance, mass, mu = assembly.elements[ielem]
+
+        # linear and angular displacement
+        u1, θ1 = point_displacement(x, assembly.start[ielem], system.dynamic_indices.icol_point, pcond)
+        u2, θ2 = point_displacement(x, assembly.stop[ielem], system.dynamic_indices.icol_point, pcond)
+        u = (u1 + u2)/2
+        θ = (θ1 + θ2)/2
+
+        # rotation parameter matrices
+        C = get_C(θ)
+        CtCab = C'*Cab
+        
+        # linear and angular velocity
+        V1, Ω1 = point_velocities(x, assembly.start[ielem], system.dynamic_indices.icol_point)
+        V2, Ω2 = point_velocities(x, assembly.stop[ielem], system.dynamic_indices.icol_point)
+        V = (V1 + V2)/2
+        Ω = (Ω1 + Ω2)/2
+
+        # forces and moments
+        F, M = element_loads(x, ielem, system.dynamic_indices.icol_elem, force_scaling)
+
+        # rotate linear and angular velocity into the deformed frame
+        V = CtCab'*V
+        Ω = CtCab'*Ω
+
+        # set endpoint loads (TODO: initialize this correctly)
+        xe[icol:icol+2] .= F
+        xe[icol+3:icol+5] .= M
+        xe[icol+6:icol+8] .= F
+        xe[icol+9:icol+11] .= M
+
+        # set new element velocities
+        xe[icol+12:icol+14] .= V
+        xe[icol+15:icol+17] .= Ω
+    end
+
+    return xe
+end
+
+"""
+    set_expanded_state!(system, assembly, prescribed_conditions, xe)
+
+Set the state variables in `system` to the values in the expanded state vector `xe`
+"""
+function set_expanded_state!(system, assembly, prescribed_conditions, xe)
+
+    for ipoint = 1:length(assembly.points)
+        # extract point state variables
+        u, θ = point_displacement(xe, ipoint, system.expanded_indices.icol_point, prescribed_conditions)
+        CV, CΩ = point_velocities(xe, ipoint, system.expanded_indices.icol_point)
+        C = get_C(θ)
+
+        # indices for this point
+        id = system.dynamic_indices.icol_point[ipoint]
+        ie = system.expanded_indices.icol_point[ipoint]
+
+        # set point state variables
+        system.x[id:id+5] .= xe[ie:ie+5]
+        system.x[id+6:id+8] .= C'*CV
+        system.x[id+9:id+11] .= C'*CΩ
+    end
+
+    for ielem = 1:length(assembly.elements)
+        # indices for this element
+        id = system.dynamic_indices.icol_elem[ielem]
+        ie = system.expanded_indices.icol_elem[ielem]
+
+        # set element loads
+        system.x[id:id+2] .= (xe[ie:ie+2] .+ xe[ie+6:ie+8]) ./ 2
+        system.x[id+3:id+5] .= (xe[ie+3:ie+5] .+ xe[ie+9:ie+11]) ./ 2
     end
 
     return system
@@ -957,6 +1096,32 @@ Populate the system jacobian matrix `jacob` for a general dynamic analysis.
 end
 
 """
+    expanded_system_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+        assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
+        x0, v0, ω0, a0, α0)
+
+Populate the system jacobian matrix `jacob` for a general expanded analysis.
+"""
+@inline function expanded_system_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+    assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0)
+    
+    jacob .= 0
+    
+    for ipoint = 1:length(assembly.points)
+        expanded_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint, 
+            prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    end
+    
+    for ielem = 1:length(assembly.elements)
+        expanded_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            x0, v0, ω0, a0, α0)
+    end
+    
+    return jacob
+end
+
+"""
     system_mass_matrix!(jacob, x, indices, force_scaling,  assembly, prescribed_conditions, 
         point_masses)
 
@@ -976,7 +1141,7 @@ function system_mass_matrix!(jacob, x, indices, force_scaling, assembly,
 end
 
 """
-    system_mass_matrix!(jacob, `gamma`, x, indices, force_scaling, assembly, 
+    system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
         prescribed_conditions, point_masses)
 
 Calculate the jacobian of the residual expressions with respect to the state rates and 
@@ -986,13 +1151,76 @@ function system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly,
     prescribed_conditions, point_masses)
 
     for ipoint = 1:length(assembly.points)
-        point_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, ipoint, 
+        mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, ipoint, 
             prescribed_conditions, point_masses)
     end
     
     for ielem = 1:length(assembly.elements)
-        element_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, ielem, 
+        mass_matrix_element_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, ielem, 
             prescribed_conditions)
+    end
+
+    return jacob
+end
+
+"""
+    expanded_system_mass_matrix(system, assembly, prescribed_conditions, point_masses)
+
+Calculate the jacobian of the residual expressions with respect to the state rates.
+"""
+function expanded_system_mass_matrix(system, assembly, prescribed_conditions, point_masses)
+
+    @unpack expanded_indices, force_scaling = system
+
+    TF = eltype(system)
+    nx = expanded_indices.nstates
+    jacob = spzeros(TF, nx, nx)
+    gamma = -1
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0)
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(0)
+
+    expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, pcond, pmass) 
+
+    return jacob
+end
+
+"""
+    expanded_system_mass_matrix!(jacob, indices, force_scaling,  assembly, prescribed_conditions, 
+        point_masses)
+
+Calculate the jacobian of the residual expressions with respect to the state rates.
+"""
+function expanded_system_mass_matrix!(jacob, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
+
+    jacob .= 0
+
+    gamma = 1
+
+    expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+        prescribed_conditions, point_masses)
+
+    return jacob
+end
+
+"""
+    expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+        prescribed_conditions, point_masses)
+
+Calculate the jacobian of the residual expressions with respect to the state rates and 
+add the result multiplied by `gamma` to `jacob`.
+"""
+function expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
+
+    for ipoint = 1:length(assembly.points)
+        expanded_mass_matrix_point_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+            ipoint, prescribed_conditions, point_masses)
+    end
+    
+    for ielem = 1:length(assembly.elements)
+        expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+            ielem, prescribed_conditions)
     end
 
     return jacob

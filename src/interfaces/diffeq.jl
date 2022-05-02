@@ -4,19 +4,28 @@
 Construct a `ODEProblem` for the system of nonlinear beams contained in `assembly` which 
 may be used with the DifferentialEquations package.
 """
-function SciMLBase.ODEProblem(system::System, assembly, tspan; kwargs...)
+function SciMLBase.ODEProblem(system::System, assembly, tspan; 
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
+    constant_mass_matrix = true, 
+    kwargs...)
 
     # create ODEFunction
-    func = SciMLBase.ODEFunction(system, assembly; kwargs...)
+    func = SciMLBase.ODEFunction(system, assembly; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = constant_mass_matrix, 
+        kwargs...)
 
-    # use initial state from `system`
-    u0 = copy(system.x)
+    if constant_mass_matrix
+        u0 = get_expanded_state(system, assembly, prescribed_conditions)
+    else
+        u0 = copy(system.x)        
+    end
 
     return SciMLBase.ODEProblem{true}(func, u0, tspan)
 end
 
 """
-    ODEFunction(system::GXBeam.System, assembly; structural_damping=true)
+    ODEFunction(system::GXBeam.System, assembly; kwargs...)
 
 Construct a `ODEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
@@ -38,7 +47,6 @@ Keyword Arguments:
         containing vectors of objects of type [`PointMass`](@ref) which describe 
         the point masses attached at those points.  If time varying, this input may
         be provided as a function of time.
- - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `gravity`: Gravity vector. If time varying, this input may be provided as a 
         function of time.
  - `origin = zeros(3)`: Global frame origin vector. If time varying, this input
@@ -51,87 +59,152 @@ Keyword Arguments:
        varying, this vector may be provided as a function of time.
  - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
        varying, this vector may be provided as a function of time.
+ - `structural_damping = true`: Flag indicating whether structural damping should be enabled
+ - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.  
 """
 function SciMLBase.ODEFunction(system::System, assembly; 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     point_masses = Dict{Int,Vector{PointMass{Float64}}}(),
-    structural_damping=true,
     gravity = (@SVector zeros(3)),
     origin = (@SVector zeros(3)),
     linear_velocity = (@SVector zeros(3)),
     angular_velocity = (@SVector zeros(3)),
     linear_acceleration = (@SVector zeros(3)),
     angular_acceleration = (@SVector zeros(3)),
+    structural_damping=true,
+    constant_mass_matrix=true,
     )
 
-    @unpack dynamic_indices, force_scaling = system
+    @unpack dynamic_indices, expanded_indices, force_scaling = system
 
-    # DAE function
-    f = function(resid, u, p, t)
+    if constant_mass_matrix
 
-        # get current parameters
-        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-        dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
-        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
-        gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
-        x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
-        v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
-        ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
-        a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
-        α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
+        # residual function (constant mass matrix system)
+        f = function(resid, u, p, t)
 
-        # calculate residual
-        steady_state_system_residual!(resid, u, dynamic_indices, force_scaling, structural_damping,
-            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            # get current parameters
+            pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+            dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+            pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+            gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
+            x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
+            v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
+            ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+            a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+            α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-        return resid
-    end
+            # calculate residual
+            expanded_system_residual!(resid, u, expanded_indices, force_scaling, structural_damping,
+                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-    update_mass_matrix! = function(M, u, p, t)
+            return resid
+        end
 
-        # get current parameters
-        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+        # mass matrix (constant mass matrix system)
+        TF = eltype(system)
+        nx = expanded_indices.nstates
+        mass_matrix = spzeros(TF, nx, nx)
+        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0)
+        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(0)
+        expanded_system_mass_matrix!(mass_matrix, -1, expanded_indices, force_scaling, assembly, pcond, pmass) 
+    
+        # jacobian
+        update_jacobian! = function(J, u, p, t)
 
-        # zero out all mass matrix entries
-        M .= 0.0
+            # get current parameters
+            pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+            dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+            pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+            gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
+            x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
+            v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
+            ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+            a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+            α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-        # calculate mass matrix
-        system_mass_matrix!(M, u, dynamic_indices, force_scaling, assembly, pcond, pmass)
+            # zero out all jacobian entries
+            J .= 0.0
 
-        M .*= -1
+            # calculate jacobian
+            expanded_system_jacobian!(J, u, expanded_indices, force_scaling, structural_damping, 
+                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-        return M
-    end
+            return J
+        end
 
-    update_jacobian! = function(J, u, p, t)
+    else
 
-        # get current parameters
-        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-        dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
-        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
-        gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
-        x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
-        v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
-        ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
-        a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
-        α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
+        # residual function
+        f = function(resid, u, p, t)
 
-        # zero out all jacobian entries
-        J .= 0.0
+            # get current parameters
+            pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+            dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+            pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+            gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
+            x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
+            v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
+            ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+            a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+            α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-        # calculate jacobian
-        steady_state_system_jacobian!(J, u, dynamic_indices, force_scaling, structural_damping, 
-              assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            # calculate residual
+            steady_state_system_residual!(resid, u, dynamic_indices, force_scaling, structural_damping,
+                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-        return J
+            return resid
+        end
+
+        # mass matrix
+        update_mass_matrix! = function(M, u, p, t)
+
+            # get current parameters
+            pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+            pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+    
+            # zero out all mass matrix entries
+            M .= 0.0
+    
+            # calculate mass matrix
+            system_mass_matrix!(M, u, dynamic_indices, force_scaling, assembly, pcond, pmass)
+    
+            M .*= -1
+    
+            return M
+        end
+
+        mass_matrix = SciMLBase.DiffEqArrayOperator(system.M, update_func = update_mass_matrix!)
+
+        # jacobian
+        update_jacobian! = function(J, u, p, t)
+
+            # get current parameters
+            pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+            dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+            pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+            gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
+            x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
+            v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
+            ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+            a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+            α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
+
+            # zero out all jacobian entries
+            J .= 0.0
+
+            # calculate jacobian
+            steady_state_system_jacobian!(J, u, dynamic_indices, force_scaling, structural_damping, 
+                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+
+            return J
+        end
+
     end
 
     return SciMLBase.ODEFunction{true,true}(f; 
-        mass_matrix = SciMLBase.DiffEqArrayOperator(system.M, update_func = update_mass_matrix!),
-        jac = update_jacobian!,
-        #jac_prototype = typeof(system.K)
+        mass_matrix = mass_matrix,
+        jac = update_jacobian!
         )
 end
 
@@ -286,6 +359,8 @@ function get_differential_vars(system::System, assembly, prescribed_conditions, 
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : pmass(0.0)
 
     for ipoint = 1:length(assembly.points)
+
+        icol = system.dynamic_indices.icol_point[ipoint]
 
         # check if Vdot and Ωdot are used
         hasmass = haskey(pmass, ipoint)

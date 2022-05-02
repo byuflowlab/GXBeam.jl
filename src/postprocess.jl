@@ -93,14 +93,27 @@ analysis.
 function extract_point_state(system, assembly, ipoint, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    @unpack force_scaling, dynamic_indices, t = system
+    @unpack force_scaling, dynamic_indices, expanded_indices, t = system
+
+    expanded = length(x) > length(system.x)
+
+    indices = expanded ? expanded_indices : dynamic_indices
 
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     # extract point state variables
-    u, θ = point_displacement(x, ipoint, dynamic_indices.icol_point, pc)
-    V, Ω = point_velocities(x, ipoint, dynamic_indices.icol_point)
-    F, M = point_loads(x, ipoint, dynamic_indices.icol_point, force_scaling, pc)
+    u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
+    V, Ω = point_velocities(x, ipoint, indices.icol_point)
+    F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
+
+    # rotate velocities and forces for the expanded case into the body frame
+    if expanded
+        C = get_C(θ)
+        V = C'*V
+        Ω = C'*Ω
+        F = C'*F
+        M = C'*M
+    end
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(θ)
@@ -156,29 +169,52 @@ function extract_element_state(system, assembly, ielem, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
-    @unpack force_scaling, dynamic_indices, t = system
+    @unpack force_scaling, dynamic_indices, expanded_indices, t = system
+
+    expanded = length(x) > length(system.x)
+
+    indices = expanded ? expanded_indices : dynamic_indices
 
     # current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     # linear and angular displacement
-    u1, θ1 = point_displacement(x, assembly.start[ielem], dynamic_indices.icol_point, pc)
-    u2, θ2 = point_displacement(x, assembly.stop[ielem], dynamic_indices.icol_point, pc)
+    u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, pc)
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, pc)
     u = (u1 + u2)/2
     θ = (θ1 + θ2)/2
 
     # element state variables
-    F, M = element_loads(x, ielem, dynamic_indices.icol_elem, force_scaling)
+    if expanded
+        F1, M1, F2, M2 = expanded_element_loads(x, ielem, indices.icol_elem, force_scaling)
+        F = (F1 + F2)/2
+        M = (M1 + M2)/2
+    else
+        F, M = element_loads(x, ielem, indices.icol_elem, force_scaling)
+    end
 
     # linear and angular velocity
-    V1, Ω1 = point_velocities(x, assembly.start[ielem], dynamic_indices.icol_point)
-    V2, Ω2 = point_velocities(x, assembly.stop[ielem], dynamic_indices.icol_point)
-    V = (V1 + V2)/2
-    Ω = (Ω1 + Ω2)/2
+    if expanded
+        V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
+    else
+        V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
+        V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
+        V = (V1 + V2)/2
+        Ω = (Ω1 + Ω2)/2
+    end
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(θ)
     θ *= scaling
+
+    # rotate velocites for the expanded case into the body frame
+    if expanded
+        C = get_C(θ)
+        Cab = assembly.elements[ielem].Cab
+        CtCab = C'*Cab
+        V = CtCab*V
+        Ω = CtCab*Ω
+    end
 
     # promote all variables to the same type
     u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)

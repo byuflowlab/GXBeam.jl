@@ -63,7 +63,7 @@ function static_analysis!(system, assembly;
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
-    iterations=1000,
+    iterations=250,
     tvec=0.0,
     show_trace=false,
     reset_state=true)
@@ -226,7 +226,7 @@ function steady_state_analysis!(system, assembly;
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
-    iterations=1000,
+    iterations=250,
     origin=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
@@ -235,6 +235,8 @@ function steady_state_analysis!(system, assembly;
     tvec=0.0,
     show_trace=false,
     reset_state=true,
+    expanded=false,
+    structural_damping=false,
     )
 
     # reset state, if specified
@@ -243,13 +245,17 @@ function steady_state_analysis!(system, assembly;
     end
 
     # unpack pre-allocated storage
-    @unpack x, r, K, force_scaling, dynamic_indices = system
+    @unpack x, r, K, force_scaling, dynamic_indices, expanded_indices = system
+
+    # construct expanded state vector (if necessary)
+    if expanded
+        x = get_expanded_state(system, assembly, prescribed_conditions)
+        r = similar(r, length(x))
+        K = similar(K, length(x), length(x))
+    end
 
     # assume converged until proven otherwise
     converged = true
-
-    # structural damping does not impact the solution
-    structural_damping = false
 
     # begin time stepping
     for t in tvec
@@ -272,11 +278,20 @@ function steady_state_analysis!(system, assembly;
         a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-        f! = (resid, x) -> steady_state_system_residual!(resid, x, dynamic_indices, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        # residual and jacobian function
+        if expanded
+            f! = (resid, x) -> expanded_system_residual!(resid, x, expanded_indices, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
-        j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, dynamic_indices, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            j! = (jacob, x) -> expanded_system_jacobian!(jacob, x, expanded_indices, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        else
+            f! = (resid, x) -> steady_state_system_residual!(resid, x, dynamic_indices, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+
+            j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, dynamic_indices, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        end
 
         # solve the system of equations
         if linear
@@ -291,7 +306,7 @@ function steady_state_analysis!(system, assembly;
             f!(r, x)
             j!(K, x)
 
-            # update the solution
+            # update the solution               
             x .-= safe_lu(K) \ r
 
             # update the convergence flag
@@ -315,6 +330,11 @@ function steady_state_analysis!(system, assembly;
             # update the convergence flag
             converged = result.f_converged
         end
+    end
+
+    # insert expanded state variables into system state vector
+    if expanded
+        set_expanded_state!(system, assembly, prescribed_conditions, x)
     end
 
     return system, converged
@@ -396,13 +416,14 @@ function eigenvalue_analysis!(system, assembly;
     point_masses=Dict{Int,PointMass{Float64}}(),
     structural_damping=false,
     gravity=SVector(0,0,0),
+    expanded=false,
     linear=false,
     linearization_state=nothing,
     update_linearization_state=false,
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
-    iterations=1000,
+    iterations=250,
     show_trace=false,
     reset_state=true,
     find_steady_state=!linear && reset_state,
@@ -430,6 +451,7 @@ function eigenvalue_analysis!(system, assembly;
             distributed_loads=distributed_loads,
             point_masses=point_masses,
             gravity=gravity,
+            expanded=expanded,
             linear=linear,
             linearization_state=linearization_state,
             update_linearization_state=update_linearization_state,
@@ -464,7 +486,7 @@ function eigenvalue_analysis!(system, assembly;
     end
 
     # unpack state vector, stiffness, and mass matrices
-    @unpack x, K, M, force_scaling, dynamic_indices, t = system
+    @unpack x, K, M, force_scaling, dynamic_indices, expanded_indices, t = system
 
     # current parameters
     pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
@@ -477,13 +499,32 @@ function eigenvalue_analysis!(system, assembly;
     a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
-    # solve for the system stiffness matrix
-    steady_state_system_jacobian!(K, x, dynamic_indices, force_scaling, structural_damping,
-        assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+    if expanded
 
-    # solve for the system mass matrix
-    system_mass_matrix!(M, x, dynamic_indices, force_scaling, 
-        assembly, prescribed_conditions, point_masses)
+        # construct expanded state vector
+        x = get_expanded_state(system, assembly, prescribed_conditions)
+        K = similar(K, length(x), length(x))
+        M = similar(K, length(x), length(x))
+
+        # solve for the system stiffness matrix
+        expanded_system_jacobian!(K, x, dynamic_indices, force_scaling, structural_damping,
+            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+
+        # solve for the system mass matrix
+        expanded_system_mass_matrix!(M, x, dynamic_indices, force_scaling, 
+            assembly, prescribed_conditions, point_masses)
+
+    else
+
+        # solve for the system stiffness matrix
+        steady_state_system_jacobian!(K, x, dynamic_indices, force_scaling, structural_damping,
+            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+
+        # solve for the system mass matrix
+        system_mass_matrix!(M, x, dynamic_indices, force_scaling, 
+            assembly, prescribed_conditions, point_masses)
+
+    end
 
     # construct linear map
     T = eltype(system)
@@ -579,7 +620,7 @@ function initial_condition_analysis!(system, assembly, t0;
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
-    iterations=1000,
+    iterations=250,
     show_trace=false,
     reset_state=true,
     origin=(@SVector zeros(3)),
@@ -758,7 +799,7 @@ function time_domain_analysis!(system, assembly, tvec;
     method=:newton,
     linesearch=LineSearches.BackTracking(maxstep=1e6),
     ftol=1e-9,
-    iterations=1000,
+    iterations=250,
     show_trace=false,
     reset_state=true,
     initialize=true,
