@@ -233,7 +233,7 @@ state analysis
         ΔQ = get_ΔQ(θ, Δθ, Q)
 
         # strain rates
-        γdot = CtCab'*Δudot - Cab'*tilde(Ω - ω)*C*Δu - L*Cab'*tilde(Ω - ω)*CtCab'*e1
+        γdot = CtCab'*Δudot - Cab'*tilde(Ω - ω)*C*Δu - L*Cab'*tilde(Ω - ω)*C*Cab*e1
         κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
 
         # adjust strains to account for strain rates
@@ -599,7 +599,7 @@ mass matrix system
         ΔQ = get_ΔQ(θ, Δθ, Q)
 
         # strain rates
-        γdot = CtCab'*Δudot - Cab'*tilde(CtCab*Ω - ω)*C*Δu - L*Cab'*tilde(CtCab*Ω - ω)*CtCab'*e1
+        γdot = CtCab'*Δudot - Cab'*tilde(CtCab*Ω - ω)*C*Δu - L*Cab'*tilde(CtCab*Ω - ω)*C*Cab*e1
         κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
 
         # adjust strains to account for strain rates
