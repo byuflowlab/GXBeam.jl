@@ -10,8 +10,8 @@ const RNG = MersenneTwister(1234)
 
 @testset "Math" begin
     
-    c = rand(RNG, 3)
-    cdot = rand(RNG, 3)
+    c = 1e3*rand(RNG, 3)
+    cdot = 1e3*rand(RNG, 3)
 
     # get_C_θ
     C_θ1, C_θ2, C_θ3 = GXBeam.get_C_θ(c)

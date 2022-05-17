@@ -2300,7 +2300,7 @@ time-marching simulation.
     Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
     Cdot_θ1, Cdot_θ2, Cdot_θ3 = get_C_t_θ(θ, θdot)
     Ctdot_θ1, Ctdot_θ2, Ctdot_θ3 = Cdot_θ1', Cdot_θ2', Cdot_θ3'
-    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(C, θ)
+    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(θ)
     Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3 = Cdot_θdot1', Cdot_θdot2', Cdot_θdot3'
 
     # element strain and curvature
@@ -2721,7 +2721,7 @@ residual equations with respect to the time derivatives of the state variables
     CtCab = Ct*Cab
 
     # rotation matrix derivatives
-    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(C, θ)
+    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(θ)
     Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3 = Cdot_θdot1', Cdot_θdot2', Cdot_θdot3'
 
     # element linear and angular momentum
@@ -2782,7 +2782,7 @@ by the scaling parameter `gamma`.
     CtCab = Ct*Cab
 
     # rotation matrix derivatives
-    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(C, θ)
+    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(θ)
     Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3 = Cdot_θdot1', Cdot_θdot2', Cdot_θdot3'
 
     # element linear and angular momentum
