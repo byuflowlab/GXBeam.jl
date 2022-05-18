@@ -90,12 +90,18 @@ struct Cache{TM, TSM, TFM, TV}
     Le::TM
     Me::TM
     idx::TV
+    A::TM
+    R::TM
+    E::TSM
+    C::TSM
+    L::TM
+    M::TSM
 end
 
 """
 create chace.  set sizes of static matrices, and set sparsity patterns for those that are fixed.
 """
-function initializecache(etype=Float64)
+function initializecache(nodes, elements, etype=Float64)
 
     # create cache (TODO: set sparsity patterns)
     Q = zeros(etype, 6, 6)
@@ -208,7 +214,34 @@ function initializecache(etype=Float64)
 
     idx = zeros(Int64, 12)
 
-    cache = Cache(Q, Ttheta, Tbeta, Z, S, N, SZ, SN, Bksi, Beta, dNM_dksi, dNM_deta, BN, Ae, Re, Ee, Ce, Le, Me, idx)
+    # big system matrices
+    ne = length(elements) # number of elements
+    nn = length(nodes)  # number of nodes
+    ndof = 3 * nn  # 3 displacement dof per node
+
+    A = zeros(etype, 6, 6)  # 6 x 6
+    R = zeros(etype, ndof, 6)  #  nn*3 x 6
+    E = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
+    C = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
+    L = zeros(etype, ndof, 6)  # nn*3 x 6
+    M = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
+
+    # initialize sparsity pattern
+    one12 = ones(etype, 12, 12)
+    @views for i = 1:ne
+        nodenum = elements[i].nodenum
+        idx = node2idx(nodenum)
+
+        E[idx, idx] .= one12
+        C[idx, idx] .= one12
+        M[idx, idx] .= one12
+    end
+    # reset to zeros
+    E .= 0.0
+    C .= 0.0
+    M .= 0.0
+
+    cache = Cache(Q, Ttheta, Tbeta, Z, S, N, SZ, SN, Bksi, Beta, dNM_dksi, dNM_deta, BN, Ae, Re, Ee, Ce, Le, Me, idx, A, R, E, C, L, M)
 
     return cache
 end
@@ -483,6 +516,15 @@ function node2idx!(nodes, cache)
     return nothing
 end
 
+function node2idx(nodes)
+    nn = 4
+    idx = Vector{Int64}(undef, nn*3)
+    for i = 1:nn
+        idx[((i-1)*3+1):i*3] = ((nodes[i]-1)*3+1):nodes[i]*3
+    end
+    return idx
+end
+
 
 
 
@@ -502,37 +544,32 @@ Compute compliance matrix given the finite element mesh described by nodes and e
 - `tc::Vector{float}`: x, y location of tension center, aka elastic center, aka centroid 
     (location where an axial force will not produce any bending, i.e., beam will remain straight)
 """
-function compliance(nodes, elements)
+function compliance(nodes, elements, cache=initializecache(nodes, elements))
 
     # initialize
     ne = length(elements) # number of elements
     nn = length(nodes)  # number of nodes
     ndof = 3 * nn  # 3 displacement dof per node
 
-    # initialize
-    etype = eltype(elements[1].theta)  # TODO add others
-    A = zeros(etype, 6, 6)  # 6 x 6
-    R = zeros(etype, ndof, 6)  #  nn*3 x 6
-    E = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
-    C = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
-    L = zeros(etype, ndof, 6)  # nn*3 x 6
-    M = spzeros(etype, ndof, ndof)  # nn*3 x nn*3
-
-    cache = initializecache(etype)    
-
     # place element matrices in global matrices (scatter)
-    for i = 1:ne
+    @views for i = 1:ne
         nodenum = elements[i].nodenum
         submatrix!(elements[i], nodes[nodenum], cache)
-
         node2idx!(nodenum, cache)
-        A .+= cache.Ae
-        view(R, cache.idx, :) .+= cache.Re
-        view(E, cache.idx, cache.idx) .+= cache.Ee
-        view(C, cache.idx, cache.idx) .+= cache.Ce
-        view(L, cache.idx, :) .+= cache.Le
-        view(M, cache.idx, cache.idx) .+= cache.Me
+
+        cache.A .+= cache.Ae
+        cache.R[cache.idx, :] .+= cache.Re
+        cache.E[cache.idx, cache.idx] .+= cache.Ee
+        cache.C[cache.idx, cache.idx] .+= cache.Ce
+        cache.L[cache.idx, :] .+= cache.Le
+        cache.M[cache.idx, cache.idx] .+= cache.Me
     end
+    A = cache.A
+    R = cache.R
+    E = cache.E
+    C = cache.C
+    L = cache.L
+    M = cache.M
 
     # assemble displacement constraint matrix
     DT = spzeros(6, ndof)
@@ -692,7 +729,7 @@ nu23 = rand()
 nu13 = rand()
 rho = 1.0
 mat = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
-cache = initializecache()
+cache = initializecache([Node(0, 0, 1), Node(0, 0, 2), Node(0, 0, 3), Node(0, 0, 4)], [Element([1, 2, 3, 4], mat, 0.0)])
 stiffness!(mat, cache)
 Q1 = cache.Q
 
@@ -1158,9 +1195,11 @@ S, sc, tc = compliance(nodes, elements)
 K = inv(S)
 K2 = reorder(K)
 
-# using BenchmarkTools
-# @btime compliance($nodes, $elements)
-# @profview compliance(nodes, elements)
+
+using BenchmarkTools
+cache = initializecache(nodes, elements)
+@btime compliance($nodes, $elements, $cache)
+@profview compliance(nodes, elements, cache)
 
 
 
