@@ -1,10 +1,10 @@
 """
-    ODEProblem(system::GXBeam.System, assembly, tspan; kwargs...)
+    ODEProblem(system::GXBeam.AbstractSystem, assembly, tspan; kwargs...)
 
 Construct a `ODEProblem` for the system of nonlinear beams contained in `assembly` which 
 may be used with the DifferentialEquations package.
 """
-function SciMLBase.ODEProblem(system::System, assembly, tspan; 
+function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan; 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     constant_mass_matrix = true, 
     kwargs...)
@@ -25,7 +25,7 @@ function SciMLBase.ODEProblem(system::System, assembly, tspan;
 end
 
 """
-    ODEFunction(system::GXBeam.System, assembly; kwargs...)
+    ODEFunction(system::GXBeam.AbstractSystem, assembly; kwargs...)
 
 Construct a `ODEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
@@ -62,7 +62,7 @@ Keyword Arguments:
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.  
 """
-function SciMLBase.ODEFunction(system::System, assembly; 
+function SciMLBase.ODEFunction(system::AbstractSystem, assembly; 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     point_masses = Dict{Int,Vector{PointMass{Float64}}}(),
@@ -76,7 +76,7 @@ function SciMLBase.ODEFunction(system::System, assembly;
     constant_mass_matrix=true,
     )
 
-    @unpack dynamic_indices, expanded_indices, force_scaling = system
+    @unpack indices, force_scaling = system
 
     if constant_mass_matrix
 
@@ -209,12 +209,12 @@ function SciMLBase.ODEFunction(system::System, assembly;
 end
 
 """
-    DAEProblem(system::GXBeam.System, assembly, tspan; kwargs...)
+    DAEProblem(system::GXBeam.AbstractSystem, assembly, tspan; kwargs...)
 
 Construct a `DAEProblem` for the system of nonlinear beams contained in `assembly` which 
 may be used with the DifferentialEquations package.
 """
-function SciMLBase.DAEProblem(system::System, assembly, tspan; 
+function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan; 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     point_masses = Dict{Int,PointMass{Float64}}(),
     kwargs...)
@@ -244,7 +244,7 @@ function SciMLBase.DAEProblem(system::System, assembly, tspan;
 end
 
 """
-    DAEFunction(system::GXBeam.System, assembly; kwargs...)
+    DAEFunction(system::GXBeam.AbstractSystem, assembly; kwargs...)
 
 Construct a `DAEFunction` for the system of nonlinear beams
 contained in `assembly` which may be used with the DifferentialEquations package.
@@ -280,7 +280,7 @@ Keyword Arguments:
  - `angular_acceleration = zeros(3)`: Global frame angular acceleration vector. If time
        varying, this vector may be provided as a function of time.
 """
-function SciMLBase.DAEFunction(system::System, assembly; 
+function SciMLBase.DAEFunction(system::AbstractSystem, assembly; 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads = Dict{Int,DistributedLoads{Float64}}(),
     point_masses = Dict{Int,Vector{PointMass{Float64}}}(),
@@ -348,7 +348,7 @@ function SciMLBase.DAEFunction(system::System, assembly;
     return SciMLBase.DAEFunction{true,true}(f) # TODO: re-add jacobian here once supported
 end
 
-function get_differential_vars(system::System, assembly, prescribed_conditions, point_masses)
+function get_differential_vars(system::AbstractSystem, assembly, prescribed_conditions, point_masses)
 
     # NOTE: If a point and the elements connected to it are massless, then Vdot and Ωdot for
     # the point do not appear in the system of equations and thus not differentiable variables.

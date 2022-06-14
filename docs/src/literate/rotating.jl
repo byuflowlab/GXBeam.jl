@@ -244,10 +244,10 @@ nev = 30
 
 λ = Matrix{Vector{ComplexF64}}(undef, length(sweep), length(rpm))
 U = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
-MV = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
+V = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
 state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
-eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef,
-    length(sweep), length(rpm))
+eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
+
 for i = 1:length(sweep)
 
     local L_b1, r_b1, nelem_b1, lengths_b1
@@ -302,31 +302,41 @@ for i = 1:length(sweep)
         ## global frame rotation
         w0 = [0, 0, rpm[j]*(2*pi)/60]
 
-        ## eigenvalues and (right) eigenvectors
-        system, λ[i,j], V, converged = eigenvalue_analysis!(system, assembly;
+        ## define previous left eigenvector matrix (used for correlating eigenmodes)
+        if i == 1 && j == 1
+            Uprev = nothing
+        elseif i == 1
+            Uprev = U[i,j-1]
+        else
+            Uprev = U[i-1,j]
+        end
+
+        ## eigenvalues and eigenvectors
+        system, λ[i,j], U[i,j], V[i,j], converged = eigenvalue_analysis!(system, assembly;
             angular_velocity = w0,
             prescribed_conditions = prescribed_conditions,
-            nev = nev)
+            constant_mass_matrix=true,
+            nev = nev,
+            left = true,
+            Uprev = Uprev)
 
-        ## corresponding left eigenvectors
-        U[i,j] = left_eigenvectors(system, λ[i,j], V)
+        ## post-process state variables
+        state[i,j] = AssemblyState(system, assembly; prescribed_conditions)
 
-        ## post-multiply mass matrix with right eigenvector matrix
-        ## (we use this later for correlating eigenvalues)
-        MV[i,j] = system.M * V
-
-        ## process state and eigenstates
-        state[i,j] = AssemblyState(system, assembly;
-            prescribed_conditions = prescribed_conditions)
-        eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
-            prescribed_conditions = prescribed_conditions) for k = 1:nev]
+        ## post-process eigenvector state variables
+        eigenstates[i,j] = [
+            AssemblyState(system, assembly, V[i,j][:,k]; prescribed_conditions) for k = 1:nev
+            ]
     end
 end
 
+frequency = [
+    [imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)] for k = 1:nev
+    ]
+
 #!jl nothing #hide
 
-#
-# We can correlate each eigenmode by taking advantage of the fact that left and right 
+# Note that we correlated each eigenmode by taking advantage of the fact that left and right 
 # eigenvectors satisfy the following relationships:
 # 
 # ```math
@@ -336,43 +346,12 @@ end
 # \end{aligned}
 # ```
 
-## set previous left eigenvector matrix
-U_p = copy(U[1,1])
-
-for j = 1:length(rpm)
-    for i = 1:length(sweep)
-        ## construct correlation matrix
-        C = U_p*MV[i,j]
-
-        ## correlate eigenmodes
-        perm, corruption = correlate_eigenmodes(C)
-
-        ## re-arrange eigenvalues and eigenvectors
-        λ[i,j] = λ[i,j][perm]
-        U[i,j] = U[i,j][perm,:]
-        MV[i,j] = MV[i,j][:,perm]
-        eigenstates[i,j] = eigenstates[i,j][perm]
-
-        ## update previous eigenvector matrix
-        U_p .= U[i,j]
-    end
-    ## update previous eigenvector matrix
-    U_p .= U[1,j]
-end
-
-frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)]
-    for k = 1:2:nev]
-
-#!jl nothing #hide
-
 # In this case these eigenmode correlations work, but remember that large changes in the 
 # underlying parameters (or just drastic changes in the eigenvectors themselves due to a 
-# small perturbation) can cause these automatic eigenmode correlations to fail.
+# small perturbation) can cause these correlations to fail.
 
 # We'll now plot the frequency of the different eigenmodes against those found by Epps and 
 # Chandra in "The Natural Frequencies of Rotating Composite Beams With Tip Sweep".
-
-
 
 names = ["First Bending Mode", "Second Bending Mode", "Third Bending Mode"]
 indices = [1, 2, 4]
@@ -397,9 +376,9 @@ experiment_frequencies = [
 #md @suppress_err begin #hide
 #nb ph = Vector{Any}(undef, 3)
 
-for k = 1:3
-#nb     ph[k] = plot(
-#!nb     plot(
+for k = 1:length(indices)
+#nb     ph[k] = 
+    plot(
         title = names[k],
         xticks = 0:15:45,
         xlabel = "Sweep Angle (degrees)",
@@ -418,6 +397,7 @@ for k = 1:3
         scatter!(experiment_sweep, experiment_frequencies[k][j,:],
             label="", color=j)
     end
+    plot!(show=true)
 
 #!nb     plot!(show=true)
 #md savefig("../assets/rotating-frequencies-$(k).svg") #hide
@@ -454,22 +434,26 @@ plot(
     title = "Coupled Torsion-Bending Modes at 750 RPM",
     xticks = 0:15:45,
     xlabel = "Sweep Angle (degrees)",
-    ylim = (0, Inf),
+    ylim = (0, 200),
     ylabel = "Frequency (Hz)",
     legend = :bottomleft,
     grid = false,
     overwrite_figure=false
     )
 
-plot!([], [], color=:black, label="GXBeam")
-scatter!([], [], color=:black,
-    label="Experiment (Epps and Chandra)")
+# plot!([], [], color=:black, label="GXBeam")
+# scatter!([], [], color=:black, label="Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
-    plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
+    plot!(sweep*180/pi, frequency[indices[k]][:,end], label="", color=k)
     scatter!(experiment_sweep, experiment_frequencies[k,:], label="", color=k)
 end
-#!nb plot!(show=true)
+
+for k = 1:length(frequency)
+    scatter!(sweep*180/pi, frequency[k][:,end], label="")
+end
+
+plot!(show=true)
 #md savefig("../assets/rotating-frequencies-4.svg"); 
 #md closeall() #hide
 #md end #hide

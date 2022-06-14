@@ -55,16 +55,12 @@ parameter allows deflections greater than 360 degrees.
 
     θnorm = sqrt(θ'*θ)
 
-    if θnorm <= 4
-        scaling = one(θnorm)
-    else
-        half_rotations = θnorm/4
-        irot, m = floor(half_rotations/2), half_rotations%2
-        if m <= 1
-            scaling = 1 .- 8*irot/θnorm
-        else
-            scaling = 1 .- 8*(irot+1)/θnorm
-        end
+    scaling = 1
+
+    m = div(div(θnorm, 4) + 1, 2) # number of times to add/subtract
+
+    if θnorm > 4
+        scaling -= 8*m/θnorm
     end
 
     return scaling

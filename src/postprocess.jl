@@ -7,7 +7,7 @@ Holds the state variables for a point
  - `u`: Linear deflection
  - `theta`: Angular deflection (Wiener-Milenkovic parameters)
  - `V`: Linear velocity
- - `Ω`: Angular velocity
+ - `Omega`: Angular velocity
  - `F`: External forces
  - `M`: External moments
 """
@@ -27,7 +27,7 @@ Holds the state variables for an element
 
 # Fields:
  - `u`: Linear deflection
- - `theta`: Angular deflection
+ - `theta`: Angular deflection (Wiener-Milenkovic parameters)
  - `V`: Linear velocity
  - `Omega`: Angular velocity
  - `Fi`: Internal forces
@@ -90,30 +90,71 @@ If `prescribed_conditions` is not provided, all point state variables are assume
 to be displacements/rotations, rather than their actual identities as used in the
 analysis.
 """
-function extract_point_state(system, assembly, ipoint, x = system.x;
+extract_point_state
+
+function extract_point_state(system::StaticSystem, assembly, ipoint, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    @unpack force_scaling, dynamic_indices, expanded_indices, t = system
+    @unpack force_scaling, indices, t = system
 
-    expanded = length(x) > length(system.x)
-
-    indices = expanded ? expanded_indices : dynamic_indices
-
+    # get current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
     # extract point state variables
     u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
-    V, Ω = point_velocities(x, ipoint, indices.icol_point)
     F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
+    V, Ω = zero(u), zero(θ)
+    
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
 
-    # rotate velocities and forces for the expanded case into the body frame
-    if expanded
-        C = get_C(θ)
-        V = C'*V
-        Ω = C'*Ω
-        F = C'*F
-        M = C'*M
-    end
+    # promote all variables to the same type
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
+
+    return PointState(u, θ, V, Ω, F, M)
+end
+
+function extract_point_state(system::DynamicSystem, assembly, ipoint, x = system.x;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+    @unpack force_scaling, indices, t = system
+
+    # get current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    # extract point state variables
+    u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
+    F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
+    V, Ω = point_velocities(x, ipoint, indices.icol_point)
+
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
+
+    # promote all variables to the same type
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
+
+    return PointState(u, θ, V, Ω, F, M)
+end
+
+function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = system.x;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+    @unpack force_scaling, indices, t = system
+
+    # get current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    # extract point state variables
+    u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
+    F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
+    V, Ω = point_velocities(x, ipoint, indices.icol_point)
+
+    # rotate linear and angular velocities into the body frame
+    C = get_C(θ)
+    V = C'*V
+    Ω = C'*Ω
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(θ)
@@ -165,15 +206,13 @@ end
 Return the state variables corresponding to element `ielem` (see [`ElementState`](@ref))
 given the solution vector `x`.
 """
-function extract_element_state(system, assembly, ielem, x = system.x; 
+extract_element_state
+
+function extract_element_state(system::StaticSystem, assembly, ielem, x = system.x; 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
-    @unpack force_scaling, dynamic_indices, expanded_indices, t = system
-
-    expanded = length(x) > length(system.x)
-
-    indices = expanded ? expanded_indices : dynamic_indices
+    @unpack force_scaling, indices, t = system
 
     # current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
@@ -184,37 +223,90 @@ function extract_element_state(system, assembly, ielem, x = system.x;
     u = (u1 + u2)/2
     θ = (θ1 + θ2)/2
 
-    # element state variables
-    if expanded
-        F1, M1, F2, M2 = expanded_element_loads(x, ielem, indices.icol_elem, force_scaling)
-        F = (F1 + F2)/2
-        M = (M1 + M2)/2
-    else
-        F, M = element_loads(x, ielem, indices.icol_elem, force_scaling)
-    end
+    # internal forces and moments
+    F, M = element_loads(x, ielem, indices.icol_elem, force_scaling)
 
     # linear and angular velocity
-    if expanded
-        V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
-    else
-        V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
-        V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
-        V = (V1 + V2)/2
-        Ω = (Ω1 + Ω2)/2
-    end
+    V = zero(u)
+    Ω = zero(θ)
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(θ)
     θ *= scaling
 
-    # rotate velocites for the expanded case into the body frame
-    if expanded
-        C = get_C(θ)
-        Cab = assembly.elements[ielem].Cab
-        CtCab = C'*Cab
-        V = CtCab*V
-        Ω = CtCab*Ω
-    end
+    # promote all variables to the same type
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
+
+    return ElementState(u, θ, V, Ω, F, M)
+end
+
+function extract_element_state(system::DynamicSystem, assembly, ielem, x = system.x; 
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+    # system variables
+    @unpack force_scaling, indices, t = system
+
+    # current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    # linear and angular displacement
+    u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, pc)
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, pc)
+    u = (u1 + u2)/2
+    θ = (θ1 + θ2)/2
+
+    # internal forces and moments
+    F, M = element_loads(x, ielem, indices.icol_elem, force_scaling)
+
+    # linear and angular velocity
+    V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
+    V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
+    V = (V1 + V2)/2
+    Ω = (Ω1 + Ω2)/2
+
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
+
+    # promote all variables to the same type
+    u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
+
+    return ElementState(u, θ, V, Ω, F, M)
+end
+
+function extract_element_state(system::ExpandedSystem, assembly, ielem, x = system.x; 
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+
+    # system variables
+    @unpack force_scaling, indices, t = system
+
+    # current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+
+    # linear and angular displacement
+    u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, pc)
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, pc)
+    u = (u1 + u2)/2
+    θ = (θ1 + θ2)/2
+
+    # element forces and moments
+    F1, M1, F2, M2 = expanded_element_loads(x, ielem, indices.icol_elem, force_scaling)
+    F = (F1 + F2)/2
+    M = (M1 + M2)/2
+
+    # linear and angular velocity
+    V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
+
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
+
+    # rotate linear and angular velocites into the body frame
+    # C = get_C(θ)
+    # Cab = assembly.elements[ielem].Cab
+    # CtCab = C'*Cab
+    # V = CtCab*V
+    # Ω = CtCab*Ω
 
     # promote all variables to the same type
     u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
@@ -793,179 +885,3 @@ function write_vtk(name, assembly, state, λ, eigenstate;
     return nothing
 end
 
-"""
-    left_eigenvectors(system, λ, V)
-    left_eigenvectors(K, M, λ, V)
-
-Compute the left eigenvector matrix `U` for the `system` using inverse power
-iteration given the eigenvalues `λ` and the corresponding right eigenvector
-matrix `V`.
-
-The complex conjugate of each left eigenvector is stored in each row of the
-matrix `U`
-
-Left and right eigenvectors satisfy the following M-orthogonality condition:
- - u'*M*v = 1 if u and v correspond to the same eigenvalue
- - u'*M*v = 0 if u and v correspond to different eigenvalues
-This means that U*M*V = I
-
-This function assumes that `system` has not been modified since the eigenvalues
-and right eigenvectors were computed.
-"""
-left_eigenvectors(system, λ, V) = left_eigenvectors(system.K, system.M, λ, V)
-
-function left_eigenvectors(K, M, λ, V)
-
-    # problem type and dimensions
-    TC = eltype(V)
-    nx = size(V,1)
-    nev = size(V,2)
-
-    # allocate storage
-    U = rand(TC, nev, nx)
-    u = Vector{TC}(undef, nx)
-    tmp = Vector{TC}(undef, nx)
-
-    # # get entries in M
-    # iM, jM, valM = findnz(M)
-
-    # compute eigenvectors for each eigenvalue
-    for iλ = 1:nev
-
-        # factorize (K + λ*M)'
-        KmλMfact = factorize(K' + λ[iλ]'*M')
-
-        # initialize left eigenvector
-        for i = 1:nx
-            u[i] = U[iλ,i]
-        end
-
-        # perform a few iterations to converge the left eigenvector
-        for ipass = 1:3
-            # get updated u
-            mul!(tmp, M, u)
-            ldiv!(u, KmλMfact, tmp)
-            # normalize u
-            unorm = zero(TC)
-            for i in axes(M, 1), j in axes(M, 2)
-                unorm += conj(u[i])*M[i,j]*V[j,iλ]
-            end
-            rdiv!(u, conj(unorm))
-        end
-
-        # store conjugate of final eigenvector
-        for i = 1:nx
-            U[iλ,i] = conj(u[i])
-        end
-    end
-
-    return U
-end
-
-function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
-
-    # problem type and dimensions
-    TC = eltype(V)
-    nx = size(V,1)
-    nev = size(V,2)
-
-    # allocate storage
-    U = rand(TC, nev, nx)
-    u = Vector{TC}(undef, nx)
-    tmp = Vector{TC}(undef, nx)
-
-    # get entries in M
-    iM, jM, valM = findnz(M)
-
-    # compute eigenvectors for each eigenvalue
-    for iλ = 1:nev
-
-        # factorize (K + λ*M)'
-        KmλMfact = factorize(K' + λ[iλ]'*M')
-
-        # initialize left eigenvector
-        for i = 1:nx
-            u[i] = U[iλ,i]
-        end
-
-        # perform a few iterations to converge the left eigenvector
-        for ipass = 1:3
-            # get updated u
-            mul!(tmp, M, u)
-            ldiv!(u, KmλMfact, tmp)
-            # normalize u
-            unorm = zero(TC)
-            for k = 1:length(valM)
-                unorm += conj(u[iM[k]])*valM[k]*V[jM[k],iλ]
-            end
-            rdiv!(u, conj(unorm))
-        end
-
-        # store conjugate of final eigenvector
-        for i = 1:nx
-            U[iλ,i] = conj(u[i])
-        end
-    end
-
-    return U
-end
-
-"""
-    correlate_eigenmodes(C)
-
-Return the permutation and the associated corruption index vector which associates
-eigenmodes from the current iteration with those of the previous iteration given
-the correlation matrix `C`.
-
-The correlation matrix can take one of the following forms (in order of preference):
- - `C = U_p*M*V`
- - `C = U*M_p*V_p`
- - `C = V_p'*V`
- - `C = V'*V_p`
-where `U` is a matrix of conjugated left eigenvectors, `M` is the system mass
-matrix, `V` is a matrix of right eigenvectors, and `()_p` indicates a variable
-from the previous iteration.
-
-Note that the following two forms of the correlation matrix seem to be significantly
-inferior to their counterparts listed above: `C = U*M*V_p` and `C = U_p*M_p*V`.
-This is likely due to the way in which the left eigenvector matrix is calculated.
-
-The corruption index is the largest magnitude in a given row of `C`
-that was not chosen divided by the magnitude of the chosen eigenmode.  It is most
-meaningful when using one of the forms of the correlation matrix that uses left
-eigenvectors since correct eigenmodes will have magnitudes close to 1 and
-incorrect eigenmodes will have magnitudes close to 0.
-
-If the new mode number is already assigned, the next highest unassigned mode
-number is used.  In this case a corruption index higher than 1 will be returned,
-otherwise the values of the corruption index will always be bounded by 0 and 1.
-
-See "New Mode Tracking Methods in Aeroelastic Analysis" by Eldred, Vankayya, and
-Anderson.
-"""
-function correlate_eigenmodes(C)
-
-    # get row permutation that puts maximum values on the diagonals
-    nev = size(C, 1)
-    tmp = Vector{real(eltype(C))}(undef, nev)
-    perm = zeros(Int, nev)
-    corruption = Vector{real(eltype(C))}(undef, nev)
-    for i = 1:nev
-
-        # rank each value in this row
-        for j = 1:nev
-            tmp[j] = abs(C[i,j])
-        end
-        ranked_modes = sortperm(tmp, rev=true)
-
-        # choose the best fit that is not yet assigned
-        i1 = ranked_modes[findfirst((x) -> !(x in perm), ranked_modes)]
-        i2 = i1 == ranked_modes[1] ? ranked_modes[2] : ranked_modes[1]
-
-        # assign best eigenmode fit, create corruption index
-        perm[i] = i1
-        corruption[i] = tmp[i2]/tmp[i1]
-    end
-
-    return perm, corruption
-end

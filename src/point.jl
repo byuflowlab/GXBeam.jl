@@ -153,161 +153,6 @@ end
 end
 
 """
-    expanded_point_loads(x, ipoint, icol, force_scaling, prescribed_conditions)
-
-Extract the loads `F` and `M` of point `ipoint` from the state variable vector or 
-prescribed conditions for a constant mass matrix system.
-"""
-@inline function expanded_point_loads(x, ipoint, icol, force_scaling, prescribed_conditions)
-
-    if haskey(prescribed_conditions, ipoint)
-        F, M = expanded_point_loads(x, icol[ipoint], force_scaling, prescribed_conditions[ipoint])
-    else
-        F, M = expanded_point_loads(x, icol[ipoint], force_scaling)
-    end
-
-    return F, M
-end
-
-@inline function expanded_point_loads(x, icol, force_scaling, prescribed_conditions)
-
-    # unpack prescribed conditions for the node
-    @unpack value, follower, isforce = prescribed_conditions
-
-    # displacements
-    u, θ = point_displacement(x, icol, prescribed_conditions)
-
-    # transformation matrix
-    C = get_C(θ)
-
-    # calculate prescribed external forces
-    F = zero(u)
-    for i = 1:3
-        if isforce[i]
-            # add dead force
-            F += SVector(C[1,i], C[2,i], C[3,i])*value[i]
-            # add follower force
-            F += SVector(I3[1,i], I3[2,i], I3[3,i])*follower[i]
-        end
-    end
-
-    # overwrite prescribed external forces if linear displacements are prescribed instead
-    F = SVector(ifelse(isforce[1], F[1], x[icol  ]*force_scaling),
-                 ifelse(isforce[2], F[2], x[icol+1]*force_scaling),
-                 ifelse(isforce[3], F[3], x[icol+2]*force_scaling))
-
-    # calculate prescribed external moments
-    M = zero(θ)
-    for i = 4:6
-        if isforce[i]
-            # add dead moment
-            M += SVector(C[1,i-3], C[2,i-3], C[3,i-3])*value[i]
-            # add follower moment
-            M += SVector(I3[1,i-3], I3[2,i-3], I3[3,i-3])*follower[i]
-        end
-    end
-
-    # overwrite prescribed external moments if angular displacements are prescribed instead
-    M = SVector(ifelse(isforce[4], M[1], x[icol+3]*force_scaling),
-                 ifelse(isforce[5], M[2], x[icol+4]*force_scaling),
-                 ifelse(isforce[6], M[3], x[icol+5]*force_scaling))
-
-    return F, M
-end
-
-@inline function expanded_point_loads(x, icol, force_scaling)
-
-    F = @SVector zeros(eltype(x), 3)
-    M = @SVector zeros(eltype(x), 3)
-
-    return F, M
-end
-
-"""
-    expanded_point_load_jacobians(x, ipoint, icol, force_scaling, prescribed_conditions)
-
-Calculate the load jacobians `F_θ`, `F_F`, `M_θ`, and `M_M` of point `ipoint` for a 
-constant mass matrix system.
-"""
-@inline function expanded_point_load_jacobians(x, ipoint, icol, force_scaling, prescribed_conditions)
-
-    if haskey(prescribed_conditions, ipoint)
-        F_θ, F_F, M_θ, M_M = expanded_point_load_jacobians(x, icol[ipoint], force_scaling, prescribed_conditions[ipoint])
-    else
-        F_θ, F_F, M_θ, M_M = expanded_point_load_jacobians(x, icol[ipoint], force_scaling)
-    end
-
-    return F_θ, F_F, M_θ, M_M
-end
-
-@inline function expanded_point_load_jacobians(x, icol, force_scaling, prescribed_conditions)
-
-    @unpack value, follower, isforce = prescribed_conditions
-
-    u, θ = point_displacement(x, icol, prescribed_conditions)
-
-    F_F = hcat(ifelse(isforce[1], zero(e1), e1),
-                 ifelse(isforce[2], zero(e2), e2),
-                 ifelse(isforce[3], zero(e3), e3))
-
-    M_M = hcat(ifelse(isforce[4], zero(e1), e1),
-                 ifelse(isforce[5], zero(e2), e2),
-                 ifelse(isforce[6], zero(e3), e3))
-
-    C = get_C(θ)
-    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)           
-
-    # solve for the jacobian wrt theta of the follower forces
-    Fp_θ = @SMatrix zeros(eltype(x), 3, 3)
-    for i = 1:3
-        if isforce[i]
-            rot_θ = @SMatrix [
-                C_θ1[1,i] C_θ2[1,i] C_θ3[1,i];
-                C_θ1[2,i] C_θ2[2,i] C_θ3[2,i];
-                C_θ1[3,i] C_θ2[3,i] C_θ3[3,i]
-                ]
-            Fp_θ += rot_θ*value[i]
-        end
-    end
-
-    # solve for the jacobian wrt theta of the follower moments
-    Mp_θ = @SMatrix zeros(eltype(x), 3, 3)
-    for i = 1:3
-        if isforce[i+3]
-            rot_θ = @SMatrix [
-                C_θ1[1,i] C_θ2[1,i] C_θ3[1,i];
-                C_θ1[2,i] C_θ2[2,i] C_θ3[2,i];
-                C_θ1[3,i] C_θ2[3,i] C_θ3[3,i]
-                ]
-            Mp_θ += rot_θ*value[i+3]
-        end
-    end
-
-    # if displacement is specified, corresponding component of jacobian is zero
-    F1_θ = ifelse(isforce[1], SVector(Fp_θ[1,1], Fp_θ[1,2], Fp_θ[1,3]), (@SVector zeros(3)))
-    F2_θ = ifelse(isforce[2], SVector(Fp_θ[2,1], Fp_θ[2,2], Fp_θ[2,3]), (@SVector zeros(3)))
-    F3_θ = ifelse(isforce[3], SVector(Fp_θ[3,1], Fp_θ[3,2], Fp_θ[3,3]), (@SVector zeros(3)))
-    F_θ = vcat(F1_θ', F2_θ', F3_θ')
-
-    M1_θ = ifelse(isforce[4], SVector(Mp_θ[1,1], Mp_θ[1,2], Mp_θ[1,3]), (@SVector zeros(3)))
-    M2_θ = ifelse(isforce[5], SVector(Mp_θ[2,1], Mp_θ[2,2], Mp_θ[2,3]), (@SVector zeros(3)))
-    M3_θ = ifelse(isforce[6], SVector(Mp_θ[3,1], Mp_θ[3,2], Mp_θ[3,3]), (@SVector zeros(3)))
-    M_θ = vcat(M1_θ', M2_θ', M3_θ')
-
-    return F_θ, F_F, M_θ, M_M
-end
-
-@inline function expanded_point_load_jacobians(x, icol, force_scaling)
-
-    F_θ = @SMatrix zeros(eltype(x), 3, 3)
-    F_F = @SMatrix zeros(eltype(x), 3, 3)
-    M_θ = @SMatrix zeros(eltype(x), 3, 3)
-    M_M = @SMatrix zeros(eltype(x), 3, 3)
-
-    return F_θ, F_F, M_θ, M_M
-end
-
-"""
     point_displacement(x, ipoint, icol_point, prescribed_conditions)
 
 Extract the displacements `u` and `θ` of point `ipoint` from the state variable vector or 
@@ -624,7 +469,7 @@ analysis initialization.
     Vdot, Ωdot = point_displacement_rates(x, ipoint, indices.icol_point, prescribed_conditions)
 
     # linear and angular momentum rates
-    Cdot = -tilde(Ω - ω)*C
+    Cdot = -C*tilde(Ω - ω)
 
     Pdot = C'*mass11*C*Vdot + C'*mass12*C*Ωdot +
         C'*mass11*Cdot*V + C'*mass12*Cdot*Ω +
@@ -664,7 +509,7 @@ time stepping analysis
     Ωdot = 2/dt*Ω - SVector{3}(Ωdot_init[ipoint])
 
     # linear and angular momentum rates
-    Cdot = -tilde(Ω - ω)*C
+    Cdot = -C*tilde(Ω - ω)
 
     Pdot = C'*mass11*C*Vdot + C'*mass12*C*Ωdot +
         C'*mass11*Cdot*V + C'*mass12*Cdot*Ω +
@@ -673,6 +518,14 @@ time stepping analysis
     Hdot = C'*mass21*C*Vdot + C'*mass22*C*Ωdot +
         C'*mass21*Cdot*V + C'*mass22*Cdot*Ω +
         Cdot'*mass21*C*V + Cdot'*mass22*C*Ω
+
+    Pdot = C'*mass11*C*Vdot + C'*mass12*C*Ωdot +
+        - C'*mass11*C*tilde(Ω - ω)*V - C'*mass12*C*tilde(Ω - ω)*Ω +
+        tilde(Ω - ω)*C'*mass11*C*V + tilde(Ω - ω)*C'*mass12*C*Ω
+    
+    Hdot = C'*mass21*C*Vdot + C'*mass22*C*Ωdot +
+        - C'*mass21*C*tilde(Ω - ω)*V - C'*mass22*C*tilde(Ω - ω)*Ω +
+        tilde(Ω - ω)*C'*mass21*C*V + tilde(Ω - ω)*C'*mass22*C*Ω
 
     return (; properties..., udot, θdot, Cdot, Vdot, Ωdot, Pdot, Hdot) 
 end
@@ -699,7 +552,7 @@ analysis
     Vdot, Ωdot = point_velocities(dx, ipoint, indices.icol_point)
 
     # linear and angular momentum rates
-    Cdot = -tilde(Ω - ω)*C
+    Cdot = -C*tilde(Ω - ω)
 
     Pdot = C'*mass11*C*Vdot + C'*mass12*C*Ωdot +
         C'*mass11*Cdot*V + C'*mass12*Cdot*Ω +
@@ -746,7 +599,7 @@ mass matrix system.
     H = mass21*V + mass22*Ω
 
     # forces and moments
-    F, M = expanded_point_loads(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
+    F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
 
     # distance from the rotation center (in the body frame)
     Δx = assembly.points[ipoint] - x0
@@ -758,16 +611,6 @@ mass matrix system.
     # linear and angular acceleration (in the body frame)
     a = a0 + cross(α0, Δx) + cross(α0, u) - gravity
     α = α0
-
-    # # displacement rates
-    # udot, θdot = point_displacement_rates(dx, ipoint, indices.icol_point, prescribed_conditions)
-    #
-    # # velocity rates
-    # Vdot, Ωdot = point_velocities(dx, ipoint, indices.icol_point)
-    #
-    # # linear and angular momentum rates
-    # Pdot = mass11*Vdot + mass12*Ωdot
-    # Hdot = mass21*Vdot + mass22*Ωdot
 
     return (; C, Qinv, mass11, mass12, mass21, mass22, u, θ, V, Ω, P, H, F, M, v, ω, a, α) 
 end
@@ -815,8 +658,8 @@ Calculate the velocity residuals `rV` and `rΩ` for a point for a steady state a
 
     @unpack u, C, Qinv, V, Ω, v, ω = properties
     
-    rV = C'*V - v - cross(ω, u) # - udot
-    rΩ = Qinv*(Ω - C*ω) # - θdot
+    rV = C'*V - v - cross(ω, u)
+    rΩ = Qinv*(Ω - C*ω)
 
     return (; rV, rΩ)
 end
@@ -882,17 +725,17 @@ Calculate the net loads `F` and `M` applied at a point for a constant mass matri
 
     @unpack C, mass11, mass12, mass21, mass22, F, M, V, Ω, P, H, ω, a, α = properties
 
+    # rotate loads into the deformed frame
+    F = C*F
+    M = C*M
+
     # add loads due to linear and angular acceleration (including gravity)
     F -= mass11*C*a + mass12*C*α
     M -= mass21*C*a + mass22*C*α
 
     # add loads due to linear and angular momentum
-    F -= cross(C*ω, P)
-    M -= cross(C*ω, H) + cross(V, P)
-
-    # add loads due to linear and angular momentum rates
-    F -= tilde(C'*Ω - ω)*P # + Pdot
-    M -= tilde(C'*Ω - ω)*H # + Hdot
+    F -= cross(Ω, P)
+    M -= cross(Ω, H) + cross(V, P)
 
     return F, M
 end
@@ -1152,8 +995,8 @@ corresponding to a point for a Newmark scheme time marching analysis
     Pdot_V = C'*mass11*Cdot + Cdot'*mass11*C
     
     Pdot_Ω = C'*mass12*Cdot + Cdot'*mass12*C +
-        C'*mass11*tilde(C*V) + C'*mass12*tilde(C*Ω) +
-        -C'*tilde(mass11*C*V) - C'*tilde(mass12*C*Ω)
+        C'*mass11*C*tilde(V) + C'*mass12*C*tilde(Ω) + 
+        -tilde(C'*mass11*C*V) - tilde(C'*mass12*C*Ω)
     
     Pdot_Vdot = C'*mass11*C
     
@@ -1162,8 +1005,8 @@ corresponding to a point for a Newmark scheme time marching analysis
     Hdot_V = C'*mass21*Cdot + Cdot'*mass21*C
 
     Hdot_Ω = C'*mass22*Cdot + Cdot'*mass22*C +
-        C'*mass21*tilde(C*V) + C'*mass22*tilde(C*Ω) +
-        -C'*tilde(mass21*C*V) - C'*tilde(mass22*C*Ω)
+        C'*mass21*C*tilde(V) + C'*mass22*C*tilde(Ω) +
+        -tilde(C'*mass21*C*V) - tilde(C'*mass22*C*Ω)
 
     Hdot_Vdot = C'*mass21*C
 
@@ -1200,20 +1043,20 @@ corresponding to a point for a Newmark scheme time marching analysis
         mul3(C_θ1', C_θ2', C_θ3', mass12*C*Ωdot) +
         C'*mass11*mul3(C_θ1, C_θ2, C_θ3, Vdot) + 
         C'*mass12*mul3(C_θ1, C_θ2, C_θ3, Ωdot) +
-        mul3(C_θ1', C_θ2', C_θ3', tilde(Ω - ω)*mass11*C*V) + 
-        mul3(C_θ1', C_θ2', C_θ3', tilde(Ω - ω)*mass12*C*Ω) +
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass11*C*V) + 
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass12*C*Ω) +
         Cdot'*mass11*mul3(C_θ1, C_θ2, C_θ3, V) + 
         Cdot'*mass12*mul3(C_θ1, C_θ2, C_θ3, Ω) +
         mul3(C_θ1', C_θ2', C_θ3', mass11*Cdot*V) + 
         mul3(C_θ1', C_θ2', C_θ3', mass12*Cdot*Ω) +
-        -C'*mass11*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, V) + 
-        -C'*mass12*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, Ω)
+        -C'*mass11*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*V) + 
+        -C'*mass12*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*Ω)
 
     Pdot_V = C'*mass11*Cdot + Cdot'*mass11*C
-    
+
     Pdot_Ω = C'*mass12*Cdot + Cdot'*mass12*C +
-        C'*mass11*tilde(C*V) + C'*mass12*tilde(C*Ω) +
-        -C'*tilde(mass11*C*V) - C'*tilde(mass12*C*Ω)
+        C'*mass11*C*tilde(V) + C'*mass12*C*tilde(Ω) + 
+        -tilde(C'*mass11*C*V) - tilde(C'*mass12*C*Ω)
     
     Pdot_V += 2/dt*C'*mass11*C
     
@@ -1223,20 +1066,20 @@ corresponding to a point for a Newmark scheme time marching analysis
         mul3(C_θ1', C_θ2', C_θ3', mass22*C*Ωdot) +
         C'*mass21*mul3(C_θ1, C_θ2, C_θ3, Vdot) + 
         C'*mass22*mul3(C_θ1, C_θ2, C_θ3, Ωdot) +
-        mul3(C_θ1', C_θ2', C_θ3', (tilde(Ω - ω)*mass21*C*V)) + 
-        mul3(C_θ1', C_θ2', C_θ3', (tilde(Ω - ω)*mass22*C*Ω)) +
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass21*C*V) + 
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass22*C*Ω) +
         Cdot'*mass21*mul3(C_θ1, C_θ2, C_θ3, V) + 
         Cdot'*mass22*mul3(C_θ1, C_θ2, C_θ3, Ω) +
         mul3(C_θ1', C_θ2', C_θ3', mass21*Cdot*V) + 
         mul3(C_θ1', C_θ2', C_θ3', mass22*Cdot*Ω) +
-        -C'*mass21*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, V) + 
-        -C'*mass22*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, Ω)
+        -C'*mass21*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*V) + 
+        -C'*mass22*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*Ω)
 
     Hdot_V = C'*mass21*Cdot + Cdot'*mass21*C
 
     Hdot_Ω = C'*mass22*Cdot + Cdot'*mass22*C +
-        C'*mass21*tilde(C*V) + C'*mass22*tilde(C*Ω) +
-        -C'*tilde(mass21*C*V) - C'*tilde(mass22*C*Ω)
+        C'*mass21*C*tilde(V) + C'*mass22*C*tilde(Ω) +
+        -tilde(C'*mass21*C*V) - tilde(C'*mass22*C*Ω)
 
     Hdot_V += 2/dt*C'*mass21*C
 
@@ -1267,39 +1110,39 @@ corresponding to a point for a dynamic analysis
         mul3(C_θ1', C_θ2', C_θ3', mass12*C*Ωdot) +
         C'*mass11*mul3(C_θ1, C_θ2, C_θ3, Vdot) + 
         C'*mass12*mul3(C_θ1, C_θ2, C_θ3, Ωdot) +
-        mul3(C_θ1', C_θ2', C_θ3', tilde(Ω - ω)*mass11*C*V) + 
-        mul3(C_θ1', C_θ2', C_θ3', tilde(Ω - ω)*mass12*C*Ω) +
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass11*C*V) + 
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass12*C*Ω) +
         Cdot'*mass11*mul3(C_θ1, C_θ2, C_θ3, V) + 
         Cdot'*mass12*mul3(C_θ1, C_θ2, C_θ3, Ω) +
         mul3(C_θ1', C_θ2', C_θ3', mass11*Cdot*V) + 
         mul3(C_θ1', C_θ2', C_θ3', mass12*Cdot*Ω) +
-        -C'*mass11*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, V) + 
-        -C'*mass12*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, Ω)
+        -C'*mass11*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*V) + 
+        -C'*mass12*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*Ω)
 
     Pdot_V = C'*mass11*Cdot + Cdot'*mass11*C
-    
+
     Pdot_Ω = C'*mass12*Cdot + Cdot'*mass12*C +
-        C'*mass11*tilde(C*V) + C'*mass12*tilde(C*Ω) +
-        -C'*tilde(mass11*C*V) - C'*tilde(mass12*C*Ω)
+        C'*mass11*C*tilde(V) + C'*mass12*C*tilde(Ω) + 
+        -tilde(C'*mass11*C*V) - tilde(C'*mass12*C*Ω)
     
     Hdot_θ = mul3(C_θ1', C_θ2', C_θ3', mass21*C*Vdot) + 
         mul3(C_θ1', C_θ2', C_θ3', mass22*C*Ωdot) +
         C'*mass21*mul3(C_θ1, C_θ2, C_θ3, Vdot) + 
         C'*mass22*mul3(C_θ1, C_θ2, C_θ3, Ωdot) +
-        mul3(C_θ1', C_θ2', C_θ3', (tilde(Ω - ω)*mass21*C*V)) + 
-        mul3(C_θ1', C_θ2', C_θ3', (tilde(Ω - ω)*mass22*C*Ω)) +
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass21*C*V) + 
+        tilde(Ω - ω)*mul3(C_θ1', C_θ2', C_θ3', mass22*C*Ω) +
         Cdot'*mass21*mul3(C_θ1, C_θ2, C_θ3, V) + 
         Cdot'*mass22*mul3(C_θ1, C_θ2, C_θ3, Ω) +
         mul3(C_θ1', C_θ2', C_θ3', mass21*Cdot*V) + 
         mul3(C_θ1', C_θ2', C_θ3', mass22*Cdot*Ω) +
-        -C'*mass21*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, V) + 
-        -C'*mass22*tilde(Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, Ω)
+        -C'*mass21*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*V) + 
+        -C'*mass22*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*Ω)
 
     Hdot_V = C'*mass21*Cdot + Cdot'*mass21*C
 
     Hdot_Ω = C'*mass22*Cdot + Cdot'*mass22*C +
-        C'*mass21*tilde(C*V) + C'*mass22*tilde(C*Ω) +
-        -C'*tilde(mass21*C*V) - C'*tilde(mass22*C*Ω)
+        C'*mass21*C*tilde(V) + C'*mass22*C*tilde(Ω) +
+        -tilde(C'*mass21*C*V) - tilde(C'*mass22*C*Ω)
 
     return (; properties..., Pdot_θ, Pdot_V, Pdot_Ω, Hdot_θ, Hdot_V, Hdot_Ω) 
 end
@@ -1317,7 +1160,7 @@ corresponding to a point for a constant mass matrix system
     @unpack C, mass11, mass12, mass21, mass22, θ, V, Ω = properties
 
     # forces and moments
-    F_θ, F_F, M_θ, M_M = expanded_point_load_jacobians(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
+    F_θ, F_F, M_θ, M_M = point_load_jacobians(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
 
     # linear and angular displacement
     u_u, θ_θ = point_displacement_jacobians(ipoint, prescribed_conditions)
@@ -1543,10 +1386,17 @@ mass matrix system
 """
 @inline function expanded_point_resultant_jacobians(properties)
 
-    @unpack C, mass11, mass12, mass21, mass22, V, Ω, P, H, ω, a, α, 
+    @unpack C, mass11, mass12, mass21, mass22, F, M, V, Ω, P, H, ω, a, α, 
         C_θ1, C_θ2, C_θ3, u_u, θ_θ, P_V, P_Ω, H_V, H_Ω, a_u = properties
 
     @unpack F_θ, M_θ, F_F, M_M = properties
+
+    # rotate loads into the appropriate frame
+    F_θ = (mul3(C_θ1, C_θ2, C_θ3, F) + C*F_θ)*θ_θ
+    F_F = C*F_F
+
+    M_θ = (mul3(C_θ1, C_θ2, C_θ3, M) + C*M_θ)*θ_θ
+    M_M = C*M_M
 
     # add loads due to linear and angular acceleration (including gravity)
     F_u = -mass11*C*a_u*u_u
@@ -1556,22 +1406,11 @@ mass matrix system
     M_θ -= (mass21*mul3(C_θ1, C_θ2, C_θ3, a) + mass22*mul3(C_θ1, C_θ2, C_θ3, α))*θ_θ
 
     # add loads due to linear and angular momentum
-    F_θ += tilde(P)*mul3(C_θ1, C_θ2, C_θ3, ω)*θ_θ
-    F_V = -tilde(C*ω)*P_V
-    F_Ω = -tilde(C*ω)*P_Ω
+    F_V = -tilde(Ω)*P_V 
+    F_Ω = -tilde(Ω)*P_Ω + tilde(P)
 
-    M_θ += tilde(H)*mul3(C_θ1, C_θ2, C_θ3, ω)*θ_θ
-    M_V = -tilde(C*ω)*H_V - tilde(V)*P_V + tilde(P)
-    M_Ω = -tilde(C*ω)*H_Ω - tilde(V)*P_Ω
-
-    # add loads due to linear and angular momentum rates  
-    F_θ += tilde(P)*mul3(C_θ1', C_θ2', C_θ3', Ω)
-    F_V -= tilde(C'*Ω - ω)*P_V
-    F_Ω -= tilde(C'*Ω - ω)*P_Ω - tilde(P)*C'
-
-    M_θ += tilde(H)*mul3(C_θ1', C_θ2', C_θ3', Ω)
-    M_V -= tilde(C'*Ω - ω)*H_V
-    M_Ω -= tilde(C'*Ω - ω)*H_Ω - tilde(H)*C'
+    M_V = -tilde(Ω)*H_V - tilde(V)*P_V + tilde(P)
+    M_Ω = -tilde(Ω)*H_Ω - tilde(V)*P_Ω + tilde(H)
 
     (; F_F, F_u, F_θ, F_V, F_Ω, M_M, M_u, M_θ, M_V, M_Ω)
 end
