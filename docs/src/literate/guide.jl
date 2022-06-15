@@ -445,9 +445,9 @@ prescribed_conditions = Dict(
 # At this point we have everything we need to perform an analysis.  However, since we will 
 # be performing multiple analyses using the same assembly we can save computational time 
 # be pre-allocating memory for the analysis.  This can be done by constructing an object 
-# of type [`System`](@ref).
+# of type [`DynamicSystem`](@ref).
 
-system = System(assembly)
+system = DynamicSystem(assembly)
 #!jl nothing #hide
 
 # ## Performing a Steady State Analysis

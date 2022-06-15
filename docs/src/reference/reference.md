@@ -39,7 +39,9 @@ PrescribedConditions()
 ### Pre-Initializing Memory for an Analysis
 
 ```@docs
-System(assembly, static)
+StaticSystem(assembly)
+DynamicSystem(assembly)
+ExpandedSystem(assembly)
 system_state
 reset_state!
 set_state!
@@ -175,7 +177,9 @@ GXBeam.acceleration_loads
 GXBeam.Assembly
 GXBeam.curve_triad
 GXBeam.curve_coordinates
-GXBeam.System
+GXBeam.StaticSystem
+GXBeam.DynamicSystem
+GXBeam.ExpandedSystem
 GXBeam.static_system_residual!
 GXBeam.initial_condition_system_residual!
 GXBeam.steady_state_system_residual!

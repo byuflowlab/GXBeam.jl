@@ -296,7 +296,7 @@ for i = 1:length(sweep)
         midpoints = midpoints)
 
     ## create system
-    system = System(assembly)
+    system = DynamicSystem(assembly)
 
     for j = 1:length(rpm)
         ## global frame rotation
@@ -378,7 +378,7 @@ experiment_frequencies = [
 
 for k = 1:length(indices)
 #nb     ph[k] = 
-    plot(
+    plot(  #!nb
         title = names[k],
         xticks = 0:15:45,
         xlabel = "Sweep Angle (degrees)",
@@ -397,9 +397,8 @@ for k = 1:length(indices)
         scatter!(experiment_sweep, experiment_frequencies[k][j,:],
             label="", color=j)
     end
-    plot!(show=true)
+    plot!(show=true) #!nb
 
-#!nb     plot!(show=true)
 #md savefig("../assets/rotating-frequencies-$(k).svg") #hide
 #md closeall() #hide
 end
@@ -441,8 +440,8 @@ plot(
     overwrite_figure=false
     )
 
-# plot!([], [], color=:black, label="GXBeam")
-# scatter!([], [], color=:black, label="Experiment (Epps and Chandra)")
+plot!([], [], color=:black, label="GXBeam")
+scatter!([], [], color=:black, label="Experiment (Epps and Chandra)")
 
 for k = 1:length(indices)
     plot!(sweep*180/pi, frequency[indices[k]][:,end], label="", color=k)

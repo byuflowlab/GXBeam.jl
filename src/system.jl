@@ -160,12 +160,14 @@ function StaticSystem(TF, assembly; force_scaling = default_force_scaling(assemb
     # initialize system states
     x = zeros(TF, indices.nstates)
     r = zeros(TF, indices.nstates)
-    K = zeros(TF, indices.nstates, indices.nstates)
+    K = spzeros(TF, indices.nstates, indices.nstates)
 
     # initialize current time
     t = 0.0
 
-    return StaticSystem(x, r, K, indices, force_scaling, t)
+    x, r = promote(x, r)
+
+    return StaticSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, indices, force_scaling, t)
 end
 
 """
@@ -215,8 +217,8 @@ function DynamicSystem(TF, assembly; force_scaling = default_force_scaling(assem
     # initialize system states
     x = zeros(TF, indices.nstates)
     r = zeros(TF, indices.nstates)
-    K = zeros(TF, indices.nstates, indices.nstates)
-    M = zeros(TF, indices.nstates, indices.nstates)
+    K = spzeros(TF, indices.nstates, indices.nstates)
+    M = spzeros(TF, indices.nstates, indices.nstates)
 
     # initialize storage for a Newmark-Scheme time marching analysis
     udot = [@SVector zeros(TF, 3) for point in assembly.points]
@@ -227,7 +229,8 @@ function DynamicSystem(TF, assembly; force_scaling = default_force_scaling(assem
     # initialize current time
     t = 0.0
 
-    return DynamicSystem(x, r, K, M, indices, force_scaling, udot, θdot, Vdot, Ωdot, t)
+    return DynamicSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M, indices, 
+        force_scaling, udot, θdot, Vdot, Ωdot, t)
 end
 
 """
@@ -274,13 +277,14 @@ function ExpandedSystem(TF, assembly; force_scaling = default_force_scaling(asse
     # initialize system states
     x = zeros(TF, indices.nstates)
     r = zeros(TF, indices.nstates)
-    K = zeros(TF, indices.nstates, indices.nstates)
-    M = zeros(TF, indices.nstates, indices.nstates)
+    K = spzeros(TF, indices.nstates, indices.nstates)
+    M = spzeros(TF, indices.nstates, indices.nstates)
 
     # initialize current time
     t = 0.0
 
-    return ExpandedSystem(x, r, K, M, indices, force_scaling, t)
+    return ExpandedSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M, indices, 
+        force_scaling, t)
 end
 
 # default system is a DynamicSystem
@@ -1193,7 +1197,7 @@ end
 
 Populate the system residual vector `resid` for a static analysis
 """
-@inline function static_system_residual!(resid, x, indices, force_scaling, 
+function static_system_residual!(resid, x, indices, force_scaling, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity)
 
     for ipoint = 1:length(assembly.points)
@@ -1216,7 +1220,7 @@ end
 
 Populate the system residual vector `resid` for a steady state analysis
 """
-@inline function steady_state_system_residual!(resid, x, indices, force_scaling, structural_damping,
+function steady_state_system_residual!(resid, x, indices, force_scaling, structural_damping,
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
     x0, v0, ω0, a0, α0)
 
@@ -1241,7 +1245,7 @@ end
 Populate the system residual vector `resid` for the initialization of a time domain 
 simulation.
 """
-@inline function initial_condition_system_residual!(resid, x, indices, differential_vars, 
+function initial_condition_system_residual!(resid, x, indices, differential_vars, 
     force_scaling, structural_damping, assembly, prescribed_conditions, distributed_loads, 
     point_masses, gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
 
@@ -1291,7 +1295,7 @@ end
 
 Populate the system residual vector `resid` for a Newmark scheme time marching analysis.
 """
-@inline function newmark_system_residual!(resid, x, indices, force_scaling, structural_damping, 
+function newmark_system_residual!(resid, x, indices, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0,
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
        
@@ -1317,7 +1321,7 @@ end
 
 Populate the system residual vector `resid` for a general dynamic analysis.
 """
-@inline function dynamic_system_residual!(resid, dx, x, indices, force_scaling, structural_damping, 
+function dynamic_system_residual!(resid, dx, x, indices, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     for ipoint = 1:length(assembly.points)
@@ -1341,7 +1345,7 @@ end
 
 Populate the system residual vector `resid` for a constant mass matrix system.
 """
-@inline function expanded_system_residual!(resid, x, indices, force_scaling, structural_damping, 
+function expanded_system_residual!(resid, x, indices, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     for ipoint = 1:length(assembly.points)
@@ -1364,7 +1368,7 @@ end
 
 Populate the system jacobian matrix `jacob` for a static analysis
 """
-@inline function static_system_jacobian!(jacob, x, indices, force_scaling, 
+function static_system_jacobian!(jacob, x, indices, force_scaling, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity)
 
     jacob .= 0
@@ -1389,7 +1393,7 @@ end
 
 Populate the system jacobian matrix `jacob` for a steady-state analysis
 """
-@inline function steady_state_system_jacobian!(jacob, x, indices, force_scaling, structural_damping,
+function steady_state_system_jacobian!(jacob, x, indices, force_scaling, structural_damping,
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
     x0, v0, ω0, a0, α0)
 
@@ -1416,7 +1420,7 @@ end
 Populate the system jacobian matrix `jacob` for the initialization of a time domain 
 simulation.
 """
-@inline function initial_condition_system_jacobian!(jacob, x, indices, differential_vars, force_scaling, structural_damping, 
+function initial_condition_system_jacobian!(jacob, x, indices, differential_vars, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0,
     u0, θ0, udot0, θdot0)
     
@@ -1502,7 +1506,7 @@ end
 
 Populate the system jacobian matrix `jacob` for a Newmark scheme time marching analysis.
 """
-@inline function newmark_system_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+function newmark_system_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0,
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
     
@@ -1530,7 +1534,7 @@ end
 
 Populate the system jacobian matrix `jacob` for a general dynamic analysis.
 """
-@inline function dynamic_system_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
+function dynamic_system_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0)
     
     jacob .= 0
@@ -1556,7 +1560,7 @@ end
 
 Populate the system jacobian matrix `jacob` for a general expanded analysis.
 """
-@inline function expanded_system_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+function expanded_system_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0)
     
     jacob .= 0
@@ -1684,3 +1688,4 @@ function expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, asse
 
     return jacob
 end
+

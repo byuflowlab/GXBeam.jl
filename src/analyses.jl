@@ -62,7 +62,7 @@ function static_analysis!(system::StaticSystem, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    gravity=SVector(0,0,0),
+    gravity=(@SVector zeros(3)),
     t=0.0,
     # control flag keyword arguments
     reset_state=true,
@@ -226,6 +226,8 @@ iteration procedure converged.
         increase displacements and loads.     
             
 # Control Flag Keyword Arguments
+ - `structural_damping = false`: Indicates whether to enable structural damping
+ - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
@@ -243,9 +245,13 @@ iteration procedure converged.
  - `update_linearization`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
 """
-function steady_state_analysis(assembly; kwargs...)
+function steady_state_analysis(assembly; constant_mass_matrix=false, kwargs...)
 
-    system = DynamicSystem(assembly)
+    if constant_mass_matrix
+        system = ExpandedSystem(assembly)
+    else
+        system = DynamicSystem(assembly)
+    end
 
     return steady_state_analysis!(system, assembly; kwargs..., reset_state=true)
 end
@@ -260,12 +266,12 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=SVector(0,0,0),
-    linear_velocity=SVector(0,0,0),
-    angular_velocity=SVector(0,0,0),
-    linear_acceleration=SVector(0,0,0),
-    angular_acceleration=SVector(0,0,0),
-    gravity=SVector(0,0,0),
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
     time=0.0,
     # control flag keyword arguments
     structural_damping=false,
@@ -293,7 +299,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             system = original_system
         else
             # construct a constant mass matrix system for the analysis
-            system = ExpandedSystem(assembly)
+            system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the constant mass matrix system
             copy_state!(system, original_system, assembly;     
                 prescribed_conditions=prescribed_conditions,
@@ -314,7 +320,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             system = original_system
         else
             # construct a dynamic system for the analysis
-            system = DynamicSystem(assembly)
+            system = DynamicSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the dynamic system
             copy_state!(system, original_system, assembly;     
                 prescribed_conditions=prescribed_conditions,
@@ -492,7 +498,7 @@ with variables in `system` so a copy should be made prior to modifying them.
 # Control Flag Keyword Arguments
  - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
         damping should be used
- - `constant_mass_matrix = true`: Flag indicating whether the linearization should be 
+ - `constant_mass_matrix = false`: Flag indicating whether the linearization should be 
         performed on a constant mass matrix system.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
 
@@ -502,12 +508,12 @@ function linearize!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=SVector(0,0,0),
-    linear_velocity=SVector(0,0,0),
-    angular_velocity=SVector(0,0,0),
-    linear_acceleration=SVector(0,0,0),
-    angular_acceleration=SVector(0,0,0),
-    gravity=SVector(0,0,0),
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
     time=0.0,
     # control flag keyword arguments
     structural_damping=false,
@@ -525,7 +531,7 @@ function linearize!(system, assembly;
             system = original_system
         else
             # construct a constant mass matrix system for the linearization
-            system = ExpandedSystem(assembly)
+            system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the constant mass matrix system
             copy_state!(system, original_system, assembly;     
                 prescribed_conditions=prescribed_conditions,
@@ -546,7 +552,7 @@ function linearize!(system, assembly;
             system = original_system
         else
             # construct a dynamic system for the linearization
-            system = DynamicSystem(assembly)
+            system = DynamicSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the dynamic system
             copy_state!(system, original_system, assembly;     
                 prescribed_conditions=prescribed_conditions,
@@ -846,7 +852,7 @@ converged.
 # Control Flag Keyword Arguments
  - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
         damping should be used
- - `constant_mass_matrix = true`: Flag indicating whether the linearization should be 
+ - `constant_mass_matrix = true`: Flag indicating whether the eigenvalue analysis should be 
         performed on a constant mass matrix system.
  - `reset_state = true`: Flag indicating whether the state variables should be
         reset prior to performing the steady-state analysis.
@@ -874,9 +880,13 @@ converged.
  - `Uprev = nothing`: Previous left eigenvector matrix.  May be provided in order to 
         reorder eigenvalues based on results from a previous iteration.
 """
-function eigenvalue_analysis(assembly; kwargs...)
+function eigenvalue_analysis(assembly; constant_mass_matrix=false, kwargs...)
 
-    system = System(assembly)
+    if constant_mass_matrix
+        system = ExpandedSystem(assembly)
+    else
+        system = DynamicSystem(assembly)
+    end
 
     return eigenvalue_analysis!(system, assembly; kwargs..., reset_state=true)
 end
@@ -892,18 +902,18 @@ function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=SVector(0,0,0),
-    linear_velocity=SVector(0,0,0),
-    angular_velocity=SVector(0,0,0),
-    linear_acceleration=SVector(0,0,0),
-    angular_acceleration=SVector(0,0,0),
-    gravity=SVector(0,0,0),
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
     time=0.0,
     # control flag keyword arguments
     structural_damping=false,
+    constant_mass_matrix=false,
     reset_state=true,
     linear=false,
-    constant_mass_matrix=false,
     show_trace=false,
     # nonlinear solver keyword arguments
     method=:newton,
@@ -930,7 +940,7 @@ function eigenvalue_analysis!(system, assembly;
             system = original_system
         else
             # construct a constant mass matrix system for the analysis
-            system = ExpandedSystem(assembly)
+            system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the constant mass matrix system
             copy_state!(system, original_system, assembly;     
                 prescribed_conditions=prescribed_conditions,
@@ -951,7 +961,7 @@ function eigenvalue_analysis!(system, assembly;
             system = original_system
         else
             # construct a dynamic system for the analysis
-            system = DynamicSystem(assembly)
+            system = DynamicSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the dynamic system
             copy_state!(system, original_system, assembly;     
                 prescribed_conditions=prescribed_conditions,
@@ -992,9 +1002,9 @@ function eigenvalue_analysis!(system, assembly;
             gravity=gravity,
             time=time,
             structural_damping=structural_damping,
+            constant_mass_matrix=constant_mass_matrix,
             reset_state=reset_state,
             linear=linear,
-            constant_mass_matrix=constant_mass_matrix,
             show_trace=show_trace,
             method=method,
             linesearch=linesearch,
@@ -1141,6 +1151,7 @@ final system with the new initial conditions.
 # Control Flag Keyword Arguments
  - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
         damping should be used
+ - `constant_mass_matrix = false`: Indicates whether to return a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
@@ -1156,9 +1167,13 @@ final system with the new initial conditions.
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
 """
-function initial_condition_analysis(assembly, t0; kwargs...)
+function initial_condition_analysis(assembly, t0; constant_mass_matrix=false, kwargs...)
 
-    system = System(assembly)
+    if constant_mass_matrix
+        system = ExpandedSystem(assembly)
+    else
+        system = DynamicSystem(assembly)
+    end
 
     return initial_condition_analysis!(system, assembly, t0; kwargs...)
 end
@@ -1173,17 +1188,17 @@ function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=SVector(0,0,0),
-    linear_velocity=SVector(0,0,0),
-    angular_velocity=SVector(0,0,0),
-    linear_acceleration=SVector(0,0,0),
-    angular_acceleration=SVector(0,0,0),
-    gravity=SVector(0,0,0),
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
     # initial condition keyword arguments
-    u0=fill(SVector(0,0,0), length(assembly.points)),
-    theta0=fill(SVector(0,0,0), length(assembly.points)),
-    udot0=fill(SVector(0,0,0), length(assembly.points)),
-    thetadot0=fill(SVector(0,0,0), length(assembly.points)),
+    u0=fill((@SVector zeros(3)), length(assembly.points)),
+    theta0=fill((@SVector zeros(3)), length(assembly.points)),
+    udot0=fill((@SVector zeros(3)), length(assembly.points)),
+    thetadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
     structural_damping=true,
     reset_state=true,
@@ -1207,7 +1222,7 @@ function initial_condition_analysis!(system, assembly, t0;
         system = original_system
     else
         # construct a dynamic system for the analysis
-        system = DynamicSystem(assembly)
+        system = DynamicSystem(assembly; force_scaling = system.force_scaling)
         # copy state variables from the original system to the dynamic system
         copy_state!(system, original_system, assembly;     
             prescribed_conditions=prescribed_conditions,
@@ -1219,7 +1234,7 @@ function initial_condition_analysis!(system, assembly, t0;
             linear_acceleration=linear_acceleration,
             angular_acceleration=angular_acceleration,
             gravity=gravity,
-            time=time)
+            time=t0)
     end
 
     # reset state, if specified
@@ -1325,10 +1340,10 @@ function initial_condition_analysis!(system, assembly, t0;
             linear_acceleration=linear_acceleration,
             angular_acceleration=angular_acceleration,
             gravity=gravity,
-            time=time)
+            time=t0)
     end
 
-    return system, converged
+    return original_system, converged
 end
 
 """
@@ -1421,18 +1436,18 @@ function time_domain_analysis!(system, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=SVector(0,0,0),
-    linear_velocity=SVector(0,0,0),
-    angular_velocity=SVector(0,0,0),
-    linear_acceleration=SVector(0,0,0),
-    angular_acceleration=SVector(0,0,0),
-    gravity=SVector(0,0,0), 
+    origin=(@SVector zeros(3)),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)), 
     save=1:length(tvec),
     # initial condition keyword arguments
-    u0=fill(SVector(0,0,0), length(assembly.points)),
-    theta0=fill(SVector(0,0,0), length(assembly.points)),
-    udot0=fill(SVector(0,0,0), length(assembly.points)),
-    thetadot0=fill(SVector(0,0,0), length(assembly.points)),
+    u0=fill((@SVector zeros(3)), length(assembly.points)),
+    theta0=fill((@SVector zeros(3)), length(assembly.points)),
+    udot0=fill((@SVector zeros(3)), length(assembly.points)),
+    thetadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
     structural_damping=true,
     reset_state=true,
@@ -1459,7 +1474,7 @@ function time_domain_analysis!(system, assembly, tvec;
         system = original_system
     else
         # construct a dynamic system for the analysis
-        system = DynamicSystem(assembly)
+        system = DynamicSystem(assembly; force_scaling = system.force_scaling)
         # copy state variables from the original system to the dynamic system
         copy_state!(system, original_system, assembly;     
             prescribed_conditions=prescribed_conditions,

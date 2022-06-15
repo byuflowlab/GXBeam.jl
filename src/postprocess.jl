@@ -97,6 +97,9 @@ function extract_point_state(system::StaticSystem, assembly, ipoint, x = system.
 
     @unpack force_scaling, indices, t = system
 
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
+
     # get current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
@@ -120,6 +123,9 @@ function extract_point_state(system::DynamicSystem, assembly, ipoint, x = system
 
     @unpack force_scaling, indices, t = system
 
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
+
     # get current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
@@ -142,6 +148,9 @@ function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = syste
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     @unpack force_scaling, indices, t = system
+
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
 
     # get current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
@@ -214,6 +223,9 @@ function extract_element_state(system::StaticSystem, assembly, ielem, x = system
     # system variables
     @unpack force_scaling, indices, t = system
 
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
+
     # current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
@@ -245,6 +257,9 @@ function extract_element_state(system::DynamicSystem, assembly, ielem, x = syste
 
     # system variables
     @unpack force_scaling, indices, t = system
+
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
 
     # current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
@@ -280,6 +295,9 @@ function extract_element_state(system::ExpandedSystem, assembly, ielem, x = syst
     # system variables
     @unpack force_scaling, indices, t = system
 
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
+
     # current prescribed conditions
     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
@@ -302,11 +320,11 @@ function extract_element_state(system::ExpandedSystem, assembly, ielem, x = syst
     θ *= scaling
 
     # rotate linear and angular velocites into the body frame
-    # C = get_C(θ)
-    # Cab = assembly.elements[ielem].Cab
-    # CtCab = C'*Cab
-    # V = CtCab*V
-    # Ω = CtCab*Ω
+    C = get_C(θ)
+    Cab = assembly.elements[ielem].Cab
+    CtCab = C'*Cab
+    V = CtCab*V
+    Ω = CtCab*Ω
 
     # promote all variables to the same type
     u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)

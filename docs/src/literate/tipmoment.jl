@@ -45,7 +45,7 @@ compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 ## pre-initialize system storage
-system = System(assembly)
+system = DynamicSystem(assembly)
 
 ## run an analysis for each prescribed bending moment
 states = Vector{AssemblyState{Float64}}(undef, length(M))

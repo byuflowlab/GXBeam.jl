@@ -1,5 +1,6 @@
 using GXBeam
 using LinearAlgebra
+using StaticArrays
 using DifferentialEquations
 using Test
 import Elliptic
@@ -553,7 +554,7 @@ end
         )
 
     # distributed loads
-    dload = Dict()
+    dload = Dict{Int,DistributedLoads{Float64}}()
 
     # point masses
     pmass = Dict(
@@ -562,7 +563,7 @@ end
     )
 
     # gravity vector
-    gvec = 1e3*rand(RNG, 3)
+    gvec = SVector{3}(1e3*rand(RNG, 3))
 
     # --- Static Analysis --- #
 
@@ -590,11 +591,11 @@ end
 
     structural_damping = true
 
-    x0 = 1e2*rand(RNG, 3)
-    v0 = 1e2*rand(RNG, 3)
-    ω0 = 1e2*rand(RNG, 3)
-    a0 = 1e2*rand(RNG, 3)
-    α0 = 1e2*rand(RNG, 3)
+    x0 = SVector{3}(1e2*rand(RNG, 3))
+    v0 = SVector{3}(1e2*rand(RNG, 3))
+    ω0 = SVector{3}(1e2*rand(RNG, 3))
+    a0 = SVector{3}(1e2*rand(RNG, 3))
+    α0 = SVector{3}(1e2*rand(RNG, 3))
 
     f = (x) -> GXBeam.steady_state_system_residual!(similar(x), x, indices, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
@@ -606,10 +607,10 @@ end
 
     # --- Initial Condition Analysis --- #
 
-    u0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
-    theta0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
-    udot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
-    thetadot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    u0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    theta0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    udot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    thetadot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
 
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
@@ -631,10 +632,10 @@ end
 
     # --- Newmark Scheme Time-Marching Analysis --- #
 
-    udot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
-    θdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
-    Vdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
-    Ωdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
+    udot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
+    θdot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
+    Vdot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
+    Ωdot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
     dt = rand(RNG)
 
     x = rand(RNG, length(system.x))
@@ -1940,18 +1941,26 @@ end
     tspan = (0.0, 0.1)
 
     # run initial condition analysis to get consistent set of initial conditions
-    system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
+    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+        prescribed_conditions = prescribed_conditions)
 
     # construct ODEProblem
     prob = ODEProblem(system, assembly, tspan; 
         prescribed_conditions = prescribed_conditions,
-        constant_mass_matrix = false)
+        constant_mass_matrix = false,
+        structural_damping = false)
 
     # solve ODEProblem
     sol = solve(prob, Rodas4())
 
     # test solution convergence
     @test sol.t[end] == 0.1
+
+    # run initial condition analysis to get consistent set of initial conditions
+    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = false,
+        structural_damping = true)
 
     # construct ODEProblem
     prob = ODEProblem(system, assembly, tspan; 
@@ -1965,6 +1974,12 @@ end
     # test solution convergence
     @test sol.t[end] == 0.1
 
+    # run initial condition analysis to get consistent set of initial conditions
+    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = true,
+        structural_damping = false)
+
     # construct ODEProblem
     prob = ODEProblem(system, assembly, tspan; 
         prescribed_conditions = prescribed_conditions,
@@ -1976,6 +1991,12 @@ end
 
     # test solution convergence
     @test sol.t[end] == 0.1
+
+    # run initial condition analysis to get consistent set of initial conditions
+    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+        prescribed_conditions = prescribed_conditions,
+        constant_mass_matrix = true,
+        structural_damping = false)
 
     # construct ODEProblem
     prob = ODEProblem(system, assembly, tspan; 
@@ -1989,6 +2010,11 @@ end
     # test solution convergence
     @test sol.t[end] == 0.1
 
+    # run initial condition analysis to get consistent set of initial conditions
+    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = false)
+
     # construct DAEProblem
     prob = DAEProblem(system, assembly, tspan; 
         prescribed_conditions = prescribed_conditions,
@@ -1999,6 +2025,11 @@ end
 
     # test solution convergence
     @test sol.t[end] == 0.1
+
+    # run initial condition analysis to get consistent set of initial conditions
+    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+        prescribed_conditions = prescribed_conditions,
+        structural_damping = false)
 
     # construct DAEProblem
     prob = DAEProblem(system, assembly, tspan; 
@@ -2056,8 +2087,10 @@ end
         end
 
         # solve system
-        system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
-            distributed_loads=distributed_loads, linear=true)
+        system, converged = static_analysis(assembly; 
+            prescribed_conditions = prescribed_conditions,
+            distributed_loads = distributed_loads, 
+            linear = true)
 
         return system.x
     end
@@ -2385,33 +2418,6 @@ end
     F_θ, F_F, M_θ, M_M = GXBeam.point_load_jacobians(x, icol, force_scaling, prescribed_conditions)
 
     f = x -> vcat(GXBeam.point_loads(x, icol, force_scaling, prescribed_conditions)...)
-
-    dx = ForwardDiff.jacobian(f, x)
-
-    @test iszero(F_F)
-    @test iszero(M_M)
-
-    @test isapprox(F_θ, dx[1:3,4:6])
-    @test isapprox(M_θ, dx[4:6,4:6])
-
-    # expanded_point_loads
-    u, θ = GXBeam.point_displacement(x, icol, prescribed_conditions)
-
-    F, M = GXBeam.point_loads(x, icol, force_scaling, prescribed_conditions)
-
-    CF, CM = GXBeam.expanded_point_loads(x, icol, force_scaling, prescribed_conditions)
-
-    C = GXBeam.get_C(θ)
-
-    @test isapprox(C*F, CF)
-    @test isapprox(C*M, CM)
-
-    # expanded_point_load_jacobians
-    F, M = GXBeam.expanded_point_loads(x, icol, force_scaling, prescribed_conditions)
-
-    F_θ, F_F, M_θ, M_M = GXBeam.expanded_point_load_jacobians(x, icol, force_scaling, prescribed_conditions)
-
-    f = x -> vcat(GXBeam.expanded_point_loads(x, icol, force_scaling, prescribed_conditions)...)
 
     dx = ForwardDiff.jacobian(f, x)
 

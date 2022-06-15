@@ -91,13 +91,27 @@ end
 
     u, θ = point_displacement(x, icol, prescribed_conditions)
 
-    F_F = hcat(ifelse(isforce[1], zero(e1), e1),
-               ifelse(isforce[2], zero(e2), e2),
-               ifelse(isforce[3], zero(e3), e3))
+    F_F = @SMatrix zeros(eltype(x), 3, 3)
+    if !isforce[1] 
+        F_F += @SMatrix [1 0 0; 0 0 0; 0 0 0]
+    end
+    if !isforce[2] 
+        F_F += @SMatrix [0 0 0; 0 1 0; 0 0 0]
+    end
+    if !isforce[3] 
+        F_F += @SMatrix [0 0 0; 0 0 0; 0 0 1]
+    end
 
-    M_M = hcat(ifelse(isforce[4], zero(e1), e1),
-               ifelse(isforce[5], zero(e2), e2),
-               ifelse(isforce[6], zero(e3), e3))
+    M_M = @SMatrix zeros(eltype(x), 3, 3)
+    if !isforce[4] 
+        M_M += @SMatrix [1 0 0; 0 0 0; 0 0 0]
+    end
+    if !isforce[5] 
+        M_M += @SMatrix [0 0 0; 0 1 0; 0 0 0]
+    end
+    if !isforce[6] 
+        M_M += @SMatrix [0 0 0; 0 0 0; 0 0 1]
+    end
 
     C = get_C(θ)
     C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)           
@@ -129,14 +143,14 @@ end
     end
 
     # if displacement is specified, corresponding component of follower jacobian is zero
-    F1_θ = ifelse(isforce[1], SVector(Fp_θ[1,1], Fp_θ[1,2], Fp_θ[1,3]), (@SVector zeros(3)))
-    F2_θ = ifelse(isforce[2], SVector(Fp_θ[2,1], Fp_θ[2,2], Fp_θ[2,3]), (@SVector zeros(3)))
-    F3_θ = ifelse(isforce[3], SVector(Fp_θ[3,1], Fp_θ[3,2], Fp_θ[3,3]), (@SVector zeros(3)))
+    F1_θ = ifelse(isforce[1], SVector(Fp_θ[1,1], Fp_θ[1,2], Fp_θ[1,3]), (@SVector zeros(eltype(Fp_θ), 3)))
+    F2_θ = ifelse(isforce[2], SVector(Fp_θ[2,1], Fp_θ[2,2], Fp_θ[2,3]), (@SVector zeros(eltype(Fp_θ), 3)))
+    F3_θ = ifelse(isforce[3], SVector(Fp_θ[3,1], Fp_θ[3,2], Fp_θ[3,3]), (@SVector zeros(eltype(Fp_θ), 3)))
     F_θ = vcat(F1_θ', F2_θ', F3_θ')
 
-    M1_θ = ifelse(isforce[4], SVector(Mp_θ[1,1], Mp_θ[1,2], Mp_θ[1,3]), (@SVector zeros(3)))
-    M2_θ = ifelse(isforce[5], SVector(Mp_θ[2,1], Mp_θ[2,2], Mp_θ[2,3]), (@SVector zeros(3)))
-    M3_θ = ifelse(isforce[6], SVector(Mp_θ[3,1], Mp_θ[3,2], Mp_θ[3,3]), (@SVector zeros(3)))
+    M1_θ = ifelse(isforce[4], SVector(Mp_θ[1,1], Mp_θ[1,2], Mp_θ[1,3]), (@SVector zeros(eltype(Fp_θ), 3)))
+    M2_θ = ifelse(isforce[5], SVector(Mp_θ[2,1], Mp_θ[2,2], Mp_θ[2,3]), (@SVector zeros(eltype(Fp_θ), 3)))
+    M3_θ = ifelse(isforce[6], SVector(Mp_θ[3,1], Mp_θ[3,2], Mp_θ[3,3]), (@SVector zeros(eltype(Fp_θ), 3)))
     M_θ = vcat(M1_θ', M2_θ', M3_θ')
 
     return F_θ, F_F, M_θ, M_M
@@ -350,7 +364,7 @@ analysis
 
     # mass matrix
     mass = haskey(point_masses, ipoint) ? point_masses[ipoint].mass : @SMatrix zeros(6,6)
-    
+
     # mass submatrices
     mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
     mass12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
@@ -367,7 +381,7 @@ analysis
     F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
 
     # linear and angular acceleration
-    a = -gravity
+    a = -SVector{3}(gravity)
     α = @SVector zeros(3)
 
     return (; C, mass11, mass12, mass21, mass22, F, M, u, θ, a, α)
@@ -925,7 +939,7 @@ corresponding to a point for a static analysis
     # rotation parameter matrices
     C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
 
-    return (; properties..., C_θ1, C_θ2, C_θ3, u_u, θ_θ, F_θ, F_F, M_θ, M_M)
+    return (; properties..., C_θ1, C_θ2, C_θ3, u_u, θ_θ, F_θ, M_θ, F_F, M_M)
 end
 
 """

@@ -73,7 +73,7 @@ function steady_benchmark()
     return result 
 end
 
-function eigen_benchmark()
+function eigenvalue_benchmark()
 
     # straight section of the beam
     L_b1 = 31.5 # inch

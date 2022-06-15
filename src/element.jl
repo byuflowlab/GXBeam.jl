@@ -136,7 +136,7 @@ analysis
     κ = S21*F + S22*M
 
     # linear and angular acceleration
-    a = -gravity
+    a = -SVector{3}(gravity)
     α = @SVector zeros(3)
 
     return (; L, C, Cab, CtCab, Qinv, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
@@ -583,7 +583,7 @@ mass matrix system
         ΔQ = get_ΔQ(θ, Δθ, Q)
 
         # strain rates
-        γdot = CtCab'*Δudot - Cab'*tilde(CtCab*Ω - ω)*C*Δu - L*Cab'*tilde(CtCab*Ω - ω)*C*Cab*e1
+        γdot = -CtCab'*tilde(CtCab*Ω - ω)*Δu + CtCab'*Δudot - L*CtCab'*tilde(CtCab*Ω - ω)*Cab*e1
         κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
 
         # adjust strains to account for strain rates
@@ -680,6 +680,7 @@ Calculate the resultant loads applied at each end of a beam element for a static
   
     @unpack L, C, Cab, CtCab, mass11, mass12, mass21, mass22, F, M, γ, κ, a, α = properties
 
+
     # add loads due to internal forces/moments and stiffness
     tmp = CtCab*F
     F1 = tmp
@@ -706,8 +707,8 @@ Calculate the resultant loads applied at each end of a beam element for a static
         F2 -= dload.f2 + C'*dload.f2_follower
         M1 += dload.m1 + C'*dload.m1_follower
         M2 -= dload.m2 + C'*dload.m2_follower
-    end    
-
+    end  
+   
     return (; F1, F2, M1, M2)
 end
 
@@ -1473,22 +1474,22 @@ corresponding to a element for a steady state analysis
         ΔQ_Δθ3 = mul3(Q_θ1, Q_θ2, Q_θ3, e3)
 
         # strain rates
-        tmp = Cab'*tilde(C'*Ω - ω)*C
-        γdot_u1 = CtCab'*Δudot_u1 - tmp*Δu_u1
-        γdot_u2 = CtCab'*Δudot_u2 - tmp*Δu_u2
+        tmp = CtCab'*tilde(C'*Ω - ω)
+        γdot_u1 = -tmp*Δu_u1 + CtCab'*Δudot_u1 
+        γdot_u2 = -tmp*Δu_u2 + CtCab'*Δudot_u2 
 
-        tmp = Cab'*mul3(C_θ1, C_θ2, C_θ3, Δudot) + 
-            -Cab'*tilde(C'*Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, Δu) +
-            Cab'*tilde(C*Δu)*mul3(C_θ1', C_θ2', C_θ3', Ω) + 
-            -L*Cab'*tilde(C'*Ω - ω)*mul3(C_θ1, C_θ2, C_θ3, Cab*e1) +
-            L*Cab'*tilde(C*Cab*e1)*mul3(C_θ1', C_θ2', C_θ3', Ω)
+        tmp = -Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(C'*Ω - ω)*Δu) + 
+            Cab'*mul3(C_θ1, C_θ2, C_θ3, Δudot) - 
+            L*Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(C'*Ω - ω)*Cab*e1) +
+            CtCab'*tilde(Δu)*mul3(C_θ1', C_θ2', C_θ3', Ω) + 
+            L*CtCab'*tilde(Cab*e1)*mul3(C_θ1', C_θ2', C_θ3', Ω)
         γdot_θ1 = 1/2*tmp + CtCab'*Δudot_θ1
         γdot_θ2 = 1/2*tmp + CtCab'*Δudot_θ2
 
         γdot_V1 = CtCab'*Δudot_V1
         γdot_V2 = CtCab'*Δudot_V2
 
-        γdot_Ω = Cab'*tilde(C*Δu)*C' + L*Cab'*tilde(C*Cab*e1)*C'
+        γdot_Ω = CtCab'*tilde(Δu)*C' + L*CtCab'*tilde(Cab*e1)*C'
 
         tmp1 = Cab'*mul3(Q_θ1, Q_θ2, Q_θ3, Δθdot)
         tmp2 = Cab'*mul3(ΔQ_θ1, ΔQ_θ2, ΔQ_θ3, θdot) 

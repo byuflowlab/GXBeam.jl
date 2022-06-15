@@ -39,7 +39,7 @@ compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 ## pre-initialize system storage
-system = System(assembly)
+system = DynamicSystem(assembly)
 
 ## run an analysis for each prescribed tip load
 states = Vector{AssemblyState{Float64}}(undef, length(P))

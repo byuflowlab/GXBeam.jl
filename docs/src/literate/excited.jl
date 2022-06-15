@@ -30,7 +30,7 @@ assembly = Assembly(points, start, stop; compliance=compliance, mass=mass)
 
 ## excite the second bending mode
 delta = 1e-3 ## displacement magnitude
-uz =  delta*sin.(2*pi*x/L) ## linear displacement
+uz = delta*sin.(2*pi*x/L) ## linear displacement
 
 ## prescribe the vertical displacement of each point
 prescribed_conditions = Dict(i => PrescribedConditions(uz = uz[i]) for i = 1:length(points))
@@ -48,8 +48,8 @@ system, converged = static_analysis(assembly; prescribed_conditions)
 state = AssemblyState(system, assembly; prescribed_conditions)
 
 ## extract initial conditions from the state vector
-u0 = getproperty.(state.elements, :u)
-theta0 = getproperty.(state.elements, :theta)
+u0 = getproperty.(state.points, :u)
+theta0 = getproperty.(state.points, :theta)
 
 ## set new prescribed conditions
 prescribed_conditions = Dict( 
@@ -66,12 +66,17 @@ prescribed_conditions = Dict(
 t = range(0, 2*pi/ω, step=0.001)
 
 ## initialize state variables (note that this doesn't converge)
-system, converged = initial_condition_analysis(assembly, t[1]; prescribed_conditions,
+system, converged = initial_condition_analysis(assembly, t[1]; 
+    prescribed_conditions = prescribed_conditions,
+    structural_damping = false, 
     u0=u0, theta0=theta0)
 
 ## perform time domain analysis
-system, history, converged = time_domain_analysis!(system, assembly, t; prescribed_conditions, 
-    initialize = false, reset_state=false)
+system, history, converged = time_domain_analysis!(system, assembly, t; 
+    prescribed_conditions = prescribed_conditions,
+    structural_damping = false, 
+    initialize = false, 
+    reset_state=false)
 
 ## write visualization file
 write_vtk("excited", assembly, history, t; scaling = 100)
