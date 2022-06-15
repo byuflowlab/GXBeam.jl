@@ -2649,7 +2649,17 @@ end
 
     @views jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_u1 ./ force_scaling
 
+<<<<<<< HEAD
     @views jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_u2 ./ force_scaling
+=======
+    # rotation matrix derivatives
+    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
+    Ct_θ1, Ct_θ2, Ct_θ3 = C_θ1', C_θ2', C_θ3'
+    Cdot_θ1, Cdot_θ2, Cdot_θ3 = get_C_t_θ(θ, θdot)
+    Ctdot_θ1, Ctdot_θ2, Ctdot_θ3 = Cdot_θ1', Cdot_θ2', Cdot_θ3'
+    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(θ)
+    Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3 = Cdot_θdot1', Cdot_θdot2', Cdot_θdot3'
+>>>>>>> 8565110b92b747423eb099a6317b41d20e615267
 
     @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1 ./ force_scaling
     @views jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1 ./ force_scaling
@@ -2978,10 +2988,16 @@ analysis into the system jacobian matrix.
     return jacob
 end
 
+<<<<<<< HEAD
 """
     expanded_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
         assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
         x0, v0, ω0, a0, α0)
+=======
+    # rotation matrix derivatives
+    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(θ)
+    Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3 = Cdot_θdot1', Cdot_θdot2', Cdot_θdot3'
+>>>>>>> 8565110b92b747423eb099a6317b41d20e615267
 
 Calculate and insert the jacobian entries corresponding to a beam element for a dynamic
 analysis into the system jacobian matrix.
@@ -3034,11 +3050,17 @@ end
     expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
         ielem, prescribed_conditions)
 
+<<<<<<< HEAD
 Calculate and insert the mass_matrix jacobian entries corresponding to a beam element into 
 the system jacobian matrix for a constant mass matrix system
 """
 @inline function expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
     ielem, prescribed_conditions)
+=======
+    # rotation matrix derivatives
+    Cdot_θdot1, Cdot_θdot2, Cdot_θdot3 = get_C_t_θdot(θ)
+    Ctdot_θdot1, Ctdot_θdot2, Ctdot_θdot3 = Cdot_θdot1', Cdot_θdot2', Cdot_θdot3'
+>>>>>>> 8565110b92b747423eb099a6317b41d20e615267
 
     properties = expanded_mass_matrix_element_jacobian_properties(assembly, ielem, prescribed_conditions)
 

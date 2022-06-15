@@ -94,6 +94,7 @@ Returns the transformation matrix `C` given the three angular parameters in `θ`
 @inline function get_C(θ)
 
     scaling = rotation_parameter_scaling(θ)
+    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
 
     c = scaling*θ
 
@@ -341,55 +342,3 @@ Default gauss-quadrature function used for integrating distributed loads.
     x = h/2*GAUSS_NODES .+ c
     return h/2*GAUSS_WEIGHTS'*f.(x)
 end
-
-# this function is not used
-# @inline function linf_norm_scaling(A)
-#
-#     droptol!(A, eps(eltype(A)))
-#
-#     m, n = size(A)
-#     rows = rowvals(A)
-#     vals = nonzeros(A)
-#
-#     # initialize outputs
-#     rowmax = fill(typemin(eltype(A)), n)
-#     rowmin = fill(typemax(eltype(A)), n)
-#     @inbounds for j = 1:n
-#         @inbounds for i in nzrange(A, j)
-#            row = rows[i]
-#            val = abs(vals[i])
-#            # perform sparse wizardry...
-#            if val > rowmax[row]
-#                rowmax[row] = val
-#            end
-#            if val < rowmin[row]
-#                rowmin[row] = val
-#            end
-#         end
-#     end
-#
-#     # use storage already allocated for rowmax for r
-#     r = rowmax
-#     @inbounds for i = 1:m
-#         if i in rows
-#             r[i] = nextpow(2, 1/sqrt(rowmax[i]*rowmin[i]))
-#         else
-#             r[i] = 1
-#         end
-#     end
-#
-#     # use storage already allocated for rowmin for s
-#     s = rowmin
-#     @inbounds for j = 1:n
-#         colrange = nzrange(A, j)
-#         if isempty(colrange)
-#             s[j] = 1
-#         else
-#             colmax = maximum(i -> r[rows[i]]*abs(vals[i]), colrange)
-#             colmin = minimum(i -> r[rows[i]]*abs(vals[i]), colrange)
-#             s[j] = nextpow(2, 1/sqrt(colmax*colmin))
-#         end
-#     end
-#
-#     return r, s
-# end
