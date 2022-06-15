@@ -32,7 +32,7 @@ using GXBeam, LinearAlgebra
 # 
 # This geometry has a fixed boundary condition on the left side of the beam and rotates 
 # around a point 2.5 inches to the left of the beam.  We will investigate the steady 
-# behavior of this system for a variety of RPM settings at a constant sweep of 45°.
+# behavior of this system for a variety of rotation rates when the sweep angle is 45°.
 #
 # ## Creating an Assembly
 # 
@@ -66,8 +66,9 @@ lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
 #!jl nothing #hide
 
 # The length of each beam element is equal since we used the number of elements to define 
-# the discretization.  Alternatively we can manually specify the discretization of the 
-# section. The following is equivalent.
+# the discretization.  For more control over the discretization we can pass in the 
+# discretization directly.  The following is an equally valid method for obtaining 
+# uniformly spaced beam elements.
 
 ## normalized element endpoints in the straight section of the beam
 disc_b1 = range(0, 1, length=nelem_b1+1)
@@ -83,12 +84,12 @@ lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, disc_b1)
 # describes the local beam frame is
 # ```math
 # \begin{bmatrix}
-# \hat{e_{1,x}} & \hat{e_{2,x}} & \hat{e_{3,x}} \\
-# \hat{e_{1,y}} & \hat{e_{2,y}} & \hat{e_{3,y}} \\
-# \hat{e_{1,z}} & \hat{e_{2,z}} & \hat{e_{3,z}} \\
+# e_{1,x} & e_{2,x} & e_{3,x} \\
+# e_{1,y} & e_{2,y} & e_{3,y} \\
+# e_{1,z} & e_{2,z} & e_{3,z} \\
 # \end{bmatrix}
 # ```
-# where ``\hat{e_1}``, ``\hat{e_2}``, and ``\hat{e_3}`` are unit vectors which define 
+# where ``e_1``, ``e_2``, and ``e_3`` are unit vectors which define 
 # the axes of the local frame of reference in the body frame of reference.  This matrix 
 # may be interpreted as a transformation matrix from the undeformed local beam frame to 
 # the body frame.
@@ -270,9 +271,10 @@ assembly = Assembly(points, start, stop;
 #!jl nothing #hide
 
 # At this point this is probably a good time to check that the geometry of our assembly 
-# is correct.  We can do this by visualizing the geometry in ParaView.  We can use the 
-# [`write_vtk`](@ref) function to do this.  Note that in order to visualize the generated 
-# file yourself you will need to install ParaView separately.
+# is correct.  We can do this by visualizing the geometry in 
+# [ParaView](https://www.paraview.org/).  We can use the [`write_vtk`](@ref) function to 
+# do this.  Note that in order to visualize the generated file yourself you will need to 
+# [install ParaView](https://www.paraview.org/download/) separately.
 
 write_vtk("rotating-geometry", assembly)
 
@@ -284,7 +286,7 @@ write_vtk("rotating-geometry", assembly)
 # 
 # Point masses are defined by using the constructor [`PointMass`](@ref) and may be attached
 # to any point.  One instance of [`PointMass`](@ref) must be created for every point 
-# which contains point masses.  These instances of [`PointMass`](@ref) are then stored 
+# with attached point masses.  These instances of [`PointMass`](@ref) are then stored 
 # in a dictionary with keys corresponding to each point index.
 # 
 # Each [`PointMass`](@ref) contains a 6x6 mass matrix which describes the relationship 
@@ -318,19 +320,19 @@ write_vtk("rotating-geometry", assembly)
 # \end{bmatrix}
 # ```
 # where ``m`` is the mass of the point mass, ``p`` is the position of the point mass 
-# relative to the center of the beam element to which it is attached, and ``I^*`` is the 
-# inertia matrix corresponding to the point mass, defined relative to the center of the 
-# beam element.  Multiple point masses may be modeled by adding their respective mass 
+# relative to the point to which it is attached, and ``I^*`` is the 
+# inertia matrix corresponding to the point mass, defined relative to the point.  
+# Multiple point masses may be modeled by adding their respective mass 
 # matrices together.
 
 # Objects of type [`PointMass`](@ref) may be constructed by providing the fully populated 
 # mass matrix as described above or by providing the mass, offset, and inertia matrix of 
 # the point mass, with the later being the inertia matrix of the point mass about its 
 # center of gravity rather than the beam center.  To demonstrate, the following code places 
-# a 10 kg tip mass at the end of the beam.
+# a 10 kg tip mass at the end of our swept beam.
 
 m = 10 # mass
-p = xp_b2[end] # relative location
+p = zeros(3) # relative location
 J = zeros(3,3) # inertia matrix (about the point mass center of gravity)
 
 ## create dictionary of point masses
@@ -365,14 +367,14 @@ point_masses = Dict(
 # - `my_follower`: Distributed y-direction follower moment
 # - `mz_follower`: Distributed z-direction follower moment
 # 
-# Each of these forces/moments are specified as functions of the arbitrary coordinate `s` 
-# (``f(s)``).  The s-coordinate at the start and end of the beam element can be specified 
-# using the keyword arguments `s1` and `s2`.
+# Each of these forces/moments are specified as functions of the arbitrary coordinate ``s```.  
+# The ``s``-coordinate at the start and end of the beam element can be specified 
+# using the keyword arguments ``s1`` and ``s2``.
 
 # For example, the following code applies a uniform 10 pound distributed load in the 
 # z-direction on all beam elements:
 
-distributed_loads = Dict()
+distributed_loads = Dict{Int64, DistributedLoads{Float64}}()
 for ielem in 1:nelem
     distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz = (s) -> 10)
 end
@@ -381,7 +383,7 @@ end
 # To instead use a follower force (a force that rotates with the structure) we would use 
 # the following code:
 
-distributed_loads = Dict()
+distributed_loads = Dict{Int64, DistributedLoads{Float64}}()
 for ielem in 1:nelem
     distributed_loads[ielem] = DistributedLoads(assembly, ielem;
         fz_follower = (s) -> 10)
@@ -392,18 +394,18 @@ end
 # the beam assembly.  Also note that both non-follower and follower forces may exist 
 # simultaneously.
 # 
-# It is worth noting that the distributed loads are integrated over each element when they 
+# Note that the distributed loads are integrated over each element when they 
 # are created using 4-point Gauss-Legendre quadrature.  If more control over the 
 # integration is desired one may specify a custom integration method as described in the 
 # documentation for [`DistributedLoads`](@ref).
 
 # ## Defining Prescribed Conditions
 # 
-# Whereas distributed loads are applied to beam elements, prescribed conditions are forces 
-# and/or displacement boundary conditions applied to points. One instance of 
-# `PrescribedConditions` must be created for every point on which prescribed conditions 
-# are applied.  These instances of `PrescribedConditions` are then stored in a dictionary 
-# with keys corresponding to each point index.
+# Whereas distributed loads are applied to beam elements, prescribed conditions are 
+# external loads or displacement boundary conditions applied to points. One instance of 
+# [`PrescribedConditions`](@ref) must be created for every point on which prescribed 
+# conditions are applied.  These instances of `PrescribedConditions` are then stored in a 
+# dictionary with keys corresponding to each point index.
 # 
 # Possible prescribed conditions include:
 # - `ux`: Prescribed x-displacement
@@ -425,7 +427,9 @@ end
 # - `My_follower`: Prescribed y-direction follower moment
 # - `Mz_follower`: Prescribed z-direction follower moment
 # 
-# One can apply both force and displacement boundary conditions to the same point, but one cannot specify a force and displacement condition at the same point corresponding to the same degree of freedom.
+# One can apply both force and displacement boundary conditions to the same point, but one 
+# cannot specify a force and displacement condition at the same point corresponding 
+# to the same degree of freedom.
 # 
 # Here we create a fixed boundary condition on the left side of the beam.
 
@@ -444,8 +448,12 @@ prescribed_conditions = Dict(
 # 
 # At this point we have everything we need to perform an analysis.  However, since we will 
 # be performing multiple analyses using the same assembly we can save computational time 
-# be pre-allocating memory for the analysis.  This can be done by constructing an object 
-# of type [`DynamicSystem`](@ref).
+# be pre-allocating memory for the analysis.  This can be done by constructing an object of
+# type [`AbstractSystem`](@ref).  There are two main options: [`StaticSystem`](@ref) for 
+# static systems and [`DynamicSystem`](@ref) for dynamic systems.  The third option:
+# [`ExpandedSystem`](@ref) is primarily useful when constructing a constant mass matrix 
+# system for use with [`DifferentialEquations`](https://github.com/SciML/DifferentialEquations.jl)  
+# Since our system is rotating, we construct an object of type [`DynamicSystem`](@ref).
 
 system = DynamicSystem(assembly)
 #!jl nothing #hide
@@ -453,9 +461,9 @@ system = DynamicSystem(assembly)
 # ## Performing a Steady State Analysis
 # 
 # We're now ready to perform our steady state analyses.  This can be done by calling 
-# [`steady_state_analysis`](@ref) with the pre-allocated system storage, assembly, 
-# angular velocity, and the prescribed point conditions.  We can also perform a 
-# linear analysis instead of a nonlinear analysis by using the `linear` keyword argument.
+# [`steady_state_analysis!`](@ref) with the pre-allocated system storage, assembly, 
+# angular velocity, and the prescribed point conditions.  A linear analysis may be 
+# performed instead of a nonlinear analysis by using the `linear` keyword argument.
 # 
 # After each analysis we'll also construct an object of type [`AssemblyState`](@ref) so 
 # that we can save the results of each analysis prior to re-using the pre-allocated 
@@ -523,6 +531,8 @@ end
 #  - `V`: linear velocity (in the global frame)
 #  - `Omega`: angular velocity (in the global frame)
 # 
+# Angular displacements are expressed in terms of Wiener-Milenkovic parameters. 
+#
 # To demonstrate how these fields can be accessed we will now plot the root moment and 
 # tip deflections.
 
@@ -549,7 +559,7 @@ Mz_nl = [-nonlinear_states[i].points[1].M[3] for i = 1:length(rpm)]
 Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
 plot!(rpm, Mz_nl, label="Nonlinear")
 plot!(rpm, Mz_l, label="Linear")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/guide-Mz.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -576,7 +586,7 @@ ux_nl = [nonlinear_states[i].points[end].u[1] for i = 1:length(rpm)]
 ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
 plot!(rpm, ux_nl, label="Nonlinear")
 plot!(rpm, ux_l, label="Linear")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/guide-ux.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -603,7 +613,7 @@ uy_nl = [nonlinear_states[i].points[end].u[2] for i = 1:length(rpm)]
 uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
 plot!(rpm, uy_nl, label="Nonlinear")
 plot!(rpm, uy_l, label="Linear")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/guide-uy.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -631,7 +641,7 @@ theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
 
 plot!(rpm, theta_z_nl, label="Nonlinear")
 plot!(rpm, theta_z_l, label="Linear")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/guide-theta_z.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -643,4 +653,5 @@ plot!(rpm, theta_z_l, label="Linear")
 
 # ## Other Capabilities
 # 
-# For information on how to use the other capabilities of this package see the examples or the [Public API](@ref).
+# Further information about how to use this package may be obtained by looking through the
+# examples or browsing the [Public API](@ref).

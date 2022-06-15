@@ -171,7 +171,7 @@ for i = 1:12
     end
 
     plot!(t, y, label="")
-#!nb     plot!(show=true)
+    plot!(show=true) #!nb
 #md     savefig("../assets/dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); #hide 
 #md     closeall() #hide
 end

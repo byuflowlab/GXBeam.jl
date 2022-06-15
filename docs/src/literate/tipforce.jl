@@ -39,7 +39,7 @@ compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 ## pre-initialize system storage
-system = DynamicSystem(assembly)
+system = StaticSystem(assembly)
 
 ## run an analysis for each prescribed tip load
 states = Vector{AssemblyState{Float64}}(undef, length(P))
@@ -133,9 +133,7 @@ scatter!(λ, w/L, color=2, label="")
 plot!(λ_a, -ξ_a, color=3, label="")
 scatter!(λ, -u/L, color=3, label="")
 
-
-
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/tipforce-displacement.svg") #hide
 #md closeall() #hide
 #md end #hide

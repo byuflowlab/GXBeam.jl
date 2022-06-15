@@ -45,7 +45,7 @@ compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 ## pre-initialize system storage
-system = DynamicSystem(assembly)
+system = StaticSystem(assembly)
 
 ## run an analysis for each prescribed bending moment
 states = Vector{AssemblyState{Float64}}(undef, length(M))
@@ -132,7 +132,7 @@ for i = 1:length(M)
     plot!(x/L, y/L, label="\$\\lambda\$=$(λ[i])", color=i)
 end
 #nb plot!()
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/tipmoment-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -248,7 +248,6 @@ p1 = plot(grid_sizes .+ 1, εx, label="",
     overwrite_figure=false,
     show=true)
 
-#!nb plot!(show=true)
 #md savefig("../assets/tipmoment-x-convergence.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -273,7 +272,6 @@ p2 = plot(grid_sizes .+ 1, εy, label="",
     overwrite_figure=false,
     show=true)
 
-#!nb plot!(show=true)
 #md savefig("../assets/tipmoment-y-convergence.svg") #hide
 #md closeall() #hide
 #md end #hide

@@ -35,8 +35,8 @@
 #
 # ## Example Usage
 #
-# For this example we demonstrate how to solve the [Nonlinear Dynamic Analysis of a Wind 
-# Turbine Blade](@ref) problem using DifferentialEquations.
+# For this example we demonstrate how to solve the wind turbine [Time-Domain Simulation of 
+# a Wind Turbine Blade](@ref wind-turbine-blade) problem using DifferentialEquations.
 # 
 # We start by setting up the problem as if we were solving the problem using GXBeam's 
 # internal solver.
