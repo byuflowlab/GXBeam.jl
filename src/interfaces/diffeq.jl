@@ -18,52 +18,6 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan;
     structural_damping = true,
     )
 
-    # original_system = system
-
-    # if constant_mass_matrix
-    #     # check if provided system is a constant mass matrix system
-    #     if typeof(original_system) <: ExpandedSystem
-    #         # use provided constant mass matrix system for the analysis
-    #         system = original_system
-    #     else
-    #         # construct a constant mass matrix system for the analysis
-    #         system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
-    #         # copy state variables from the original system to the constant mass matrix system
-    #         copy_state!(system, original_system, assembly;     
-    #             prescribed_conditions=prescribed_conditions,
-    #             distributed_loads=distributed_loads,
-    #             point_masses=point_masses,
-    #             origin=origin,
-    #             linear_velocity=linear_velocity,
-    #             angular_velocity=angular_velocity,
-    #             linear_acceleration=linear_acceleration,
-    #             angular_acceleration=angular_acceleration,
-    #             gravity=gravity,
-    #             time=tspan[1])
-    #     end
-    # else
-    #     # check if provided system is a dynamic system
-    #     if typeof(original_system) <: DynamicSystem
-    #         # use provided dynamic system for the analysis
-    #         system = original_system
-    #     else
-    #         # construct a dynamic system for the analysis
-    #         system = DynamicSystem(assembly; force_scaling = system.force_scaling)
-    #         # copy state variables from the original system to the dynamic system
-    #         copy_state!(system, original_system, assembly;     
-    #             prescribed_conditions=prescribed_conditions,
-    #             distributed_loads=distributed_loads,
-    #             point_masses=point_masses,
-    #             origin=origin,
-    #             linear_velocity=linear_velocity,
-    #             angular_velocity=angular_velocity,
-    #             linear_acceleration=linear_acceleration,
-    #             angular_acceleration=angular_acceleration,
-    #             gravity=gravity,
-    #             time=tspan[1])
-    #     end
-    # end
-
     # set initial state variables
     u0 = copy(system.x)
 

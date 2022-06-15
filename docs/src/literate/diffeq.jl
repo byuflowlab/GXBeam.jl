@@ -99,7 +99,7 @@ t = 0:0.001:2.0
 
 system, gxbeam_history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions,
-    structural_damping = true)
+    structural_damping = false)
 
 #!jl nothing #hide
 
@@ -114,12 +114,13 @@ tspan = (0.0, 2.0)
 
 ## run initial condition analysis to get consistent set of initial conditions
 dae_system, converged = initial_condition_analysis(assembly, tspan[1]; 
-    prescribed_conditions = prescribed_conditions)
+    prescribed_conditions = prescribed_conditions,
+    structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-dae_prob = DAEProblem(system, assembly, tspan; 
+dae_prob = DAEProblem(dae_system, assembly, tspan; 
     prescribed_conditions = prescribed_conditions,
-    structural_damping = true)
+    structural_damping = false)
 
 ## solve the problem
 dae_sol = solve(dae_prob, DABDF2())
@@ -132,13 +133,14 @@ dae_sol = solve(dae_prob, DABDF2())
 ## run initial condition analysis to get consistent set of initial conditions
 ode_system, converged = initial_condition_analysis(assembly, tspan[1]; 
     prescribed_conditions = prescribed_conditions,
-    constant_mass_matrix = false)
+    constant_mass_matrix = true,
+    structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-ode_prob = ODEProblem(system, assembly, tspan; 
+ode_prob = ODEProblem(ode_system, assembly, tspan; 
     prescribed_conditions = prescribed_conditions,
-    structural_damping = true,
-    constant_mass_matrix = false)
+    constant_mass_matrix = true,
+    structural_damping = false)
 
 ## solve the problem
 ode_sol = solve(ode_prob, Rodas4())
@@ -194,7 +196,7 @@ for i = 1:12
         for state in ode_history]
 
     y_dae = [getproperty(state.points[point[i]], field[i])[direction[i]]
-        for state in ode_history]
+        for state in dae_history]
 
     if field[i] == :theta
         ## convert to Rodriguez parameter
