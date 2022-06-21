@@ -1940,13 +1940,15 @@ end
     # define simulation time
     tspan = (0.0, 0.1)
 
+    # define named tuple with parameters
+    p = (; prescribed_conditions)
+
     # run initial condition analysis to get consistent set of initial conditions
     system, converged = initial_condition_analysis(assembly, tspan[1]; 
         prescribed_conditions = prescribed_conditions)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan; 
-        prescribed_conditions = prescribed_conditions,
+    prob = ODEProblem(system, assembly, tspan, p; 
         constant_mass_matrix = false,
         structural_damping = false)
 
@@ -1963,8 +1965,7 @@ end
         structural_damping = true)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan; 
-        prescribed_conditions = prescribed_conditions,
+    prob = ODEProblem(system, assembly, tspan, p; 
         constant_mass_matrix = false,
         structural_damping = true)
 
@@ -1981,8 +1982,7 @@ end
         structural_damping = false)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan; 
-        prescribed_conditions = prescribed_conditions,
+    prob = ODEProblem(system, assembly, tspan, p; 
         constant_mass_matrix = true,
         structural_damping = false)
 
@@ -1999,8 +1999,7 @@ end
         structural_damping = false)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan; 
-        prescribed_conditions = prescribed_conditions,
+    prob = ODEProblem(system, assembly, tspan, p; 
         constant_mass_matrix = true,
         structural_damping = true)
 
@@ -2016,8 +2015,7 @@ end
         structural_damping = false)
 
     # construct DAEProblem
-    prob = DAEProblem(system, assembly, tspan; 
-        prescribed_conditions = prescribed_conditions,
+    prob = DAEProblem(system, assembly, tspan, p; 
         structural_damping = false)
 
     # solve DAEProblem
@@ -2032,8 +2030,7 @@ end
         structural_damping = false)
 
     # construct DAEProblem
-    prob = DAEProblem(system, assembly, tspan; 
-        prescribed_conditions = prescribed_conditions,
+    prob = DAEProblem(system, assembly, tspan, p; 
         structural_damping = true)
 
     # solve DAEProblem
