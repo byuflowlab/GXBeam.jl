@@ -112,14 +112,16 @@ using DifferentialEquations
 ## define simulation time
 tspan = (0.0, 2.0)
 
+## define named tuple with parameters
+p = (; prescribed_conditions=prescribed_conditions)
+
 ## run initial condition analysis to get consistent set of initial conditions
 dae_system, converged = initial_condition_analysis(assembly, tspan[1]; 
     prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-dae_prob = DAEProblem(dae_system, assembly, tspan; 
-    prescribed_conditions = prescribed_conditions,
+dae_prob = DAEProblem(dae_system, assembly, tspan, p; 
     structural_damping = false)
 
 ## solve the problem
@@ -137,8 +139,7 @@ ode_system, converged = initial_condition_analysis(assembly, tspan[1];
     structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-ode_prob = ODEProblem(ode_system, assembly, tspan; 
-    prescribed_conditions = prescribed_conditions,
+ode_prob = ODEProblem(ode_system, assembly, tspan, p; 
     constant_mass_matrix = true,
     structural_damping = false)
 
