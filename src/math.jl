@@ -94,7 +94,6 @@ Returns the transformation matrix `C` given the three angular parameters in `θ`
 @inline function get_C(θ)
 
     scaling = rotation_parameter_scaling(θ)
-    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
 
     c = scaling*θ
 
