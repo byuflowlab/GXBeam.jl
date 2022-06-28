@@ -311,7 +311,7 @@ function default_force_scaling(assembly)
         end
     end
 
-    force_scaling = nextpow(2.0, nsum/csum/100)
+    force_scaling = iszero(nsum) ? 1.0 : nextpow(2.0, nsum/csum/100)
 
     return force_scaling
 end
@@ -694,13 +694,13 @@ function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothi
 
     if !isnothing(u)
         for ipoint = 1:length(u)
-            set_linear_deflection!(x, system, prescribed_conditions, u[ipoint], ipoint)
+            set_linear_displacement!(x, system, prescribed_conditions, u[ipoint], ipoint)
         end
     end
 
     if !isnothing(theta)
         for ipoint = 1:length(theta)
-            set_angular_deflection!(x, system, prescribed_conditions, theta[ipoint], ipoint)
+            set_angular_displacement!(x, system, prescribed_conditions, theta[ipoint], ipoint)
         end
     end
 
@@ -792,17 +792,17 @@ function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothi
 end
 
 """
-    set_linear_deflection!([x,] system, prescribed_conditions, u, ipoint)
+    set_linear_displacement!([x,] system, prescribed_conditions, u, ipoint)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 linear deflection of point `ipoint` to the provided values.
 """
-function set_linear_deflection!(system, prescribed_conditions, u, ipoint)
-    set_linear_deflection!(system.x, system, prescribed_conditions, u, ipoint)
+function set_linear_displacement!(system, prescribed_conditions, u, ipoint)
+    set_linear_displacement!(system.x, system, prescribed_conditions, u, ipoint)
     return system
 end
 
-function set_linear_deflection!(x, system, prescribed_conditions, u, ipoint)
+function set_linear_displacement!(x, system, prescribed_conditions, u, ipoint)
     
     icol = system.indices.icol_point[ipoint]
     
@@ -822,17 +822,17 @@ function set_linear_deflection!(x, system, prescribed_conditions, u, ipoint)
 end
 
 """
-    set_angular_deflection!([x,] system, prescribed_conditions, theta, ipoint)
+    set_angular_displacement!([x,] system, prescribed_conditions, theta, ipoint)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 angular deflection of point `ipoint` to the provided values.
 """
-function set_angular_deflection!(system, prescribed_conditions, theta, ipoint)
-    set_angular_deflection!(system.x, system, prescribed_conditions, theta, ipoint)
+function set_angular_displacement!(system, prescribed_conditions, theta, ipoint)
+    set_angular_displacement!(system.x, system, prescribed_conditions, theta, ipoint)
     return system
 end
 
-function set_angular_deflection!(x, system, prescribed_conditions, theta, ipoint)
+function set_angular_displacement!(x, system, prescribed_conditions, theta, ipoint)
 
     icol = system.indices.icol_point[ipoint]
     
@@ -1240,49 +1240,27 @@ end
 """
     initial_condition_system_residual!(resid, x, indices, force_scaling, structural_damping, 
         assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
-        x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+        x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
 Populate the system residual vector `resid` for the initialization of a time domain 
 simulation.
 """
-function initial_condition_system_residual!(resid, x, indices, differential_vars, 
+function initial_condition_system_residual!(resid, x, indices, rate_vars, 
     force_scaling, structural_damping, assembly, prescribed_conditions, distributed_loads, 
-    point_masses, gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+    point_masses, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
-    for ipoint = 1:length(assembly.points)
-        initial_condition_point_residual!(resid, x, indices, force_scaling, assembly, ipoint, 
-            prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
-    end
+    resid .= 0
+
+    # for ipoint = 1:length(assembly.points)
+    #     initial_condition_point_residual!(resid, x, indices, rate_vars, force_scaling, 
+    #         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, 
+    #         a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    # end
     
     for ielem = 1:length(assembly.elements)
-        initial_condition_element_residual!(resid, x, indices, force_scaling, structural_damping, 
-            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-            x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
-    end
-
-    # create new equations for Vdot and Ωdot when these variables are not otherwise used
-    for ipoint = 1:length(assembly.points)
-
-        irow = indices.irow_point[ipoint]
-        icol = indices.icol_point[ipoint]
-
-        Vdot, Ωdot = point_displacement_rates(x, ipoint, indices.icol_point, prescribed_conditions)
-
-        if haskey(prescribed_conditions, ipoint)
-            prescribed_conditions[ipoint].isforce[1] && !differential_vars[icol+6] && setindex!(resid, Vdot[1], irow) 
-            prescribed_conditions[ipoint].isforce[2] && !differential_vars[icol+7] && setindex!(resid, Vdot[2], irow+1) 
-            prescribed_conditions[ipoint].isforce[3] && !differential_vars[icol+8] && setindex!(resid, Vdot[3], irow+2)  
-            prescribed_conditions[ipoint].isforce[4] && !differential_vars[icol+9] && setindex!(resid, Ωdot[1], irow+3)  
-            prescribed_conditions[ipoint].isforce[5] && !differential_vars[icol+10] && setindex!(resid, Ωdot[2], irow+4)  
-            prescribed_conditions[ipoint].isforce[6] && !differential_vars[icol+11] && setindex!(resid, Ωdot[3], irow+5)   
-        else
-            !differential_vars[icol+6] && setindex!(resid, Vdot[1], irow) 
-            !differential_vars[icol+7] && setindex!(resid, Vdot[2], irow+1)
-            !differential_vars[icol+8] && setindex!(resid, Vdot[3], irow+2) 
-            !differential_vars[icol+9] && setindex!(resid, Ωdot[1], irow+3)  
-            !differential_vars[icol+10] && setindex!(resid, Ωdot[2], irow+4) 
-            !differential_vars[icol+11] && setindex!(resid, Ωdot[3], irow+5)  
-        end
+        initial_condition_element_residual!(resid, x, indices, rate_vars, force_scaling, 
+            structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+            gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
     end
 
     return resid
@@ -1420,82 +1398,24 @@ end
 Populate the system jacobian matrix `jacob` for the initialization of a time domain 
 simulation.
 """
-function initial_condition_system_jacobian!(jacob, x, indices, differential_vars, force_scaling, structural_damping, 
+function initial_condition_system_jacobian!(jacob, x, indices, rate_vars, force_scaling, structural_damping, 
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, x0, v0, ω0, a0, α0,
-    u0, θ0, udot0, θdot0)
+    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
     
     jacob .= 0
     
-    for ipoint = 1:length(assembly.points)
-        initial_condition_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint, 
-            prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
-    end
+    # for ipoint = 1:length(assembly.points)
+    #     initial_condition_point_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
+    #         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
+    #         u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    # end
     
     for ielem = 1:length(assembly.elements)
-        initial_condition_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+        initial_condition_element_jacobian!(jacob, x, indices, rate_vars, force_scaling, structural_damping, 
             assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-            x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+            x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
     end
 
-    # create new equations for Vdot and Ωdot when these variables are not otherwise used
-    for ipoint = 1:length(assembly.points)
-
-        irow = indices.irow_point[ipoint]
-        icol = indices.icol_point[ipoint]
-
-        if haskey(prescribed_conditions, ipoint)
-            if prescribed_conditions[ipoint].isforce[1] && !differential_vars[icol+6] 
-                jacob[irow, :] .= 0
-                jacob[irow, icol] = 1
-            end 
-            if prescribed_conditions[ipoint].isforce[2] && !differential_vars[icol+7] 
-                jacob[irow+1, :] .= 0
-                jacob[irow+1, icol+1] = 1
-            end 
-            if prescribed_conditions[ipoint].isforce[3] && !differential_vars[icol+8]  
-                jacob[irow+2, :] .= 0
-                jacob[irow+2, icol+2] = 1
-            end 
-            if prescribed_conditions[ipoint].isforce[4] && !differential_vars[icol+9]  
-                jacob[irow+3, :] .= 0
-                jacob[irow+3, icol+3] = 1
-            end 
-            if prescribed_conditions[ipoint].isforce[5] && !differential_vars[icol+10]  
-                jacob[irow+4, :] .= 0
-                jacob[irow+4, icol+4] = 1
-            end 
-            if prescribed_conditions[ipoint].isforce[6] && !differential_vars[icol+11]  
-                jacob[irow+5, :] .= 0
-                jacob[irow+5, icol+5] = 1
-            end 
-        else
-            if !differential_vars[icol+6] 
-                jacob[irow, :] .= 0
-                jacob[irow, icol] = 1
-            end
-            if !differential_vars[icol+7] 
-                jacob[irow+1, :] .= 0
-                jacob[irow+1, icol+1] = 1
-            end
-            if !differential_vars[icol+8] 
-                jacob[irow+2, :] .= 0
-                jacob[irow+2, icol+2] = 1
-            end
-            if !differential_vars[icol+9] 
-                jacob[irow+3, :] .= 0
-                jacob[irow+3, icol+3] = 1
-            end
-            if !differential_vars[icol+10] 
-                jacob[irow+4, :] .= 0
-                jacob[irow+4, icol+4] = 1
-            end
-            if !differential_vars[icol+11] 
-                jacob[irow+5, :] .= 0
-                jacob[irow+5, icol+5] = 1
-            end
-        end
-    end
-    
     return jacob
 end
 

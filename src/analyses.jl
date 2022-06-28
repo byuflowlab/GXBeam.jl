@@ -1138,15 +1138,19 @@ final system with the new initial conditions.
  - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
        function of time.    
      
-# Initial Condition Keyword Arguments
+# Initial Condition Keyword Arguments (all expressed in the global body-fixed frame)
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of 
         each point
  - `theta0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement of 
         each point (Wiener-Milenkovic Parameters)
- - `udot0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement rate of 
-        each point
- - `thetadot0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement 
-        rate of each point (Wiener-Milenkovic Parameters)
+ - `V0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity of 
+        each point, including contributions from the motion of the body-fixed frame
+ - `Omega0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity of 
+        each point, including contributions from the motion of the body-fixed frame
+ - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity rate of 
+        each point, including contributions from the motion of the body-fixed frame
+ - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity rate of 
+        each point, including contributions from the motion of the body-fixed frame
 
 # Control Flag Keyword Arguments
  - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
@@ -1197,11 +1201,15 @@ function initial_condition_analysis!(system, assembly, t0;
     # initial condition keyword arguments
     u0=fill((@SVector zeros(3)), length(assembly.points)),
     theta0=fill((@SVector zeros(3)), length(assembly.points)),
-    udot0=fill((@SVector zeros(3)), length(assembly.points)),
-    thetadot0=fill((@SVector zeros(3)), length(assembly.points)),
+    V0=fill((@SVector zeros(3)), length(assembly.points)),
+    Omega0=fill((@SVector zeros(3)), length(assembly.points)),
+    Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
+    Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
     structural_damping=true,
+    constant_mass_matrix=typeof(system) <: ExpandedSystem,
     reset_state=true,
+    steady_state=false,
     linear=false,
     show_trace=false,
     # nonlinear solver keyword arguments
@@ -1211,8 +1219,46 @@ function initial_condition_analysis!(system, assembly, t0;
     iterations=1000,
     # linear solver keyword arguments
     linearization_state=nothing,
+    update_linearization_state=false
     )
 
+    # switch to steady state solution if requested
+    if steady_state
+        system, converged = steady_state_analysis!(system, assembly;
+            prescribed_conditions=prescribed_conditions,
+            distributed_loads=distributed_loads,
+            point_masses=point_masses,
+            origin=origin,
+            linear_velocity=linear_velocity,
+            angular_velocity=angular_velocity,
+            linear_acceleration=linear_acceleration,
+            angular_acceleration=angular_acceleration,
+            gravity=gravity,
+            time=t0,
+            structural_damping=structural_damping,
+            constant_mass_matrix=constant_mass_matrix,
+            reset_state=reset_state,
+            linear=linear,
+            show_trace=show_trace,
+            method=method,
+            linesearch=linesearch,
+            ftol=ftol,
+            iterations=iterations,
+            linearization_state=linearization_state,
+            update_linearization_state=update_linearization_state
+            )
+
+        # set state rates to zero
+        for i =1:length(assembly.points)
+            system.udot[i] = SVector(0,0,0)
+            system.θdot[i] = SVector(0,0,0)
+            system.Vdot[i] = SVector(0,0,0)
+            system.Ωdot[i] = SVector(0,0,0)
+        end
+
+        return system, converged
+    end
+    
     # save original system
     original_system = system
 
@@ -1267,20 +1313,89 @@ function initial_condition_analysis!(system, assembly, t0;
     a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t0))
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t0))
 
-    # solve for the system mass matrix
-    system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+    # determine whether the equilibrium equations can be used to solve for Vdot, Ωdot
 
-    # identify differential variables
-    differential_vars = .!(iszero.(sum(M, dims=1)))
+    original_elements = copy(assembly.elements)
+    
+    for i = 1:length(assembly.elements)
+        
+        # element properties
+        L = assembly.elements[i].L
+        xe = assembly.elements[i].x
+        mass = assembly.elements[i].mass
+        compliance = assembly.elements[i].compliance
+        Cab = assembly.elements[i].Cab
+        mu = assembly.elements[i].mu
+
+        # modified element mass matrix
+        mass = similar(mass) .= mass
+        for j = 1:6
+            if iszero(compliance[j,:])
+                mass[j,:] .= 0.0
+                mass[:,j] .= 0.0
+            end
+        end
+        mass = SMatrix{6,6}(mass)
+    
+        # replace original element mass matrix
+        assembly.elements[i] = Element(L, xe, compliance, mass, Cab, mu)
+
+    end
+
+    # check for zero-valued mass matrix terms
+    system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+    rate_vars = .!(iszero.(sum(M, dims=1)))
+
+    # restore original element mass matrices
+    for i = 1:length(assembly.elements)
+        assembly.elements[i] = original_elements[i]
+    end
+
+    # check that all rigid body modes are constrained
+    not_constrained = reduce(.&, [p.isforce for (i,p) in pcond])
+    
+    # save original prescribed conditions
+    original_pcond = pcond
+
+    # add prescribed conditions to the first node
+    if any(not_constrained)
+        pcond = copy(pcond)
+
+        if haskey(pcond, 1)
+            isforce = pcond[1].isforce
+            value = pcond[1].value
+            follower = pcond[1].follower
+        else
+            isforce = @SVector zeros(Bool, 6)
+            value = @SVector zeros(Float64, 6)
+            follower = @SVector zeros(Float64, 6)
+        end
+
+        # constrain rigid body modes using the first node
+        for i = 1:3
+            if not_constrained[i]
+                isforce = setindex(isforce, false, i)
+                value = setindex(value, u0[1][i], i)
+                follower = setindex(follower, 0, i)
+            end
+            if not_constrained[3+i]
+                isforce = setindex(isforce, false, 3+i)
+                value = setindex(value, theta0[1][i], 3+i)
+                follower = setindex(follower, 0, 3+i)
+            end
+        end
+
+        pcond[1] = PrescribedConditions(isforce, value, follower)
+    end
 
     # define the residual and jacobian functions
     f! = (resid, x) -> initial_condition_system_residual!(resid, x, indices, 
-        differential_vars, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-        gvec, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+        rate_vars, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+        gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
     j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, indices, 
-        differential_vars, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-        gvec, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+        rate_vars, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+        gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
     # solve for the corresponding state variables
     if linear
@@ -1302,7 +1417,9 @@ function initial_condition_analysis!(system, assembly, t0;
         # perform a nonlinear analysis
         df = OnceDifferentiable(f!, j!, x, r, K)
 
-        result = NLsolve.nlsolve(df, x,
+        # result = NLsolve.nlsolve(df, x,
+        result = NLsolve.nlsolve(f!, x,
+            autodiff=:forward,
             show_trace=show_trace,
             linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
             method=method,
@@ -1320,12 +1437,72 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # save calculated variables
     for ipoint = 1:length(assembly.points)
-        udot[ipoint], θdot[ipoint] = udot0[ipoint], thetadot0[ipoint]
-        Vdot[ipoint], Ωdot[ipoint] = point_displacement_rates(x, ipoint, indices.icol_point, pcond)
-    end
 
-    # restore the original state vector
-    set_state!(system, pcond; u=u0, theta=theta0)
+        # column index of state variables for this point
+        icol = indices.icol_point[ipoint]
+
+        # save linear and angular displacement rates
+        udot[ipoint], θdot[ipoint] = point_velocities(x, ipoint, indices.icol_point)
+
+        # save linear and angular velocity rates
+        tmp1, tmp2 = point_displacement_rates(x, ipoint, indices.icol_point, pcond)
+        if haskey(pcond, ipoint)
+            tmp1 = SVector{3}(
+                pcond[ipoint].isforce[1] && rate_vars[icol+6] ? tmp1[1] : Vdot0[ipoint][1], 
+                pcond[ipoint].isforce[2] && rate_vars[icol+7] ? tmp1[2] : Vdot0[ipoint][2],
+                pcond[ipoint].isforce[3] && rate_vars[icol+8] ? tmp1[3] : Vdot0[ipoint][3],
+            )
+            tmp2 = SVector{3}(
+                pcond[ipoint].isforce[4] && rate_vars[icol+9] ? tmp2[1] : Omegadot0[ipoint][1],
+                pcond[ipoint].isforce[5] && rate_vars[icol+10] ? tmp2[2] : Omegadot0[ipoint][2],
+                pcond[ipoint].isforce[6] && rate_vars[icol+11] ? tmp2[3] : Omegadot0[ipoint][3], 
+            )
+        else
+            tmp1 = SVector{3}(
+                rate_vars[icol+6] ? tmp1[1] : Vdot0[ipoint][1], 
+                rate_vars[icol+7] ? tmp1[2] : Vdot0[ipoint][2],
+                rate_vars[icol+8] ? tmp1[3] : Vdot0[ipoint][3],
+            )
+            tmp2 = SVector{3}(
+                rate_vars[icol+9] ? tmp2[1] : Omegadot0[ipoint][1],
+                rate_vars[icol+10] ? tmp2[2] : Omegadot0[ipoint][2],
+                rate_vars[icol+11] ? tmp2[3] : Omegadot0[ipoint][3], 
+            )
+        end
+        Vdot[ipoint], Ωdot[ipoint] = tmp1, tmp2
+
+        # save linear and angular displacement
+        u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
+        if haskey(pcond, ipoint)
+            u = SVector{3}(
+                pcond[ipoint].isforce[1] && rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
+                pcond[ipoint].isforce[2] && rate_vars[icol+7] ? u0[ipoint][2] : u[2],
+                pcond[ipoint].isforce[3] && rate_vars[icol+8] ? u0[ipoint][3] : u[3],
+            )
+            θ = SVector{3}(
+                pcond[ipoint].isforce[4] && rate_vars[icol+9] ? theta0[ipoint][1] : θ[1],
+                pcond[ipoint].isforce[5] && rate_vars[icol+10] ? theta0[ipoint][2] : θ[2],
+                pcond[ipoint].isforce[6] && rate_vars[icol+11] ? theta0[ipoint][3] : θ[3], 
+            )
+        else
+            u = SVector{3}(
+                rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
+                rate_vars[icol+7] ? u0[ipoint][2] : u[2],
+                rate_vars[icol+8] ? u0[ipoint][3] : u[3],
+            )
+            θ = SVector{3}(
+                rate_vars[icol+9] ? theta0[ipoint][1] : θ[1],
+                rate_vars[icol+10] ? theta0[ipoint][2] : θ[2],
+                rate_vars[icol+11] ? theta0[ipoint][3] : θ[3], 
+            )
+        end
+        set_linear_displacement!(system, original_pcond, u, ipoint)
+        set_angular_displacement!(system, original_pcond, θ, ipoint)
+
+        # save linear and angular velocity
+        set_linear_velocity!(system, V0[ipoint], ipoint)
+        set_angular_velocity!(system, Omega0[ipoint], ipoint)
+    end
 
     # check if provided system was a dynamic system
     if !(typeof(original_system) <: DynamicSystem)
@@ -1384,15 +1561,19 @@ converged for each time step.
        function of time.  
  - `save = 1:length(time)`: Steps at which to save the time history
 
-# Initial Condition Keyword Arguments
+# Initial Condition Keyword Arguments (all expressed in the global body-fixed frame)
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of 
         each point
  - `theta0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement of 
         each point (Wiener-Milenkovic Parameters)
- - `udot0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement rate of 
-        each point
- - `thetadot0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement 
-        rate of each point (Wiener-Milenkovic Parameters)
+ - `V0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity of 
+        each point, including contributions from the motion of the body-fixed frame
+ - `Omega0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity of 
+        each point, including contributions from the motion of the body-fixed frame
+ - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity rate of 
+        each point, including contributions from the motion of the body-fixed frame
+ - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity rate of 
+        each point, including contributions from the motion of the body-fixed frame
 
 # Control Flag Keyword Arguments
  - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
@@ -1446,8 +1627,10 @@ function time_domain_analysis!(system, assembly, tvec;
     # initial condition keyword arguments
     u0=fill((@SVector zeros(3)), length(assembly.points)),
     theta0=fill((@SVector zeros(3)), length(assembly.points)),
-    udot0=fill((@SVector zeros(3)), length(assembly.points)),
-    thetadot0=fill((@SVector zeros(3)), length(assembly.points)),
+    V0=fill((@SVector zeros(3)), length(assembly.points)),
+    Omega0=fill((@SVector zeros(3)), length(assembly.points)),
+    Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
+    Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
     structural_damping=true,
     reset_state=true,
@@ -1496,66 +1679,34 @@ function time_domain_analysis!(system, assembly, tvec;
 
     # perform initial condition analysis
     if initialize
-        if steady_state
-            # find steady state solution
-            system, converged = steady_state_analysis!(system, assembly;
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=tvec[1],
-                structural_damping=structural_damping,
-                constant_mass_matrix=false,
-                reset_state=reset_state,
-                linear=linear,
-                show_trace=show_trace,
-                method=method,
-                linesearch=linesearch,
-                ftol=ftol,
-                iterations=iterations,
-                linearization_state=linearization_state,
-                update_linearization_state=update_linearization_state
-                )
-
-            # set state rates to zero
-            for i =1:length(assembly.points)
-                system.udot[i] = SVector(0,0,0)
-                system.θdot[i] = SVector(0,0,0)
-                system.Vdot[i] = SVector(0,0,0)
-                system.Ωdot[i] = SVector(0,0,0)
-            end
-        else
-            # perform initialization procedure
-            system, converged = initial_condition_analysis!(system, assembly, tvec[1];
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                u0=u0,
-                theta0=theta0,
-                udot0=udot0,
-                thetadot0=thetadot0,
-                structural_damping=structural_damping,
-                reset_state=reset_state,
-                linear=linear,
-                show_trace=show_trace,
-                method=method,
-                linesearch=linesearch,
-                ftol=ftol,
-                iterations=iterations,
-                linearization_state=linearization_state,
-                )
-        end
+        # perform initialization procedure
+        system, converged = initial_condition_analysis!(system, assembly, tvec[1];
+            prescribed_conditions=prescribed_conditions,
+            distributed_loads=distributed_loads,
+            point_masses=point_masses,
+            origin=origin,
+            linear_velocity=linear_velocity,
+            angular_velocity=angular_velocity,
+            linear_acceleration=linear_acceleration,
+            angular_acceleration=angular_acceleration,
+            gravity=gravity,
+            u0=u0,
+            theta0=theta0,
+            V0=V0,
+            Omega0=Omega0,
+            Vdot0=Vdot0,
+            Omegadot0=Omegadot0,
+            structural_damping=structural_damping,
+            reset_state=reset_state,
+            linear=linear,
+            steady_state=steady_state,
+            show_trace=show_trace,
+            method=method,
+            linesearch=linesearch,
+            ftol=ftol,
+            iterations=iterations,
+            linearization_state=linearization_state,
+            )
     else
         # converged by default
         converged = true
@@ -1607,10 +1758,10 @@ function time_domain_analysis!(system, assembly, tvec;
             u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
             V, Ω = point_velocities(x, ipoint, indices.icol_point)
             # calculate state rate initialization terms, use storage for state rates
-            udot[ipoint] = 2 / dt * u + udot[ipoint]
-            θdot[ipoint] = 2 / dt * θ + θdot[ipoint]
-            Vdot[ipoint] = 2 / dt * V + Vdot[ipoint]
-            Ωdot[ipoint] = 2 / dt * Ω + Ωdot[ipoint]
+            udot[ipoint] = 2/dt*u + udot[ipoint]
+            θdot[ipoint] = 2/dt*θ + θdot[ipoint]
+            Vdot[ipoint] = 2/dt*V + Vdot[ipoint]
+            Ωdot[ipoint] = 2/dt*Ω + Ωdot[ipoint]
         end
 
         # define the residual and jacobian functions

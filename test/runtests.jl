@@ -609,24 +609,97 @@ end
 
     u0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
     theta0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
-    udot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
-    thetadot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    V0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    Omega0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    Vdot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    Omegadot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
 
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
     M = similar(x, length(x), length(x))
 
-    GXBeam.system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+    # determine whether the equilibrium equations can be used to solve for Vdot, Ωdot
 
-    differential_vars = .!(iszero.(sum(M, dims=1)))
+    original_elements = copy(assembly.elements)
+    
+    for i = 1:length(assembly.elements)
+        
+        # element properties
+        L = assembly.elements[i].L
+        xe = assembly.elements[i].x
+        mass = assembly.elements[i].mass
+        compliance = assembly.elements[i].compliance
+        Cab = assembly.elements[i].Cab
+        mu = assembly.elements[i].mu
+
+        # modified element mass matrix
+        mass = similar(mass) .= mass
+        for j = 1:6
+            if iszero(compliance[j,:])
+                mass[j,:] .= 0.0
+                mass[:,j] .= 0.0
+            end
+        end
+        mass = SMatrix{6,6}(mass)
+    
+        # replace original element mass matrix
+        assembly.elements[i] = GXBeam.Element(L, xe, compliance, mass, Cab, mu)
+
+    end
+
+    # check for zero-valued mass matrix terms
+    GXBeam.system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+    rate_vars = .!(iszero.(sum(M, dims=1)))
+
+    # restore original element mass matrices
+    for i = 1:length(assembly.elements)
+        assembly.elements[i] = original_elements[i]
+    end
+
+    # check that all rigid body modes are constrained
+    not_constrained = reduce(.&, [p.isforce for (i,p) in pcond])
+    
+    # save original prescribed conditions
+    original_pcond = pcond
+
+    # add prescribed conditions to the first node
+    if any(not_constrained)
+        pcond = copy(pcond)
+
+        if haskey(pcond, 1)
+            isforce = pcond[1].isforce
+            value = pcond[1].value
+            follower = pcond[1].follower
+        else
+            isforce = @SVector zeros(Bool, 6)
+            value = @SVector zeros(Float64, 6)
+            follower = @SVector zeros(Float64, 6)
+        end
+
+        # constrain rigid body modes using the first node
+        for i = 1:3
+            if not_constrained[i]
+                isforce = setindex(isforce, false, i)
+                value = setindex(value, u0[1][i], i)
+                follower = setindex(follower, 0, i)
+            end
+            if not_constrained[3+i]
+                isforce = setindex(isforce, false, 3+i)
+                value = setindex(value, theta0[1][i], 3+i)
+                follower = setindex(follower, 0, 3+i)
+            end
+        end
+
+        pcond[1] = PrescribedConditions(isforce, value, follower)
+    end
 
     f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, indices, 
-        differential_vars, force_scaling, structural_damping, assembly, pcond, dload, 
-        pmass, gvec, x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+        rate_vars, force_scaling, structural_damping, assembly, pcond, dload, 
+        pmass, gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
-    GXBeam.initial_condition_system_jacobian!(J, x, indices, differential_vars, 
+    GXBeam.initial_condition_system_jacobian!(J, x, indices, rate_vars, 
         force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-        x0, v0, ω0, a0, α0, u0, theta0, udot0, thetadot0)
+        x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
     @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
 

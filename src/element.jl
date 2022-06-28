@@ -211,12 +211,12 @@ state analysis
         ω1 = ω0
         ω2 = ω0
 
-        # linear deflection rates 
+        # linear displacement rates 
         udot1 = V1 - v1 - cross(ω1, u1)
         udot2 = V2 - v2 - cross(ω2, u2)
         udot = (udot1 + udot2)/2
 
-        # angular deflection rates
+        # angular displacement rates
         θdot1 = Qinv1*C1*(Ω1 - ω1)
         θdot2 = Qinv2*C2*(Ω2 - ω2)
         θdot = (θdot1 + θdot2)/2
@@ -250,19 +250,19 @@ state analysis
 end
 
 """
-    initial_condition_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
-        u0, θ0, udot0, θdot0)
+    initial_condition_element_properties(x, indices, rate_vars, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate/extract the element properties needed to construct the residual for a time-domain
 analysis initialization
 """
-@inline function initial_condition_element_properties(x, indices, force_scaling, 
+@inline function initial_condition_element_properties(x, indices, rate_vars, force_scaling, 
     structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
-    u0, θ0, udot0, θdot0)
+    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     # unpack element parameters
-    @unpack L, Cab, compliance, mass, mu = assembly.elements[ielem]
+    @unpack L, Cab, compliance, mass = assembly.elements[ielem]
 
     # scale compliance and mass matrices by the element length
     compliance *= L
@@ -280,17 +280,63 @@ analysis initialization
     mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
     mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
 
-    # damping submatrices
-    μ11 = @SMatrix [mu[1] 0 0; 0 mu[2] 0; 0 0 mu[3]]
-    μ22 = @SMatrix [mu[4] 0 0; 0 mu[5] 0; 0 0 mu[6]]
+    # starting node linear and angular displacement
+    ipoint = assembly.start[ielem]
+    icol1 = indices.icol_point[ipoint]
+    u1, θ1 = point_displacement(x, ipoint, indices.icol_point, prescribed_conditions)
+    if haskey(prescribed_conditions, ipoint)
+        u1 = SVector{3}(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? u0[ipoint][1] : u1[1], 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? u0[ipoint][2] : u1[2],
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? u0[ipoint][3] : u1[3],
+        )
+        θ1 = SVector{3}(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? θ0[ipoint][1] : θ1[1],
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? θ0[ipoint][2] : θ1[2],
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? θ0[ipoint][3] : θ1[3], 
+        )
+    else
+        u1 = SVector{3}(
+            rate_vars[icol1+6] ? u0[ipoint][1] : u1[1], 
+            rate_vars[icol1+7] ? u0[ipoint][2] : u1[2],
+            rate_vars[icol1+8] ? u0[ipoint][3] : u1[3],
+        )
+        θ1 = SVector{3}(
+            rate_vars[icol1+9] ? θ0[ipoint][1] : θ1[1],
+            rate_vars[icol1+10] ? θ0[ipoint][2] : θ1[2],
+            rate_vars[icol1+11] ? θ0[ipoint][3] : θ1[3], 
+        )
+    end
 
-    # linear and angular displacement
-    u1 = SVector{3}(u0[assembly.start[ielem]])
-    θ1 = SVector{3}(θ0[assembly.start[ielem]])
+    # ending node linear and angular displacement
+    ipoint = assembly.stop[ielem]
+    icol2 = indices.icol_point[ipoint]
+    u2, θ2 = point_displacement(x, ipoint, indices.icol_point, prescribed_conditions)
+    if haskey(prescribed_conditions, ipoint)
+        u2 = SVector{3}(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? u0[ipoint][1] : u2[1], 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? u0[ipoint][2] : u2[2],
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? u0[ipoint][3] : u2[3],
+        )
+        θ2 = SVector{3}(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ?  θ0[ipoint][1] : θ2[1],
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? θ0[ipoint][2] : θ2[2],
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? θ0[ipoint][3] : θ2[3], 
+        )
+    else
+        u2 = SVector{3}(
+            rate_vars[icol2+6] ? u0[ipoint][1] : u2[1], 
+            rate_vars[icol2+7] ? u0[ipoint][2] : u2[2],
+            rate_vars[icol2+8] ? u0[ipoint][3] : u2[3],
+        )
+        θ2 = SVector{3}(
+            rate_vars[icol2+9] ?  θ0[ipoint][1] : θ2[1],
+            rate_vars[icol2+10] ? θ0[ipoint][2] : θ2[2],
+            rate_vars[icol2+11] ? θ0[ipoint][3] : θ2[3], 
+        )
+    end
 
-    u2 = SVector{3}(u0[assembly.stop[ielem]])
-    θ2 = SVector{3}(θ0[assembly.stop[ielem]])
-
+    # beam element linear and angular displacement
     u = (u1 + u2)/2
     θ = (θ1 + θ2)/2
 
@@ -300,10 +346,14 @@ analysis initialization
     Q = get_Q(θ)
     Qinv = get_Qinv(θ)
 
-    # linear and angular velocity
-    V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
-    V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
+    # linear velocity
+    V1 = V0[assembly.start[ielem]]
+    V2 = V0[assembly.stop[ielem]]
     V = (V1 + V2)/2
+
+    # angular velocity
+    Ω1 = Ω0[assembly.start[ielem]]
+    Ω2 = Ω0[assembly.stop[ielem]]
     Ω = (Ω1 + Ω2)/2
 
     # linear and angular momentum
@@ -330,40 +380,105 @@ analysis initialization
     a = a0 + cross(α0, Δx) + cross(α0, u) - gravity
     α = α0
 
-    # linear deflection rates
-    udot1 = udot0[assembly.start[ielem]]
-    udot2 = udot0[assembly.stop[ielem]]
-    udot = (udot1 + udot2)/2
+    properties = (; L, C, Cab, CtCab, Q, Qinv, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
+    u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, u, θ, V, Ω, P, H, F, M, γ, κ, v, ω, a, α) 
 
-    # angular deflection rates
-    θdot1 = θdot0[assembly.start[ielem]]
-    θdot2 = θdot0[assembly.stop[ielem]]
-    θdot = (θdot1 + θdot2)/2
+    if structural_damping 
+        
+        # damping coefficients
+        μ = assembly.elements[ielem].mu
 
-    # change in linear and angular displacement
-    Δu = u2 - u1
-    Δθ = θ2 - θ1
+        # damping submatrices
+        μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
+        μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+    
+        # linear and angular displacement rates
+        udot1, θdot1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
+        udot2, θdot2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
+        udot = (udot1 + udot2)/2
+        θdot = (θdot1 + θdot2)/2
 
-    # change in linear and angular displacement rates
-    Δudot = udot2 - udot1
-    Δθdot = θdot2 - θdot1
+        # change in linear and angular displacement
+        Δu = u2 - u1
+        Δθ = θ2 - θ1
 
-    # ΔQ matrix (see structural damping theory)
-    ΔQ = get_ΔQ(θ, Δθ, Q)
+        # change in linear and angular displacement rates
+        Δudot = udot2 - udot1
+        Δθdot = θdot2 - θdot1
 
-    # strain rates
-    γdot = CtCab'*Δudot - Cab'*tilde(Ω - ω)*C*Δu - L*Cab'*tilde(Ω - ω)*C*Cab*e1
-    κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
+        # ΔQ matrix (see structural damping theory)
+        ΔQ = get_ΔQ(θ, Δθ, Q)
 
-    # adjust strains to account for strain rates
-    if structural_damping
+        # strain rates
+        γdot = -CtCab'*tilde(Ω - ω)*Δu + CtCab'*Δudot - L*CtCab'*tilde(Ω - ω)*Cab*e1
+        κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
+
+        # adjust strains to account for strain rates
         γ -= μ11*γdot
         κ -= μ22*κdot
+
+        # add structural damping properties
+        properties = (; properties..., γ, κ, udot1, udot2, θdot1, θdot2, ΔQ, μ11, μ22, 
+            Δu, Δθ, Δudot, Δθdot, udot, θdot, γdot, κdot)
     end
 
-    # linear and angular velocity rates
-    V1dot, Ω1dot = point_displacement_rates(x, assembly.start[ielem], indices.icol_point, prescribed_conditions)
-    V2dot, Ω2dot = point_displacement_rates(x, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
+    # starting node linear and angular velocity rates
+    ipoint = assembly.start[ielem]
+    icol1 = indices.icol_point[ipoint]
+    V1dot, Ω1dot = point_displacement_rates(x, ipoint, indices.icol_point, prescribed_conditions)
+    if haskey(prescribed_conditions, ipoint)
+        V1dot = SVector{3}(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? V1dot[1] : Vdot0[ipoint][1], 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? V1dot[2] : Vdot0[ipoint][2],
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? V1dot[3] : Vdot0[ipoint][3],
+        )
+        Ω1dot = SVector{3}(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? Ω1dot[1] : Ωdot0[ipoint][1],
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? Ω1dot[2] : Ωdot0[ipoint][2],
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? Ω1dot[3] : Ωdot0[ipoint][3], 
+        )
+    else
+        V1dot = SVector{3}(
+            rate_vars[icol1+6] ? V1dot[1] : Vdot0[ipoint][1], 
+            rate_vars[icol1+7] ? V1dot[2] : Vdot0[ipoint][2],
+            rate_vars[icol1+8] ? V1dot[3] : Vdot0[ipoint][3],
+        )
+        Ω1dot = SVector{3}(
+            rate_vars[icol1+9] ? Ω1dot[1] : Ωdot0[ipoint][1],
+            rate_vars[icol1+10] ? Ω1dot[2] : Ωdot0[ipoint][2],
+            rate_vars[icol1+11] ? Ω1dot[3] : Ωdot0[ipoint][3], 
+        )
+    end
+
+    # ending node linear and angular velocity rates
+    ipoint = assembly.stop[ielem]
+    icol2 = indices.icol_point[ipoint]
+    V2dot, Ω2dot = point_displacement_rates(x, ipoint, indices.icol_point, prescribed_conditions)
+    if haskey(prescribed_conditions, ipoint)
+        V2dot = SVector{3}(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? V2dot[1] : Vdot0[ipoint][1], 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? V2dot[2] : Vdot0[ipoint][2],
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? V2dot[3] : Vdot0[ipoint][3],
+        )
+        Ω2dot = SVector{3}(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ? Ω2dot[1] : Ωdot0[ipoint][1],
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? Ω2dot[2] : Ωdot0[ipoint][2],
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? Ω2dot[3] : Ωdot0[ipoint][3], 
+        )
+    else
+        V2dot = SVector{3}(
+            rate_vars[icol2+6] ? V2dot[1] : Vdot0[ipoint][1], 
+            rate_vars[icol2+7] ? V2dot[2] : Vdot0[ipoint][2],
+            rate_vars[icol2+8] ? V2dot[3] : Vdot0[ipoint][3],
+        )
+        Ω2dot = SVector{3}(
+            rate_vars[icol2+9] ? Ω2dot[1] : Ωdot0[ipoint][1],
+            rate_vars[icol2+10] ? Ω2dot[2] : Ωdot0[ipoint][2],
+            rate_vars[icol2+11] ? Ω2dot[3] : Ωdot0[ipoint][3], 
+        )
+    end
+
+    # element linear and angular velocity rates
     Vdot = (V1dot + V2dot)/2
     Ωdot = (Ω1dot + Ω2dot)/2
 
@@ -378,9 +493,7 @@ analysis initialization
         CtCab*mass21*CtCabdot'*V + CtCab*mass22*CtCabdot'*Ω +
         CtCabdot*mass21*CtCab'*V + CtCabdot*mass22*CtCab'*Ω
 
-    return (; L, C, Cab, CtCab, Q, Qinv, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
-        μ11, μ22, u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, u, θ, V, Ω, P, H, F, M, γ, κ, v, ω, a, α, Δu,
-        CtCabdot, Vdot, Ωdot, Pdot, Hdot) 
+    return (; properties..., CtCabdot, Vdot, Ωdot, Pdot, Hdot) 
 end
 
 """
@@ -561,12 +674,12 @@ mass matrix system
         ω1 = ω0
         ω2 = ω0
 
-        # linear deflection rates 
+        # linear displacement rates 
         udot1 = C1'*V1 - v1 - cross(ω1, u1)
         udot2 = C2'*V2 - v2 - cross(ω2, u2)
         udot = (udot1 + udot2)/2
 
-        # angular deflection rates
+        # angular displacement rates
         θdot1 = Qinv1*(Ω1 - C1*ω1)
         θdot2 = Qinv2*(Ω2 - C2*ω2)
         θdot = (θdot1 + θdot2)/2
@@ -679,7 +792,6 @@ Calculate the resultant loads applied at each end of a beam element for a static
 @inline function static_element_resultants(properties, distributed_loads, ielem)
   
     @unpack L, C, Cab, CtCab, mass11, mass12, mass21, mass22, F, M, γ, κ, a, α = properties
-
 
     # add loads due to internal forces/moments and stiffness
     tmp = CtCab*F
@@ -889,20 +1001,20 @@ analysis into the system residual vector.
 end
 
 """
-    initial_condition_element_residual!(resid, x, indices, force_scaling, 
+    initial_condition_element_residual!(resid, x, indices, rate_vars, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-        gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+        gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate and insert the residual entries corresponding to a beam element for the 
 initialization of a time domain simulation into the system residual vector.
 """
-@inline function initial_condition_element_residual!(resid, x, indices, force_scaling, 
+@inline function initial_condition_element_residual!(resid, x, indices, rate_vars, force_scaling, 
     structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-    x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
-    properties = initial_condition_element_properties(x, indices, force_scaling, 
+    properties = initial_condition_element_properties(x, indices, rate_vars, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity, 
-        x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     compatability = compatability_residuals(properties)
 
@@ -1064,14 +1176,14 @@ corresponding to a element for a steady state analysis
         Qinv1_θ1, Qinv1_θ2, Qinv1_θ3 = get_Qinv_θ(θ1)
         Qinv2_θ1, Qinv2_θ2, Qinv2_θ3 = get_Qinv_θ(θ2)
 
-        # linear deflection rates
+        # linear displacement rates
         udot1_u1 = -tilde(ω1)
         udot2_u2 = -tilde(ω2)
 
         udot1_V1 = I3
         udot2_V2 = I3
 
-        # angular deflection rates
+        # angular displacement rates
         θdot1_θ1 = mul3(Qinv1_θ1, Qinv1_θ2, Qinv1_θ3, C1*(Ω1 - ω1)) + Qinv1*mul3(C1_θ1, C1_θ2, C1_θ3, Ω1 - ω1)
         θdot2_θ2 = mul3(Qinv2_θ1, Qinv2_θ2, Qinv2_θ3, C2*(Ω2 - ω2)) + Qinv2*mul3(C2_θ1, C2_θ2, C2_θ3, Ω2 - ω2)
         
@@ -1181,71 +1293,257 @@ corresponding to a element for a steady state analysis
 end
 
 """
-    initial_condition_element_jacobian_properties(properties, x, indices, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity)
+    initial_condition_element_jacobian_properties(properties, x, indices, rate_vars, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity,
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a Newmark scheme time marching analysis
 """
-@inline function initial_condition_element_jacobian_properties(properties, x, indices, 
-    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity)
+@inline function initial_condition_element_jacobian_properties(properties, x, indices, rate_vars,
+    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity,
+    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
-    @unpack L, C, Cab, CtCab, CtCabdot, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
-        μ11, μ22, Δu, V, Ω = properties
+    @unpack L, C, Cab, CtCab, CtCabdot, Q, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
+        θ, V, Ω, ω = properties
+
+    # starting node linear and angular displacement
+    ipoint = assembly.start[ielem]
+    icol1 = indices.icol_point[ipoint]
+    u1_u1, θ1_θ1 = point_displacement_jacobians(ipoint, prescribed_conditions)
+    if haskey(prescribed_conditions, ipoint)
+        # linear displacement
+        u1_u1 = hcat(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? zero(e1) : u1_u1[:,1], 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? zero(e2) : u1_u1[:,2],
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? zero(e3) : u1_u1[:,3],
+        )
+        # angular displacement
+        θ1_θ1 = hcat(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? zero(e1) : θ1_θ1[:,1],
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? zero(e2) : θ1_θ1[:,2],
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? zero(e3) : θ1_θ1[:,3], 
+        )
+    else
+        # linear displacement
+        u1_u1 = hcat(
+            rate_vars[icol1+6] ? zero(e1) : u1_u1[:,1], 
+            rate_vars[icol1+7] ? zero(e2) : u1_u1[:,2],
+            rate_vars[icol1+8] ? zero(e3) : u1_u1[:,3],
+        )
+        # angular displacement
+        θ1_θ1 = hcat(
+            rate_vars[icol1+9] ? zero(e1) : θ1_θ1[:,1],
+            rate_vars[icol1+10] ? zero(e2) : θ1_θ1[:,2],
+            rate_vars[icol1+11] ? zero(e3) : θ1_θ1[:,3], 
+        )
+    end
+
+    # ending node linear and angular displacement
+    ipoint = assembly.stop[ielem]
+    icol2 = indices.icol_point[ipoint]
+    u2_u2, θ2_θ2 = point_displacement_jacobians(ipoint, prescribed_conditions)
+    if haskey(prescribed_conditions, ipoint)
+        # linear displacement
+        u2_u2 = hcat(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? zero(e1) : u2_u2[:,1], 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? zero(e2) : u2_u2[:,2],
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? zero(e3) : u2_u2[:,3],
+        )
+        # angular displacement
+        θ2_θ2 = hcat(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ? zero(e1) : θ2_θ2[:,1],
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? zero(e2) : θ2_θ2[:,2],
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? zero(e3) : θ2_θ2[:,3], 
+        )
+    else
+        # linear displacement
+        u2_u2 = hcat(
+            rate_vars[icol2+6] ? zero(e1) : u2_u2[:,1], 
+            rate_vars[icol2+7] ? zero(e2) : u2_u2[:,2],
+            rate_vars[icol2+8] ? zero(e3) : u2_u2[:,3],
+        )
+        # angular displacement
+        θ2_θ2 = hcat(
+            rate_vars[icol2+9] ? zero(e1) : θ2_θ2[:,1],
+            rate_vars[icol2+10] ? zero(e2) : θ2_θ2[:,2],
+            rate_vars[icol2+11] ? zero(e3) : θ2_θ2[:,3], 
+        )
+    end
+
+    # rotation parameter matrices
+    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
+    Q_θ1, Q_θ2, Q_θ3 = get_Q_θ(Q, θ)
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = get_Qinv_θ(θ)
 
     # strain and curvature
     γ_F, γ_M, κ_F, κ_M = S11, S12, S21, S22
+   
+    # linear and angular momentum
+    P_θ = mul3(C_θ1', C_θ2', C_θ3', Cab*(mass11*CtCab'*V + mass12*CtCab'*Ω)) + 
+        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, V) + 
+        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ω)
 
-    # strain rates
-    tmp = Cab'*tilde(C*Δu) + L*Cab'*tilde(C*Cab*e1)
-    γdot_Ω1 = 1/2*tmp
-    γdot_Ω2 = 1/2*tmp
+    H_θ = mul3(C_θ1', C_θ2', C_θ3', Cab*(mass21*CtCab'*V + mass22*CtCab'*Ω)) + 
+        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, V) + 
+        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, Ω)
 
-    if structural_damping       
-        γ_Ω1 = -μ11*γdot_Ω1
-        γ_Ω2 = -μ11*γdot_Ω2
+    # linear and angular acceleration
+    a_u = tilde(α0)    
+
+    if structural_damping
+
+        @unpack μ11, μ22, Δu, Δθ, ΔQ, udot, θdot, Δudot, Δθdot = properties
+
+        # linear displacement rates
+        u1dot_u1dot = I3
+        u2dot_u2dot = I3
+
+        # angular displacement rates
+        θ1dot_θ1dot = I3
+        θ2dot_θ2dot = I3
+        
+        θdot_θ1dot = 1/2*θ1dot_θ1dot
+        θdot_θ2dot = 1/2*θ2dot_θ2dot
+
+        # change in linear displacement
+        Δu_u1 = -I3
+        Δu_u2 =  I3
+
+        # change in linear and angular displacement rates
+        Δudot_u1dot = -u1dot_u1dot
+        Δudot_u2dot =  u2dot_u2dot
+
+        Δθdot_θ1dot = -θ1dot_θ1dot
+        Δθdot_θ2dot =  θ2dot_θ2dot
+
+        # ΔQ matrix (see structural damping theory)
+        ΔQ_θ1, ΔQ_θ2, ΔQ_θ3 = get_ΔQ_θ(θ, Δθ, Q, Q_θ1, Q_θ2, Q_θ3)
+
+        ΔQ_Δθ1 = mul3(Q_θ1, Q_θ2, Q_θ3, e1)
+        ΔQ_Δθ2 = mul3(Q_θ1, Q_θ2, Q_θ3, e2)
+        ΔQ_Δθ3 = mul3(Q_θ1, Q_θ2, Q_θ3, e3)
+
+        # strain rates
+        tmp = CtCab'*tilde(Ω - ω)
+        γdot_u1 = -tmp*Δu_u1
+        γdot_u2 = -tmp*Δu_u2
+        γdot_u1dot = CtCab'*Δudot_u1dot
+        γdot_u2dot = CtCab'*Δudot_u2dot
+
+        tmp = -Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*Δu) + 
+            Cab'*mul3(C_θ1, C_θ2, C_θ3, Δudot) - 
+            L*Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ω)*Cab*e1)
+        γdot_θ1 = 1/2*tmp
+        γdot_θ2 = 1/2*tmp
+
+        tmp1 = Cab'*mul3(Q_θ1, Q_θ2, Q_θ3, Δθdot)
+        tmp2 = Cab'*mul3(ΔQ_θ1, ΔQ_θ2, ΔQ_θ3, θdot) 
+        tmp3 = Cab'*mul3(ΔQ_Δθ1, ΔQ_Δθ2, ΔQ_Δθ3, θdot)
+        κdot_θ1 = 1/2*tmp1 + 1/2*tmp2 - tmp3
+        κdot_θ2 = 1/2*tmp1 + 1/2*tmp2 + tmp3  
+        κdot_θ1dot = Cab'*Q*Δθdot_θ1dot + Cab'*ΔQ*θdot_θ1dot
+        κdot_θ2dot = Cab'*Q*Δθdot_θ2dot + Cab'*ΔQ*θdot_θ2dot  
+
+        # adjust strains to account for strain rates
+        γ_u1 = -μ11*γdot_u1
+        γ_u2 = -μ11*γdot_u2
+
+        γ_θ1 = -μ11*γdot_θ1
+        γ_θ2 = -μ11*γdot_θ2
+        
+        γ_u1dot = -μ11*γdot_u1dot
+        γ_u2dot = -μ11*γdot_u2dot
+
+        κ_θ1 = -μ22*κdot_θ1
+        κ_θ2 = -μ22*κdot_θ2
+
+        κ_θ1dot = -μ22*κdot_θ1dot
+        κ_θ2dot = -μ22*κdot_θ2dot
+
     else
-        γ_Ω1 = @SMatrix zeros(3,3)
-        γ_Ω2 = @SMatrix zeros(3,3)    
+        
+        γ_u1 = @SMatrix zeros(3,3)
+        γ_u2 = @SMatrix zeros(3,3)
+
+        γ_u1dot = @SMatrix zeros(3,3)
+        γ_u2dot = @SMatrix zeros(3,3)
+
+        γ_θ1 = @SMatrix zeros(3,3)
+        γ_θ2 = @SMatrix zeros(3,3)
+        
+        κ_θ1 = @SMatrix zeros(3,3)
+        κ_θ2 = @SMatrix zeros(3,3)
+        
+        κ_θ1dot = @SMatrix zeros(3,3)
+        κ_θ2dot = @SMatrix zeros(3,3)
+
     end
 
-    # linear and angular velocity rates
-    V1dot_V1dot, Ω1dot_Ω1dot = point_displacement_jacobians(assembly.start[ielem], prescribed_conditions)
-    V2dot_V2dot, Ω2dot_Ω2dot = point_displacement_jacobians(assembly.stop[ielem], prescribed_conditions)
+    # starting node linear and angular velocity rates
+    ipoint = assembly.start[ielem]
+    icol1 = indices.icol_point[ipoint]
+    if haskey(prescribed_conditions, ipoint)
+        V1dot_V1dot = hcat(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? e1 : zero(e1), 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? e2 : zero(e2),
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? e3 : zero(e3),
+        )
+        Ω1dot_Ω1dot = hcat(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? e1 : zero(e1),
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? e2 : zero(e2),
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? e3 : zero(e3), 
+        )
+    else
+        V1dot_V1dot = hcat(
+            rate_vars[icol1+6] ? e1 : zero(e1), 
+            rate_vars[icol1+7] ? e2 : zero(e2),
+            rate_vars[icol1+8] ? e3 : zero(e3),
+        )
+        Ω1dot_Ω1dot = hcat(
+            rate_vars[icol1+9] ? e1 : zero(e1),
+            rate_vars[icol1+10] ? e2 : zero(e2),
+            rate_vars[icol1+11] ? e3 : zero(e3), 
+        )
+    end
 
-    # linear and angular momentum
-
-    P_V = CtCab*mass11*CtCab'
-    P_Ω = CtCab*mass12*CtCab'
-
-    H_V = CtCab*mass21*CtCab'
-    H_Ω = CtCab*mass22*CtCab'
-  
+    # ending node linear and angular velocity rates
+    ipoint = assembly.stop[ielem]
+    icol2 = indices.icol_point[ipoint]
+    if haskey(prescribed_conditions, ipoint)
+        V2dot_V2dot = hcat(
+            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? e1 : zero(e1), 
+            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? e2 : zero(e2),
+            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? e3 : zero(e3),
+        )
+        Ω2dot_Ω2dot = hcat(
+            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ? e1 : zero(e1),
+            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? e2 : zero(e2),
+            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? e3 : zero(e3), 
+        )
+    else
+        V2dot_V2dot = hcat(
+            rate_vars[icol2+6] ? e1 : zero(e1), 
+            rate_vars[icol2+7] ? e2 : zero(e2),
+            rate_vars[icol2+8] ? e3 : zero(e3),
+        )
+        Ω2dot_Ω2dot = hcat(
+            rate_vars[icol2+9] ? e1 : zero(e1),
+            rate_vars[icol2+10] ? e2 : zero(e2),
+            rate_vars[icol2+11] ? e3 : zero(e3), 
+        )
+    end
+ 
     # linear and angular momentum rates
-
-    Pdot_V = CtCab*mass11*CtCabdot' + CtCabdot*mass11*CtCab'
-    
-    Pdot_Ω = CtCab*mass12*CtCabdot' + CtCabdot*mass12*CtCab' +
-        CtCab*mass11*CtCab'*tilde(V) + CtCab*mass12*CtCab'*tilde(Ω) +
-        -tilde(CtCab*mass11*CtCab'*V) - tilde(CtCab*mass12*CtCab'*Ω)
-    
     Pdot_Vdot = CtCab*mass11*CtCab'
-    
     Pdot_Ωdot = CtCab*mass12*CtCab'
-
-    Hdot_V = CtCab*mass21*CtCabdot' + CtCabdot*mass21*CtCab'
-
-    Hdot_Ω = CtCab*mass22*CtCabdot' + CtCabdot*mass22*CtCab' +
-        CtCab*mass21*CtCab'*tilde(V) + CtCab*mass22*CtCab'*tilde(Ω) +
-        -tilde(CtCab*mass21*CtCab'*V) - tilde(CtCab*mass22*CtCab'*Ω)
-
     Hdot_Vdot = CtCab*mass21*CtCab'
-
     Hdot_Ωdot = CtCab*mass22*CtCab'
 
-    return (; properties..., γ_F, γ_M, γ_Ω1, γ_Ω2, κ_F, κ_M, V1dot_V1dot, V2dot_V2dot,
-        Ω1dot_Ω1dot, Ω2dot_Ω2dot, P_V, P_Ω, H_V, H_Ω, Pdot_V, Pdot_Ω, Pdot_Vdot, Pdot_Ωdot,
-        Hdot_V, Hdot_Ω, Hdot_Vdot, Hdot_Ωdot) 
+    return (; properties..., u1_u1, u2_u2, θ1_θ1, θ2_θ2, C_θ1, C_θ2, C_θ3,
+        Qinv_θ1, Qinv_θ2, Qinv_θ3, γ_u1, γ_u2, γ_θ1, γ_θ2, γ_u1dot, γ_u2dot, γ_F, γ_M,   
+        κ_θ1, κ_θ2, κ_θ1dot, κ_θ2dot, κ_F, κ_M, P_θ, H_θ, V1dot_V1dot, V2dot_V2dot,
+        Ω1dot_Ω1dot, Ω2dot_Ω2dot, Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot, a_u) 
 end
 
 """
@@ -1423,7 +1721,7 @@ corresponding to a element for a steady state analysis
         Qinv1_θ1, Qinv1_θ2, Qinv1_θ3 = get_Qinv_θ(θ1)
         Qinv2_θ1, Qinv2_θ2, Qinv2_θ3 = get_Qinv_θ(θ2)
 
-        # linear deflection rates
+        # linear displacement rates
         udot1_u1 = -tilde(ω1)
         udot2_u2 = -tilde(ω2)
 
@@ -1433,7 +1731,7 @@ corresponding to a element for a steady state analysis
         udot1_V1 = C1'
         udot2_V2 = C2'
 
-        # angular deflection rates
+        # angular displacement rates
         θdot1_θ1 = mul3(Qinv1_θ1, Qinv1_θ2, Qinv1_θ3, Ω1 - C1*ω1) - Qinv1*mul3(C1_θ1, C1_θ2, C1_θ3, ω1)
         θdot2_θ2 = mul3(Qinv2_θ1, Qinv2_θ2, Qinv2_θ3, Ω2 - C2*ω2) - Qinv2*mul3(C2_θ1, C2_θ2, C2_θ3, ω2)
         
@@ -1626,7 +1924,7 @@ end
 @inline function static_compatability_jacobians(properties)
    
     @unpack L, Cab, CtCab, Qinv, γ, κ, u1_u1, u2_u2, θ1_θ1, θ2_θ2, γ_F, γ_M, κ_F, κ_M, 
-        C_θ1, C_θ2, C_θ3, Qinv_θ1, Qinv_θ2, Qinv_θ3, = properties
+        C_θ1, C_θ2, C_θ3, Qinv_θ1, Qinv_θ2, Qinv_θ3 = properties
 
     ru_u1 = -u1_u1
     ru_u2 = u2_u2
@@ -1656,24 +1954,30 @@ end
 
 @inline function initial_condition_compatability_jacobians(properties)
    
-    @unpack Cab, CtCab, Qinv, γ_F, γ_M, κ_F, κ_M, γ_Ω1, γ_Ω2 = properties
+    jacobians = static_compatability_jacobians(properties)
 
-    Δu_F = CtCab*γ_F
-    ru_F = -Δu_F
+    @unpack ru_u1, ru_u2, ru_θ1, ru_θ2, rθ_θ1, rθ_θ2 = jacobians
 
-    Δu_M = CtCab*γ_M
-    ru_M = -Δu_M
+    @unpack Cab, CtCab, Qinv, u1_u1, u2_u2, θ1_θ1, θ2_θ2, γ_u1, γ_u2, γ_θ1, γ_θ2, 
+        γ_u1dot, γ_u2dot, κ_θ1, κ_θ2, κ_θ1dot, κ_θ2dot = properties
 
-    ru_Ω1 = -CtCab*γ_Ω1
-    ru_Ω2 = -CtCab*γ_Ω2
+    ru_u1 -= CtCab*γ_u1*u1_u1
+    ru_u2 -= CtCab*γ_u2*u2_u2
 
-    Δθ_F = Qinv*Cab*κ_F
-    rθ_F = -Δθ_F
+    ru_θ1 -= CtCab*γ_θ1*θ1_θ1
+    ru_θ2 -= CtCab*γ_θ2*θ2_θ2
+    
+    ru_u1dot = -CtCab*γ_u1dot
+    ru_u2dot = -CtCab*γ_u2dot
 
-    Δθ_M = Qinv*Cab*κ_M
-    rθ_M = -Δθ_M
-   
-    return (; ru_F, ru_M, ru_Ω1, ru_Ω2, rθ_F, rθ_M)
+    rθ_θ1 -= Qinv*Cab*κ_θ1*θ1_θ1
+    rθ_θ2 -= Qinv*Cab*κ_θ2*θ2_θ2
+      
+    rθ_θ1dot = -Qinv*Cab*κ_θ1dot
+    rθ_θ2dot = -Qinv*Cab*κ_θ2dot
+
+    return (; jacobians..., ru_u1, ru_u2, ru_θ1, ru_θ2, ru_u1dot, ru_u2dot, rθ_θ1, rθ_θ2, 
+        rθ_θ1dot, rθ_θ2dot)
 end
 
 @inline function dynamic_compatability_jacobians(properties)
@@ -2111,87 +2415,79 @@ for a steady state analysis.
 end
 
 """
-    initial_condition_element_resultant_jacobians(properties)
+    initial_condition_element_resultant_jacobians(properties, distributed_loads, ielem)
 
 Calculate the jacobians for the resultant loads applied at each end of V beam element 
 for the initialization of a time domain analysis.
 """
-@inline function initial_condition_element_resultant_jacobians(properties)
+@inline function initial_condition_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    @unpack L, CtCab, F, M, γ, κ, V, Ω, P, H, v, ω, γ_F, γ_M, γ_Ω1, γ_Ω2, P_V, P_Ω, H_V, H_Ω, 
-        Pdot_V, Pdot_Ω, Pdot_Vdot, Pdot_Ωdot, Hdot_V, Hdot_Ω, Hdot_Vdot, Hdot_Ωdot, 
-        V1dot_V1dot, Ω1dot_Ω1dot, V2dot_V2dot, Ω2dot_Ω2dot = properties
-    
-    # loads due to internal forces/moments
-    F1_F = CtCab
-    F2_F = CtCab
+    jacobians = static_element_resultant_jacobians(properties, distributed_loads, ielem)
 
-    tmp = 1/2*CtCab*(tilde(L*e1 + γ) - tilde(F)*γ_F)
-    M1_F = tmp
-    M2_F = -tmp
+    @unpack L, CtCab, mass11, mass12, mass21, mass22, F, V, Ω, P, H, ω, 
+        γ_u1, γ_u2, γ_θ1, γ_θ2, γ_u1dot, γ_u2dot, a_u, P_θ, H_θ, 
+        u1_u1, u2_u2, θ1_θ1, θ2_θ2, Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot,
+        V1dot_V1dot, V2dot_V2dot, Ω1dot_Ω1dot, Ω2dot_Ω2dot = properties
 
-    tmp = 1/2*CtCab*tilde(F)*γ_M
-    M1_M = CtCab - tmp
-    M2_M = CtCab + tmp
+    @unpack F1_θ1, F1_θ2, F2_θ1, F2_θ2, M1_θ1, M1_θ2, M2_θ1, M2_θ2 = jacobians
 
+    # add loads due to internal forces/moments and stiffness
     tmp = 1/2*CtCab*tilde(F)
-    M1_Ω1 = -tmp*γ_Ω1
-    M2_Ω1 =  tmp*γ_Ω1
+    
+    M1_u1 = -tmp*γ_u1*u1_u1
+    M2_u1 = tmp*γ_u1*u1_u1
 
-    M1_Ω2 = -tmp*γ_Ω2
-    M2_Ω2 =  tmp*γ_Ω2
+    M1_u2 = -tmp*γ_u2*u2_u2
+    M2_u2 =  tmp*γ_u2*u2_u2
+
+    M1_θ1 -= tmp*γ_θ1*θ1_θ1
+    M2_θ1 += tmp*γ_θ1*θ1_θ1
+
+    M1_θ2 -= tmp*γ_θ2*θ2_θ2
+    M2_θ2 += tmp*γ_θ2*θ2_θ2
+
+    M1_u1dot = -tmp*γ_u1dot
+    M2_u1dot =  tmp*γ_u1dot
+
+    M1_u2dot = -tmp*γ_u2dot
+    M2_u2dot =  tmp*γ_u2dot
+
+    # add loads due to linear and angular acceleration (including gravity)
+    tmp = 1/2*CtCab*mass11*CtCab'*a_u
+    
+    F1_u1 = -1/2*tmp*u1_u1
+    F2_u1 = 1/2*tmp*u1_u1
+
+    F1_u2 = -1/2*tmp*u2_u2    
+    F2_u2 = 1/2*tmp*u2_u2
+
+    tmp = 1/2*CtCab*mass21*CtCab'*a_u
+    
+    M1_u1 -= 1/2*tmp*u1_u1
+    M2_u1 += 1/2*tmp*u1_u1
+
+    M1_u2 -= 1/2*tmp*u2_u2
+    M2_u2 += 1/2*tmp*u2_u2
 
     # add loads due to linear and angular momentum
 
-    tmp = 1/2*tilde(ω)*P_V
+    tmp = 1/2*tilde(ω)*P_θ
 
-    F1_V1 = -1/2*tmp
-    F2_V1 = 1/2*tmp
-
-    F1_V2 = -1/2*tmp
-    F2_V2 = 1/2*tmp
-
-    tmp = 1/2*tilde(ω)*P_Ω
-
-    F1_Ω1 = -1/2*tmp
-    F2_Ω1 = 1/2*tmp
-
-    F1_Ω2 = -1/2*tmp
-    F2_Ω2 = 1/2*tmp
-
-    tmp = 1/2*(tilde(ω)*H_V + tilde(V)*P_V - tilde(P))
+    F1_θ1 -= 1/2*tmp*θ1_θ1
+    F2_θ1 += 1/2*tmp*θ1_θ1
     
-    M1_V1 = -1/2*tmp
-    M2_V1 = 1/2*tmp
+    F1_θ2 -= 1/2*tmp*θ2_θ2
+    F2_θ2 += 1/2*tmp*θ2_θ2
 
-    M1_V2 = -1/2*tmp
-    M2_V2 = 1/2*tmp
-
-    tmp = 1/2*(tilde(ω)*H_Ω + tilde(V)*P_Ω)
+    tmp = 1/2*(tilde(ω)*H_θ + tilde(V)*P_θ)
     
-    M1_Ω1 -= 1/2*tmp
-    M2_Ω1 += 1/2*tmp
+    M1_θ1 -= 1/2*tmp*θ1_θ1
+    M2_θ1 += 1/2*tmp*θ1_θ1
 
-    M1_Ω2 -= 1/2*tmp
-    M2_Ω2 += 1/2*tmp
+    M1_θ2 -= 1/2*tmp*θ2_θ2
+    M2_θ2 += 1/2*tmp*θ2_θ2
 
     # add loads due to linear and angular momentum rates
-
-    tmp = 1/2*Pdot_V
-
-    F1_V1 -= 1/2*tmp
-    F2_V1 += 1/2*tmp
-
-    F1_V2 -= 1/2*tmp
-    F2_V2 += 1/2*tmp
-
-    tmp = 1/2*Pdot_Ω
-
-    F1_Ω1 -= 1/2*tmp
-    F2_Ω1 += 1/2*tmp
-
-    F1_Ω2 -= 1/2*tmp
-    F2_Ω2 += 1/2*tmp
 
     tmp = 1/2*Pdot_Vdot
 
@@ -2209,22 +2505,6 @@ for the initialization of a time domain analysis.
     F1_Ω2dot = -1/2*tmp*Ω2dot_Ω2dot
     F2_Ω2dot =  1/2*tmp*Ω2dot_Ω2dot
 
-    tmp = 1/2*Hdot_V
-
-    M1_V1 -= 1/2*tmp
-    M2_V1 += 1/2*tmp
-
-    M1_V2 -= 1/2*tmp
-    M2_V2 += 1/2*tmp
-
-    tmp = 1/2*Hdot_Ω
-
-    M1_Ω1 -= 1/2*tmp
-    M2_Ω1 += 1/2*tmp
-
-    M1_Ω2 -= 1/2*tmp
-    M2_Ω2 += 1/2*tmp
-
     tmp = 1/2*Hdot_Vdot
 
     M1_V1dot = -1/2*tmp*V1dot_V1dot
@@ -2241,11 +2521,11 @@ for the initialization of a time domain analysis.
     M1_Ω2dot = -1/2*tmp*Ω2dot_Ω2dot
     M2_Ω2dot =  1/2*tmp*Ω2dot_Ω2dot
 
-    return (;
-        F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot, F1_F, F1_V1, F1_V2, F1_Ω1, F1_Ω2, 
-        F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot, F2_F, F2_V1, F2_V2, F2_Ω1, F2_Ω2, 
-        M1_V1dot, M1_V2dot, M1_Ω1dot, M1_Ω2dot, M1_F, M1_M, M1_V1, M1_V2, M1_Ω1, M1_Ω2, 
-        M2_V1dot, M2_V2dot, M2_Ω1dot, M2_Ω2dot, M2_F, M2_M, M2_V1, M2_V2, M2_Ω1, M2_Ω2)
+    return (; jacobians..., 
+        F1_u1, F1_u2, F1_θ1, F1_θ2, F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot, 
+        F2_u1, F2_u2, F2_θ1, F2_θ2, F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot, 
+        M1_u1, M1_u2, M1_θ1, M1_θ2, M1_u1dot, M1_u2dot, M1_V1dot, M1_V2dot, M1_Ω1dot, M1_Ω2dot, 
+        M2_u1, M2_u2, M2_θ1, M2_θ2, M2_u1dot, M2_u2dot, M2_V1dot, M2_V2dot, M2_Ω1dot, M2_Ω2dot)
 end
 
 """
@@ -2501,93 +2781,71 @@ end
 @inline function insert_initial_condition_element_jacobians!(jacob, indices, force_scaling, 
     assembly, ielem, compatability, resultants)
 
-    @unpack ru_F, ru_M, ru_Ω1, ru_Ω2, rθ_F, rθ_M = compatability
+    insert_static_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
+        compatability, resultants)
 
-    @unpack F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot, F1_F, F1_V1, F1_V2, F1_Ω1, F1_Ω2,
-            F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot, F2_F, F2_V1, F2_V2, F2_Ω1, F2_Ω2,
-            M1_V1dot, M1_V2dot, M1_Ω1dot, M1_Ω2dot, M1_F, M1_M, M1_V1, M1_V2, M1_Ω1, M1_Ω2,
-            M2_V1dot, M2_V2dot, M2_Ω1dot, M2_Ω2dot, M2_F, M2_M, M2_V1, M2_V2, M2_Ω1, M2_Ω2 = resultants
+    @unpack ru_u1dot, ru_u2dot, rθ_θ1dot, rθ_θ2dot = compatability
 
-    icol = indices.icol_elem[ielem]
+    @unpack F1_u1, F1_u2, F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot,
+            F2_u1, F2_u2, F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot,
+            M1_u1, M1_u2, M1_θ1, M1_θ2, M1_u1dot, M1_u2dot, M1_V1dot, M1_V2dot, M1_Ω1dot, M1_Ω2dot, 
+            M2_u1, M2_u2, M2_θ1, M2_θ2, M2_u1dot, M2_u2dot, M2_V1dot, M2_V2dot, M2_Ω1dot, M2_Ω2dot = resultants
+
     icol1 = indices.icol_point[assembly.start[ielem]]
     icol2 = indices.icol_point[assembly.stop[ielem]]
 
     # compatability equations
     irow = indices.irow_elem[ielem]
 
-    jacob[irow:irow+2, icol:icol+2] .= ru_F .* force_scaling
-    jacob[irow:irow+2, icol+3:icol+5] .= ru_M .* force_scaling
+    jacob[irow:irow+2, icol1+6:icol1+8] .= ru_u1dot
 
-    jacob[irow:irow+2, icol1+9:icol1+11] .= ru_Ω1
-    
-    jacob[irow:irow+2, icol2+9:icol2+11] .= ru_Ω2
+    jacob[irow:irow+2, icol2+6:icol2+8] .= ru_u2dot
 
-    jacob[irow+3:irow+5, icol:icol+2] .= rθ_F .* force_scaling
-    jacob[irow+3:irow+5, icol+3:icol+5] .= rθ_M .* force_scaling
-    
+    jacob[irow+3:irow+5, icol1+9:icol1+11] .= rθ_θ1dot
+
+    jacob[irow+3:irow+5, icol2+9:icol2+11] .= rθ_θ2dot
+
     # equilibrium equations for the start of the beam element
     irow1 = indices.irow_point[assembly.start[ielem]]
 
+    @views jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_u1 ./ force_scaling
     @views jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_V1dot ./ force_scaling
     @views jacob[irow1:irow1+2, icol1+3:icol1+5] .-= F1_Ω1dot ./ force_scaling
 
+    @views jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_u2 ./ force_scaling
     @views jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_V2dot ./ force_scaling
     @views jacob[irow1:irow1+2, icol2+3:icol2+5] .-= F1_Ω2dot ./ force_scaling
 
-    jacob[irow1:irow1+2, icol:icol+2] .= -F1_F
-
-    @views jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1 ./ force_scaling
-    @views jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1 ./ force_scaling
-
-    @views jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2 ./ force_scaling
-    @views jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2 ./ force_scaling
-
+    @views jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_u1 ./ force_scaling
     @views jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_V1dot ./ force_scaling
     @views jacob[irow1+3:irow1+5, icol1+3:icol1+5] .-= M1_Ω1dot ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_u1dot ./ force_scaling
 
+    @views jacob[irow1+3:irow1+5, icol2:icol2+2] .-= M1_u2 ./ force_scaling
     @views jacob[irow1+3:irow1+5, icol2:icol2+2] .-= M1_V2dot ./ force_scaling
     @views jacob[irow1+3:irow1+5, icol2+3:icol2+5] .-= M1_Ω2dot ./ force_scaling
-
-    jacob[irow1+3:irow1+5, icol:icol+2] .= -M1_F
-    jacob[irow1+3:irow1+5, icol+3:icol+5] .= -M1_M
-
-    @views jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1 ./ force_scaling
-    @views jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1 ./ force_scaling
-
-    @views jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2 ./ force_scaling
-    @views jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2 ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_u2dot ./ force_scaling
 
     # equilibrium equations for the end of the beam element
     irow2 = indices.irow_point[assembly.stop[ielem]]
 
+    @views jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_u1 ./ force_scaling
     @views jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_V1dot ./ force_scaling
     @views jacob[irow2:irow2+2, icol1+3:icol1+5] .+= F2_Ω1dot ./ force_scaling
 
+    @views jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_u2 ./ force_scaling
     @views jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_V2dot ./ force_scaling
     @views jacob[irow2:irow2+2, icol2+3:icol2+5] .+= F2_Ω2dot ./ force_scaling
 
-    jacob[irow2:irow2+2, icol:icol+2] .= F2_F
-
-    @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1 ./ force_scaling
-    @views jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1 ./ force_scaling
-
-    @views jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2 ./ force_scaling
-    @views jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2 ./ force_scaling
-
+    @views jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_u1 ./ force_scaling
     @views jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_V1dot ./ force_scaling
     @views jacob[irow2+3:irow2+5, icol1+3:icol1+5] .+= M2_Ω1dot ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_u1dot ./ force_scaling
 
+    @views jacob[irow2+3:irow2+5, icol2:icol2+2] .+= M2_u2 ./ force_scaling
     @views jacob[irow2+3:irow2+5, icol2:icol2+2] .+= M2_V2dot ./ force_scaling
     @views jacob[irow2+3:irow2+5, icol2+3:icol2+5] .+= M2_Ω2dot ./ force_scaling
-
-    jacob[irow2+3:irow2+5, icol:icol+2] .= M2_F
-    jacob[irow2+3:irow2+5, icol+3:icol+5] .= M2_M
-
-    @views jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1 ./ force_scaling
-    @views jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1 ./ force_scaling
-
-    @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2 ./ force_scaling
-    @views jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2 ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_u2dot ./ force_scaling
 
     return jacob
 end
@@ -2894,26 +3152,28 @@ analysis into the system jacobian matrix.
 end
 
 """
-    initial_condition_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0,
-        u0, θ0, udot0, θdot0)
+    initial_condition_element_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate and insert the jacobian entries corresponding to a beam element for the 
 initialization of a time domain analysis into the system jacobian matrix.
 """
-@inline function initial_condition_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+@inline function initial_condition_element_jacobian!(jacob, x, indices, rate_vars, force_scaling, structural_damping, 
     assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0,
-    u0, θ0, udot0, θdot0)
+    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
-    properties = initial_condition_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, u0, θ0, udot0, θdot0)
+    properties = initial_condition_element_properties(x, indices, rate_vars, force_scaling, structural_damping, 
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, 
+        Vdot0, Ωdot0)
 
-    properties = initial_condition_element_jacobian_properties(properties, x, indices, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity)
+    properties = initial_condition_element_jacobian_properties(properties, x, indices, rate_vars, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     compatability = initial_condition_compatability_jacobians(properties)
 
-    resultants = initial_condition_element_resultant_jacobians(properties)
+    resultants = initial_condition_element_resultant_jacobians(properties, distributed_loads, ielem)
 
     insert_initial_condition_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
         compatability, resultants)
