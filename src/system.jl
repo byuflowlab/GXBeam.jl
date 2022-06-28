@@ -1251,11 +1251,11 @@ function initial_condition_system_residual!(resid, x, indices, rate_vars,
 
     resid .= 0
 
-    # for ipoint = 1:length(assembly.points)
-    #     initial_condition_point_residual!(resid, x, indices, rate_vars, force_scaling, 
-    #         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, 
-    #         a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
-    # end
+    for ipoint = 1:length(assembly.points)
+        initial_condition_point_residual!(resid, x, indices, rate_vars, force_scaling, 
+            assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, 
+            a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    end
     
     for ielem = 1:length(assembly.elements)
         initial_condition_element_residual!(resid, x, indices, rate_vars, force_scaling, 
@@ -1404,11 +1404,11 @@ function initial_condition_system_jacobian!(jacob, x, indices, rate_vars, force_
     
     jacob .= 0
     
-    # for ipoint = 1:length(assembly.points)
-    #     initial_condition_point_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
-    #         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
-    #         u0, θ0, V0, Ω0, Vdot0, Ωdot0)
-    # end
+    for ipoint = 1:length(assembly.points)
+        initial_condition_point_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
+            assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
+            u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    end
     
     for ielem = 1:length(assembly.elements)
         initial_condition_element_jacobian!(jacob, x, indices, rate_vars, force_scaling, structural_damping, 
