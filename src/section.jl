@@ -36,17 +36,15 @@ Material(E1, E2, G12, nu12, rho) = Material(E1, E2, E2, G12, G12, G12, nu12, nu1
 """
     Node(x, y, number)
 
-A node in the finite element mesh at location x, y with a given index number.
+A node in the finite element mesh at location x, y.  If assembled in a vector, the vector index corresponds to the node number.
 
 **Arguments**
 - `x::float`: x location of node in global coordinate system
 - `y::float`: y location of node in global coordinate system
-- `number::integer`: unique index of this node, elements use this indices
 """
-struct Node{TF, TI}
+struct Node{TF}
     x::TF
     y::TF
-    number::TI
 end
 
 """
@@ -55,7 +53,7 @@ end
 An element in the mesh, consisting of four ordered nodes, a material, and a fiber orientation.
 
 **Arguments**
-- `nodenum::Vector{integer}`: a vector of four node numbers corresponding the the four nodes defining this element. 
+- `nodenum::Vector{integer}`: a vector of four node numbers corresponding the the four nodes defining this element (vector indices of the nodes). 
     Node order should be counterclockwise starting from the bottom left node using the local coordinate sytem (see figure).
 - `material::Material`: material properties of this element
 - `theta::float`: fiber orientation
@@ -69,7 +67,7 @@ end
 """
 internal cache so allocations happen only once upfront
 """
-struct Cache{TM, TSM, TFM, TV}
+struct Cache{TM, TSM, TFM, TV}  # matrix, sparse matrix, float matrix, vector
     Q::TM
     Ttheta::TSM
     Tbeta::TSM
@@ -103,7 +101,7 @@ create chace.  set sizes of static matrices, and set sparsity patterns for those
 """
 function initializecache(nodes, elements, etype=Float64)
 
-    # create cache (TODO: set sparsity patterns)
+    # create cache
     Q = zeros(etype, 6, 6)
     
     Ttheta = zeros(etype, 6, 6)
@@ -507,20 +505,20 @@ end
 """
 Convenience function to map node numbers to locations in global matrix.
 """
-function node2idx!(nodes, cache)
+function node2idx!(nodenums, cache)
     nn = 4
     # idx = Vector{Int64}(undef, nn*3)
     for i = 1:nn
-        cache.idx[((i-1)*3+1):i*3] = ((nodes[i]-1)*3+1):nodes[i]*3
+        cache.idx[((i-1)*3+1):i*3] = ((nodenums[i]-1)*3+1):nodenums[i]*3
     end
     return nothing
 end
 
-function node2idx(nodes)
+function node2idx(nodenums)
     nn = 4
     idx = Vector{Int64}(undef, nn*3)
     for i = 1:nn
-        idx[((i-1)*3+1):i*3] = ((nodes[i]-1)*3+1):nodes[i]*3
+        idx[((i-1)*3+1):i*3] = ((nodenums[i]-1)*3+1):nodenums[i]*3
     end
     return idx
 end
@@ -574,8 +572,7 @@ function compliance(nodes, elements, cache=initializecache(nodes, elements))
     # assemble displacement constraint matrix
     DT = spzeros(6, ndof)
     for i = 1:nn
-        k = nodes[i].number    
-        s = 3*(k-1)
+        s = 3*(i-1)
         DT[1, s+1] = 1.0
         DT[2, s+2] = 1.0
         DT[3, s+3] = 1.0
@@ -691,28 +688,11 @@ function plotmesh(nodes, elements; plotnumbers=false)
     if plotnumbers
         nn = length(nodes)
         for i = 1:nn
-            text(nodes[i].x, nodes[i].y, string(nodes[i].number))
+            text(nodes[i].x, nodes[i].y, string(i))
         end
     end
 end
 
-
-"""
-    Layer(material, t, theta)
-
-A layer (could be one ply or many plys of same material).
-A layup is a vector of layers.
-
-**Arguments**
-- `material::Material`: corresponding material
-- `t::float`: thickness of ply 
-- `theta::float`: fiber orientation (rad)
-"""
-struct Layer{TF}
-    material::Material
-    t::TF
-    theta::TF
-end
 
 
 # --------- Unit Tests --------
@@ -729,7 +709,7 @@ nu23 = rand()
 nu13 = rand()
 rho = 1.0
 mat = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
-cache = initializecache([Node(0, 0, 1), Node(0, 0, 2), Node(0, 0, 3), Node(0, 0, 4)], [Element([1, 2, 3, 4], mat, 0.0)])
+cache = initializecache([Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0)], [Element([1, 2, 3, 4], mat, 0.0)])
 stiffness!(mat, cache)
 Q1 = cache.Q
 
@@ -760,7 +740,7 @@ let
 m = 1
 for i = 1:11
     for j = 1:11
-        nodes[m] = Node(x[i], y[j], m)
+        nodes[m] = Node(x[i], y[j])
         m += 1
     end
 end
@@ -906,7 +886,7 @@ let
 m = 1
 for i = 1:nt-1
     for j = 1:nr
-        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]))
         m += 1
     end
 end
@@ -959,7 +939,7 @@ let
 m = 1
 for i = 1:nt
     for j = 1:nr
-        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]))
         m += 1
     end
 end
@@ -1017,7 +997,7 @@ let
 m = 1
 for i = 1:nt-1
     for j = 1:nr
-        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+        nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]))
         m += 1
     end
 end
@@ -1086,7 +1066,7 @@ let
     m = 1
     for i = 1:nx
         for j = 1:nr
-            nodes[m] = Node(x[i], y[j], m)
+            nodes[m] = Node(x[i], y[j])
             m += 1
         end
     end
@@ -1110,7 +1090,7 @@ let
     theta = reverse(range(-pi/2, pi/2, length=nt))
     for i = 2:nt
         for j = 1:nr
-            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]))
             m += 1
         end
     end
@@ -1143,7 +1123,7 @@ let
 
     for i = 2:nx
         for j = 1:nr
-            nodes[m] = Node(x[i], y[j], m)
+            nodes[m] = Node(x[i], y[j])
             m += 1
         end
     end
@@ -1165,7 +1145,7 @@ let
     theta = reverse(range(pi/2, 3*pi/2, length=nt))
     for i = 2:nt-1
         for j = 1:nr
-            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]), m)
+            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]))
             m += 1
         end
     end
@@ -1196,10 +1176,10 @@ K = inv(S)
 K2 = reorder(K)
 
 
-using BenchmarkTools
-cache = initializecache(nodes, elements)
-@btime compliance($nodes, $elements, $cache)
-@profview compliance(nodes, elements, cache)
+# using BenchmarkTools
+# cache = initializecache(nodes, elements)
+# @btime compliance($nodes, $elements, $cache)
+# @profview compliance(nodes, elements, cache)
 
 
 
@@ -1222,44 +1202,4 @@ cache = initializecache(nodes, elements)
 # println("K44 = ", round((K2[4, 4]/6.87275e5 - 1)*100, digits=2), "%")
 # println("K55 = ", round((K2[5, 5]/1.88238e6 - 1)*100, digits=2), "%")
 # println("K66 = ", round((K2[6, 6]/5.38987e6 - 1)*100, digits=2), "%")
-
-# # ------ Airfoil MH-104 ----------
-# xaf = [1.00000000, 0.99619582, 0.98515158, 0.96764209, 0.94421447, 0.91510964, 0.88074158, 0.84177999, 0.79894110, 0.75297076, 0.70461763, 0.65461515, 0.60366461, 0.55242353, 0.50149950, 0.45144530, 0.40276150, 0.35589801, 0.31131449, 0.26917194, 0.22927064, 0.19167283, 0.15672257, 0.12469599, 0.09585870, 0.07046974, 0.04874337, 0.03081405, 0.01681379, 0.00687971, 0.00143518, 0.00053606, 0.00006572, 0.00001249, 0.00023032, 0.00079945, 0.00170287, 0.00354717, 0.00592084, 0.01810144, 0.03471169, 0.05589286, 0.08132751, 0.11073805, 0.14391397, 0.18067874, 0.22089879, 0.26433734, 0.31062190, 0.35933893, 0.40999990, 0.46204424, 0.51483073, 0.56767889, 0.61998250, 0.67114514, 0.72054815, 0.76758733, 0.81168064, 0.85227225, 0.88883823, 0.92088961, 0.94797259, 0.96977487, 0.98607009, 0.99640466, 1.00000000]
-# yaf = [0.00000000, 0.00017047, 0.00100213, 0.00285474, 0.00556001, 0.00906779, 0.01357364, 0.01916802, 0.02580144, 0.03334313, 0.04158593, 0.05026338, 0.05906756, 0.06766426, 0.07571157, 0.08287416, 0.08882939, 0.09329359, 0.09592864, 0.09626763, 0.09424396, 0.09023579, 0.08451656, 0.07727756, 0.06875796, 0.05918984, 0.04880096, 0.03786904, 0.02676332, 0.01592385, 0.00647946, 0.00370956, 0.00112514, -0.00046881, -0.00191488, -0.00329201, -0.00470585, -0.00688469, -0.00912202, -0.01720842, -0.02488211, -0.03226730, -0.03908459, -0.04503763, -0.04986836, -0.05338180, -0.05551392, -0.05636585, -0.05605816, -0.05472399, -0.05254383, -0.04969990, -0.04637175, -0.04264894, -0.03859653, -0.03433153, -0.02996944, -0.02560890, -0.02134397, -0.01726049, -0.01343567, -0.00993849, -0.00679919, -0.00402321, -0.00180118, -0.00044469, 0.00000000]
-
-# uni = Material(37.00e9, 9.00e9, 9.00e9, 4.00e9, 4.00e9, 4.00e9, 0.28, 0.28, 0.28, 1.86e3)
-# double = Material(10.30e9, 10.30e9, 10.30e9, 8.00e9, 8.00e9, 8.00e9, 0.30, 0.30, 0.30, 1.83e3)
-# gelcoat = Material(1e1, 1e1, 1e1, 1.0, 1.0, 1.0, 0.30, 0.30, 0.30, 1.83e3)
-# nexus = Material(10.30e9, 10.30e9, 10.30e9, 8.00e9, 8.00e9, 8.00e9, 0.30, 0.30, 0.30, 1.664e3)
-# balsa = Material(0.01e9, 0.01e9, 0.01e9, 2e5, 2e5, 2e5, 0.30, 0.30, 0.30, 0.128e3)
-# mat = [uni, double, gelcoat, nexus, balsa]
-
-# chord = 1.9
-# twist = 0.0
-# nodes = [0.0, 0.0041, 0.1147, 0.5366, 1.0]
-# webl = [0.2, 0.5]
-
-# idx = [3, 4, 2]
-# t = [0.000381, 0.00051, 18*0.00053]
-# theta = [0, 0, 20]*pi/180
-# layup1 = Layer.(mat[idx], t, theta)
-# idx = [3, 4, 2]
-# t = [0.000381, 0.00051, 33*0.00053]
-# theta = [0, 0, 20]*pi/180
-# layup2 = Layer.(mat[idx], t, theta)
-# idx = [3, 4, 2, 1, 5, 1, 2]
-# t = [0.000381, 0.00051, 17*0.00053, 38*0.00053, 1*0.003125, 37*0.00053, 16*0.00053]
-# theta = [0, 0, 20, 30, 0, 30, 20]*pi/180
-# layup3 = Layer.(mat[idx], t, theta)
-# idx = [3, 4, 2, 5, 2]
-# t = [0.000381, 0.00051, 17*0.00053, 0.003125, 16*0.00053]
-# theta = [0, 0, 20, 0, 0]*pi/180
-# layup4 = Layer.(mat[idx], t, theta)
-# idx = [1, 5, 1]
-# t = [38*0.00053, 0.003125, 38*0.00053]
-# theta = [0, 0, 0]*pi/180
-# webs = Layer.(mat[idx], t, theta)
-
-# segments = [layup1, layup2, layup3, layup4, webs]
-
 
