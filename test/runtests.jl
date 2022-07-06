@@ -170,10 +170,10 @@ end
     M = [rand(RNG, 3) for i = 1:nelem+1]
     
     # loaded right side
-    F[nelem+1] .= prescribed_conditions[nelem+1].value[1:3] + 
-        GXBeam.get_C(theta[nelem+1])'*prescribed_conditions[nelem+1].follower[1:3]
-    M[nelem+1] =  prescribed_conditions[nelem+1].value[4:6] + 
-        GXBeam.get_C(theta[nelem+1])'*prescribed_conditions[nelem+1].follower[4:6]
+    F[nelem+1] .= prescribed_conditions[nelem+1].F + 
+        GXBeam.get_C(theta[nelem+1])'*prescribed_conditions[nelem+1].Ff
+    M[nelem+1] =  prescribed_conditions[nelem+1].M + 
+        GXBeam.get_C(theta[nelem+1])'*prescribed_conditions[nelem+1].Mf
     
     # define resultant forces and moments
     F1 = [rand(RNG, 3) for i = 1:nelem]
@@ -654,43 +654,6 @@ end
     # restore original element mass matrices
     for i = 1:length(assembly.elements)
         assembly.elements[i] = original_elements[i]
-    end
-
-    # check that all rigid body modes are constrained
-    not_constrained = reduce(.&, [p.isforce for (i,p) in pcond])
-    
-    # save original prescribed conditions
-    original_pcond = pcond
-
-    # add prescribed conditions to the first node
-    if any(not_constrained)
-        pcond = copy(pcond)
-
-        if haskey(pcond, 1)
-            isforce = pcond[1].isforce
-            value = pcond[1].value
-            follower = pcond[1].follower
-        else
-            isforce = @SVector zeros(Bool, 6)
-            value = @SVector zeros(Float64, 6)
-            follower = @SVector zeros(Float64, 6)
-        end
-
-        # constrain rigid body modes using the first node
-        for i = 1:3
-            if not_constrained[i]
-                isforce = setindex(isforce, false, i)
-                value = setindex(value, u0[1][i], i)
-                follower = setindex(follower, 0, i)
-            end
-            if not_constrained[3+i]
-                isforce = setindex(isforce, false, 3+i)
-                value = setindex(value, theta0[1][i], 3+i)
-                follower = setindex(follower, 0, 3+i)
-            end
-        end
-
-        pcond[1] = PrescribedConditions(isforce, value, follower)
     end
 
     f = (x) -> GXBeam.initial_condition_system_residual!(similar(x), x, indices, 

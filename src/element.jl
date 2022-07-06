@@ -144,14 +144,15 @@ analysis
 end
 
 """
-    steady_state_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    steady_state_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
 Calculate/extract the element properties needed to construct the residual for a steady 
 state analysis
 """
-@inline function steady_state_element_properties(x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+@inline function steady_state_element_properties(x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     properties = static_element_properties(x, indices, force_scaling, assembly, ielem, 
         prescribed_conditions, gravity)
@@ -172,6 +173,9 @@ state analysis
     P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
     H = CtCab*mass21*CtCab'*V + CtCab*mass22*CtCab'*Ω
 
+    # extract the linear and angular acceleration of the body frame
+    a0, α0 = body_frame_acceleration(x, icol_accel, a0, α0)
+
     # distance from the rotation center
     Δx = assembly.elements[ielem].x - x0
 
@@ -184,7 +188,7 @@ state analysis
     α += α0
 
     # add steady state properties
-    properties = (; properties..., V1, V2, Ω1, Ω2, Q, V, Ω, P, H, γ, κ, v, ω, a, α)
+    properties = (; properties..., V1, V2, Ω1, Ω2, Q, V, Ω, P, H, γ, κ, Δx, v, ω, a, α)
 
     if structural_damping
 
@@ -250,16 +254,16 @@ state analysis
 end
 
 """
-    initial_condition_element_properties(x, indices, rate_vars, force_scaling, 
+    initial_condition_element_properties(x, indices, rate_vars, icol_accel, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity, 
         x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate/extract the element properties needed to construct the residual for a time-domain
 analysis initialization
 """
-@inline function initial_condition_element_properties(x, indices, rate_vars, force_scaling, 
-    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
-    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+@inline function initial_condition_element_properties(x, indices, rate_vars, icol_accel, 
+    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     # unpack element parameters
     @unpack L, Cab, compliance, mass = assembly.elements[ielem]
@@ -284,57 +288,31 @@ analysis initialization
     ipoint = assembly.start[ielem]
     icol1 = indices.icol_point[ipoint]
     u1, θ1 = point_displacement(x, ipoint, indices.icol_point, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        u1 = SVector{3}(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? u0[ipoint][1] : u1[1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? u0[ipoint][2] : u1[2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? u0[ipoint][3] : u1[3],
-        )
-        θ1 = SVector{3}(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? θ0[ipoint][1] : θ1[1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? θ0[ipoint][2] : θ1[2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? θ0[ipoint][3] : θ1[3], 
-        )
-    else
-        u1 = SVector{3}(
-            rate_vars[icol1+6] ? u0[ipoint][1] : u1[1], 
-            rate_vars[icol1+7] ? u0[ipoint][2] : u1[2],
-            rate_vars[icol1+8] ? u0[ipoint][3] : u1[3],
-        )
-        θ1 = SVector{3}(
-            rate_vars[icol1+9] ? θ0[ipoint][1] : θ1[1],
-            rate_vars[icol1+10] ? θ0[ipoint][2] : θ1[2],
-            rate_vars[icol1+11] ? θ0[ipoint][3] : θ1[3], 
-        )
-    end
+    u1 = SVector{3}(
+        rate_vars[icol1+6] ? u0[ipoint][1] : u1[1], 
+        rate_vars[icol1+7] ? u0[ipoint][2] : u1[2],
+        rate_vars[icol1+8] ? u0[ipoint][3] : u1[3],
+    )
+    θ1 = SVector{3}(
+        rate_vars[icol1+9] ? θ0[ipoint][1] : θ1[1],
+        rate_vars[icol1+10] ? θ0[ipoint][2] : θ1[2],
+        rate_vars[icol1+11] ? θ0[ipoint][3] : θ1[3], 
+    )
 
     # ending node linear and angular displacement
     ipoint = assembly.stop[ielem]
     icol2 = indices.icol_point[ipoint]
     u2, θ2 = point_displacement(x, ipoint, indices.icol_point, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        u2 = SVector{3}(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? u0[ipoint][1] : u2[1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? u0[ipoint][2] : u2[2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? u0[ipoint][3] : u2[3],
-        )
-        θ2 = SVector{3}(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ?  θ0[ipoint][1] : θ2[1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? θ0[ipoint][2] : θ2[2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? θ0[ipoint][3] : θ2[3], 
-        )
-    else
-        u2 = SVector{3}(
-            rate_vars[icol2+6] ? u0[ipoint][1] : u2[1], 
-            rate_vars[icol2+7] ? u0[ipoint][2] : u2[2],
-            rate_vars[icol2+8] ? u0[ipoint][3] : u2[3],
-        )
-        θ2 = SVector{3}(
-            rate_vars[icol2+9] ?  θ0[ipoint][1] : θ2[1],
-            rate_vars[icol2+10] ? θ0[ipoint][2] : θ2[2],
-            rate_vars[icol2+11] ? θ0[ipoint][3] : θ2[3], 
-        )
-    end
+    u2 = SVector{3}(
+        rate_vars[icol2+6] ? u0[ipoint][1] : u2[1], 
+        rate_vars[icol2+7] ? u0[ipoint][2] : u2[2],
+        rate_vars[icol2+8] ? u0[ipoint][3] : u2[3],
+    )
+    θ2 = SVector{3}(
+        rate_vars[icol2+9] ?  θ0[ipoint][1] : θ2[1],
+        rate_vars[icol2+10] ? θ0[ipoint][2] : θ2[2],
+        rate_vars[icol2+11] ? θ0[ipoint][3] : θ2[3], 
+    )
 
     # beam element linear and angular displacement
     u = (u1 + u2)/2
@@ -367,6 +345,9 @@ analysis initialization
     γ = S11*F + S12*M
     κ = S21*F + S22*M
 
+    # extract the linear and angular acceleration of the body frame
+    a0, α0 = body_frame_acceleration(x, icol_accel, a0, α0)
+
     # distance from the rotation center
     Δx = assembly.elements[ielem].x - x0
 
@@ -381,7 +362,7 @@ analysis initialization
     α = α0
 
     properties = (; L, C, Cab, CtCab, Q, Qinv, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
-    u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, u, θ, V, Ω, P, H, F, M, γ, κ, v, ω, a, α) 
+    u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, u, θ, V, Ω, P, H, F, M, γ, κ, Δx, v, ω, a, α) 
 
     if structural_damping 
         
@@ -426,57 +407,31 @@ analysis initialization
     ipoint = assembly.start[ielem]
     icol1 = indices.icol_point[ipoint]
     V1dot, Ω1dot = point_displacement_rates(x, ipoint, indices.icol_point, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        V1dot = SVector{3}(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? V1dot[1] : Vdot0[ipoint][1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? V1dot[2] : Vdot0[ipoint][2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? V1dot[3] : Vdot0[ipoint][3],
-        )
-        Ω1dot = SVector{3}(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? Ω1dot[1] : Ωdot0[ipoint][1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? Ω1dot[2] : Ωdot0[ipoint][2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? Ω1dot[3] : Ωdot0[ipoint][3], 
-        )
-    else
-        V1dot = SVector{3}(
-            rate_vars[icol1+6] ? V1dot[1] : Vdot0[ipoint][1], 
-            rate_vars[icol1+7] ? V1dot[2] : Vdot0[ipoint][2],
-            rate_vars[icol1+8] ? V1dot[3] : Vdot0[ipoint][3],
-        )
-        Ω1dot = SVector{3}(
-            rate_vars[icol1+9] ? Ω1dot[1] : Ωdot0[ipoint][1],
-            rate_vars[icol1+10] ? Ω1dot[2] : Ωdot0[ipoint][2],
-            rate_vars[icol1+11] ? Ω1dot[3] : Ωdot0[ipoint][3], 
-        )
-    end
+    V1dot = SVector{3}(
+        rate_vars[icol1+6] ? V1dot[1] : Vdot0[ipoint][1], 
+        rate_vars[icol1+7] ? V1dot[2] : Vdot0[ipoint][2],
+        rate_vars[icol1+8] ? V1dot[3] : Vdot0[ipoint][3],
+    )
+    Ω1dot = SVector{3}(
+        rate_vars[icol1+9] ? Ω1dot[1] : Ωdot0[ipoint][1],
+        rate_vars[icol1+10] ? Ω1dot[2] : Ωdot0[ipoint][2],
+        rate_vars[icol1+11] ? Ω1dot[3] : Ωdot0[ipoint][3], 
+    )
 
     # ending node linear and angular velocity rates
     ipoint = assembly.stop[ielem]
     icol2 = indices.icol_point[ipoint]
     V2dot, Ω2dot = point_displacement_rates(x, ipoint, indices.icol_point, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        V2dot = SVector{3}(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? V2dot[1] : Vdot0[ipoint][1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? V2dot[2] : Vdot0[ipoint][2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? V2dot[3] : Vdot0[ipoint][3],
-        )
-        Ω2dot = SVector{3}(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ? Ω2dot[1] : Ωdot0[ipoint][1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? Ω2dot[2] : Ωdot0[ipoint][2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? Ω2dot[3] : Ωdot0[ipoint][3], 
-        )
-    else
-        V2dot = SVector{3}(
-            rate_vars[icol2+6] ? V2dot[1] : Vdot0[ipoint][1], 
-            rate_vars[icol2+7] ? V2dot[2] : Vdot0[ipoint][2],
-            rate_vars[icol2+8] ? V2dot[3] : Vdot0[ipoint][3],
-        )
-        Ω2dot = SVector{3}(
-            rate_vars[icol2+9] ? Ω2dot[1] : Ωdot0[ipoint][1],
-            rate_vars[icol2+10] ? Ω2dot[2] : Ωdot0[ipoint][2],
-            rate_vars[icol2+11] ? Ω2dot[3] : Ωdot0[ipoint][3], 
-        )
-    end
+    V2dot = SVector{3}(
+        rate_vars[icol2+6] ? V2dot[1] : Vdot0[ipoint][1], 
+        rate_vars[icol2+7] ? V2dot[2] : Vdot0[ipoint][2],
+        rate_vars[icol2+8] ? V2dot[3] : Vdot0[ipoint][3],
+    )
+    Ω2dot = SVector{3}(
+        rate_vars[icol2+9] ? Ω2dot[1] : Ωdot0[ipoint][1],
+        rate_vars[icol2+10] ? Ω2dot[2] : Ωdot0[ipoint][2],
+        rate_vars[icol2+11] ? Ω2dot[3] : Ωdot0[ipoint][3], 
+    )
 
     # element linear and angular velocity rates
     Vdot = (V1dot + V2dot)/2
@@ -497,18 +452,20 @@ analysis initialization
 end
 
 """
-    newmark_element_properties(x, indices, force_scaling, structural_damping, assembly, ielem,
-        prescribed_conditions, gravity, x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
+    newmark_element_properties(x, indices, icol_accel, force_scaling, structural_damping, 
+        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
+        Vdot_init, Ωdot_init, dt)
 
 Calculate/extract the element properties needed to construct the residual for a newmark-
 scheme time stepping analysis
 """
-@inline function newmark_element_properties(x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, Vdot_init, 
-    Ωdot_init, dt)
+@inline function newmark_element_properties(x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
+    Vdot_init, Ωdot_init, dt)
 
-    properties = steady_state_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
     @unpack C, Cab, CtCab, mass11, mass12, mass21, mass22, V1, V2, Ω1, Ω2, V, Ω, ω = properties
 
@@ -537,19 +494,21 @@ scheme time stepping analysis
 end
 
 """
-    dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    dynamic_element_properties(dx, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
 Calculate/extract the element properties needed to construct the residual for a dynamic 
 analysis
 """
-@inline function dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_element_properties(dx, x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
-    properties = steady_state_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
-    @unpack C, Cab, CtCab, mass11, mass12, mass21, mass22, V, Ω, ω = properties
+    @unpack C, Cab, CtCab, mass11, mass12, mass21, mass22, V1, V2, Ω1, Ω2, V, Ω, ω = properties
 
     # linear and angular velocity of the beam element
     V1dot, Ω1dot = point_velocities(dx, assembly.start[ielem], indices.icol_point)
@@ -572,14 +531,14 @@ analysis
 end
 
 """
-    expanded_element_properties(x, indices, force_scaling, structural_damping, 
+    expanded_element_properties(x, indices, icol_accel, force_scaling, structural_damping, 
         assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the element properties needed to construct the residual for a constant
 mass matrix system
 """
-@inline function expanded_element_properties(x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+@inline function expanded_element_properties(x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     # unpack element parameters
     @unpack L, Cab, compliance, mass = assembly.elements[ielem]
@@ -633,6 +592,9 @@ mass matrix system
     γ = S11*F + S12*M
     κ = S21*F + S22*M
 
+    # extract the linear and angular acceleration of the body frame
+    a0, α0 = body_frame_acceleration(x, icol_accel, a0, α0)
+
     # distance from the rotation center
     Δx = assembly.elements[ielem].x - x0
 
@@ -647,7 +609,7 @@ mass matrix system
     # element properties
     properties = (; L, C, C1, C2, Cab, CtCab, Q, Qinv, S11, S12, S21, S22, 
         mass11, mass12, mass21, mass22, u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, F1, F2, M1, M2, 
-        u, θ, V, Ω, P, H, F, M, γ, κ, v, ω, a, α)
+        u, θ, V, Ω, P, H, F, M, γ, κ, Δx, v, ω, a, α)
 
     if structural_damping
 
@@ -744,6 +706,10 @@ system.
     rV = CtCab*V - v - cross(ω, u)
     rΩ = Qinv*(Cab*Ω - C*ω)
 
+    # @unpack CtCab, V, Ω, C1, V1, Ω1, C2, V2, Ω2 = properties
+    # rV = CtCab*V - 1/2*(C1'*V1 + C2'*V2)
+    # rΩ = CtCab*Ω - 1/2*(C1'*Ω1 + C2'*Ω2)
+
     return (; rV, rΩ)
 end
 
@@ -769,16 +735,18 @@ Calculate the equilibrium residuals of a beam element for a constant mass matrix
     rM -= mass21*CtCab'*a + mass22*CtCab'*α
 
     # add loads due to linear and angular momentum
-    rF -= cross(Ω, P) 
+    rF -= cross(Ω, P)
     rM -= cross(Ω, H) + cross(V, P)
 
     # add distributed loads
     if haskey(distributed_loads, ielem)
         dload = distributed_loads[ielem]
-        rF += CtCab'*dload.f1 + Cab'*dload.f1_follower
-        rF += CtCab'*dload.f2 + Cab'*dload.f2_follower
-        rM += CtCab'*dload.m1 + Cab'*dload.m1_follower
-        rM += CtCab'*dload.m2 + Cab'*dload.m2_follower
+        f1 = CtCab'*dload.f1 + Cab'*dload.f1_follower
+        f2 = CtCab'*dload.f2 + Cab'*dload.f2_follower
+        rF += f1 + f2
+        m1 = CtCab'*dload.m1 + Cab'*dload.m1_follower
+        m2 = CtCab'*dload.m2 + Cab'*dload.m2_follower
+        rM += m1 + m2
     end
 
     return (; rF, rM)
@@ -804,13 +772,13 @@ Calculate the resultant loads applied at each end of a beam element for a static
     M2 = tmp1 - tmp2
 
     # add loads due to linear and angular acceleration (including gravity)
-    tmp = 1/2*(CtCab*mass11*CtCab'*a + CtCab*mass12*CtCab'*α)
-    F1 -= tmp
-    F2 += tmp
+    tmp = CtCab*mass11*CtCab'*a + CtCab*mass12*CtCab'*α
+    F1 -= 1/2*tmp
+    F2 += 1/2*tmp
 
-    tmp = 1/2*(CtCab*mass21*CtCab'*a + CtCab*mass22*CtCab'*α)
-    M1 -= tmp
-    M2 += tmp
+    tmp = CtCab*mass21*CtCab'*a + CtCab*mass22*CtCab'*α
+    M1 -= 1/2*tmp
+    M2 += 1/2*tmp
 
     # add distributed loads
     if haskey(distributed_loads, ielem)
@@ -839,13 +807,13 @@ analysis.
     @unpack V, Ω, P, H, v, ω = properties
 
     # add loads due to linear and angular momentum
-    tmp = 1/2*cross(ω, P)
-    F1 -= tmp
-    F2 += tmp
+    tmp = cross(ω, P)
+    F1 -= 1/2*tmp
+    F2 += 1/2*tmp
 
-    tmp = 1/2*(cross(ω, H) + cross(V, P))
-    M1 -= tmp
-    M2 += tmp
+    tmp = cross(ω, H) + cross(V, P)
+    M1 -= 1/2*tmp
+    M2 += 1/2*tmp
 
     return (; resultants..., F1, F2, M1, M2)
 end
@@ -865,13 +833,11 @@ analysis.
     @unpack Pdot, Hdot = properties
     
     # add loads due to linear and angular momentum rates  
-    tmp = 1/2*Pdot 
-    F1 -= tmp
-    F2 += tmp
+    F1 -= 1/2*Pdot
+    F2 += 1/2*Pdot
 
-    tmp = 1/2*Hdot
-    M1 -= tmp
-    M2 += tmp
+    M1 -= 1/2*Hdot
+    M2 += 1/2*Hdot
 
     return (; resultants..., F1, F2, M1, M2)
 end
@@ -977,18 +943,19 @@ analysis into the system residual vector.
 end
 
 """
-    steady_state_element_residual!(resid, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-        x0, v0, ω0, a0, α0)
+    steady_state_element_residual!(resid, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the residual entries corresponding to a beam element for a steady state 
 analysis into the system residual vector.
 """
-@inline function steady_state_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+@inline function steady_state_element_residual!(resid, x, indices, icol_accel, force_scaling, structural_damping, 
     assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
 
-    properties = steady_state_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
     compatability = compatability_residuals(properties)
 
@@ -1001,19 +968,19 @@ analysis into the system residual vector.
 end
 
 """
-    initial_condition_element_residual!(resid, x, indices, rate_vars, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-        gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    initial_condition_element_residual!(resid, x, indices, rate_vars, icol_accel, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, 
+        distributed_loads, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate and insert the residual entries corresponding to a beam element for the 
 initialization of a time domain simulation into the system residual vector.
 """
-@inline function initial_condition_element_residual!(resid, x, indices, rate_vars, force_scaling, 
-    structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+@inline function initial_condition_element_residual!(resid, x, indices, rate_vars, 
+    icol_accel, force_scaling, structural_damping, assembly, ielem, prescribed_conditions, 
+    distributed_loads, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
-    properties = initial_condition_element_properties(x, indices, rate_vars, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+    properties = initial_condition_element_properties(x, indices, rate_vars, icol_accel, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
         x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     compatability = compatability_residuals(properties)
@@ -1027,20 +994,20 @@ initialization of a time domain simulation into the system residual vector.
 end
 
 """
-    newmark_element_residual!(resid, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-        x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
+    newmark_element_residual!(resid, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
 Calculate and insert the residual entries corresponding to a beam element for a 
 newmark-scheme time marching analysis into the system residual vector.
 """
-@inline function newmark_element_residual!(resid, x, indices, force_scaling, 
+@inline function newmark_element_residual!(resid, x, indices, icol_accel, force_scaling, 
     structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
     x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
-    properties = newmark_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
-        Vdot_init, Ωdot_init, dt)
+    properties = newmark_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
     compatability = compatability_residuals(properties)
 
@@ -1053,18 +1020,20 @@ newmark-scheme time marching analysis into the system residual vector.
 end
 
 """
-    dynamic_element_residual!(resid, dx, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-        x0, v0, ω0, a0, α0)
+    dynamic_element_residual!(resid, dx, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the residual entries corresponding to a beam element for a dynamic
 analysis into the system residual vector.
 """
-@inline function dynamic_element_residual!(resid, dx, x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_element_residual!(resid, dx, x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+    x0, v0, ω0, a0, α0)
 
-    properties = dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = dynamic_element_properties(dx, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, 
+        a0, α0)
 
     compatability = compatability_residuals(properties)
 
@@ -1077,18 +1046,20 @@ analysis into the system residual vector.
 end
 
 """
-    expanded_element_residual!(resid, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-        x0, v0, ω0, a0, α0)
+    expanded_element_residual!(resid, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the residual entries corresponding to a beam element for a constant
 mass matrix system into the system residual vector.
 """
-@inline function expanded_element_residual!(resid, x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+@inline function expanded_element_residual!(resid, x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+    x0, v0, ω0, a0, α0)
 
-    properties = expanded_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = expanded_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
     compatability = compatability_residuals(properties)
 
@@ -1132,14 +1103,16 @@ corresponding to a beam element for a static analysis
 end
 
 """
-    steady_state_element_jacobian_properties(properties, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0))
+    steady_state_element_jacobian_properties(properties, x, indices, icol_accel, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, 
+        gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a steady state analysis
 """
-@inline function steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+@inline function steady_state_element_jacobian_properties(properties, x, indices, 
+    icol_accel, force_scaling, structural_damping, assembly, ielem, prescribed_conditions, 
+    gravity, x0, v0, ω0, a0, α0)
 
     properties = static_element_jacobian_properties(properties, x, indices, force_scaling, 
         assembly, ielem, prescribed_conditions, gravity)
@@ -1294,15 +1267,15 @@ end
 
 """
     initial_condition_element_jacobian_properties(properties, x, indices, rate_vars, 
-        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity,
-        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+        icol_accel, force_scaling, structural_damping, assembly, ielem, 
+        prescribed_conditions, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a Newmark scheme time marching analysis
 """
-@inline function initial_condition_element_jacobian_properties(properties, x, indices, rate_vars,
-    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity,
-    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+@inline function initial_condition_element_jacobian_properties(properties, x, indices, 
+    rate_vars, icol_accel, force_scaling, structural_damping, assembly, ielem, 
+    prescribed_conditions, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     @unpack L, C, Cab, CtCab, CtCabdot, Q, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
         θ, V, Ω, ω = properties
@@ -1311,65 +1284,31 @@ corresponding to a element for a Newmark scheme time marching analysis
     ipoint = assembly.start[ielem]
     icol1 = indices.icol_point[ipoint]
     u1_u1, θ1_θ1 = point_displacement_jacobians(ipoint, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        # linear displacement
-        u1_u1 = hcat(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? zero(e1) : u1_u1[:,1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? zero(e2) : u1_u1[:,2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? zero(e3) : u1_u1[:,3],
-        )
-        # angular displacement
-        θ1_θ1 = hcat(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? zero(e1) : θ1_θ1[:,1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? zero(e2) : θ1_θ1[:,2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? zero(e3) : θ1_θ1[:,3], 
-        )
-    else
-        # linear displacement
-        u1_u1 = hcat(
-            rate_vars[icol1+6] ? zero(e1) : u1_u1[:,1], 
-            rate_vars[icol1+7] ? zero(e2) : u1_u1[:,2],
-            rate_vars[icol1+8] ? zero(e3) : u1_u1[:,3],
-        )
-        # angular displacement
-        θ1_θ1 = hcat(
-            rate_vars[icol1+9] ? zero(e1) : θ1_θ1[:,1],
-            rate_vars[icol1+10] ? zero(e2) : θ1_θ1[:,2],
-            rate_vars[icol1+11] ? zero(e3) : θ1_θ1[:,3], 
-        )
-    end
+    u1_u1 = hcat(
+        rate_vars[icol1+6] ? zero(e1) : u1_u1[:,1], 
+        rate_vars[icol1+7] ? zero(e2) : u1_u1[:,2],
+        rate_vars[icol1+8] ? zero(e3) : u1_u1[:,3],
+    )
+    θ1_θ1 = hcat(
+        rate_vars[icol1+9] ? zero(e1) : θ1_θ1[:,1],
+        rate_vars[icol1+10] ? zero(e2) : θ1_θ1[:,2],
+        rate_vars[icol1+11] ? zero(e3) : θ1_θ1[:,3], 
+    )
 
     # ending node linear and angular displacement
     ipoint = assembly.stop[ielem]
     icol2 = indices.icol_point[ipoint]
     u2_u2, θ2_θ2 = point_displacement_jacobians(ipoint, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        # linear displacement
-        u2_u2 = hcat(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? zero(e1) : u2_u2[:,1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? zero(e2) : u2_u2[:,2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? zero(e3) : u2_u2[:,3],
-        )
-        # angular displacement
-        θ2_θ2 = hcat(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ? zero(e1) : θ2_θ2[:,1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? zero(e2) : θ2_θ2[:,2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? zero(e3) : θ2_θ2[:,3], 
-        )
-    else
-        # linear displacement
-        u2_u2 = hcat(
-            rate_vars[icol2+6] ? zero(e1) : u2_u2[:,1], 
-            rate_vars[icol2+7] ? zero(e2) : u2_u2[:,2],
-            rate_vars[icol2+8] ? zero(e3) : u2_u2[:,3],
-        )
-        # angular displacement
-        θ2_θ2 = hcat(
-            rate_vars[icol2+9] ? zero(e1) : θ2_θ2[:,1],
-            rate_vars[icol2+10] ? zero(e2) : θ2_θ2[:,2],
-            rate_vars[icol2+11] ? zero(e3) : θ2_θ2[:,3], 
-        )
-    end
+    u2_u2 = hcat(
+        rate_vars[icol2+6] ? zero(e1) : u2_u2[:,1], 
+        rate_vars[icol2+7] ? zero(e2) : u2_u2[:,2],
+        rate_vars[icol2+8] ? zero(e3) : u2_u2[:,3],
+    )
+    θ2_θ2 = hcat(
+        rate_vars[icol2+9] ? zero(e1) : θ2_θ2[:,1],
+        rate_vars[icol2+10] ? zero(e2) : θ2_θ2[:,2],
+        rate_vars[icol2+11] ? zero(e3) : θ2_θ2[:,3], 
+    )
 
     # rotation parameter matrices
     C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
@@ -1485,14 +1424,14 @@ corresponding to a element for a Newmark scheme time marching analysis
     icol1 = indices.icol_point[ipoint]
     if haskey(prescribed_conditions, ipoint)
         V1dot_V1dot = hcat(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol1+6] ? e1 : zero(e1), 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol1+7] ? e2 : zero(e2),
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol1+8] ? e3 : zero(e3),
+            !prescribed_conditions[ipoint].pd[1] && rate_vars[icol1+6] ? e1 : zero(e1), 
+            !prescribed_conditions[ipoint].pd[2] && rate_vars[icol1+7] ? e2 : zero(e2),
+            !prescribed_conditions[ipoint].pd[3] && rate_vars[icol1+8] ? e3 : zero(e3),
         )
         Ω1dot_Ω1dot = hcat(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol1+9] ? e1 : zero(e1),
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol1+10] ? e2 : zero(e2),
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol1+11] ? e3 : zero(e3), 
+            !prescribed_conditions[ipoint].pd[1] && rate_vars[icol1+9] ? e1 : zero(e1),
+            !prescribed_conditions[ipoint].pd[2] && rate_vars[icol1+10] ? e2 : zero(e2),
+            !prescribed_conditions[ipoint].pd[3] && rate_vars[icol1+11] ? e3 : zero(e3), 
         )
     else
         V1dot_V1dot = hcat(
@@ -1512,14 +1451,14 @@ corresponding to a element for a Newmark scheme time marching analysis
     icol2 = indices.icol_point[ipoint]
     if haskey(prescribed_conditions, ipoint)
         V2dot_V2dot = hcat(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol2+6] ? e1 : zero(e1), 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol2+7] ? e2 : zero(e2),
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol2+8] ? e3 : zero(e3),
+            !prescribed_conditions[ipoint].pd[1] && rate_vars[icol2+6] ? e1 : zero(e1), 
+            !prescribed_conditions[ipoint].pd[2] && rate_vars[icol2+7] ? e2 : zero(e2),
+            !prescribed_conditions[ipoint].pd[3] && rate_vars[icol2+8] ? e3 : zero(e3),
         )
         Ω2dot_Ω2dot = hcat(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol2+9] ? e1 : zero(e1),
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol2+10] ? e2 : zero(e2),
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol2+11] ? e3 : zero(e3), 
+            !prescribed_conditions[ipoint].pd[4] && rate_vars[icol2+9] ? e1 : zero(e1),
+            !prescribed_conditions[ipoint].pd[5] && rate_vars[icol2+10] ? e2 : zero(e2),
+            !prescribed_conditions[ipoint].pd[6] && rate_vars[icol2+11] ? e3 : zero(e3), 
         )
     else
         V2dot_V2dot = hcat(
@@ -1547,19 +1486,20 @@ corresponding to a element for a Newmark scheme time marching analysis
 end
 
 """
-    newmark_element_jacobian_properties(properties, x, indices, force_scaling, 
+    newmark_element_jacobian_properties(properties, x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity, 
         x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a Newmark scheme time marching analysis
 """
-@inline function newmark_element_jacobian_properties(properties, x, indices, force_scaling, 
-    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0,
-    Vdot_init, Ωdot_init, dt)
+@inline function newmark_element_jacobian_properties(properties, x, indices, icol_accel, 
+    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+    x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
-    properties = steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_element_jacobian_properties(properties, x, indices, 
+        icol_accel, force_scaling, structural_damping, assembly, ielem, 
+        prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     @unpack C, Cab, CtCab, CtCabdot, mass11, mass12, mass21, mass22, V, Ω, ω, Vdot, Ωdot, 
         C_θ1, C_θ2, C_θ3 = properties
@@ -1616,17 +1556,19 @@ corresponding to a element for a Newmark scheme time marching analysis
 end
 
 """
-    dynamic_element_jacobian_properties(properties, dx, x, indices, force_scaling, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    dynamic_element_jacobian_properties(properties, dx, x, indices, icol_accel, 
+        force_scaling, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a dynamic analysis
 """
-@inline function dynamic_element_jacobian_properties(properties, dx, x, indices, force_scaling, 
-    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_element_jacobian_properties(properties, dx, x, indices, icol_accel, 
+    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+    x0, v0, ω0, a0, α0)
 
-    properties = steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_element_jacobian_properties(properties, x, indices, 
+        icol_accel, force_scaling, structural_damping, assembly, ielem, 
+        prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     @unpack C, Cab, CtCab, CtCabdot, mass11, mass12, mass21, mass22, V, Ω, Vdot, Ωdot, ω, C_θ1, C_θ2, C_θ3 = properties
 
@@ -1674,14 +1616,16 @@ corresponding to a element for a dynamic analysis
 end
 
 """
-    expanded_element_jacobian_properties(properties, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0))
+    expanded_element_jacobian_properties(properties, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a steady state analysis
 """
-@inline function expanded_element_jacobian_properties(properties, x, indices, force_scaling, 
-    structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+@inline function expanded_element_jacobian_properties(properties, x, indices, icol_accel, 
+    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+    x0, v0, ω0, a0, α0)
 
     @unpack L, C1, C2, C, Cab, CtCab, Q, mass11, mass12, mass21, mass22, S11, S12, S21, S22,
         u1, u2, θ1, θ2, V1, V2, Ω1, Ω2, u, θ, V, Ω, ω = properties
@@ -2081,6 +2025,10 @@ Calculate the jacobians of the element velocity residuals for a constant mass ma
     rΩ_θ2 = 1/2*tmp*θ2_θ2
 
     rΩ_Ω = Qinv*Cab
+
+    # @unpack CtCab, V, Ω, C1, V1, Ω1, C2, V2, Ω2 = properties
+    # rV = CtCab*V - 1/2*(C1'*V1 + C2'*V2)
+    # rΩ = CtCab*Ω - 1/2*(C1'*Ω1 + C2'*Ω2)
 
     return (; rV_u1, rV_u2, rV_θ1, rV_θ2, rV_V, rΩ_θ1, rΩ_θ2, rΩ_Ω)
 end
@@ -3126,20 +3074,24 @@ analysis into the system jacobian matrix.
 end
 
 """
-    steady_state_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+    steady_state_element_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the jacobian entries corresponding to a beam element for a steady state 
 analysis into the system jacobian matrix.
 """
-@inline function steady_state_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+@inline function steady_state_element_jacobian!(jacob, x, indices, icol_accel, 
+    force_scaling, structural_damping, assembly, ielem, prescribed_conditions, 
+    distributed_loads, gravity, x0, v0, ω0, a0, α0)
 
-    properties = steady_state_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
-    properties = steady_state_element_jacobian_properties(properties, x, indices, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_element_jacobian_properties(properties, x, indices, 
+        icol_accel, force_scaling, structural_damping, assembly, ielem, 
+        prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
 
     compatability = dynamic_compatability_jacobians(properties)
 
@@ -3152,24 +3104,24 @@ analysis into the system jacobian matrix.
 end
 
 """
-    initial_condition_element_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-        gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    initial_condition_element_jacobian!(jacob, x, indices, rate_vars, icol_accel, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, 
+        distributed_loads, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate and insert the jacobian entries corresponding to a beam element for the 
 initialization of a time domain analysis into the system jacobian matrix.
 """
-@inline function initial_condition_element_jacobian!(jacob, x, indices, rate_vars, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0,
-    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+@inline function initial_condition_element_jacobian!(jacob, x, indices, rate_vars, 
+    icol_accel, force_scaling, structural_damping, assembly, ielem, prescribed_conditions, 
+    distributed_loads, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
-    properties = initial_condition_element_properties(x, indices, rate_vars, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, 
-        Vdot0, Ωdot0)
-
-    properties = initial_condition_element_jacobian_properties(properties, x, indices, rate_vars, 
+    properties = initial_condition_element_properties(x, indices, rate_vars, icol_accel, 
         force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
         x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+
+    properties = initial_condition_element_jacobian_properties(properties, x, indices, 
+        rate_vars, icol_accel, force_scaling, structural_damping, assembly, ielem, 
+        prescribed_conditions, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     compatability = initial_condition_compatability_jacobians(properties)
 
@@ -3182,23 +3134,23 @@ initialization of a time domain analysis into the system jacobian matrix.
 end
 
 """
-    newmark_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0,
-        Vdot_init, Ωdot_init, dt)
+    newmark_element_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
 Calculate and insert the jacobian entries corresponding to a beam element for a Newmark-scheme
 time marching analysis into the system jacobian matrix.
 """
-@inline function newmark_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0,
-    Vdot_init, Ωdot_init, dt)
+@inline function newmark_element_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+    x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
-    properties = newmark_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0, 
-        Vdot_init, Ωdot_init, dt)
-
-    properties = newmark_element_jacobian_properties(properties, x, indices, force_scaling, 
+    properties = newmark_element_properties(x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
+
+    properties = newmark_element_jacobian_properties(properties, x, indices, icol_accel, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
         x0, v0, ω0, a0, α0, Vdot_init, Ωdot_init, dt)
 
     compatability = dynamic_compatability_jacobians(properties)
@@ -3212,21 +3164,24 @@ time marching analysis into the system jacobian matrix.
 end
 
 """
-    dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-        x0, v0, ω0, a0, α0)
+    dynamic_element_jacobian!(jacob, dx, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the jacobian entries corresponding to a beam element for a dynamic
 analysis into the system jacobian matrix.
 """
-@inline function dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_element_jacobian!(jacob, dx, x, indices, icol_accel, force_scaling, 
+    structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+    x0, v0, ω0, a0, α0)
 
-    properties = dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = dynamic_element_properties(dx, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
-    properties = dynamic_element_jacobian_properties(properties, dx, x, indices, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = dynamic_element_jacobian_properties(properties, dx, x, indices, icol_accel, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
     compatability = dynamic_compatability_jacobians(properties)
 
@@ -3239,21 +3194,23 @@ analysis into the system jacobian matrix.
 end
 
 """
-    expanded_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
-        x0, v0, ω0, a0, α0)
+    expanded_element_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
+        gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the jacobian entries corresponding to a beam element for a dynamic
 analysis into the system jacobian matrix.
 """
-@inline function expanded_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+@inline function expanded_element_jacobian!(jacob, x, indices, icol_accel, force_scaling, structural_damping, 
     assembly, ielem, prescribed_conditions, distributed_loads, gravity, x0, v0, ω0, a0, α0)
 
-    properties = expanded_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = expanded_element_properties(x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
-    properties = expanded_element_jacobian_properties(properties, x, indices, force_scaling, 
-        structural_damping, assembly, ielem, prescribed_conditions, gravity, x0, v0, ω0, a0, α0)
+    properties = expanded_element_jacobian_properties(properties, x, indices, icol_accel, 
+        force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
+        x0, v0, ω0, a0, α0)
 
     compatability = expanded_compatability_jacobians(properties)
 

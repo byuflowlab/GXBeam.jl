@@ -17,47 +17,22 @@ end
 
 @inline function point_loads(x, icol, force_scaling, prescribed_conditions)
 
-    # unpack prescribed conditions for the node
-    @unpack value, follower, isforce = prescribed_conditions
+    @unpack pl, F, M, Ff, Mf = prescribed_conditions
 
-    # displacements
-    u, θ = point_displacement(x, icol, prescribed_conditions)
-
-    # transformation matrix
+    # combine non-follower and follower loads
+    _, θ = point_displacement(x, icol, prescribed_conditions)
     C = get_C(θ)
+    F = F + C'*Ff
+    M = M + C'*Mf
 
-    # calculate prescribed external forces
-    F = zero(u)
-    for i = 1:3
-        if isforce[i]
-            # add dead force
-            F += SVector(I3[i,1], I3[i,2], I3[i,3])*value[i]
-            # add follower force
-            F += SVector(C[i,1], C[i,2], C[i,3])*follower[i]
-        end
-    end
-
-    # overwrite prescribed external forces if linear displacements are prescribed instead
-    F = SVector(ifelse(isforce[1], F[1], x[icol  ]*force_scaling),
-                ifelse(isforce[2], F[2], x[icol+1]*force_scaling),
-                ifelse(isforce[3], F[3], x[icol+2]*force_scaling))
-
-    # calculate prescribed external moments
-    M = zero(θ)
-    for i = 4:6
-        if isforce[i]
-            # add dead moment
-            M += SVector(I3[i-3,1], I3[i-3,2], I3[i-3,3])*value[i]
-            # add follower moment
-            M += SVector(C[i-3,1], C[i-3,2], C[i-3,3])*follower[i]
-        end
-    end
-
-    # overwrite prescribed external moments if angular displacements are prescribed instead
-    M = SVector(ifelse(isforce[4], M[1], x[icol+3]*force_scaling),
-                ifelse(isforce[5], M[2], x[icol+4]*force_scaling),
-                ifelse(isforce[6], M[3], x[icol+5]*force_scaling))
-
+    # set state variable loads explicitly
+    F = SVector(ifelse(pl[1], F[1], x[icol]*force_scaling),
+                ifelse(pl[2], F[2], x[icol+1]*force_scaling),
+                ifelse(pl[3], F[3], x[icol+2]*force_scaling))
+    M = SVector(ifelse(pl[4], M[1], x[icol+3]*force_scaling),
+                ifelse(pl[5], M[2], x[icol+4]*force_scaling),
+                ifelse(pl[6], M[3], x[icol+5]*force_scaling))
+    
     return F, M
 end
 
@@ -87,71 +62,53 @@ end
 
 @inline function point_load_jacobians(x, icol, force_scaling, prescribed_conditions)
 
-    @unpack value, follower, isforce = prescribed_conditions
+    @unpack pl, Ff, Mf = prescribed_conditions
 
-    u, θ = point_displacement(x, icol, prescribed_conditions)
-
-    F_F = @SMatrix zeros(eltype(x), 3, 3)
-    if !isforce[1] 
-        F_F += @SMatrix [1 0 0; 0 0 0; 0 0 0]
-    end
-    if !isforce[2] 
-        F_F += @SMatrix [0 0 0; 0 1 0; 0 0 0]
-    end
-    if !isforce[3] 
-        F_F += @SMatrix [0 0 0; 0 0 0; 0 0 1]
-    end
-
-    M_M = @SMatrix zeros(eltype(x), 3, 3)
-    if !isforce[4] 
-        M_M += @SMatrix [1 0 0; 0 0 0; 0 0 0]
-    end
-    if !isforce[5] 
-        M_M += @SMatrix [0 0 0; 0 1 0; 0 0 0]
-    end
-    if !isforce[6] 
-        M_M += @SMatrix [0 0 0; 0 0 0; 0 0 1]
-    end
-
+    _, θ = point_displacement(x, icol, prescribed_conditions)
     C = get_C(θ)
-    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)           
+
+    _, θ_θ = point_displacement_jacobians(prescribed_conditions)
+    C_θ1, C_θ2, C_θ3 = get_C_θ(C, θ)
 
     # solve for the jacobian wrt theta of the follower forces
-    Fp_θ = @SMatrix zeros(eltype(x), 3, 3)
+    F_θ = @SMatrix zeros(eltype(x), 3, 3)
     for i = 1:3
-        if isforce[i]
-            rot_θ = @SMatrix [
-                C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
-                C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
-                C_θ1[i,3] C_θ2[i,3] C_θ3[i,3]
-                ]
-            Fp_θ += rot_θ*follower[i]
-        end
+        rot_θ = @SMatrix [
+            C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
+            C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
+            C_θ1[i,3] C_θ2[i,3] C_θ3[i,3]
+            ]
+        F_θ += rot_θ*Ff[i]
     end
 
-    # solve for the jacobian wrt theta of the follower moments
-    Mp_θ = @SMatrix zeros(eltype(x), 3, 3)
-    for i = 1:3
-        if isforce[i+3]
-            rot_θ = @SMatrix [
-                C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
-                C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
-                C_θ1[i,3] C_θ2[i,3] C_θ3[i,3]
-                ]
-            Mp_θ += rot_θ*follower[i+3]
-        end
-    end
-
-    # if displacement is specified, corresponding component of follower jacobian is zero
-    F1_θ = ifelse(isforce[1], SVector(Fp_θ[1,1], Fp_θ[1,2], Fp_θ[1,3]), (@SVector zeros(eltype(Fp_θ), 3)))
-    F2_θ = ifelse(isforce[2], SVector(Fp_θ[2,1], Fp_θ[2,2], Fp_θ[2,3]), (@SVector zeros(eltype(Fp_θ), 3)))
-    F3_θ = ifelse(isforce[3], SVector(Fp_θ[3,1], Fp_θ[3,2], Fp_θ[3,3]), (@SVector zeros(eltype(Fp_θ), 3)))
+    F1_θ = ifelse(pl[1], SVector(F_θ[1,1], F_θ[1,2], F_θ[1,3]), @SVector zeros(eltype(x), 3))
+    F2_θ = ifelse(pl[2], SVector(F_θ[2,1], F_θ[2,2], F_θ[2,3]), @SVector zeros(eltype(x), 3))
+    F3_θ = ifelse(pl[3], SVector(F_θ[3,1], F_θ[3,2], F_θ[3,3]), @SVector zeros(eltype(x), 3))
     F_θ = vcat(F1_θ', F2_θ', F3_θ')
 
-    M1_θ = ifelse(isforce[4], SVector(Mp_θ[1,1], Mp_θ[1,2], Mp_θ[1,3]), (@SVector zeros(eltype(Fp_θ), 3)))
-    M2_θ = ifelse(isforce[5], SVector(Mp_θ[2,1], Mp_θ[2,2], Mp_θ[2,3]), (@SVector zeros(eltype(Fp_θ), 3)))
-    M3_θ = ifelse(isforce[6], SVector(Mp_θ[3,1], Mp_θ[3,2], Mp_θ[3,3]), (@SVector zeros(eltype(Fp_θ), 3)))
+    # solve for the jacobian wrt theta of the follower moments
+    M_θ = @SMatrix zeros(eltype(x), 3, 3)
+    for i = 1:3
+        rot_θ = @SMatrix [
+            C_θ1[i,1] C_θ2[i,1] C_θ3[i,1];
+            C_θ1[i,2] C_θ2[i,2] C_θ3[i,2];
+            C_θ1[i,3] C_θ2[i,3] C_θ3[i,3]
+            ]
+        M_θ += rot_θ*Mf[i]
+    end
+    
+    M1_θ = ifelse(pl[4], SVector(M_θ[1,1], M_θ[1,2], M_θ[1,3]), @SVector zeros(eltype(x), 3))
+    M2_θ = ifelse(pl[5], SVector(M_θ[2,1], M_θ[2,2], M_θ[2,3]), @SVector zeros(eltype(x), 3))
+    M3_θ = ifelse(pl[6], SVector(M_θ[3,1], M_θ[3,2], M_θ[3,3]), @SVector zeros(eltype(x), 3))
     M_θ = vcat(M1_θ', M2_θ', M3_θ')
+
+    F_F = hcat(ifelse(pl[1], zero(e1), e1),
+               ifelse(pl[2], zero(e2), e2),
+               ifelse(pl[3], zero(e3), e3))
+
+    M_M = hcat(ifelse(pl[4], zero(e1), e1),
+               ifelse(pl[5], zero(e2), e2),
+               ifelse(pl[6], zero(e3), e3))
 
     return F_θ, F_F, M_θ, M_M
 end
@@ -186,17 +143,21 @@ end
 @inline function point_displacement(x, icol, prescribed_conditions)
 
     # unpack prescribed conditions for the node
-    @unpack value, follower, isforce = prescribed_conditions
+    @unpack pd, u, theta = prescribed_conditions
 
     # node linear displacement
-    u = SVector(ifelse(isforce[1], x[icol  ], value[1]),
-                ifelse(isforce[2], x[icol+1], value[2]),
-                ifelse(isforce[3], x[icol+2], value[3]))
+    u = SVector(
+        ifelse(pd[1], u[1], x[icol]),
+        ifelse(pd[2], u[2], x[icol+1]),
+        ifelse(pd[3], u[3], x[icol+2])
+    )
 
     # node angular displacement
-    θ = SVector(ifelse(isforce[4], x[icol+3], value[4]),
-               ifelse(isforce[5], x[icol+4], value[5]),
-               ifelse(isforce[6], x[icol+5], value[6]))
+    θ = SVector(
+        ifelse(pd[4], theta[1], x[icol+3]),
+        ifelse(pd[5], theta[2], x[icol+4]),
+        ifelse(pd[6], theta[3], x[icol+5])
+    )
 
     return u, θ
 end
@@ -227,15 +188,15 @@ end
 
 @inline function point_displacement_jacobians(prescribed_conditions)
 
-    @unpack isforce = prescribed_conditions
+    @unpack pd = prescribed_conditions
 
-    u_u = hcat(ifelse(isforce[1], e1, zero(e1)),
-               ifelse(isforce[2], e2, zero(e2)),
-               ifelse(isforce[3], e3, zero(e3)))
+    u_u = hcat(ifelse(pd[1], zero(e1), e1),
+               ifelse(pd[2], zero(e2), e2),
+               ifelse(pd[3], zero(e3), e3))
 
-    θ_θ = hcat(ifelse(isforce[4], e1, zero(e1)),
-               ifelse(isforce[5], e2, zero(e2)),
-               ifelse(isforce[6], e3, zero(e3)))
+    θ_θ = hcat(ifelse(pd[4], zero(e1), e1),
+               ifelse(pd[5], zero(e2), e2),
+               ifelse(pd[6], zero(e3), e3))
 
     return u_u, θ_θ
 end
@@ -253,12 +214,12 @@ end
 
 Extract the displacement rates `udot` and `θdot` of point `ipoint` from the rate variable vector.
 """
-@inline function point_displacement_rates(dx, ipoint, icol, prescribed_conditions)
+@inline function point_displacement_rates(dx, ipoint, icol_point, prescribed_conditions)
 
     if haskey(prescribed_conditions, ipoint)
-        udot, θdot = point_displacement_rates(dx, icol[ipoint], prescribed_conditions[ipoint])
+        udot, θdot = point_displacement_rates(dx, icol_point[ipoint], prescribed_conditions[ipoint])
     else
-        udot, θdot = point_displacement_rates(dx, icol[ipoint])
+        udot, θdot = point_displacement_rates(dx, icol_point[ipoint])
     end
 
     return udot, θdot
@@ -267,17 +228,17 @@ end
 @inline function point_displacement_rates(dx, icol, prescribed_conditions)
 
     # unpack prescribed conditions for the node
-    @unpack value, follower, isforce = prescribed_conditions
+    @unpack pd = prescribed_conditions
 
-    # node linear displacement
-    udot = SVector(ifelse(isforce[1], dx[icol  ], zero(eltype(dx))),
-                   ifelse(isforce[2], dx[icol+1], zero(eltype(dx))),
-                   ifelse(isforce[3], dx[icol+2], zero(eltype(dx))))
+    # node linear displacement rate
+    udot = SVector(ifelse(pd[1], zero(eltype(dx)), dx[icol  ]),
+                   ifelse(pd[2], zero(eltype(dx)), dx[icol+1]),
+                   ifelse(pd[3], zero(eltype(dx)), dx[icol+2]))
 
-    # node angular displacement
-    θdot = SVector(ifelse(isforce[4], dx[icol+3], zero(eltype(dx))),
-                   ifelse(isforce[5], dx[icol+4], zero(eltype(dx))),
-                   ifelse(isforce[6], dx[icol+5], zero(eltype(dx))))
+    # node angular displacement rate
+    θdot = SVector(ifelse(pd[4], zero(eltype(dx)), dx[icol+3]),
+                   ifelse(pd[5], zero(eltype(dx)), dx[icol+4]),
+                   ifelse(pd[6], zero(eltype(dx)), dx[icol+5]))
 
     return udot, θdot
 end
@@ -329,17 +290,17 @@ end
 @inline function point_velocity_rates(dx, icol, prescribed_conditions)
 
     # unpack prescribed conditions for the node
-    @unpack value, follower, isforce = prescribed_conditions
+    @unpack pd = prescribed_conditions
 
     # node linear displacement
-    Vdot = SVector(ifelse(isforce[1], dx[icol+6], zero(eltype(dx))),
-                   ifelse(isforce[2], dx[icol+7], zero(eltype(dx))),
-                   ifelse(isforce[3], dx[icol+8], zero(eltype(dx))))
+    Vdot = SVector(ifelse(pd[1], zero(eltype(dx)), dx[icol+6]),
+                   ifelse(pd[2], zero(eltype(dx)), dx[icol+7]),
+                   ifelse(pd[3], zero(eltype(dx)), dx[icol+8]))
 
     # node angular displacement
-    Ωdot = SVector(ifelse(isforce[4], dx[icol+9], zero(eltype(dx))),
-                   ifelse(isforce[5], dx[icol+10], zero(eltype(dx))),
-                   ifelse(isforce[6], dx[icol+11], zero(eltype(dx))))
+    Ωdot = SVector(ifelse(pd[4], zero(eltype(dx)), dx[icol+9]),
+                   ifelse(pd[5], zero(eltype(dx)), dx[icol+10]),
+                   ifelse(pd[6], zero(eltype(dx)), dx[icol+11]))
 
     return Vdot, Ωdot
 end
@@ -388,14 +349,14 @@ analysis
 end
 
 """
-    steady_state_point_properties(x, indices, force_scaling, assembly, ipoint,  
+    steady_state_point_properties(x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the point properties needed to construct the residual for a steady state 
 analysis
 """
-@inline function steady_state_point_properties(x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function steady_state_point_properties(x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     properties = static_point_properties(x, indices, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity)
@@ -411,6 +372,9 @@ analysis
     P = C'*mass11*C*V + C'*mass12*C*Ω
     H = C'*mass21*C*V + C'*mass22*C*Ω
 
+    # extract the linear and angular acceleration of the body frame
+    a0, α0 = body_frame_acceleration(x, icol_accel, a0, α0)
+
     # distance from the rotation center (in the body frame)
     Δx = assembly.points[ipoint] - x0
 
@@ -422,20 +386,20 @@ analysis
     a += a0 + cross(α0, Δx) + cross(α0, u)
     α += α0
 
-    return (; properties..., Qinv, V, Ω, P, H, v, ω, a, α) 
+    return (; properties..., Qinv, V, Ω, P, H, Δx, v, ω, a, α)
 end
 
 """
-    initial_condition_point_properties(x, indices, rate_vars, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
+    initial_condition_point_properties(x, indices, rate_vars, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
         u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate/extract the point properties needed to construct the residual for a time domain 
 analysis initialization.
 """
-@inline function initial_condition_point_properties(x, indices, rate_vars, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
-    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+@inline function initial_condition_point_properties(x, indices, rate_vars, icol_accel, 
+    force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     # mass matrix
     mass = haskey(point_masses, ipoint) ? point_masses[ipoint].mass : @SMatrix zeros(6,6)
@@ -449,33 +413,16 @@ analysis initialization.
     # linear and angular displacement
     u, θ = point_displacement(x, ipoint, indices.icol_point, prescribed_conditions)
     icol = indices.icol_point[ipoint]
-    if haskey(prescribed_conditions, ipoint)
-        # linear displacement
-        u = SVector{3}(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol+7] ? u0[ipoint][2] : u[2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol+8] ? u0[ipoint][3] : u[3],
-        )
-        # angular displacement
-        θ = SVector{3}(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol+9] ? θ0[ipoint][1] : θ[1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol+10] ? θ0[ipoint][2] : θ[2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol+11] ? θ0[ipoint][3] : θ[3], 
-        )
-    else
-        # linear displacement
-        u = SVector{3}(
-            rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
-            rate_vars[icol+7] ? u0[ipoint][2] : u[2],
-            rate_vars[icol+8] ? u0[ipoint][3] : u[3],
-        )
-        # angular displacement
-        θ = SVector{3}(
-            rate_vars[icol+9] ? θ0[ipoint][1] : θ[1],
-            rate_vars[icol+10] ? θ0[ipoint][2] : θ[2],
-            rate_vars[icol+11] ? θ0[ipoint][3] : θ[3], 
-        )
-    end
+    u = SVector{3}(
+        rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
+        rate_vars[icol+7] ? u0[ipoint][2] : u[2],
+        rate_vars[icol+8] ? u0[ipoint][3] : u[3],
+    )
+    θ = SVector{3}(
+        rate_vars[icol+9] ? θ0[ipoint][1] : θ[1],
+        rate_vars[icol+10] ? θ0[ipoint][2] : θ[2],
+        rate_vars[icol+11] ? θ0[ipoint][3] : θ[3], 
+    )
 
     # rotation parameter matrices
     C = get_C(θ)
@@ -491,6 +438,9 @@ analysis initialization.
 
     # forces and moments
     F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
+
+    # extract the linear and angular acceleration of the body frame
+    a0, α0 = body_frame_acceleration(x, icol_accel, a0, α0)
 
     # distance from the rotation center
     Δx = assembly.points[ipoint] - x0
@@ -508,29 +458,16 @@ analysis initialization.
 
     # linear and angular velocity rates
     Vdot, Ωdot = point_displacement_rates(x, ipoint, indices.icol_point, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        Vdot = SVector{3}(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol+6] ? Vdot[1] : Vdot0[ipoint][1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol+7] ? Vdot[2] : Vdot0[ipoint][2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol+8] ? Vdot[3] : Vdot0[ipoint][3],
-        )
-        Ωdot = SVector{3}(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol+9] ? Ωdot[1] : Ωdot0[ipoint][1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol+10] ? Ωdot[2] : Ωdot0[ipoint][2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol+11] ? Ωdot[3] : Ωdot0[ipoint][3], 
-        )
-    else
-        Vdot = SVector{3}(
-            rate_vars[icol+6] ? Vdot[1] : Vdot0[ipoint][1], 
-            rate_vars[icol+7] ? Vdot[2] : Vdot0[ipoint][2],
-            rate_vars[icol+8] ? Vdot[3] : Vdot0[ipoint][3],
-        )
-        Ωdot = SVector{3}(
-            rate_vars[icol+9] ? Ωdot[1] : Ωdot0[ipoint][1],
-            rate_vars[icol+10] ? Ωdot[2] : Ωdot0[ipoint][2],
-            rate_vars[icol+11] ? Ωdot[3] : Ωdot0[ipoint][3], 
-        )
-    end
+    Vdot = SVector{3}(
+        rate_vars[icol+6] ? Vdot[1] : Vdot0[ipoint][1], 
+        rate_vars[icol+7] ? Vdot[2] : Vdot0[ipoint][2],
+        rate_vars[icol+8] ? Vdot[3] : Vdot0[ipoint][3],
+    )
+    Ωdot = SVector{3}(
+        rate_vars[icol+9] ? Ωdot[1] : Ωdot0[ipoint][1],
+        rate_vars[icol+10] ? Ωdot[2] : Ωdot0[ipoint][2],
+        rate_vars[icol+11] ? Ωdot[3] : Ωdot0[ipoint][3], 
+    )
 
     # linear and angular momentum rates
     Cdot = -C*tilde(Ω - ω)
@@ -548,19 +485,19 @@ analysis initialization.
 end
 
 """
-    newmark_point_properties(x, indices, force_scaling, assembly, ipoint,  
+    newmark_point_properties(x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
 Calculate/extract the point properties needed to construct the residual for a newmark-scheme
 time stepping analysis
 """
-@inline function newmark_point_properties(x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
+@inline function newmark_point_properties(x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
-    properties = steady_state_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_point_properties(x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     @unpack C, mass11, mass12, mass21, mass22, u, θ, V, Ω, ω = properties
 
@@ -583,31 +520,23 @@ time stepping analysis
         C'*mass21*Cdot*V + C'*mass22*Cdot*Ω +
         Cdot'*mass21*C*V + Cdot'*mass22*C*Ω
 
-    Pdot = C'*mass11*C*Vdot + C'*mass12*C*Ωdot +
-        - C'*mass11*C*tilde(Ω - ω)*V - C'*mass12*C*tilde(Ω - ω)*Ω +
-        tilde(Ω - ω)*C'*mass11*C*V + tilde(Ω - ω)*C'*mass12*C*Ω
-    
-    Hdot = C'*mass21*C*Vdot + C'*mass22*C*Ωdot +
-        - C'*mass21*C*tilde(Ω - ω)*V - C'*mass22*C*tilde(Ω - ω)*Ω +
-        tilde(Ω - ω)*C'*mass21*C*V + tilde(Ω - ω)*C'*mass22*C*Ω
-
     return (; properties..., udot, θdot, Cdot, Vdot, Ωdot, Pdot, Hdot) 
 end
 
 """
-    dynamic_point_properties(dx, x, indices, force_scaling, assembly, ipoint,  
+    dynamic_point_properties(dx, x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the point properties needed to construct the residual for a dynamic 
 analysis
 """
-@inline function dynamic_point_properties(dx, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_point_properties(dx, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-    properties = steady_state_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_point_properties(x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-    @unpack C, mass11, mass12, mass21, mass22, V, Ω, ω = properties 
+    @unpack C, mass11, mass12, mass21, mass22, u, θ, V, Ω, ω = properties
 
     # displacement rates
     udot, θdot = point_displacement_rates(dx, ipoint, indices.icol_point, prescribed_conditions)
@@ -630,14 +559,14 @@ analysis
 end
 
 """
-    expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
+    expanded_point_properties(x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the point properties needed to construct the residual for a constant 
 mass matrix system.
 """
-@inline function expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function expanded_point_properties(x, indices, icol_accel, force_scaling, assembly, 
+    ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     # mass matrix
     mass = haskey(point_masses, ipoint) ? point_masses[ipoint].mass : @SMatrix zeros(6,6)
@@ -665,6 +594,9 @@ mass matrix system.
     # forces and moments
     F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
 
+    # extract the linear and angular acceleration of the body frame
+    a0, α0 = body_frame_acceleration(x, icol_accel, a0, α0)
+
     # distance from the rotation center (in the body frame)
     Δx = assembly.points[ipoint] - x0
 
@@ -677,6 +609,82 @@ mass matrix system.
     α = α0
 
     return (; C, Qinv, mass11, mass12, mass21, mass22, u, θ, V, Ω, P, H, F, M, v, ω, a, α) 
+end
+
+"""
+    static_point_resultants(properties)
+
+Calculate the net loads `F` and `M` applied at a point for a static analysis.
+"""
+@inline function static_point_resultants(properties)
+
+    @unpack C, mass11, mass12, mass21, mass22, F, M, a, α = properties
+
+    # add loads due to linear and angular acceleration (including gravity)
+    F -= C'*mass11*C*a + C'*mass12*C*α
+    M -= C'*mass21*C*a + C'*mass22*C*α
+
+    return F, M
+end
+
+"""
+    steady_state_point_resultants(properties)
+
+Calculate the net loads `F` and `M` applied at a point for a steady state analysis.
+"""
+@inline function steady_state_point_resultants(properties)
+
+    F, M = static_point_resultants(properties)
+
+    @unpack V, Ω, P, H, ω = properties
+
+    # add loads due to linear and angular momentum
+    F -= cross(ω, P)
+    M -= cross(ω, H) + cross(V, P)
+
+    return F, M
+end
+
+"""
+    dynamic_point_resultants(properties)
+
+Calculate the net loads `F` and `M` applied at a point for a dynamic analysis.
+"""
+@inline function dynamic_point_resultants(properties)
+
+    F, M = steady_state_point_resultants(properties)
+
+    @unpack Pdot, Hdot = properties
+
+    # add loads due to linear and angular momentum rates  
+    F -= Pdot
+    M -= Hdot
+
+    return F, M
+end
+
+"""
+    expanded_point_resultants(properties)
+
+Calculate the net loads `F` and `M` applied at a point for a constant mass matrix system.
+"""
+@inline function expanded_point_resultants(properties)
+
+    @unpack C, mass11, mass12, mass21, mass22, F, M, V, Ω, P, H, ω, a, α = properties
+
+    # rotate loads into the deformed frame
+    F = C*F
+    M = C*M
+
+    # add loads due to linear and angular acceleration (including gravity)
+    F -= mass11*C*a + mass12*C*α
+    M -= mass21*C*a + mass22*C*α
+
+    # add loads due to linear and angular momentum
+    F -= cross(Ω, P)
+    M -= cross(Ω, H) + cross(V, P)
+
+    return F, M
 end
 
 """
@@ -729,82 +737,6 @@ Calculate the velocity residuals `rV` and `rΩ` for a point for a steady state a
 end
 
 """
-    static_point_resultants(properties)
-
-Calculate the net loads `F` and `M` applied at a point for a static analysis.
-"""
-@inline function static_point_resultants(properties)
-
-    @unpack C, mass11, mass12, mass21, mass22, F, M, a, α = properties
-
-    # add loads due to linear and angular acceleration (including gravity)
-    F -= C'*mass11*C*a + C'*mass12*C*α
-    M -= C'*mass21*C*a + C'*mass22*C*α
-
-    return F, M
-end
-
-"""
-    steady_state_point_resultants(properties)
-
-Calculate the net loads `F` and `M` applied at a point for a steady state analysis.
-"""
-@inline function steady_state_point_resultants(properties)
-
-    F, M = static_point_resultants(properties)
-
-    @unpack V, Ω, P, H, ω = properties  
-
-    # add loads due to linear and angular momentum
-    F -= cross(ω, P)
-    M -= cross(ω, H) + cross(V, P)
-
-    return F, M
-end
-
-"""
-    dynamic_point_resultants(properties)
-
-Calculate the net loads `F` and `M` applied at a point for a dynamic analysis.
-"""
-@inline function dynamic_point_resultants(properties)
-
-    F, M = steady_state_point_resultants(properties)
-
-    @unpack Pdot, Hdot = properties
-
-    # add loads due to linear and angular momentum rates  
-    F -= Pdot
-    M -= Hdot
-
-    return F, M
-end
-
-"""
-    expanded_point_resultants(properties)
-
-Calculate the net loads `F` and `M` applied at a point for a constant mass matrix system.
-"""
-@inline function expanded_point_resultants(properties)
-
-    @unpack C, mass11, mass12, mass21, mass22, F, M, V, Ω, P, H, ω, a, α = properties
-
-    # rotate loads into the deformed frame
-    F = C*F
-    M = C*M
-
-    # add loads due to linear and angular acceleration (including gravity)
-    F -= mass11*C*a + mass12*C*α
-    M -= mass21*C*a + mass22*C*α
-
-    # add loads due to linear and angular momentum
-    F -= cross(Ω, P)
-    M -= cross(Ω, H) + cross(V, P)
-
-    return F, M
-end
-
-"""
     static_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity)
 
@@ -828,24 +760,24 @@ into the system residual vector.
 end
 
 """
-    steady_state_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    steady_state_point_residual!(resid, x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the residual entries corresponding to a point for a steady state analysis into the 
 system residual vector.
 """
-@inline function steady_state_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function steady_state_point_residual!(resid, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     irow = indices.irow_point[ipoint]
 
-    properties = steady_state_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_point_properties(x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     F, M = steady_state_point_resultants(properties)
 
     rV, rΩ = steady_state_point_velocity_residuals(properties)
-
+       
     resid[irow:irow+2] .= -F ./ force_scaling
     resid[irow+3:irow+5] .= -M ./ force_scaling
     resid[irow+6:irow+8] .= rV
@@ -855,22 +787,22 @@ system residual vector.
 end
 
 """
-    initial_condition_point_residual!(resid, x, indices, rate_vars, force_scaling, 
-        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
-        u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    initial_condition_point_residual!(resid, x, indices, rate_vars, icol_accel, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate and insert the residual entries corresponding to a point for the initialization 
 of a time domain analysis into the system residual vector.
 """
-@inline function initial_condition_point_residual!(resid, x, indices, rate_vars, force_scaling, 
-    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
-    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+@inline function initial_condition_point_residual!(resid, x, indices, rate_vars, icol_accel, 
+    force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     irow = indices.irow_point[ipoint]
 
-    properties = initial_condition_point_properties(x, indices, rate_vars, force_scaling, 
-        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
-        u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    properties = initial_condition_point_properties(x, indices, rate_vars, icol_accel, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     F, M = dynamic_point_resultants(properties)
 
@@ -885,21 +817,21 @@ of a time domain analysis into the system residual vector.
 end
 
 """
-    newmark_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
+    newmark_point_residual!(resid, x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
 Calculate and insert the residual entries corresponding to a point for a newmark-scheme time marching 
 analysis into the system residual vector.
 """
-@inline function newmark_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
+@inline function newmark_point_residual!(resid, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     irow = indices.irow_point[ipoint]
 
-    properties = newmark_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
+    properties = newmark_point_properties(x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0, 
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     F, M = dynamic_point_resultants(properties)
@@ -915,19 +847,19 @@ analysis into the system residual vector.
 end
 
 """
-    dynamic_point_residual!(resid, dx, x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    dynamic_point_residual!(resid, dx, x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-Calculate and insert the residual entries corresponding to a point for a dynamic analysis into the 
-system residual vector.
+Calculate and insert the residual entries corresponding to a point for a dynamic analysis 
+into the system residual vector.
 """
-@inline function dynamic_point_residual!(resid, dx, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_point_residual!(resid, dx, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     irow = indices.irow_point[ipoint]
 
-    properties = dynamic_point_properties(dx, x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    properties = dynamic_point_properties(dx, x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     F, M = dynamic_point_resultants(properties)
 
@@ -942,19 +874,19 @@ system residual vector.
 end
 
 """
-    expanded_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
+    expanded_point_residual!(resid, x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the residual entries corresponding to a point into the system residual 
 vector for a constant mass matrix system.
 """
-@inline function expanded_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function expanded_point_residual!(resid, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     irow = indices.irow_point[ipoint]
 
-    properties = expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    properties = expanded_point_properties(x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
     F, M = expanded_point_resultants(properties)
 
@@ -993,14 +925,16 @@ corresponding to a point for a static analysis
 end
 
 """
-    steady_state_point_jacobian_properties(properties, x, indices, force_scaling, 
-        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    steady_state_point_jacobian_properties(properties, x, indices, icol_accel, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0)
 
 Calculate/extract the point properties needed to calculate the jacobian entries 
 corresponding to a point for a steady state analysis
 """
-@inline function steady_state_point_jacobian_properties(properties, x, indices, force_scaling, 
-    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function steady_state_point_jacobian_properties(properties, x, indices, icol_accel,
+    force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+    x0, v0, ω0, a0, α0)
 
     properties = static_point_jacobian_properties(properties, x, indices, 
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity)
@@ -1031,14 +965,14 @@ end
 
 """
     initial_condition_point_jacobian_properties(properties, x, indices, rate_vars, 
-        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity,
-        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+        icol_accel, force_scaling, assembly, ipoint, prescribed_conditions, point_masses, 
+        gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate/extract the point properties needed to calculate the jacobian entries 
 corresponding to a point for a Newmark scheme time marching analysis
 """
 @inline function initial_condition_point_jacobian_properties(properties, x, indices, 
-    rate_vars, force_scaling, assembly, ipoint, prescribed_conditions, 
+    rate_vars, icol_accel, force_scaling, assembly, ipoint, prescribed_conditions, 
     point_masses, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     @unpack C, Cdot, mass11, mass12, mass21, mass22, θ, V, Ω = properties
@@ -1050,33 +984,16 @@ corresponding to a point for a Newmark scheme time marching analysis
     # linear and angular displacement
     icol = indices.icol_point[ipoint]
     u_u, θ_θ = point_displacement_jacobians(ipoint, prescribed_conditions)
-    if haskey(prescribed_conditions, ipoint)
-        # linear displacement
-        u_u = hcat(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol+6] ? zero(e1) : u_u[:,1], 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol+7] ? zero(e2) : u_u[:,2],
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol+8] ? zero(e3) : u_u[:,3],
-        )
-        # angular displacement
-        θ_θ = hcat(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol+9] ? zero(e1) : θ_θ[:,1],
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol+10] ? zero(e2) : θ_θ[:,2],
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol+11] ? zero(e3) : θ_θ[:,3], 
-        )
-    else
-        # linear displacement
-        u_u = hcat(
-            rate_vars[icol+6] ? zero(e1) : u_u[:,1], 
-            rate_vars[icol+7] ? zero(e2) : u_u[:,2],
-            rate_vars[icol+8] ? zero(e3) : u_u[:,3],
-        )
-        # angular displacement
-        θ_θ = hcat(
-            rate_vars[icol+9] ? zero(e1) : θ_θ[:,1],
-            rate_vars[icol+10] ? zero(e2) : θ_θ[:,2],
-            rate_vars[icol+11] ? zero(e3) : θ_θ[:,3], 
-        )
-    end
+    u_u = hcat(
+        rate_vars[icol+6] ? zero(e1) : u_u[:,1], 
+        rate_vars[icol+7] ? zero(e2) : u_u[:,2],
+        rate_vars[icol+8] ? zero(e3) : u_u[:,3],
+    )
+    θ_θ = hcat(
+        rate_vars[icol+9] ? zero(e1) : θ_θ[:,1],
+        rate_vars[icol+10] ? zero(e2) : θ_θ[:,2],
+        rate_vars[icol+11] ? zero(e3) : θ_θ[:,3], 
+    )
 
     # forces and moments
     F_θ, F_F, M_θ, M_M = point_load_jacobians(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
@@ -1088,14 +1005,14 @@ corresponding to a point for a Newmark scheme time marching analysis
     # linear and angular velocity rates
     if haskey(prescribed_conditions, ipoint)
         Vdot_Vdot = hcat(
-            prescribed_conditions[ipoint].isforce[1] && rate_vars[icol+6] ? e1 : zero(e1), 
-            prescribed_conditions[ipoint].isforce[2] && rate_vars[icol+7] ? e2 : zero(e2),
-            prescribed_conditions[ipoint].isforce[3] && rate_vars[icol+8] ? e3 : zero(e3),
+            !prescribed_conditions[ipoint].pd[1] && rate_vars[icol+6] ? e1 : zero(e1), 
+            !prescribed_conditions[ipoint].pd[2] && rate_vars[icol+7] ? e2 : zero(e2),
+            !prescribed_conditions[ipoint].pd[3] && rate_vars[icol+8] ? e3 : zero(e3),
         )
         Ωdot_Ωdot = hcat(
-            prescribed_conditions[ipoint].isforce[4] && rate_vars[icol+9] ? e1 : zero(e1),
-            prescribed_conditions[ipoint].isforce[5] && rate_vars[icol+10] ? e2 : zero(e2),
-            prescribed_conditions[ipoint].isforce[6] && rate_vars[icol+11] ? e3 : zero(e3), 
+            !prescribed_conditions[ipoint].pd[4] && rate_vars[icol+9] ? e1 : zero(e1),
+            !prescribed_conditions[ipoint].pd[5] && rate_vars[icol+10] ? e2 : zero(e2),
+            !prescribed_conditions[ipoint].pd[6] && rate_vars[icol+11] ? e3 : zero(e3), 
         )
     else
         Vdot_Vdot = hcat(
@@ -1134,18 +1051,18 @@ corresponding to a point for a Newmark scheme time marching analysis
 end
 
 """
-    newmark_point_jacobian_properties(properties, x, indices, force_scaling, 
+    newmark_point_jacobian_properties(properties, x, indices, icol_accel, force_scaling, 
         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
 Calculate/extract the point properties needed to calculate the jacobian entries 
 corresponding to a point for a Newmark scheme time marching analysis
 """
-@inline function newmark_point_jacobian_properties(properties, x, indices, force_scaling, 
-    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
-    udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
+@inline function newmark_point_jacobian_properties(properties, x, indices, icol_accel, 
+    force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+    x0, v0, ω0, a0, α0, udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
-    properties = steady_state_point_jacobian_properties(properties, x, indices, 
+    properties = steady_state_point_jacobian_properties(properties, x, indices, icol_accel,
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
         x0, v0, ω0, a0, α0)
 
@@ -1206,16 +1123,17 @@ corresponding to a point for a Newmark scheme time marching analysis
 end
 
 """
-    dynamic_point_jacobian_properties(properties, dx, x, indices, force_scaling, 
+    dynamic_point_jacobian_properties(properties, dx, x, indices, icol_accel, force_scaling, 
         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the point properties needed to calculate the jacobian entries 
 corresponding to a point for a dynamic analysis
 """
-@inline function dynamic_point_jacobian_properties(properties, dx, x, indices, force_scaling, 
-    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_point_jacobian_properties(properties, dx, x, indices, icol_accel, 
+    force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+    x0, v0, ω0, a0, α0)
 
-    properties = steady_state_point_jacobian_properties(properties, x, indices, 
+    properties = steady_state_point_jacobian_properties(properties, x, indices, icol_accel,
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
         x0, v0, ω0, a0, α0)
 
@@ -1265,14 +1183,15 @@ corresponding to a point for a dynamic analysis
 end
 
 """
-    expanded_point_jacobian_properties(properties, x, indices, force_scaling, 
+    expanded_point_jacobian_properties(properties, x, indices, icol_accel, force_scaling, 
         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate/extract the point properties needed to calculate the jacobian entries 
 corresponding to a point for a constant mass matrix system
 """
-@inline function expanded_point_jacobian_properties(properties, x, indices, force_scaling, 
-    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function expanded_point_jacobian_properties(properties, x, indices, icol_accel, 
+    force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+    x0, v0, ω0, a0, α0)
 
     @unpack C, mass11, mass12, mass21, mass22, θ, V, Ω = properties
 
@@ -1816,19 +1735,19 @@ into the system jacobian matrix.
 end
 
 """
-    steady_state_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    steady_state_point_jacobian!(jacob, x, indices, icol_accel, force_scaling, assembly, 
+        ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the jacobian entries corresponding to a point for a steady state 
 analysis into the system jacobian matrix.
 """
-@inline function steady_state_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function steady_state_point_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-    properties = steady_state_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    properties = steady_state_point_properties(x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-    properties = steady_state_point_jacobian_properties(properties, x, indices, 
+    properties = steady_state_point_jacobian_properties(properties, x, indices, icol_accel,
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
         x0, v0, ω0, a0, α0)
 
@@ -1842,24 +1761,24 @@ analysis into the system jacobian matrix.
 end
 
 """
-    initial_condition_point_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
-        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
-        u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    initial_condition_point_jacobian!(jacob, x, indices, rate_vars, icol_accel, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate and insert the jacobian entries corresponding to a point for the initialization
 of a time domain analysis into the system jacobian matrix.
 """
-@inline function initial_condition_point_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
-    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
-    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+@inline function initial_condition_point_jacobian!(jacob, x, indices, rate_vars, icol_accel, 
+    force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+    x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
-    properties = initial_condition_point_properties(x, indices, rate_vars, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
-        u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    properties = initial_condition_point_properties(x, indices, rate_vars, icol_accel, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
     
     properties = initial_condition_point_jacobian_properties(properties, x, indices, 
-        rate_vars, force_scaling, assembly, ipoint, prescribed_conditions, point_masses, 
-        gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+        rate_vars, icol_accel, force_scaling, assembly, ipoint, prescribed_conditions, 
+        point_masses, gravity, x0, v0, ω0, a0, α0, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     resultants = initial_condition_point_resultant_jacobians(properties)
 
@@ -1871,23 +1790,23 @@ of a time domain analysis into the system jacobian matrix.
 end
 
 """
-    newmark_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
+    newmark_point_jacobian!(jacob, x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the jacobian entries corresponding to a point for a Newmark scheme
 time marching analysis into the system jacobian matrix.
 """
-@inline function newmark_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
+@inline function newmark_point_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
     udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
-    properties = newmark_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
-        udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
-
-    properties = newmark_point_jacobian_properties(properties, x, indices, force_scaling, 
+    properties = newmark_point_properties(x, indices, icol_accel, force_scaling, 
         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0,
         udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
+
+    properties = newmark_point_jacobian_properties(properties, x, indices, icol_accel, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0, udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
 
     resultants = newmark_point_resultant_jacobians(properties)
 
@@ -1899,20 +1818,21 @@ time marching analysis into the system jacobian matrix.
 end
 
 """
-    dynamic_point_jacobian!(jacob, dx, x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    dynamic_point_jacobian!(jacob, dx, x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the jacobian entries corresponding to a point for a dynamic 
 analysis into the system jacobian matrix.
 """
-@inline function dynamic_point_jacobian!(jacob, dx, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function dynamic_point_jacobian!(jacob, dx, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-    properties = dynamic_point_properties(dx, x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
-
-    properties = dynamic_point_jacobian_properties(properties, dx, x, indices, force_scaling, 
+    properties = dynamic_point_properties(dx, x, indices, icol_accel, force_scaling, 
         assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+
+    properties = dynamic_point_jacobian_properties(properties, dx, x, indices, icol_accel, 
+        force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        x0, v0, ω0, a0, α0)
 
     resultants = dynamic_point_resultant_jacobians(properties)
 
@@ -1924,19 +1844,19 @@ analysis into the system jacobian matrix.
 end
 
 """
-    expanded_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
+    expanded_point_jacobian!(jacob, x, indices, icol_accel, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
 Calculate and insert the jacobian entries corresponding to a point for a constant mass 
 matrix system into the system jacobian matrix.
 """
-@inline function expanded_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
-    prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+@inline function expanded_point_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+    assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-    properties = expanded_point_properties(x, indices, force_scaling, assembly, ipoint,  
-        prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
+    properties = expanded_point_properties(x, indices, icol_accel, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, x0, v0, ω0, a0, α0)
 
-    properties = expanded_point_jacobian_properties(properties, x, indices, 
+    properties = expanded_point_jacobian_properties(properties, x, indices, icol_accel,
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity, 
         x0, v0, ω0, a0, α0)
 

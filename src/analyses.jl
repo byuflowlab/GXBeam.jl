@@ -301,7 +301,8 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             # construct a constant mass matrix system for the analysis
             system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the constant mass matrix system
-            copy_state!(system, original_system, assembly;     
+            copy_state!(system, original_system, assembly;    
+                structural_damping=structural_damping,
                 prescribed_conditions=prescribed_conditions,
                 distributed_loads=distributed_loads,
                 point_masses=point_masses,
@@ -311,7 +312,8 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
                 linear_acceleration=linear_acceleration,
                 angular_acceleration=angular_acceleration,
                 gravity=gravity,
-                time=time)
+                time=time,
+                )
         end
     else
         # check if provided system is a dynamic system
@@ -322,7 +324,8 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             # construct a dynamic system for the analysis
             system = DynamicSystem(assembly; force_scaling = system.force_scaling)
             # copy state variables from the original system to the dynamic system
-            copy_state!(system, original_system, assembly;     
+            copy_state!(system, original_system, assembly;    
+                structural_damping=structural_damping,
                 prescribed_conditions=prescribed_conditions,
                 distributed_loads=distributed_loads,
                 point_masses=point_masses,
@@ -332,7 +335,8 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
                 linear_acceleration=linear_acceleration,
                 angular_acceleration=angular_acceleration,
                 gravity=gravity,
-                time=time)
+                time=time,
+                )
         end
     end
 
@@ -369,17 +373,24 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
+        # indices corresponding to rigid body acceleration state variables
+        icol_accel = body_frame_acceleration_indices(system, pcond)
+
         # define the residual and jacobian functions
         if constant_mass_matrix
-            f! = (resid, x) -> expanded_system_residual!(resid, x, indices, force_scaling, 
-                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
-            j! = (jacob, x) -> expanded_system_jacobian!(jacob, x, indices, force_scaling, 
-                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            f! = (resid, x) -> expanded_system_residual!(resid, x, indices, icol_accel, 
+                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+                x0, v0, ω0, a0, α0)
+            j! = (jacob, x) -> expanded_system_jacobian!(jacob, x, indices, icol_accel, 
+                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+                x0, v0, ω0, a0, α0)
         else
-            f! = (resid, x) -> steady_state_system_residual!(resid, x, indices, force_scaling, 
-                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
-            j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, indices, force_scaling, 
-                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            f! = (resid, x) -> steady_state_system_residual!(resid, x, indices, icol_accel, 
+                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+                x0, v0, ω0, a0, α0)
+            j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, indices, icol_accel, 
+                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+                x0, v0, ω0, a0, α0)
         end
 
         # solve for the new set of state variables
@@ -395,14 +406,14 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             f!(r, x)
             j!(K, x)
 
-            # update the solution vector            
+            # update the solution vector
             x .-= safe_lu(K) \ r
         else
             # perform a nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
 
-            result = NLsolve.nlsolve(df, x,
-            #result = NLsolve.nlsolve(f!, x, autodiff=:forward,
+            # result = NLsolve.nlsolve(df, x,
+            result = NLsolve.nlsolve(f!, x, autodiff=:forward,
                 show_trace=show_trace,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
@@ -424,6 +435,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         if !(typeof(original_system) <: ExpandedSystem)
             # copy state variables from the constant mass matrix system to the original system
             copy_state!(original_system, system, assembly;     
+                structural_damping=structural_damping,
                 prescribed_conditions=prescribed_conditions,
                 distributed_loads=distributed_loads,
                 point_masses=point_masses,
@@ -439,7 +451,8 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         # check if provided system was a dynamic system
         if !(typeof(original_system) <: DynamicSystem)
             # copy state variables from the dynamic system to the original system
-            copy_state!(original_system, system, assembly;     
+            copy_state!(original_system, system, assembly;   
+                structural_damping=structural_damping,  
                 prescribed_conditions=prescribed_conditions,
                 distributed_loads=distributed_loads,
                 point_masses=point_masses,
@@ -582,11 +595,14 @@ function linearize!(system, assembly;
     a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(time))
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(time))
 
+    # indices corresponding to rigid body acceleration state variables
+    icol_accel = body_frame_acceleration_indices(system, pcond)
+
     if constant_mass_matrix
 
         # solve for the system stiffness matrix
-        expanded_system_jacobian!(K, x, indices, force_scaling, structural_damping,
-            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        expanded_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         # solve for the system mass matrix
         expanded_system_mass_matrix!(M, indices, force_scaling, assembly, 
@@ -595,8 +611,8 @@ function linearize!(system, assembly;
     else
 
         # solve for the system stiffness matrix
-        steady_state_system_jacobian!(K, x, indices, force_scaling, structural_damping,
-            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        steady_state_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         # solve for the system mass matrix
         system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
@@ -1207,7 +1223,6 @@ function initial_condition_analysis!(system, assembly, t0;
     Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
     structural_damping=true,
-    constant_mass_matrix=typeof(system) <: ExpandedSystem,
     reset_state=true,
     steady_state=false,
     linear=false,
@@ -1219,46 +1234,8 @@ function initial_condition_analysis!(system, assembly, t0;
     iterations=1000,
     # linear solver keyword arguments
     linearization_state=nothing,
-    update_linearization_state=false
     )
 
-    # switch to steady state solution if requested
-    if steady_state
-        system, converged = steady_state_analysis!(system, assembly;
-            prescribed_conditions=prescribed_conditions,
-            distributed_loads=distributed_loads,
-            point_masses=point_masses,
-            origin=origin,
-            linear_velocity=linear_velocity,
-            angular_velocity=angular_velocity,
-            linear_acceleration=linear_acceleration,
-            angular_acceleration=angular_acceleration,
-            gravity=gravity,
-            time=t0,
-            structural_damping=structural_damping,
-            constant_mass_matrix=constant_mass_matrix,
-            reset_state=reset_state,
-            linear=linear,
-            show_trace=show_trace,
-            method=method,
-            linesearch=linesearch,
-            ftol=ftol,
-            iterations=iterations,
-            linearization_state=linearization_state,
-            update_linearization_state=update_linearization_state
-            )
-
-        # set state rates to zero
-        for i =1:length(assembly.points)
-            system.udot[i] = SVector(0,0,0)
-            system.θdot[i] = SVector(0,0,0)
-            system.Vdot[i] = SVector(0,0,0)
-            system.Ωdot[i] = SVector(0,0,0)
-        end
-
-        return system, converged
-    end
-    
     # save original system
     original_system = system
 
@@ -1288,7 +1265,7 @@ function initial_condition_analysis!(system, assembly, t0;
         reset_state!(system)
     end
 
-    # unpack pre-allocated storage and pointers for system
+    # unpack pre-allocated storage and pointers for the system
     @unpack x, r, K, M, force_scaling, indices, udot, θdot, Vdot, Ωdot = system
 
     # get the current time
@@ -1313,89 +1290,126 @@ function initial_condition_analysis!(system, assembly, t0;
     a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t0))
     α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t0))
 
-    # determine whether the equilibrium equations can be used to solve for Vdot, Ωdot
-
-    original_elements = copy(assembly.elements)
-    
-    for i = 1:length(assembly.elements)
-        
-        # element properties
-        L = assembly.elements[i].L
-        xe = assembly.elements[i].x
-        mass = assembly.elements[i].mass
-        compliance = assembly.elements[i].compliance
-        Cab = assembly.elements[i].Cab
-        mu = assembly.elements[i].mu
-
-        # modified element mass matrix
-        mass = similar(mass) .= mass
-        for j = 1:6
-            if iszero(compliance[j,:])
-                mass[j,:] .= 0.0
-                mass[:,j] .= 0.0
-            end
-        end
-        mass = SMatrix{6,6}(mass)
-    
-        # replace original element mass matrix
-        assembly.elements[i] = Element(L, xe, compliance, mass, Cab, mu)
-
-    end
-
-    # check for zero-valued mass matrix terms
-    system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
-    rate_vars = .!(iszero.(sum(M, dims=1)))
-
-    # restore original element mass matrices
-    for i = 1:length(assembly.elements)
-        assembly.elements[i] = original_elements[i]
-    end
-
-    # check that all rigid body modes are constrained
-    not_constrained = reduce(.&, [p.isforce for (i,p) in pcond])
-    
     # save original prescribed conditions
     original_pcond = pcond
 
-    # add prescribed conditions to the first node
+    # find unconstrained rigid body modes
+    not_constrained = reduce(.&, [p.isforce for (i,p) in pcond])
+
+    # constrain unconstrained rigid body modes
     if any(not_constrained)
+        # create copy of the original prescribed conditions
         pcond = copy(pcond)
 
+        # unpack prescribed condition fields
         if haskey(pcond, 1)
-            isforce = pcond[1].isforce
-            value = pcond[1].value
-            follower = pcond[1].follower
+            @unpack pd, pl, u, theta, F, M, Ff, Mf = pcond[1]
         else
-            isforce = @SVector zeros(Bool, 6)
-            value = @SVector zeros(Float64, 6)
-            follower = @SVector zeros(Float64, 6)
+            pd = @SVector zeros(Bool, 6)
+            pl = @SVector ones(Bool, 6)
+            u = @SVector zeros(Float64, 3)
+            theta = @SVector zeros(Float64, 3)
+            F = @SVector zeros(Float64, 3)
+            M = @SVector zeros(Float64, 3)
+            Ff = @SVector zeros(Float64, 3)
+            Mm = @SVector zeros(Float64, 3)
         end
 
-        # constrain rigid body modes using the first node
+        # add constraints for unconstrained rigid body modes
         for i = 1:3
+            # prescribe linear displacement, introduce linear acceleration state variable
             if not_constrained[i]
-                isforce = setindex(isforce, false, i)
-                value = setindex(value, u0[1][i], i)
-                follower = setindex(follower, 0, i)
+                pd = setindex(pd, true, i)
+                u = setindex(u, u0[1][i], i)
             end
+            # prescribe angular displacement, introduce angular acceleration state variable
             if not_constrained[3+i]
-                isforce = setindex(isforce, false, 3+i)
-                value = setindex(value, theta0[1][i], 3+i)
-                follower = setindex(follower, 0, 3+i)
+                pd = setindex(pd, true, 3+i)
+                theta = setindex(theta, theta0[1][i], 3+i)
             end
         end
 
-        pcond[1] = PrescribedConditions(isforce, value, follower)
+        # overwrite original prescribed condition
+        pcond[1] = PrescribedConditions(pd, pl, u, theta, F, M, Ff, Mf)
     end
 
-    # define the residual and jacobian functions
-    f! = (resid, x) -> initial_condition_system_residual!(resid, x, indices, 
-        rate_vars, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-        gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+    # indices corresponding to rigid body acceleration state variables
+    icol_accel = body_frame_acceleration_indices(system, pcond)
 
-    j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, indices, 
-        rate_vars, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-        gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+    # use a steady state analysis for initialization (if specified)
+    if steady_state
+
+        # define the residual and jacobian functions
+
+        f! = (resid, x) -> steady_state_system_residual!(resid, x, indices, icol_accel,
+            force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+            gvec, x0, v0, ω0, a0, α0)
+
+        j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, indices, icol_accel,
+            force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+            gvec, x0, v0, ω0, a0, α0)
+
+    else
+
+        # use a initialization scheme based on the provided u, θ, V, Ω, Vdot, Ωdot
+
+        # NOTE: Our system of equations cannot be solved for Vdot and Ωdot if 
+        # 1. These terms are not used because the corresponding rows/columns of the 
+        #    mass matrix are zero
+        # 2. Forces cannot be determined from the compatability equations because the 
+        #    corresponding rows/columns of the compliance matrix are zero  
+        # In the former case, the values of Vdot and Ωdot may be prescribed to be any value
+        # without affecting the results of the analysis.  In the latter case, forces must 
+        # be solved using equilibrium equations, which allows Vdot and Ωdot to take on any 
+        # value.  To address these two scenarios, we construct the array `rate_vars` which 
+        # determines whether or not Vdot and Ωdot are state variables in the governing 
+        # equations.  This array may be defined conveniently using the system mass matrix.
+
+        # determine whether state rate terms appear in the governing equations
+        original_elements = copy(assembly.elements)
+    
+        for i = 1:length(assembly.elements)
+        
+            # element properties
+            L = assembly.elements[i].L
+            xe = assembly.elements[i].x
+            mass = assembly.elements[i].mass
+            compliance = assembly.elements[i].compliance
+            Cab = assembly.elements[i].Cab
+            mu = assembly.elements[i].mu
+
+            # modified element mass matrix
+            mass = similar(mass) .= mass
+            for j = 1:6
+                if iszero(compliance[j,:])
+                    mass[j,:] .= 0.0
+                    mass[:,j] .= 0.0
+                end
+            end
+            mass = SMatrix{6,6}(mass)
+    
+            # replace original element mass matrix
+            assembly.elements[i] = Element(L, xe, compliance, mass, Cab, mu)
+        end
+
+        # check for zero-valued mass matrix terms
+        system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+        rate_vars = .!(iszero.(sum(M, dims=1)))
+
+        # restore original element mass matrices
+        for i = 1:length(assembly.elements)
+            assembly.elements[i] = original_elements[i]
+        end
+
+        f! = (resid, x) -> initial_condition_system_residual!(resid, x, indices, rate_vars, 
+            icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+            gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+
+        j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, indices, rate_vars, 
+            icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+            gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+
+    end
 
     # solve for the corresponding state variables
     if linear
@@ -1417,9 +1431,7 @@ function initial_condition_analysis!(system, assembly, t0;
         # perform a nonlinear analysis
         df = OnceDifferentiable(f!, j!, x, r, K)
 
-        # result = NLsolve.nlsolve(df, x,
-        result = NLsolve.nlsolve(f!, x,
-            autodiff=:forward,
+        result = NLsolve.nlsolve(df, x,
             show_trace=show_trace,
             linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
             method=method,
@@ -1436,28 +1448,27 @@ function initial_condition_analysis!(system, assembly, t0;
     end
 
     # save calculated variables
-    for ipoint = 1:length(assembly.points)
-
-        # column index of state variables for this point
-        icol = indices.icol_point[ipoint]
-
-        # save linear and angular displacement rates
-        udot[ipoint], θdot[ipoint] = point_velocities(x, ipoint, indices.icol_point)
-
-        # save linear and angular velocity rates
-        tmp1, tmp2 = point_displacement_rates(x, ipoint, indices.icol_point, pcond)
-        if haskey(pcond, ipoint)
-            tmp1 = SVector{3}(
-                pcond[ipoint].isforce[1] && rate_vars[icol+6] ? tmp1[1] : Vdot0[ipoint][1], 
-                pcond[ipoint].isforce[2] && rate_vars[icol+7] ? tmp1[2] : Vdot0[ipoint][2],
-                pcond[ipoint].isforce[3] && rate_vars[icol+8] ? tmp1[3] : Vdot0[ipoint][3],
-            )
-            tmp2 = SVector{3}(
-                pcond[ipoint].isforce[4] && rate_vars[icol+9] ? tmp2[1] : Omegadot0[ipoint][1],
-                pcond[ipoint].isforce[5] && rate_vars[icol+10] ? tmp2[2] : Omegadot0[ipoint][2],
-                pcond[ipoint].isforce[6] && rate_vars[icol+11] ? tmp2[3] : Omegadot0[ipoint][3], 
-            )
+    for ipoint in eachindex(assembly.points)
+        if steady_state
+            # save state variables
+            u, θ = point_displacement(system.x, ipoint, indices.icol_point, pcond)
+            F, M = point_loads(system.x, ipoint, indices.icol_point, force_scaling, pcond)
+            set_linear_displacement!(system, original_pcond, u, ipoint)
+            set_angular_displacement!(system, original_pcond, θ, ipoint)
+            set_external_forces!(system, original_pcond, F, ipoint)
+            set_external_moments!(system, original_pcond, M, ipoint)
+            # save state variable rates
+            udot[ipoint] = @SVector zeros(3)
+            θdot[ipoint] = @SVector zeros(3)
+            Vdot[ipoint] = @SVector zeros(3)
+            Ωdot[ipoint] = @SVector zeros(3)
         else
+            # save linear and angular deflection rates
+            udot[ipoint], θdot[ipoint] = point_velocities(x, ipoint, indices.icol_point)
+
+            # save linear and angular velocity rates
+            tmp1, tmp2 = point_displacement_rates(x, ipoint, indices.icol_point, pcond)
+            icol = indices.icol_point[ipoint]
             tmp1 = SVector{3}(
                 rate_vars[icol+6] ? tmp1[1] : Vdot0[ipoint][1], 
                 rate_vars[icol+7] ? tmp1[2] : Vdot0[ipoint][2],
@@ -1468,23 +1479,11 @@ function initial_condition_analysis!(system, assembly, t0;
                 rate_vars[icol+10] ? tmp2[2] : Omegadot0[ipoint][2],
                 rate_vars[icol+11] ? tmp2[3] : Omegadot0[ipoint][3], 
             )
-        end
-        Vdot[ipoint], Ωdot[ipoint] = tmp1, tmp2
+            Vdot[ipoint], Ωdot[ipoint] = tmp1, tmp2
 
-        # save linear and angular displacement
-        u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
-        if haskey(pcond, ipoint)
-            u = SVector{3}(
-                pcond[ipoint].isforce[1] && rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
-                pcond[ipoint].isforce[2] && rate_vars[icol+7] ? u0[ipoint][2] : u[2],
-                pcond[ipoint].isforce[3] && rate_vars[icol+8] ? u0[ipoint][3] : u[3],
-            )
-            θ = SVector{3}(
-                pcond[ipoint].isforce[4] && rate_vars[icol+9] ? theta0[ipoint][1] : θ[1],
-                pcond[ipoint].isforce[5] && rate_vars[icol+10] ? theta0[ipoint][2] : θ[2],
-                pcond[ipoint].isforce[6] && rate_vars[icol+11] ? theta0[ipoint][3] : θ[3], 
-            )
-        else
+            # save linear and angular displacement
+            u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
+            icol = indices.icol_point[ipoint]
             u = SVector{3}(
                 rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
                 rate_vars[icol+7] ? u0[ipoint][2] : u[2],
@@ -1495,13 +1494,21 @@ function initial_condition_analysis!(system, assembly, t0;
                 rate_vars[icol+10] ? theta0[ipoint][2] : θ[2],
                 rate_vars[icol+11] ? theta0[ipoint][3] : θ[3], 
             )
-        end
-        set_linear_displacement!(system, original_pcond, u, ipoint)
-        set_angular_displacement!(system, original_pcond, θ, ipoint)
+            set_linear_displacement!(system, original_pcond, u, ipoint)
+            set_angular_displacement!(system, original_pcond, θ, ipoint)
 
-        # save linear and angular velocity
-        set_linear_velocity!(system, V0[ipoint], ipoint)
-        set_angular_velocity!(system, Omega0[ipoint], ipoint)
+            # add rigid body acceleration to element linear and angular velocity rates
+            
+
+            # save external forces and moments
+            F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pcond)
+            set_external_forces!(system, original_pcond, F, ipoint)
+            set_external_moments!(system, original_pcond, M, ipoint)
+
+            # save linear and angular velocity
+            set_linear_velocity!(system, V0[ipoint], ipoint)
+            set_angular_velocity!(system, Omega0[ipoint], ipoint)
+        end
     end
 
     # check if provided system was a dynamic system
@@ -1752,6 +1759,9 @@ function time_domain_analysis!(system, assembly, tvec;
         a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(tvec[it]))
         α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(tvec[it]))
 
+        # indices corresponding to rigid body acceleration state variables
+        icol_accel = body_frame_acceleration_indices(system, pcond)
+
         # set current state rate initialization parameters
         for ipoint = 1:length(assembly.points)
             # extract beam element state variables
@@ -1765,11 +1775,11 @@ function time_domain_analysis!(system, assembly, tvec;
         end
 
         # define the residual and jacobian functions
-        f! = (r, x) -> newmark_system_residual!(r, x, indices, force_scaling, 
+        f! = (r, x) -> newmark_system_residual!(r, x, indices, icol_accel, force_scaling, 
             structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0,
             udot, θdot, Vdot, Ωdot, dt)
 
-        j! = (K, x) -> newmark_system_jacobian!(K, x, indices, force_scaling, 
+        j! = (K, x) -> newmark_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
             structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0,
             udot, θdot, Vdot, Ωdot, dt)
 

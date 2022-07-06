@@ -96,6 +96,25 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
     point_masses = Dict{Int,PointMass{Float64}}())
 
+    for ielem = 1:length(assembly.elements)
+        @assert !iszero(assembly.elements[ielem].L) "Zero length elements cannot be used "*
+            "with DifferentialEquations"
+        @assert !iszero(assembly.elements[ielem].compliance[1,:]) &&
+            !iszero(assembly.elements[ielem].compliance[2,:]) &&
+            !iszero(assembly.elements[ielem].compliance[3,:]) &&
+            !iszero(assembly.elements[ielem].compliance[4,:]) &&
+            !iszero(assembly.elements[ielem].compliance[5,:]) &&
+            !iszero(assembly.elements[ielem].compliance[6,:]) "Compliance matrix must "*
+            "be invertible when using ODEFunction."
+        @assert !iszero(assembly.elements[ielem].mass[1,:]) &&
+            !iszero(assembly.elements[ielem].mass[2,:]) &&
+            !iszero(assembly.elements[ielem].mass[3,:]) &&
+            !iszero(assembly.elements[ielem].mass[4,:]) &&
+            !iszero(assembly.elements[ielem].mass[5,:]) &&
+            !iszero(assembly.elements[ielem].mass[6,:]) "Mass matrix must "*
+            "be invertible when using ODEFunction."
+    end
+
     force_scaling = system.force_scaling
 
     if constant_mass_matrix
@@ -130,9 +149,12 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             a0 = typeof(a0) <: AbstractVector ? SVector{3}(a0) : SVector{3}(a0(t))
             α0 = typeof(α0) <: AbstractVector ? SVector{3}(α0) : SVector{3}(α0(t))
 
+            # indices corresponding to rigid body acceleration state variables
+            icol_accel = acceleration_indices(system, pcond)
+
             # calculate residual
-            expanded_system_residual!(resid, u, indices, force_scaling, structural_damping,
-                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            expanded_system_residual!(resid, u, indices, icol_accel, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
             return resid
         end
@@ -173,12 +195,15 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             a0 = typeof(a0) <: AbstractVector ? SVector{3}(a0) : SVector{3}(a0(t))
             α0 = typeof(α0) <: AbstractVector ? SVector{3}(α0) : SVector{3}(α0(t))
 
+            # indices corresponding to rigid body acceleration state variables
+            icol_accel = acceleration_indices(system, pcond)
+
             # zero out all jacobian entries
             J .= 0.0
 
             # calculate jacobian
-            expanded_system_jacobian!(J, u, indices, force_scaling, structural_damping, 
-                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            expanded_system_jacobian!(J, u, indices, icol_accel, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
             return J
         end
@@ -215,9 +240,12 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             a0 = typeof(a0) <: AbstractVector ? SVector{3}(a0) : SVector{3}(a0(t))
             α0 = typeof(α0) <: AbstractVector ? SVector{3}(α0) : SVector{3}(α0(t))
 
+            # indices corresponding to rigid body acceleration state variables
+            icol_accel = acceleration_indices(system, pcond)
+
             # calculate residual
-            steady_state_system_residual!(resid, u, indices, force_scaling, structural_damping,
-                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            steady_state_system_residual!(resid, u, indices, icol_accel, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
             return resid
         end
@@ -277,12 +305,15 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             a0 = typeof(a0) <: AbstractVector ? SVector{3}(a0) : SVector{3}(a0(t))
             α0 = typeof(α0) <: AbstractVector ? SVector{3}(α0) : SVector{3}(α0(t))
 
+            # indices corresponding to rigid body acceleration state variables
+            icol_accel = acceleration_indices(system, pcond)
+
             # zero out all jacobian entries
             J .= 0.0
 
             # calculate jacobian
-            steady_state_system_jacobian!(J, u, indices, force_scaling, structural_damping, 
-                assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            steady_state_system_jacobian!(J, u, indices, icol_accel, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
             return J
         end
@@ -420,9 +451,12 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
         a0 = typeof(a0) <: AbstractVector ? SVector{3}(a0) : SVector{3}(a0(t))
         α0 = typeof(α0) <: AbstractVector ? SVector{3}(α0) : SVector{3}(α0(t))
 
+        # indices corresponding to rigid body acceleration state variables
+        icol_accel = acceleration_indices(system, pcond)
+
         # calculate residual
-        dynamic_system_residual!(resid, du, u, indices, force_scaling, structural_damping, 
-            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        dynamic_system_residual!(resid, du, u, indices, icol_accel, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         return resid
     end
@@ -458,9 +492,12 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
         a0 = typeof(a0) <: AbstractVector ? SVector{3}(a0) : SVector{3}(a0(t))
         α0 = typeof(α0) <: AbstractVector ? SVector{3}(α0) : SVector{3}(α0(t))
 
+        # indices corresponding to rigid body acceleration state variables
+        icol_accel = acceleration_indices(system, pcond)
+
         # calculate jacobian
-        dynamic_system_jacobian!(J, du, u, indices, force_scaling, structural_damping, 
-            assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+        dynamic_system_jacobian!(J, du, u, indices, icol_accel, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
 
         # add gamma multiplied by the mass matrix
         system_mass_matrix!(J, gamma, u, indices, force_scaling, 
