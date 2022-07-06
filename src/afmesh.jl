@@ -34,48 +34,59 @@ function searchsortednearest(a, x)
     else
        return idx-1
     end
- end
+end
+
+"""
+Modify number of layers based on a given maximum thickness
+"""
+function redistribute_thickness(segments, dt)
+    ns = length(segments)
+    newsegments = Vector{Vector{Layer}}(undef, ns)
+
+    for i = 1:ns
+        # initialize new properties for this segment
+        matvec = Material[]
+        tvec = Float64[]
+        thetavec = Float64[]
+        
+        for j = 1:length(segments[i])
+            #extract layer
+            layer = segments[i][j]
+            # determine number of segments
+            nseg = round(Int64, layer.t/dt)  
+
+            # decide whether to keep or divide up
+            if nseg == 1 || nseg == 0  # keep this layer unchanged
+                matvec = [matvec; layer.material]
+                tvec = [tvec; layer.t]
+                thetavec = [thetavec; layer.theta]
+            else  # divide up existing layer into smaller pieces
+                tvec = [tvec; fill(layer.t / nseg, nseg)]
+                thetavec = [thetavec; fill(layer.theta, nseg)]  # copy over same theta and mat
+                matvec = [matvec; fill(layer.material, nseg)]
+            end
+        end
+        newsegments[i] = Layer.(matvec, tvec, thetavec)
+    end
+
+    return newsegments
+end
 
 
 """
 convert segments to all have the same number of layers for ease in meshing.  
 Overall definition remains consistent, just break up some thicker layers into multiple thinner layers (with same material and orientation properties)
 """
-function preprocess_layers(segments_og, dt=nothing)
-
-    # number of segments
-    ns = length(segments_og)
+function preprocess_layers(segments, webs, dt=nothing)
 
     # repartion thickneses if necessary so that thickness mesh is consistent
-    segments = Vector{Vector{Layer}}(undef, ns)
     if !isnothing(dt)
-        for i = 1:ns
-            # initialize new properties for this segment
-            matvec = Material[]
-            tvec = Float64[]
-            thetavec = Float64[]
-            
-            for j = 1:length(segments_og[i])
-                #extract layer
-                layer = segments_og[i][j]
-                # determine number of segments
-                nseg = round(Int64, layer.t/dt)  
-
-                # decide whether to keep or divide up
-                if nseg == 1 || nseg == 0  # keep this layer unchanged
-                    matvec = [matvec; layer.material]
-                    tvec = [tvec; layer.t]
-                    thetavec = [thetavec; layer.theta]
-                else  # divide up existing layer into smaller pieces
-                    tvec = [tvec; fill(layer.t / nseg, nseg)]
-                    thetavec = [thetavec; fill(layer.theta, nseg)]  # copy over same theta and mat
-                    matvec = [matvec; fill(layer.material, nseg)]
-                end
-            end
-            segments[i] = Layer.(matvec, tvec, thetavec)
-        end
+        segments = redistribute_thickness(segments, dt)
+        webs = redistribute_thickness(webs, dt)
     end
-     
+    
+    # number of segments
+    ns = length(segments)
 
     # determine number of layers in each segment and thickness of each segment 
     nl = vector_ints(ns)
@@ -138,7 +149,7 @@ function preprocess_layers(segments_og, dt=nothing)
         
     end
 
-    return newsegments
+    return newsegments, webs
 end
 
 
@@ -712,7 +723,7 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
 
     # -------------- preprocessing -----------------
     # preprocess the segments so all have same number of layers
-    segments = preprocess_layers(segments, dt)
+    segments, webs = preprocess_layers(segments, webs, dt)
 
     # separate into upper and lower surfaces
     xu, yu, xl, yl = parseairfoil(xaf, yaf, xbreak, ds)
