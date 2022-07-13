@@ -296,7 +296,8 @@ end
     tratio = 1.0/3
     R = 0.3
     t = tratio*2*R
-    circmat = Material(E, E, G, nu, 1.0)
+    rho = 2800.0
+    circmat = Material(E, E, G, nu, rho)
 
     nr = 20
     nt = 100
@@ -341,6 +342,11 @@ end
     @test isapprox(K[5, 5], 4.587e8, rtol=0.002)
     @test isapprox(K[6, 6], 4.587e8, rtol=0.002)
 
+    M, mc = massproperties(nodes, elements)
+
+    @test isapprox(M[1, 1], 7.037e2, rtol=0.001)
+    @test isapprox(M[5, 5], 1.759e1, rtol=0.003)
+    @test isapprox(M[6, 6], 1.759e1, rtol=0.003)
 end
 
 
@@ -532,7 +538,7 @@ end
 
     chord = 1.9
     twist = 0.0*pi/180
-    paxis = 0.4750
+    paxis = 0.4750 / chord
     xbreak = [0.0, 0.0041, 0.1147, 0.5366, 1.0]
     webloc = [0.15 0.5]
 
@@ -564,6 +570,17 @@ end
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, ds=0.005, dt=0.01, ne_web=20)
 
     S, sc, tc = compliance(nodes, elements)
+    # K = inv(S)
+    sc0 = sc
+
+    # move to center of shear center and recompute
+    for i = 1:length(nodes)
+        x = nodes[i].x
+        y = nodes[i].y
+        nodes[i] = Node(x - sc[1], y - sc[2])
+    end
+
+    S, sc, tc = compliance(nodes, elements)
     K = inv(S)
 
     @test isapprox(log10(K[1, 1]), log10(abs(2.389e9)), rtol=0.006)
@@ -572,21 +589,21 @@ end
     @test isapprox(log10(K[1, 3]), log10(abs(6.734e6)), rtol=0.09)
     @test isapprox(log10(-K[2, 3]), log10(abs(-3.741e6)), rtol=0.07)
     @test isapprox(log10(K[3, 3]), log10(abs(2.743e7)), rtol=0.03)
-    @test isapprox(log10(-K[1, 4]), log10(abs(-3.382e7)), rtol=0.02)
-    @test isapprox(log10(-K[2, 4]), log10(abs(-2.935e5)), rtol=0.36)
-    @test isapprox(log10(-K[3, 4]), log10(abs(-4.592e4)), rtol=0.6)
-    @test isapprox(log10(K[4, 4]), log10(abs(2.167e7)), rtol=0.025)
-    # @test isapprox(log10(-K[1, 5]), log10(abs(-2.627e7)), rtol=0.5)
+    @test isapprox(log10(-K[1, 4]), log10(abs(-3.382e7)), rtol=0.01)
+    @test isapprox(log10(-K[2, 4]), log10(abs(-2.935e5)), rtol=0.03)
+    @test isapprox(log10(-K[3, 4]), log10(abs(-4.592e4)), rtol=0.18)
+    @test isapprox(log10(K[4, 4]), log10(abs(2.167e7)), rtol=0.01)
+    @test isapprox(log10(-K[1, 5]), log10(abs(-2.627e7)), rtol=0.02)
     @test isapprox(log10(K[2, 5]), log10(abs(1.527e7)), rtol=0.03)
     # @test isapprox(log10(-K[3, 5]), log10(abs(-6.869e2)), rtol=0.5)
-    @test isapprox(log10(-K[4, 5]), log10(abs(-6.279e4)), rtol=0.35)
-    @test isapprox(log10(K[5, 5]), log10(abs(1.970e7)), rtol=0.006)
-    # @test isapprox(log10(-K[1, 6]), log10(abs(-4.736e8)), rtol=0.5)
-    @test isapprox(log10(K[2, 6]), log10(abs(3.835e5)), rtol=0.08)
-    # @test isapprox(log10(-K[3, 6]), log10(abs(-4.742e6)), rtol=0.5)
-    # @test isapprox(log10(K[4, 6]), log10(abs(1.430e6)), rtol=0.5)
-    @test isapprox(log10(K[5, 6]), log10(abs(1.209e7)), rtol=0.04)
-    @test isapprox(log10(K[6, 6]), log10(abs(4.406e8)), rtol=0.002)
+    @test isapprox(log10(-K[4, 5]), log10(abs(-6.279e4)), rtol=0.14)
+    @test isapprox(log10(K[5, 5]), log10(abs(1.970e7)), rtol=0.005)
+    @test isapprox(log10(-K[1, 6]), log10(abs(-4.736e8)), rtol=0.03)
+    # @test isapprox(log10(K[2, 6]), log10(abs(3.835e5)), rtol=0.08)
+    @test isapprox(log10(-K[3, 6]), log10(abs(-4.742e6)), rtol=0.02)
+    @test isapprox(log10(K[4, 6]), log10(abs(1.430e6)), rtol=0.06)
+    @test isapprox(log10(K[5, 6]), log10(abs(1.209e7)), rtol=0.02)
+    @test isapprox(log10(K[6, 6]), log10(abs(4.406e8)), rtol=0.02)
 
     # println("K11 = ", round((K[1, 1]/2.389e9 - 1)*100, digits=2), "%")
     # println("K12 = ", round((K[1, 2]/1.524e6 - 1)*100, digits=2), "%")
@@ -620,19 +637,37 @@ end
     # println("K24 = ", round((log10(-K[2, 4])/log10(2.935e5) - 1)*100, digits=2), "%")
     # println("K34 = ", round((log10(-K[3, 4])/log10(4.592e4) - 1)*100, digits=2), "%")
     # println("K44 = ", round((log10(K[4, 4])/log10(2.167e7) - 1)*100, digits=2), "%")
-    # # println("K15 = ", round((log10(-K[1, 5])/log10(2.627e7) - 1)*100, digits=2), "%")
+    # println("K15 = ", round((log10(-K[1, 5])/log10(2.627e7) - 1)*100, digits=2), "%")
     # println("K25 = ", round((log10(K[2, 5])/log10(1.527e7) - 1)*100, digits=2), "%")
-    # # println("K35 = ", round((log10(-K[3, 5])/log10(6.869e2) - 1)*100, digits=2), "%")
+    # println("K35 = ", round((log10(-K[3, 5])/log10(6.869e2) - 1)*100, digits=2), "%")
     # println("K45 = ", round((log10(-K[4, 5])/log10(6.279e4) - 1)*100, digits=2), "%")
     # println("K55 = ", round((log10(K[5, 5])/log10(1.970e7) - 1)*100, digits=2), "%")
-    # # println("K16 = ", round((log10(-K[1, 6])/log10(4.736e8) - 1)*100, digits=2), "%")
-    # println("K26 = ", round((log10(K[2, 6])/log10(3.835e5) - 1)*100, digits=2), "%")
-    # # println("K36 = ", round((log10(-K[3, 6])/log10(4.742e6) - 1)*100, digits=2), "%")
-    # # println("K46 = ", round((log10(K[4, 6])/log10(1.430e6) - 1)*100, digits=2), "%")
+    # println("K16 = ", round((log10(-K[1, 6])/log10(4.736e8) - 1)*100, digits=2), "%")
+    # # println("K26 = ", round((log10(K[2, 6])/log10(3.835e5) - 1)*100, digits=2), "%")
+    # println("K36 = ", round((log10(-K[3, 6])/log10(4.742e6) - 1)*100, digits=2), "%")
+    # println("K46 = ", round((log10(K[4, 6])/log10(1.430e6) - 1)*100, digits=2), "%")
     # println("K56 = ", round((log10(K[5, 6])/log10(1.209e7) - 1)*100, digits=2), "%")
     # println("K66 = ", round((log10(K[6, 6])/log10(4.406e8) - 1)*100, digits=2), "%")
+    
 
+    M, mc = massproperties(nodes, elements)
+    @test isapprox(M[1, 1], 258.053, rtol=0.01)
+    @test isapprox(M[5, 5], 2.172, rtol=0.02)
+    @test isapprox(M[6, 6], 46.418, rtol=0.03)
+    # relative to pitch axis
+    @test isapprox(sc0[1] + mc[1], 0.2778, rtol=0.01)
+    @test isapprox(sc0[2] + mc[2], 0.02743, rtol=0.02)
+    @test isapprox(sc0[1] + tc[1], 0.233, rtol=0.02)
+    @test isapprox(sc0[2] + tc[2], 0.029, rtol=0.02)
+    @test isapprox(sc0[1] + sc[1] + paxis*chord, 0.031 + paxis*chord, rtol=0.22) # relative to leading edge since its close to pitch axis
+    @test isapprox(sc0[2] + sc[2], 0.040, rtol=0.05)
 
+    Ixx = M[5, 5]
+    Iyy = M[6, 6]
+    Ixy = -M[5, 6]
+    theta = 0.5 * atan(2*Ixy / (Iyy - Ixx))
+    @test isapprox(theta*180/pi, -1.244, rtol=0.09)
+    
 end
 
 

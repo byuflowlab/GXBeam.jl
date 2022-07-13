@@ -528,7 +528,7 @@ end
 """
 Reorder stiffness or compliance matrix from internal order to GXBeam order
 """
-function reorder(K)  # reorder to GXBeam format  (TODO: build this in and update tests)
+function reorder(K)  # reorder to GXBeam format
     idx = [3, 1, 2, 6, 4, 5]
     return K[idx, idx]
 end
@@ -643,6 +643,75 @@ function compliance(nodes, elements; cache=initializecache(nodes, elements), gxb
     end
 
     return S, sc, tc
+end
+
+function area_and_centroid_of_element(node)
+
+    # shoelace formula for area
+    A = 0.5 * (
+        node[1].x * node[2].y - node[2].x * node[1].y + 
+        node[2].x * node[3].y - node[3].x * node[2].y + 
+        node[3].x * node[4].y - node[4].x * node[3].y + 
+        node[4].x * node[1].y - node[1].x * node[4].y)
+
+    # centroid of element
+    xc = (node[1].x + node[2].x + node[3].x + node[4].x)/4
+    yc = (node[1].y + node[2].y + node[3].y + node[4].y)/4
+
+    return A, xc, yc
+end
+
+
+function massproperties(nodes, elements)
+
+    # --- find total mass and center of mass -----
+    m = 0.0
+    xm = 0.0
+    ym = 0.0
+
+    for elem in elements
+        # extract nodes and density, compute area and centroid
+        node = nodes[elem.nodenum]
+        rho = elem.material.rho
+        A, xc, yc = area_and_centroid_of_element(node)
+
+        # mass and (numerator of) center of mass
+        dm = rho * A
+        m += dm
+        xm += xc * dm
+        ym += yc * dm
+    end
+
+    # center of mass
+    xm /= m
+    ym /= m
+
+    # ----------- compute moments of inertia ---------
+    Ixx = 0.0
+    Iyy = 0.0
+    Ixy = 0.0
+
+    for elem in elements
+        # extract nodes and density, compute area and centroid
+        node = nodes[elem.nodenum]
+        rho = elem.material.rho
+        A, xc, yc = area_and_centroid_of_element(node)
+
+        Ixx += (yc - ym)^2 * rho * A
+        Iyy += (xc - xm)^2 * rho * A
+        Ixy += (xc - xm) * (yc - ym) * rho * A
+    end
+
+    M = Symmetric([
+        m 0.0 0 0 m*ym -m*xm
+        0 m 0 -m*ym 0 0
+        0 0 m m*xm 0 0
+        0 -m*ym m*xm Ixx+Iyy 0 0
+        m*ym 0 0 0 Ixx -Ixy
+        -m*xm 0 0 0 -Ixy Iyy
+    ])
+
+    return M, [xm, ym]
 end
 
 
