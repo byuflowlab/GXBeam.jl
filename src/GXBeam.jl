@@ -2,6 +2,7 @@ module GXBeam
 
 using ArnoldiMethod
 using ForwardDiff
+using FillArrays
 using LinearAlgebra
 using LinearMaps
 using NLsolve
@@ -51,6 +52,7 @@ const GAUSS_NODES = SVector(-0.8611363115940526, -0.3399810435848563, 0.33998104
 const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451548625462, 0.34785484513745385)
 
 include("math.jl")
+include("body.jl")
 include("element.jl")
 include("point.jl")
 include("loads.jl")

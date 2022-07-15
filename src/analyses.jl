@@ -75,32 +75,8 @@ function static_analysis!(system::StaticSystem, assembly;
     iterations=1000,
     # linear solver keyword arguments
     linearization_state=nothing,
-    update_linearization_state=false,
+    update_linearization=false,
     )
-
-    # save original system
-    original_system = system
-    
-    # check if provided system is a static system
-    if typeof(original_system) <: StaticSystem
-        
-        # use provided static system for the analysis
-        system = original_system
-    
-    else
-        
-        # construct a static system for the analysis
-        system = StaticSystem(assembly)
-
-        # copy state variables from the original system to the static system
-        copy_state!(system, original_system, assembly; 
-            prescribed_conditions=prescribed_conditions,
-            distributed_loads=distributed_loads,
-            point_masses=point_masses,
-            gravity=gravity,
-            time=time)
-
-    end
 
     # reset state, if specified
     if reset_state
@@ -140,7 +116,7 @@ function static_analysis!(system::StaticSystem, assembly;
         # solve for the new set of state variables
         if linear
             # perform a linear analysis
-            if !update_linearization_state
+            if !update_linearization
                 if isnothing(linearization_state)
                     x .= 0
                 else
@@ -173,16 +149,6 @@ function static_analysis!(system::StaticSystem, assembly;
         end
     end
 
-    # copy state variables from the static system to the original system (if necessary)
-    if !(typeof(original_system) <: StaticSystem)
-        copy_state!(original_system, system, assembly; 
-            prescribed_conditions=prescribed_conditions,
-            distributed_loads=distributed_loads,
-            point_masses=point_masses,
-            gravity=gravity,
-            time=time)
-    end
-
     return system, converged
 end
 
@@ -209,21 +175,24 @@ iteration procedure converged.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `origin = zeros(3)`: Body frame origin vector. If time varying, this input
+ - `linear_displacement = zeros(3)`: Prescribed linear displacement of the body frame.  
+        If time varying, this input may be provided as a function of time.
+ - `angular_displacement = zeros(3)`: Prescribed angular displacement of the body frame. 
+        (using Wiener Milenkovic parameters). If time varying, this input may be provided 
+        as a function of time.
+ - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame. 
+        If time varying, this input may be provided as a function of time.
+ - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame. 
+        If time varying, this input may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Prescribed linear acceleration of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Prescribed angular acceleration of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `gravity = [0,0,0]`: Gravity vector in the inertial frame.  If time varying, this input 
         may be provided as a function of time.
- - `linear_velocity = zeros(3)`: Body frame linear velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_velocity = zeros(3)`: Body frame angular velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `linear_acceleration = zeros(3)`: Body frame linear acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_acceleration = zeros(3)`: Body frame angular acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
-       function of time. 
- - `time = 0.0`: Current time or time vector. May be used in conjunction with time varying
-        prescribed conditions, distributed loads, and body frame motion to gradually
-        increase displacements and loads.     
+ - `time = 0.0`: Current time or vector of times corresponding to each step. May be used 
+        in conjunction with time varying prescribed conditions, distributed loads, and 
+        body frame motion to gradually increase displacements and loads.     
             
 # Control Flag Keyword Arguments
  - `structural_damping = false`: Indicates whether to enable structural damping
@@ -235,8 +204,8 @@ iteration procedure converged.
 
 # Nonlinear Solver Keyword Arguments
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve 
-        nonlinear systems of equations
+ - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve the
+        nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving the nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
 
@@ -266,7 +235,8 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=(@SVector zeros(3)),
+    linear_displacement=(@SVector zeros(3)),
+    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -286,59 +256,11 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     iterations=1000,
     # linear solver keyword arguments
     linearization_state=nothing,
-    update_linearization_state=false,
+    update_linearization=false,
     )
 
-    # save original system
-    original_system = system
-
-    if constant_mass_matrix
-        # check if provided system is a constant mass matrix system
-        if typeof(original_system) <: ExpandedSystem
-            # use provided constant mass matrix system for the analysis
-            system = original_system
-        else
-            # construct a constant mass matrix system for the analysis
-            system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
-            # copy state variables from the original system to the constant mass matrix system
-            copy_state!(system, original_system, assembly;    
-                structural_damping=structural_damping,
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time,
-                )
-        end
-    else
-        # check if provided system is a dynamic system
-        if typeof(original_system) <: DynamicSystem
-            # use provided dynamic system for the analysis
-            system = original_system
-        else
-            # construct a dynamic system for the analysis
-            system = DynamicSystem(assembly; force_scaling = system.force_scaling)
-            # copy state variables from the original system to the dynamic system
-            copy_state!(system, original_system, assembly;    
-                structural_damping=structural_damping,
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time,
-                )
-        end
-    end
+    # check if provided system is consistent with provided keyword arguments
+    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
 
     # reset state, if specified
     if reset_state
@@ -367,36 +289,37 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
-        x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t))
-        v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
-        ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
-        a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
-        α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
+        ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(t))
+        θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(t))
+        vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
+        ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+        ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
+        αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
         # indices corresponding to rigid body acceleration state variables
         icol_accel = body_frame_acceleration_indices(system, pcond)
 
         # define the residual and jacobian functions
         if constant_mass_matrix
-            f! = (resid, x) -> expanded_system_residual!(resid, x, indices, icol_accel, 
+            f! = (resid, x) -> expanded_steady_system_residual!(resid, x, indices, icol_accel, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                x0, v0, ω0, a0, α0)
-            j! = (jacob, x) -> expanded_system_jacobian!(jacob, x, indices, icol_accel, 
+                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
+            j! = (jacob, x) -> expanded_steady_system_jacobian!(jacob, x, indices, icol_accel, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                x0, v0, ω0, a0, α0)
+                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
         else
             f! = (resid, x) -> steady_state_system_residual!(resid, x, indices, icol_accel, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                x0, v0, ω0, a0, α0)
+                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
             j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, indices, icol_accel, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                x0, v0, ω0, a0, α0)
+                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
         end
 
         # solve for the new set of state variables
         if linear
             # perform a linear analysis
-            if !update_linearization_state
+            if !update_linearization
                 if isnothing(linearization_state)
                     x .= 0
                 else
@@ -428,41 +351,19 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             # update the convergence flag
             converged = result.f_converged
         end
-    end
 
-    if constant_mass_matrix
-        # check if provided system was a constant mass matrix system
-        if !(typeof(original_system) <: ExpandedSystem)
-            # copy state variables from the constant mass matrix system to the original system
-            copy_state!(original_system, system, assembly;     
-                structural_damping=structural_damping,
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
-        end
-    else
-        # check if provided system was a dynamic system
-        if !(typeof(original_system) <: DynamicSystem)
-            # copy state variables from the dynamic system to the original system
-            copy_state!(original_system, system, assembly;   
-                structural_damping=structural_damping,  
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
+        # update state variable rates
+        if !constant_mass_matrix
+            @unpack udot, θdot, Vdot, Ωdot = system
+            ab, αb = body_frame_acceleration(x)
+            for ipoint = 1:length(assembly.points)
+                Δx = assembly.points[ipoint]
+                u, _ = point_displacement(x, ipoint, indices.icol_point, pcond)
+                udot[ipoint] = @SVector zeros(3)
+                θdot[ipoint] = @SVector zeros(3)
+                Vdot[ipoint] = ab + cross(αb, Δx) + cross(αb, u)
+                Ωdot[ipoint] = αb
+            end 
         end
     end
 
@@ -492,27 +393,28 @@ with variables in `system` so a copy should be made prior to modifying them.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `origin = zeros(3)`: Body frame origin vector. If time varying, this input
+ - `linear_displacement = zeros(3)`: Prescribed linear displacement of the body frame.  
+        If time varying, this input may be provided as a function of time.
+ - `angular_displacement = zeros(3)`: Prescribed angular displacement of the body frame. 
+        (using Wiener Milenkovic parameters). If time varying, this input may be provided 
+        as a function of time.
+ - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame. 
+        If time varying, this input may be provided as a function of time.
+ - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame. 
+        If time varying, this input may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Prescribed linear acceleration of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Prescribed angular acceleration of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `gravity = [0,0,0]`: Gravity vector in the inertial frame.  If time varying, this input 
         may be provided as a function of time.
- - `linear_velocity = zeros(3)`: Body frame linear velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_velocity = zeros(3)`: Body frame angular velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `linear_acceleration = zeros(3)`: Body frame linear acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_acceleration = zeros(3)`: Body frame angular acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
-       function of time. 
- - `time = 0.0`: Current time or time vector. May be used in conjunction with time varying
-        prescribed conditions, distributed loads, and body frame motion to gradually
-        increase displacements and loads.     
-      
+ - `time = 0.0`: Current time or vector of times corresponding to each step. May be used 
+        in conjunction with time varying prescribed conditions, distributed loads, and 
+        body frame motion to gradually increase displacements and loads.     
+            
 # Control Flag Keyword Arguments
- - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
-        damping should be used
- - `constant_mass_matrix = false`: Flag indicating whether the linearization should be 
-        performed on a constant mass matrix system.
+ - `structural_damping = false`: Indicates whether to enable structural damping
+ - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `show_trace = false`: Flag indicating whether to display the solution progress.
 
 """
@@ -521,7 +423,8 @@ function linearize!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=(@SVector zeros(3)),
+    linear_displacement=(@SVector zeros(3)),
+    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -534,52 +437,8 @@ function linearize!(system, assembly;
     show_trace=false,
     )
 
-    # save original system
-    original_system = system
-
-    if constant_mass_matrix
-        # check if provided system is a constant mass matrix system
-        if typeof(original_system) <: ExpandedSystem
-            # use provided constant mass matrix system for the linearization
-            system = original_system
-        else
-            # construct a constant mass matrix system for the linearization
-            system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
-            # copy state variables from the original system to the constant mass matrix system
-            copy_state!(system, original_system, assembly;     
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
-        end
-    else
-        # check if provided system is a dynamic system
-        if typeof(original_system) <: DynamicSystem
-            # use provided dynamic system for the linearization
-            system = original_system
-        else
-            # construct a dynamic system for the linearization
-            system = DynamicSystem(assembly; force_scaling = system.force_scaling)
-            # copy state variables from the original system to the dynamic system
-            copy_state!(system, original_system, assembly;     
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
-        end
-    end
+    # check if provided system is consistent with provided keyword arguments
+    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
 
     # unpack state vector, stiffness, and mass matrices
     @unpack x, K, M, force_scaling, indices = system
@@ -589,11 +448,12 @@ function linearize!(system, assembly;
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(time)
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(time)
     gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(time))
-    x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(time))
-    v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(time))
-    ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(time))
-    a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(time))
-    α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(time))
+    ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(time))
+    θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(time))
+    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(time))
+    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(time))
+    ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(time))
+    αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(time))
 
     # indices corresponding to rigid body acceleration state variables
     icol_accel = body_frame_acceleration_indices(system, pcond)
@@ -602,7 +462,8 @@ function linearize!(system, assembly;
 
         # solve for the system stiffness matrix
         expanded_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, 
+            vb_p, ωb_p, ab_p, αb_p)
 
         # solve for the system mass matrix
         expanded_system_mass_matrix!(M, indices, force_scaling, assembly, 
@@ -611,8 +472,11 @@ function linearize!(system, assembly;
     else
 
         # solve for the system stiffness matrix
+        # dynamic_system_jacobian!(K, FillArrays.Zeros(x), x, indices, icol_accel, force_scaling, 
+        #     structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
         steady_state_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0)
+            structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, 
+            vb_p, ωb_p, ab_p, αb_p)
 
         # solve for the system mass matrix
         system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
@@ -849,31 +713,32 @@ converged.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `origin = zeros(3)`: Body frame origin vector. If time varying, this input
+ - `linear_displacement = zeros(3)`: Prescribed linear displacement of the body frame.  
+        If time varying, this input may be provided as a function of time.
+ - `angular_displacement = zeros(3)`: Prescribed angular displacement of the body frame. 
+        (using Wiener Milenkovic parameters). If time varying, this input may be provided 
+        as a function of time.
+ - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame. 
+        If time varying, this input may be provided as a function of time.
+ - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame. 
+        If time varying, this input may be provided as a function of time.
+ - `linear_acceleration = zeros(3)`: Prescribed linear acceleration of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `angular_acceleration = zeros(3)`: Prescribed angular acceleration of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `gravity = [0,0,0]`: Gravity vector in the inertial frame.  If time varying, this input 
         may be provided as a function of time.
- - `linear_velocity = zeros(3)`: Body frame linear velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_velocity = zeros(3)`: Body frame angular velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `linear_acceleration = zeros(3)`: Body frame linear acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_acceleration = zeros(3)`: Body frame angular acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
-       function of time. 
- - `time = 0.0`: Current time or time vector. May be used in conjunction with time varying
-        prescribed conditions, distributed loads, and body frame motion to gradually
-        increase displacements and loads.     
-
+ - `time = 0.0`: Current time or vector of times corresponding to each step. May be used 
+        in conjunction with time varying prescribed conditions, distributed loads, and 
+        body frame motion to gradually increase displacements and loads.     
+                    
 # Control Flag Keyword Arguments
- - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
-        damping should be used
- - `constant_mass_matrix = true`: Flag indicating whether the eigenvalue analysis should be 
-        performed on a constant mass matrix system.
- - `reset_state = true`: Flag indicating whether the state variables should be
-        reset prior to performing the steady-state analysis.
- - `linear = false`: Set to `true` for a linear analysis
- - `show_trace = false`: Flag indicating whether to show solution progress
+- `structural_damping = false`: Indicates whether to enable structural damping
+- `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
+- `reset_state = true`: Flag indicating whether the system state variables should be 
+       set to zero prior to performing this analysis.
+- `linear = false`: Flag indicating whether a linear analysis should be performed.
+- `show_trace = false`: Flag indicating whether to display the solution progress.
 
 # Nonlinear Solver Keyword Arguments
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
@@ -883,9 +748,9 @@ converged.
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
 
 # Linear Solver Keyword Arguments
-- `linearization_state`: Linearization state variables.  Defaults to zeros.
-- `update_linearization_state`: Flag indicating whether to update the linearization state 
-    variables for a linear analysis with the current state variables.
+ - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization`: Flag indicating whether to update the linearization state 
+        variables for a linear analysis with the instantaneous state variables.
 
 # Eigenvalue Solution Keyword Arguments
  - `nev = 6`: Number of eigenvalues to compute
@@ -918,7 +783,8 @@ function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=(@SVector zeros(3)),
+    linear_displacement=(@SVector zeros(3)),
+    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -938,7 +804,7 @@ function eigenvalue_analysis!(system, assembly;
     iterations=1000,
     # linear solver keyword arguments
     linearization_state=nothing,
-    update_linearization_state=false,
+    update_linearization=false,
     # eigenvalue solution keyword arguments
     nev = 6,
     steady_state=true,
@@ -946,52 +812,8 @@ function eigenvalue_analysis!(system, assembly;
     Uprev=nothing,
     )
 
-    # save original system
-    original_system = system
-
-    if constant_mass_matrix
-        # check if provided system is a constant mass matrix system
-        if typeof(original_system) <: ExpandedSystem
-            # use provided constant mass matrix system for the analysis
-            system = original_system
-        else
-            # construct a constant mass matrix system for the analysis
-            system = ExpandedSystem(assembly; force_scaling = system.force_scaling)
-            # copy state variables from the original system to the constant mass matrix system
-            copy_state!(system, original_system, assembly;     
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
-        end
-    else
-        # check if provided system is a dynamic system
-        if typeof(original_system) <: DynamicSystem
-            # use provided dynamic system for the analysis
-            system = original_system
-        else
-            # construct a dynamic system for the analysis
-            system = DynamicSystem(assembly; force_scaling = system.force_scaling)
-            # copy state variables from the original system to the dynamic system
-            copy_state!(system, original_system, assembly;     
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
-        end
-    end
+    # check if provided system is consistent with provided keyword arguments
+    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
 
     # reset state, if specified
     if reset_state
@@ -1007,31 +829,36 @@ function eigenvalue_analysis!(system, assembly;
 
         # perform a steady state analysis to find the linearization state variables
         system, converged = steady_state_analysis!(system, assembly;
+            # general keyword arguments
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            origin=origin,
+            linear_displacement=linear_displacement,
+            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
             angular_acceleration=angular_acceleration,
             gravity=gravity,
             time=time,
+            # control flag keyword arguments
             structural_damping=structural_damping,
             constant_mass_matrix=constant_mass_matrix,
             reset_state=reset_state,
             linear=linear,
             show_trace=show_trace,
+            # nonlinear solver keyword arguments
             method=method,
             linesearch=linesearch,
             ftol=ftol,
             iterations=iterations,
+            # linear solver keyword arguments
             linearization_state=linearization_state,
-            update_linearization_state=update_linearization_state,
+            update_linearization=update_linearization,
             )
     else
         # use specified linearization state variables
-        if linear && !update_linearization_state
+        if linear && !update_linearization
             if isnothing(linearization_state)
                 system.x .= 0
             else
@@ -1048,7 +875,8 @@ function eigenvalue_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
-        origin=origin,
+        linear_displacement=linear_displacement,
+        angular_displacement=angular_displacement,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
         linear_acceleration=linear_acceleration,
@@ -1059,40 +887,6 @@ function eigenvalue_analysis!(system, assembly;
         constant_mass_matrix=constant_mass_matrix,
         show_trace=show_trace,
         )
-
-    if constant_mass_matrix
-        # check if provided system was a constant mass matrix system
-        if !(typeof(original_system) <: ExpandedSystem)
-            # copy state variables from the constant mass matrix system to the original system
-            copy_state!(original_system, system, assembly;     
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
-        end
-    else
-        # check if provided system was a dynamic system
-        if !(typeof(original_system) <: DynamicSystem)
-            # copy state variables from the dynamic system to the original system
-            copy_state!(original_system, system, assembly;     
-                prescribed_conditions=prescribed_conditions,
-                distributed_loads=distributed_loads,
-                point_masses=point_masses,
-                origin=origin,
-                linear_velocity=linear_velocity,
-                angular_velocity=angular_velocity,
-                linear_acceleration=linear_acceleration,
-                angular_acceleration=angular_acceleration,
-                gravity=gravity,
-                time=time)
-        end
-    end
 
     # solve the eigensystem
     λ, V = solve_eigensystem(x, K, M, nev)
@@ -1123,7 +917,7 @@ end
     initial_condition_analysis(assembly, t0; kwargs...)
 
 Perform an analysis to obtain a consistent set of initial conditions.  Return the
-final system with the new initial conditions.
+resulting system and a flag indicating whether the iteration procedure converged.
 
 # General Keyword Arguments
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
@@ -1141,51 +935,50 @@ final system with the new initial conditions.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `origin = zeros(3)`: Body frame origin vector. If time varying, this input
-        may be provided as a function of time.
- - `linear_velocity = zeros(3)`: Body frame linear velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_velocity = zeros(3)`: Body frame angular velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `linear_acceleration = zeros(3)`: Body frame linear acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_acceleration = zeros(3)`: Body frame angular acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
-       function of time.    
+ - `linear_displacement = zeros(3)`: Initial linear displacement of the body frame.  
+ - `angular_displacement = zeros(3)`: Initial angular displacement of the body frame. 
+        (using Wiener Milenkovic parameters).
+ - `linear_velocity = zeros(3)`: Initial linear velocity of the body frame. 
+ - `angular_velocity = zeros(3)`: Initial angular velocity of the body frame. 
+ - `linear_acceleration = zeros(3)`: Initial linear acceleration of the body frame.
+ - `angular_acceleration = zeros(3)`: Initial angular acceleration of the body frame.
+ - `gravity = [0,0,0]`: Gravity vector in the inertial frame.
      
-# Initial Condition Keyword Arguments (all expressed in the global body-fixed frame)
+# Initial Condition Keyword Arguments
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of 
-        each point
+        each point in the body frame
  - `theta0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement of 
-        each point (Wiener-Milenkovic Parameters)
+        each point in the body frame (using Wiener-Milenkovic Parameters) 
  - `V0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity of 
-        each point, including contributions from the motion of the body-fixed frame
+        each point in the body frame **excluding contributions from body frame motion**
  - `Omega0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity of 
-        each point, including contributions from the motion of the body-fixed frame
- - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity rate of 
-        each point, including contributions from the motion of the body-fixed frame
- - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity rate of 
-        each point, including contributions from the motion of the body-fixed frame
+        each point in the body frame **excluding contributions from body frame motion**
+ - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear acceleration of 
+        each point in the body frame **excluding contributions from body frame motion**
+ - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular acceleration of 
+        each point in the body frame **excluding contributions from body frame motion**
 
 # Control Flag Keyword Arguments
- - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
-        damping should be used
- - `constant_mass_matrix = false`: Indicates whether to return a constant mass matrix system
+ - `structural_damping = false`: Indicates whether to enable structural damping
+ - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
+ - `steady_state=false`: Flag indicating whether to initialize by performing a steady state 
+        analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
 
 # Nonlinear Solver Keyword Arguments
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
- - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve 
-        nonlinear systems of equations
+ - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve the
+        nonlinear system of equations
  - `ftol = 1e-9`: tolerance for solving the nonlinear system of equations
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
 
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
+ - `update_linearization`: Flag indicating whether to update the linearization state 
+        variables for a linear analysis with the instantaneous state variables.
 """
 function initial_condition_analysis(assembly, t0; constant_mass_matrix=false, kwargs...)
 
@@ -1195,7 +988,7 @@ function initial_condition_analysis(assembly, t0; constant_mass_matrix=false, kw
         system = DynamicSystem(assembly)
     end
 
-    return initial_condition_analysis!(system, assembly, t0; kwargs...)
+    return initial_condition_analysis!(system, assembly, t0; kwargs..., reset_state=true)
 end
 
 """
@@ -1208,7 +1001,8 @@ function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=(@SVector zeros(3)),
+    linear_displacement=(@SVector zeros(3)),
+    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -1223,6 +1017,7 @@ function initial_condition_analysis!(system, assembly, t0;
     Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
     structural_damping=true,
+    constant_mass_matrix=typeof(system)<:ExpandedSystem,
     reset_state=true,
     steady_state=false,
     linear=false,
@@ -1234,24 +1029,62 @@ function initial_condition_analysis!(system, assembly, t0;
     iterations=1000,
     # linear solver keyword arguments
     linearization_state=nothing,
+    update_linearization=false,
     )
 
-    # save original system
-    original_system = system
+    # perform steady state analysis (if requested)
+    if steady_state
+        return steady_state_analysis!(system, assembly;
+            # general keyword arguments
+            prescribed_conditions=prescribed_conditions,
+            distributed_loads=distributed_loads,
+            point_masses=point_masses,
+            linear_displacement=linear_displacement,
+            angular_displacement=angular_displacement,
+            linear_velocity=linear_velocity,
+            angular_velocity=angular_velocity,
+            linear_acceleration=linear_acceleration,
+            angular_acceleration=angular_acceleration,
+            gravity=gravity,
+            time=time,
+            # control flag keyword arguments
+            structural_damping=structural_damping,
+            constant_mass_matrix=constant_mass_matrix,
+            reset_state=reset_state,
+            linear=linear,
+            show_trace=show_trace,
+            # nonlinear solver keyword arguments
+            method=method,
+            linesearch=linesearch,
+            ftol=ftol,
+            iterations=iterations,
+            # linear solver keyword arguments
+            linearization_state=linearization_state,
+            update_linearization=update_linearization,
+            )
+    end
 
-    # check if provided system is a dynamic system
-    if typeof(original_system) <: DynamicSystem
-        # use provided dynamic system for the analysis
-        system = original_system
-    else
-        # construct a dynamic system for the analysis
+    # check if provided system is consistent with provided keyword arguments
+    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
+
+    # reset state, if specified
+    if reset_state
+        reset_state!(system)
+    end
+
+    # convert constant mass matrix system to a dynamic system
+    if constant_mass_matrix
+        # save provided system
+        original_system = system
+        # construct new system
         system = DynamicSystem(assembly; force_scaling = system.force_scaling)
-        # copy state variables from the original system to the dynamic system
+        # copy state variables from the original system to the new system
         copy_state!(system, original_system, assembly;     
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            origin=origin,
+            linear_displacement=linear_displacement,
+            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -1260,12 +1093,7 @@ function initial_condition_analysis!(system, assembly, t0;
             time=t0)
     end
 
-    # reset state, if specified
-    if reset_state
-        reset_state!(system)
-    end
-
-    # unpack pre-allocated storage and pointers for the system
+    # unpack pre-allocated storage and pointers
     @unpack x, r, K, M, force_scaling, indices, udot, θdot, Vdot, Ωdot = system
 
     # get the current time
@@ -1284,11 +1112,14 @@ function initial_condition_analysis!(system, assembly, t0;
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t0)
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t0)
     gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t0))
-    x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(t0))
-    v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t0))
-    ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t0))
-    a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t0))
-    α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t0))
+    ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(t0))
+    θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(t0))
+    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t0))
+    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t0))
+    ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t0))
+    αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t0))
+
+    # --- Determine whether all rigid body modes are constrained --- #
 
     # save original prescribed conditions
     original_pcond = pcond
@@ -1312,7 +1143,7 @@ function initial_condition_analysis!(system, assembly, t0;
             F = @SVector zeros(Float64, 3)
             M = @SVector zeros(Float64, 3)
             Ff = @SVector zeros(Float64, 3)
-            Mm = @SVector zeros(Float64, 3)
+            Mf = @SVector zeros(Float64, 3)
         end
 
         # add constraints for unconstrained rigid body modes
@@ -1336,82 +1167,71 @@ function initial_condition_analysis!(system, assembly, t0;
     # indices corresponding to rigid body acceleration state variables
     icol_accel = body_frame_acceleration_indices(system, pcond)
 
-    # use a steady state analysis for initialization (if specified)
-    if steady_state
+    # --- Determine whether Vdot and Ωdot are state variables for each point --- #
 
-        # define the residual and jacobian functions
-
-        f! = (resid, x) -> steady_state_system_residual!(resid, x, indices, icol_accel,
-            force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-            gvec, x0, v0, ω0, a0, α0)
-
-        j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, indices, icol_accel,
-            force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-            gvec, x0, v0, ω0, a0, α0)
-
-    else
-
-        # use a initialization scheme based on the provided u, θ, V, Ω, Vdot, Ωdot
-
-        # NOTE: Our system of equations cannot be solved for Vdot and Ωdot if 
-        # 1. These terms are not used because the corresponding rows/columns of the 
-        #    mass matrix are zero
-        # 2. Forces cannot be determined from the compatability equations because the 
-        #    corresponding rows/columns of the compliance matrix are zero  
-        # In the former case, the values of Vdot and Ωdot may be prescribed to be any value
-        # without affecting the results of the analysis.  In the latter case, forces must 
-        # be solved using equilibrium equations, which allows Vdot and Ωdot to take on any 
-        # value.  To address these two scenarios, we construct the array `rate_vars` which 
-        # determines whether or not Vdot and Ωdot are state variables in the governing 
-        # equations.  This array may be defined conveniently using the system mass matrix.
-
-        # determine whether state rate terms appear in the governing equations
-        original_elements = copy(assembly.elements)
+    # NOTE: Our system of equations cannot be solved for Vdot and Ωdot if 
+    # 1. These terms are not used because the corresponding rows and columns of the 
+    #    mass matrix are zero
+    # 2. The compatibility equations do not impose any restrictions on the internal loads
+    #    because the corresponding rows and columns of the compliance matrix are zero
+    # In the former case, Vdot and Ωdot are not used.  Instead internal loads are 
+    # solved using the equilibrium equations and used to define compatabile displacements.
+    # In the latter case, the compatibility equations are solved to find compatable 
+    # displacements and the equilibrium equations are used to find internal loads.
+    # The equilibrium equations cannot therefore be used to solve for Vdot and Ωdot.
+    # To determine whether either of these cases apply, we construct the array `rate_vars`
+    # using a modified system mass matrix.  We then rely on the user to provide values for 
+    # Vdot and and Ωdot which are compatible if either case applies.
     
-        for i = 1:length(assembly.elements)
-        
-            # element properties
-            L = assembly.elements[i].L
-            xe = assembly.elements[i].x
-            mass = assembly.elements[i].mass
-            compliance = assembly.elements[i].compliance
-            Cab = assembly.elements[i].Cab
-            mu = assembly.elements[i].mu
+    # save original beam elements
+    original_elements = copy(assembly.elements)
+    
+    # combine the mass and compliance matrices of each beam element
+    for i = 1:length(assembly.elements)
+    
+        # element properties
+        L = assembly.elements[i].L
+        xe = assembly.elements[i].x
+        mass = assembly.elements[i].mass
+        compliance = assembly.elements[i].compliance
+        Cab = assembly.elements[i].Cab
+        mu = assembly.elements[i].mu
 
-            # modified element mass matrix
-            mass = similar(mass) .= mass
-            for j = 1:6
-                if iszero(compliance[j,:])
-                    mass[j,:] .= 0.0
-                    mass[:,j] .= 0.0
-                end
+        # modified element mass matrix
+        mass = similar(mass) .= mass
+        for j = 1:6
+            if iszero(compliance[j,:])
+                mass[j,:] .= 0.0
+                mass[:,j] .= 0.0
             end
-            mass = SMatrix{6,6}(mass)
-    
-            # replace original element mass matrix
-            assembly.elements[i] = Element(L, xe, compliance, mass, Cab, mu)
         end
+        mass = SMatrix{6,6}(mass)
 
-        # check for zero-valued mass matrix terms
-        system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
-        rate_vars = .!(iszero.(sum(M, dims=1)))
-
-        # restore original element mass matrices
-        for i = 1:length(assembly.elements)
-            assembly.elements[i] = original_elements[i]
-        end
-
-        f! = (resid, x) -> initial_condition_system_residual!(resid, x, indices, rate_vars, 
-            icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-            gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
-
-        j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, indices, rate_vars, 
-            icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-            gvec, x0, v0, ω0, a0, α0, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
-
+        # replace original element mass matrix
+        assembly.elements[i] = Element(L, xe, compliance, mass, Cab, mu)
     end
 
-    # solve for the corresponding state variables
+    # construct `rate_vars` vector
+    system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+    rate_vars = .!(iszero.(sum(M, dims=1)))
+
+    # restore original element mass matrices
+    for i = 1:length(assembly.elements)
+        assembly.elements[i] = original_elements[i]
+    end
+
+    # --- Define the residual and jacobian functions --- #
+
+    f! = (resid, x) -> initial_condition_system_residual!(resid, x, indices, rate_vars, 
+        icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+        gvec, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+
+    j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, indices, rate_vars, 
+        icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+        gvec, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+
+    # --- Solve for the corresponding state variables --- #
+
     if linear
         # perform a linear analysis
         if isnothing(linearization_state)
@@ -1447,78 +1267,73 @@ function initial_condition_analysis!(system, assembly, t0;
         converged = result.f_converged
     end
 
-    # save calculated variables
+    # --- Save state and rate variables associated with each point --- #
+
     for ipoint in eachindex(assembly.points)
-        if steady_state
-            # save state variables
-            u, θ = point_displacement(system.x, ipoint, indices.icol_point, pcond)
-            F, M = point_loads(system.x, ipoint, indices.icol_point, force_scaling, pcond)
-            set_linear_displacement!(system, original_pcond, u, ipoint)
-            set_angular_displacement!(system, original_pcond, θ, ipoint)
-            set_external_forces!(system, original_pcond, F, ipoint)
-            set_external_moments!(system, original_pcond, M, ipoint)
-            # save state variable rates
-            udot[ipoint] = @SVector zeros(3)
-            θdot[ipoint] = @SVector zeros(3)
-            Vdot[ipoint] = @SVector zeros(3)
-            Ωdot[ipoint] = @SVector zeros(3)
-        else
-            # save linear and angular deflection rates
-            udot[ipoint], θdot[ipoint] = point_velocities(x, ipoint, indices.icol_point)
-
-            # save linear and angular velocity rates
-            tmp1, tmp2 = point_displacement_rates(x, ipoint, indices.icol_point, pcond)
-            icol = indices.icol_point[ipoint]
-            tmp1 = SVector{3}(
-                rate_vars[icol+6] ? tmp1[1] : Vdot0[ipoint][1], 
-                rate_vars[icol+7] ? tmp1[2] : Vdot0[ipoint][2],
-                rate_vars[icol+8] ? tmp1[3] : Vdot0[ipoint][3],
-            )
-            tmp2 = SVector{3}(
-                rate_vars[icol+9] ? tmp2[1] : Omegadot0[ipoint][1],
-                rate_vars[icol+10] ? tmp2[2] : Omegadot0[ipoint][2],
-                rate_vars[icol+11] ? tmp2[3] : Omegadot0[ipoint][3], 
-            )
-            Vdot[ipoint], Ωdot[ipoint] = tmp1, tmp2
-
-            # save linear and angular displacement
-            u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
-            icol = indices.icol_point[ipoint]
-            u = SVector{3}(
-                rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
-                rate_vars[icol+7] ? u0[ipoint][2] : u[2],
-                rate_vars[icol+8] ? u0[ipoint][3] : u[3],
-            )
-            θ = SVector{3}(
-                rate_vars[icol+9] ? theta0[ipoint][1] : θ[1],
-                rate_vars[icol+10] ? theta0[ipoint][2] : θ[2],
-                rate_vars[icol+11] ? theta0[ipoint][3] : θ[3], 
-            )
-            set_linear_displacement!(system, original_pcond, u, ipoint)
-            set_angular_displacement!(system, original_pcond, θ, ipoint)
-
-            # add rigid body acceleration to element linear and angular velocity rates
-            
-
-            # save external forces and moments
-            F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pcond)
-            set_external_forces!(system, original_pcond, F, ipoint)
-            set_external_moments!(system, original_pcond, M, ipoint)
-
-            # save linear and angular velocity
-            set_linear_velocity!(system, V0[ipoint], ipoint)
-            set_angular_velocity!(system, Omega0[ipoint], ipoint)
-        end
+        # save linear and angular displacement rates
+        udot[ipoint], θdot[ipoint] = point_velocities(x, ipoint, indices.icol_point)
+        # save linear and angular velocity rates
+        tmp1, tmp2 = point_displacement_rates(x, ipoint, indices.icol_point, pcond)
+        icol = indices.icol_point[ipoint]
+        tmp1 = SVector{3}(
+            rate_vars[icol+6] ? tmp1[1] : Vdot0[ipoint][1], 
+            rate_vars[icol+7] ? tmp1[2] : Vdot0[ipoint][2],
+            rate_vars[icol+8] ? tmp1[3] : Vdot0[ipoint][3],
+        )
+        tmp2 = SVector{3}(
+            rate_vars[icol+9] ? tmp2[1] : Omegadot0[ipoint][1],
+            rate_vars[icol+10] ? tmp2[2] : Omegadot0[ipoint][2],
+            rate_vars[icol+11] ? tmp2[3] : Omegadot0[ipoint][3], 
+        )
+        Vdot[ipoint], Ωdot[ipoint] = tmp1, tmp2
+        # save linear and angular displacement
+        icol = indices.icol_point[ipoint]
+        u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
+        u = SVector{3}(
+            rate_vars[icol+6] ? u0[ipoint][1] : u[1], 
+            rate_vars[icol+7] ? u0[ipoint][2] : u[2],
+            rate_vars[icol+8] ? u0[ipoint][3] : u[3],
+        )
+        θ = SVector{3}(
+            rate_vars[icol+9] ? theta0[ipoint][1] : θ[1],
+            rate_vars[icol+10] ? theta0[ipoint][2] : θ[2],
+            rate_vars[icol+11] ? theta0[ipoint][3] : θ[3], 
+        )
+        set_linear_displacement!(system, pcond, u, ipoint)
+        set_angular_displacement!(system, pcond, θ, ipoint)
+        # save linear and angular velocity
+        set_linear_velocity!(system, V0[ipoint], ipoint)
+        set_angular_velocity!(system, Omega0[ipoint], ipoint)
     end
 
-    # check if provided system was a dynamic system
+    # --- Restore original prescribed conditions --- #
+
+    for ipoint in eachindex(assembly.points)
+        # add rigid body accelerations to node accelerations
+        Δx = assembly.points[ipoint]
+        u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
+        v, ω = body_frame_velocity(x)
+        a, α = body_frame_acceleration(x, icol_accel, zero(ab_p), zero(αb_p))
+        Vdot[ipoint] += a + cross(α, Δx) + cross(α, Δu)
+        Ωdot[ipoint] += α
+        # restore original state vector
+        F, M = point_loads(x, ipoint, indices.icol_point, force_scaling)
+        set_linear_displacement!(system, pcond, u, ipoint)
+        set_angular_displacement!(system, pcond, θ, ipoint)
+        set_external_forces!(system, pcond, F, ipoint)
+        set_external_moments!(system, pcond, M, ipoint)
+    end
+
+    # --- Restore constant mass matrix system (if applicable) --- #
+
     if !(typeof(original_system) <: DynamicSystem)
         # copy state variables from the dynamic system to the original system
         copy_state!(original_system, system, assembly;     
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            origin=origin,
+            linear_displacement=linear_displacement,
+            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -1535,8 +1350,8 @@ end
 
 Perform a time-domain analysis for the system of nonlinear beams contained in
 `assembly` using the time vector `tvec`.  Return the final system, a post-processed
-solution history, and a convergence flag indicating whether the iterations
-converged for each time step.
+solution history, and a convergence flag indicating whether the iteration procedure
+converged for every time step.
 
 # General Keyword Arguments
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
@@ -1554,44 +1369,38 @@ converged for each time step.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `origin = zeros(3)`: Body frame origin vector. If time varying, this input
-        may be provided as a function of time.
- - `linear_velocity = zeros(3)`: Body frame linear velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_velocity = zeros(3)`: Body frame angular velocity vector. If time
-        varying, this vector may be provided as a function of time.
- - `linear_acceleration = zeros(3)`: Body frame linear acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `angular_acceleration = zeros(3)`: Body frame angular acceleration vector. If time
-        varying, this vector may be provided as a function of time.
- - `gravity = [0,0,0]`: Gravity vector.  If time varying, this input may be provided as a 
-       function of time.  
+ - `linear_displacement = zeros(3)`: Initial linear displacement of the body frame.  
+ - `angular_displacement = zeros(3)`: Initial angular displacement of the body frame. 
+        (using Wiener Milenkovic parameters).
+ - `linear_velocity = zeros(3)`: Initial linear velocity of the body frame. 
+ - `angular_velocity = zeros(3)`: Initial angular velocity of the body frame. 
+ - `linear_acceleration = zeros(3)`: Prescribed linear acceleration of the body frame.
+ - `angular_acceleration = zeros(3)`: Prescribed angular acceleration of the body frame.
+ - `gravity = [0,0,0]`: Gravity vector in the inertial frame.
  - `save = 1:length(time)`: Steps at which to save the time history
 
-# Initial Condition Keyword Arguments (all expressed in the global body-fixed frame)
+ # Initial Condition Keyword Arguments
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of 
-        each point
+        each point in the body frame
  - `theta0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement of 
-        each point (Wiener-Milenkovic Parameters)
+        each point in the body frame (using Wiener-Milenkovic Parameters) 
  - `V0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity of 
-        each point, including contributions from the motion of the body-fixed frame
+        each point in the body frame **excluding contributions from body frame motion**
  - `Omega0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity of 
-        each point, including contributions from the motion of the body-fixed frame
- - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity rate of 
-        each point, including contributions from the motion of the body-fixed frame
- - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity rate of 
-        each point, including contributions from the motion of the body-fixed frame
+        each point in the body frame **excluding contributions from body frame motion**
+ - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear acceleration of 
+        each point in the body frame **excluding contributions from body frame motion**
+ - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular acceleration of 
+        each point in the body frame **excluding contributions from body frame motion**
 
 # Control Flag Keyword Arguments
- - `structural_damping = false`: Flag indicating whether stiffness-proportional structural 
-        damping should be used
+ - `structural_damping = false`: Indicates whether to enable structural damping
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
  - `initialize = true`: Flag indicating whether a consistent set of initial
-        conditions should be found using [`initial_condition_analysis`](@ref). If
-        `false`, the keyword arguments `u0`, `theta0`, `udot0` and `thetadot0` will
-        be ignored and the system state vector will be used as the initial state
-        variables.
+        conditions should be found using [`initial_condition_analysis`](@ref).
+ - `steady_state=false`: Flag indicating whether to initialize by performing a steady state 
+        analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
 
@@ -1609,7 +1418,7 @@ converged for each time step.
 """
 function time_domain_analysis(assembly, tvec; kwargs...)
 
-    system = System(assembly)
+    system = DynamicSystem(assembly)
 
     return time_domain_analysis!(system, assembly, tvec; kwargs...)
 end
@@ -1619,12 +1428,13 @@ end
 
 Pre-allocated version of [`time_domain_analysis`](@ref).
 """
-function time_domain_analysis!(system, assembly, tvec;
+function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # general keyword arguments
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    origin=(@SVector zeros(3)),
+    linear_displacement=(@SVector zeros(3)),
+    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -1652,32 +1462,8 @@ function time_domain_analysis!(system, assembly, tvec;
     iterations=1000,
     # linear solver keyword arguments
     linearization_state=nothing,
-    update_linearization_state=false,
+    update_linearization=false,
     )
-
-    # save original system
-    original_system = system
-
-    # check if provided system is a dynamic system
-    if typeof(original_system) <: DynamicSystem
-        # use provided dynamic system for the analysis
-        system = original_system
-    else
-        # construct a dynamic system for the analysis
-        system = DynamicSystem(assembly; force_scaling = system.force_scaling)
-        # copy state variables from the original system to the dynamic system
-        copy_state!(system, original_system, assembly;     
-            prescribed_conditions=prescribed_conditions,
-            distributed_loads=distributed_loads,
-            point_masses=point_masses,
-            origin=origin,
-            linear_velocity=linear_velocity,
-            angular_velocity=angular_velocity,
-            linear_acceleration=linear_acceleration,
-            angular_acceleration=angular_acceleration,
-            gravity=gravity,
-            time=time)
-    end
 
     # reset state, if specified
     if reset_state
@@ -1691,7 +1477,8 @@ function time_domain_analysis!(system, assembly, tvec;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            origin=origin,
+            linear_displacement=linear_displacement,
+            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -1753,16 +1540,21 @@ function time_domain_analysis!(system, assembly, tvec;
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(tvec[it])
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(tvec[it])
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
-        x0 = typeof(origin) <: AbstractVector ? SVector{3}(origin) : SVector{3}(origin(tvec[it]))
-        v0 = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(tvec[it]))
-        ω0 = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(tvec[it]))
-        a0 = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(tvec[it]))
-        α0 = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(tvec[it]))
+        ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(tvec[it]))
+        θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(tvec[it]))    
+        vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(tvec[it]))
+        ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(tvec[it]))
+        ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(tvec[it]))
+        αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(tvec[it]))
 
         # indices corresponding to rigid body acceleration state variables
         icol_accel = body_frame_acceleration_indices(system, pcond)
 
         # set current state rate initialization parameters
+        ubdot = 2/dt*u + vb
+        θbdot = 2/dt*θb + get_Qinv(θb)*get_C(θb)*ωb
+        vbdot = 2/dt*v + ab
+        ωbdot = 2/dt*ω + αb
         for ipoint = 1:length(assembly.points)
             # extract beam element state variables
             u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
@@ -1776,17 +1568,17 @@ function time_domain_analysis!(system, assembly, tvec;
 
         # define the residual and jacobian functions
         f! = (r, x) -> newmark_system_residual!(r, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0,
-            udot, θdot, Vdot, Ωdot, dt)
+            structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, 
+            vb_p, ωb_p, ab_p, αb_p, ubdot, θbdot, vbdot, ωbdot, udot, θdot, Vdot, Ωdot, dt)
 
         j! = (K, x) -> newmark_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, x0, v0, ω0, a0, α0,
-            udot, θdot, Vdot, Ωdot, dt)
+            structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, 
+            vb_p, ωb_p, ab_p, αb_p, ubdot, θbdot, vbdot, ωbdot, udot, θdot, Vdot, Ωdot, dt)
 
         # solve for the new set of state variables
         if linear
             # perform a linear analysis
-            if !update_linearization_state
+            if !update_linearization
                 if isnothing(linearization_state)
                     x .= 0
                 else
@@ -1846,22 +1638,6 @@ function time_domain_analysis!(system, assembly, tvec;
             break
         end
 
-    end
-
-    # check if provided system was a dynamic system
-    if !(typeof(original_system) <: DynamicSystem)
-        # copy state variables from the dynamic system to the original system
-        copy_state!(original_system, system, assembly;     
-            prescribed_conditions=prescribed_conditions,
-            distributed_loads=distributed_loads,
-            point_masses=point_masses,
-            origin=origin,
-            linear_velocity=linear_velocity,
-            angular_velocity=angular_velocity,
-            linear_acceleration=linear_acceleration,
-            angular_acceleration=angular_acceleration,
-            gravity=gravity,
-            time=time)
     end
 
     return system, history, converged

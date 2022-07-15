@@ -1,4 +1,26 @@
 """
+    BodyState{TF}
+
+Holds the state variables for the motion of the body frame
+
+# Fields:
+ - `u`: Linear deflection
+ - `theta`: Angular deflection (Wiener-Milenkovic parameters)
+ - `v`: Linear velocity
+ - `omega`: Angular velocity
+ - `a`: Linear acceleration
+ - `alpha`: Angular acceleration
+"""
+struct BodyState{TF}
+    u::SVector{3, TF}
+    theta::SVector{3, TF}
+    v::SVector{3, TF}
+    omega::SVector{3, TF}
+    a::SVector{3, TF}
+    alpha::SVector{3, TF}
+end
+
+"""
     PointState
 
 Holds the state variables for a point
@@ -43,24 +65,25 @@ struct ElementState{TF}
 end
 
 """
-    AssemblyState{TF, TP<:AbstractVector{PointState{TF}},
+    AssemblyState{TF, TB<:BodyState{TF}, TP<:AbstractVector{PointState{TF}},
         TE<:AbstractVector{ElementState{TF}}}
 
 Struct for storing state variables for the points and elements in an assembly.
 
 # Fields:
- - `points::TP`: Array of `PointState`s for each point in the assembly
- - `elements::TE`: Array of `ElementState`s for each element in the assembly
+ - `body::TB`: Object of type [`BodyState`](@ref)
+ - `points::TP`: Array of [`PointState`](@ref) for each point in the assembly
+ - `elements::TE`: Array of [`ElementState`](@ref) for each element in the assembly
 """
-struct AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
+struct AssemblyState{TF, TB<:BodyState{TF}, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
+    body::TB   
     points::TP
     elements::TE
 end
-Base.eltype(::AssemblyState{TF, TP, TE}) where {TF, TP, TE} = TF
+Base.eltype(::AssemblyState{TF, TB, TP, TE}) where {TF, TB, TP, TE} = TF
 
 """
-    AssemblyState(system, assembly, x = system.x;
-        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+    AssemblyState(system, assembly, x = system.x; prescribed_conditions = Dict())
 
 Post-process the system state given the solution vector `x`.  Return an object
 of type `AssemblyState` that defines the state of the assembly for the time step.
@@ -69,14 +92,42 @@ If `prescribed_conditions` is not provided, all point state variables are assume
 to be displacements/rotations, rather than their actual identities as used in the
 analysis.
 """
-function AssemblyState(system, assembly, x = system.x;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+function AssemblyState(system, assembly, x = system.x; 
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
+    kwargs...)
+
+    body = extract_body_state(system, x)
 
     points = extract_point_states(system, assembly, x; prescribed_conditions)
 
     elements = extract_element_states(system, assembly, x; prescribed_conditions)
 
-    return AssemblyState(points, elements)
+    return AssemblyState(body, points, elements)
+end
+
+"""
+    extract_body_state(system, x = system.x)
+
+Return the state variables corresponding to the motion of the body frame (see 
+[`BodyState`](@ref)) given the solution vector `x`.
+"""
+extract_body_state
+
+function extract_body_state(system, x = system.x)
+
+    # displacement and velocity state variables
+    u, θ = body_frame_displacement(x)
+    v, ω = body_frame_velocity(x)
+    a, α = body_frame_acceleration(x)
+
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
+
+    # promote all variables to the same type
+    u, θ, v, ω, a, α = promote(u, θ, v, ω, a, α)
+
+    return BodyState(u, θ, v, ω, a, α)
 end
 
 """
@@ -165,7 +216,7 @@ function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = syste
     V = C'*V
     Ω = C'*Ω
 
-    # convert rotation parameter to Wiener-Milenkovic parameters
+    # convert rotation parameters to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(θ)
     θ *= scaling
 
@@ -312,12 +363,28 @@ function extract_element_state(system::ExpandedSystem, assembly, ielem, x = syst
     F = (F1 + F2)/2
     M = (M1 + M2)/2
 
-    # linear and angular velocity
-    V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
+    # linear and angular displacement of the body frame
+    ub, θb = body_frame_displacement(x)
 
-    # convert rotation parameter to Wiener-Milenkovic parameters
-    scaling = rotation_parameter_scaling(θ)
-    θ *= scaling
+    # linear and angular velocity of the body frame
+    vb, ωb = body_frame_velocity(x)
+
+    # linear and angular acceleration of the body frame
+    ab, αb = body_frame_acceleration(x)
+
+    # distance from the rotation center
+    Δx = assembly.elements[ielem].x
+
+    # linear and angular velocity
+    v = vb + cross(ωb, Δx) + cross(ωb, u)# + udot = CtCab*V
+    ω = ωb# + Cab'*Q*θdot = CtCab*Ω
+
+    # linear and angular acceleration
+    a = ab + cross(αb, Δx) + cross(αb, u)# + cross(ω, V) + uddot = CtCabdot*V + CtCab*Vdot
+    α = αb# + Cab'*Qdot*θdot + Cab'*Q*θddot = CtCabdot*Ωdot + CtCab*Ωdot
+
+    # linear and angular velocity **excluding contributions from body frame motion**
+    V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
 
     # rotate linear and angular velocites into the body frame
     C = get_C(θ)
@@ -325,6 +392,14 @@ function extract_element_state(system::ExpandedSystem, assembly, ielem, x = syst
     CtCab = C'*Cab
     V = CtCab*V
     Ω = CtCab*Ω
+
+    # add contributions from body frame motion to velocities
+    V += v
+    Ω += ω
+
+    # convert rotation parameter to Wiener-Milenkovic parameters
+    scaling = rotation_parameter_scaling(θ)
+    θ *= scaling
 
     # promote all variables to the same type
     u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
@@ -445,6 +520,7 @@ without any associated data.
 If the solution time `history` is provided, the time step must also be provided
 
 # Keyword Arguments
+ - `body_motion = true`: Flag indicating whether to visualize body frame motion.
  - `sections = nothing`: Cross section geometry corresponding to each point,
     defined in a frame aligned with the body frame but centered around the
     corresponding point. Defined as an array with shape `(3, ncross, np)` where `ncross`
@@ -532,20 +608,32 @@ function write_vtk(name, assembly; sections=nothing, metadata=Dict())
     return nothing
 end
 
-function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
-    metadata=Dict())
+function write_vtk(name, assembly, state; body_motion = true, sections = nothing, 
+    scaling=1.0, metadata=Dict())
 
     # get problem dimensions
     npoint = length(assembly.points)
     ncross = isnothing(sections) ? 1 : size(sections, 2)
     nelem = length(assembly.elements)
 
+    # extract body position and orientation
+    if body_motion
+        ub = scaling*state.body.u
+        θb = scaling*state.body.theta
+    else
+        ub = @SVector zeros(3)
+        θb = @SVector zeros(3)
+    end
+
+    # rotation matrix for body frame rotation
+    Ct_b = wiener_milenkovic(θb)'
+
     if isnothing(sections)
         # extract point locations
         points = Matrix{eltype(assembly)}(undef, 3, npoint)
         for ip = 1:npoint
             for i = 1:3
-                points[i,ip] = assembly.points[ip][i] + scaling*state.points[ip].u[i]
+                points[i,ip] = ub + Ct_b*(assembly.points[ip][i] + scaling*(state.points[ip].u[i]))
             end
         end
 
@@ -561,8 +649,8 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
                 for ic = 1:ncross
                     u = scaling*state.points[ip].u
                     c = scaling*state.points[ip].theta
-                    Ct = wiener_milenkovic(c)'
-                    points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic,ip]
+                    Ct_p = wiener_milenkovic(c)'
+                    points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic,ip])
                 end
             end
         else
@@ -570,8 +658,8 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
                 for ic = 1:ncross
                     u = scaling*state.points[ip].u
                     c = scaling*state.points[ip].theta
-                    Ct = wiener_milenkovic(c)'
-                    points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic]
+                    Ct_p = wiener_milenkovic(c)'
+                    points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic])
                 end
             end
         end
@@ -615,6 +703,11 @@ function write_vtk(name, assembly, state; sections = nothing, scaling=1.0,
             vtkfile[axis_name[i], VTKCellData()] = data
         end
 
+        # add body frame data
+        for field in fieldnames(Body)
+            vtkfile[string(field)] = getproperty(state.body, field)
+        end
+
         # add point data
         for field in fieldnames(PointState)
             data = Matrix{eltype(assembly)}(undef, 3, npoint*ncross)
@@ -651,12 +744,24 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
 
         for (current_step, state) in enumerate(history)
 
+            # extract body position and orientation
+            if body_motion
+                ub = scaling*state.body.u
+                θb = scaling*state.body.theta
+            else
+                ub = @SVector zeros(3)
+                θb = @SVector zeros(3)
+            end
+
+            # rotation matrix for body frame rotation
+            Ct_b = wiener_milenkovic(θb)'
+
             if isnothing(sections)
                 # extract point locations
                 points = Matrix{eltype(assembly)}(undef, 3, npoint)
                 for ip = 1:npoint
                     for i = 1:3
-                        points[i,ip] = assembly.points[ip][i] + scaling*state.points[ip].u[i]
+                        points[i,ip] = ub + Ct_b*(assembly.points[ip][i] + scaling*state.points[ip].u[i])
                     end
                 end
 
@@ -673,8 +778,8 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
                         for ic = 1:ncross
                             u = scaling*state.points[ip].u
                             c = scaling*state.points[ip].theta
-                            Ct = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic,ip]
+                            Ct_p = wiener_milenkovic(c)'
+                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic,ip])
                         end
                     end
                 else
@@ -682,8 +787,8 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
                         for ic = 1:ncross
                             u = scaling*state.points[ip].u
                             c = scaling*state.points[ip].theta
-                            Ct = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic]
+                            Ct_p = wiener_milenkovic(c)'
+                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic])
                         end
                     end
                 end
@@ -725,6 +830,11 @@ function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0,
                     data[:, ielem] .= CtCab * axis_vector[i]
                 end
                 vtkfile[axis_name[i], VTKCellData()] = data
+            end
+
+            # add body frame data
+            for field in fieldnames(Body)
+                vtkfile[string(field)] = getproperty(state.body, field)
             end
 
             # add point data
@@ -795,15 +905,27 @@ function write_vtk(name, assembly, state, λ, eigenstate;
 
         for (current_step, t) in enumerate(time)
 
+            # extract body position and orientation
+            if body_motion
+                ub = scaling*state.body.u + mode_scaling*real(state.body.u)*exp(λ*t)
+                θb = scaling*state.body.theta + mode_scaling*real(state.body.theta)*exp(λ*t)
+            else
+                ub = @SVector zeros(3)
+                θb = @SVector zeros(3)
+            end
+
+            # rotation matrix for body frame rotation
+            Ct_b = wiener_milenkovic(θb)'
+
             if isnothing(sections)
 
                 # extract point locations
                 points = Matrix{eltype(assembly)}(undef, 3, npoint)
                 for ip = 1:npoint
                     for i = 1:3
-                        points[i,ip] = assembly.points[ip][i] +
+                        points[i,ip] = ub + Ct_b*(assembly.points[ip][i] +
                             scaling*state.points[ip].u[i] +
-                            mode_scaling*real(eigenstate.points[ip].u[i]*exp(λ*t))
+                            mode_scaling*real(eigenstate.points[ip].u[i]*exp(λ*t)))
                     end
                 end
 
@@ -822,7 +944,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                             u = mode_scaling*real.(eigenstate.points[ip].u .* exp(λ*t))
                             c = mode_scaling*real.(eigenstate.points[ip].theta .* exp(λ*t))
                             Ct = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic,ip]
+                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct*sections[:,ic,ip])
                         end
                     end
                 else
@@ -831,7 +953,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                             u = mode_scaling*real.(eigenstate.points[ip].u .* exp(λ*t))
                             c = mode_scaling*real.(eigenstate.points[ip].theta .* exp(λ*t))
                             Ct = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic]
+                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct*sections[:,ic])
                         end
                     end
                 end
@@ -873,6 +995,12 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                     data[:, ielem] .= CtCab * axis_vector[i]
                 end
                 vtkfile[axis_name[i], VTKCellData()] = data
+            end
+
+            # add body data
+            for field in fieldnames(Body)
+                vtkfile[string(field)] = getproperty(state.body, field) +
+                    mode_scaling*real(getproperty(eigenstate.body, field) .* exp(λ*t))
             end
 
             # add point data
