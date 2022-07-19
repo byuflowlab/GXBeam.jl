@@ -2,14 +2,11 @@ using LinearAlgebra: I, Symmetric, det, factorize
 using SparseArrays: spzeros, sparse
 
 """
-    Material(E1, E2, E2, G12, G13, G23, nu12, nu13, nu23, rho)
+    Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
 
 General orthotropic material properties. 
-The "1" direction is along the beam axis for a fiber orientation of zero (theta=0).
-"2" corresponds to the local x-direction and "3" the local y at theta=0. (see documentation for figures).  
-If the two in-plane directions have the same stiffness properties then only one 
-needs to be specified (e.g., compatible with the plane-stress assumption of CLT-based tools):
-`Material(E1, E2, G12, nu12, rho)`
+1 is along main ply axis. 2 is transverse. 3 is normal to ply.
+for a fiber orientation of zero, 1 is along the beam axis.
 
 **Arguments**
 - `E::float`: Young's modulus along 1st, 2nd and 3rd axes.
@@ -30,7 +27,6 @@ struct Material{TF}
     rho::TF
 end
 
-Material(E1, E2, G12, nu12, rho) = Material(E1, E2, E2, G12, G12, G12, nu12, nu12, nu12, rho)
 
 """
     Node(x, y, number)
@@ -639,8 +635,19 @@ function compliance(nodes, elements; cache=initializecache(nodes, elements), gxb
 
 
     if gxbeam_order
+        # change ordering to match gxbeam
         S = reorder(S)
+
+        # move properties to be about the shear center (note x->y, y->z b.c. x is axial in derivation)
+        P = [0.0 -ys xs
+             ys   0   0
+            -xs   0   0]
+        Hinv = [I transpose(P); zeros(3, 3) I]
+        HinvT = [I zeros(3, 3); P I]
+
+        S = Hinv * S * HinvT
     end
+
 
     return S, sc, tc
 end
