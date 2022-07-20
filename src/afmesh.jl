@@ -39,7 +39,7 @@ end
 """
 Modify number of layers based on a given maximum thickness
 """
-function redistribute_thickness(segments, dt)
+function redistribute_thickness(segments, dt, nt)
     ns = length(segments)
     newsegments = Vector{Vector{Layer}}(undef, ns)
 
@@ -53,7 +53,15 @@ function redistribute_thickness(segments, dt)
             #extract layer
             layer = segments[i][j]
             # determine number of segments
-            nseg = round(Int64, layer.t/dt)  
+            if isnothing(nt)
+                nseg = round(Int64, layer.t/dt)  
+            else
+                if i == nt[1][1]
+                    nseg = nt[2][j]
+                else
+                    nseg = 1
+                end
+            end
 
             # decide whether to keep or divide up
             if nseg == 1 || nseg == 0  # keep this layer unchanged
@@ -77,12 +85,12 @@ end
 convert segments to all have the same number of layers for ease in meshing.  
 Overall definition remains consistent, just break up some thicker layers into multiple thinner layers (with same material and orientation properties)
 """
-function preprocess_layers(segments, webs, dt=nothing)
+function preprocess_layers(segments, webs, dt=nothing, nt=nothing)
 
     # repartion thickneses if necessary so that thickness mesh is consistent
-    if !isnothing(dt)
-        segments = redistribute_thickness(segments, dt)
-        webs = redistribute_thickness(webs, dt)
+    if !isnothing(dt) || !isnothing(nt)
+        segments = redistribute_thickness(segments, dt, nt)
+        webs = redistribute_thickness(webs, dt, nt)
     end
     
     # number of segments
@@ -300,7 +308,7 @@ function parseairfoil(xaf, yaf, xbreak, ds, nseg=nothing)
     end
 
     # ----- resample ---------
-    if !isnothing(ds)
+    if !isnothing(ds) || !isnothing(nseg)
         xu, yu = resample(xu, yu, xbreak, ds, nseg)
         xl, yl = resample(xl, yl, xbreak, ds, nseg)
     end
@@ -468,6 +476,10 @@ function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     iu = findfirst(yiu .< 0.0)  # TODO: very unlikely, but what if they intersection exactly at zero?  would need to go back one step to keep quadrilateral shape
     il = findfirst(yil .> 0.0)
 
+    if isnothing(iu) && isnothing(il)  # TODO: could have an odd case where only one is nothing
+        return 0.0, xu, yu, xl, yl
+    end
+
     # 1 and 2 are endpoints of one line
     x1 = xiu[iu-1]; y1 = yiu[iu-1]
     x2 = xiu[iu]; y2 = yiu[iu]
@@ -506,8 +518,13 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
     
     # initialize
     nxu = length(xu)
-    nodes_te = nl + 1
-    elements_te = nl
+    if x_te != 0.0
+        nodes_te = nl + 1
+        elements_te = nl
+    else
+        nodes_te = 0
+        elements_te = 0
+    end
     nodesu = Vector{Node}(undef, nxu * (nl + 1) + nodes_te)
     elementsu = Vector{MeshElement}(undef, (nxu - 1) * nl + elements_te)
 
@@ -547,33 +564,31 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
     end
 
     # add trailing edge nodes (TODO: handle case where trailinng edge inner surface does not intersect, x_te == 0.0)
-    # pull out last row thickness and normalize it
-    last_t = [layer.t for layer in segments[end]]
-    norm_t = cumsum(last_t)
-    norm_t /= norm_t[end]
-    # distribute points according to that normalization starting at (chord, 0) ending at (x_te, 0)
-    nodesu[n] = Node(chord, 0.0)
-    n += 1
-    for i = 1:length(norm_t)
-        next_x = chord - (chord - x_te)*norm_t[i]
-        nodesu[n] = Node(next_x, 0.0)
+    if x_te != 0.0
+        # pull out last row thickness and normalize it
+        last_t = [layer.t for layer in segments[end]]
+        norm_t = cumsum(last_t)
+        norm_t /= norm_t[end]
+        # distribute points according to that normalization starting at (chord, 0) ending at (x_te, 0)
+        nodesu[n] = Node(chord, 0.0)
         n += 1
-    end
+        for i = 1:length(norm_t)
+            next_x = chord - (chord - x_te)*norm_t[i]
+            nodesu[n] = Node(next_x, 0.0)
+            n += 1
+        end
 
-    # create elements
-    e = 1
-    for i = 1:nxu
+        # create elements
+        e = 1
+        for i = 1:nxu
 
-        # if i == nxu  # trailing edge
-        #     layers = segments[end]  # shouldn't this happen auytomatically?
-        # else
-        idx = find_segment_idx(xu[i], xbreak)
-        layers = segments[idx]
-        # end
+            idx = find_segment_idx(xu[i], xbreak)
+            layers = segments[idx]
 
-        for j = 1:nl
-            elementsu[e] = MeshElement([(nl+1)*(i-1) + (j+1), (nl+1)*i + (j+1), (nl+1)*i + j, (nl+1)*(i-1) + j], layers[j].material, layers[j].theta)
-            e += 1
+            for j = 1:nl
+                elementsu[e] = MeshElement([(nl+1)*(i-1) + (j+1), (nl+1)*i + (j+1), (nl+1)*i + j, (nl+1)*(i-1) + j], layers[j].material, layers[j].theta)
+                e += 1
+            end
         end
     end
 
@@ -584,7 +599,7 @@ end
 given nodes/elements for upper surface and lower surface separately,
 combine into one set making sure to reuse the common nodes that occur at the LE/TE
 """
-function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers)
+function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
 
     nt = 1 + nlayers  # number of points across thickness
     nnu = length(nodesu) 
@@ -696,7 +711,7 @@ end
 
 
 """
-    afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ne_web=4)
+    afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, nws=4)
 
 Create structural mesh for airfoil.  The airfoil coordinates define the meshing density tangential to the airfoil.
 Whereas the number of layers defines the resolution normal to the airfoil. All segments are meshed with the same resolution
@@ -713,20 +728,22 @@ in the normal direction, using the number of grid points as defined by segment w
 - `webs::Vector{Vector{Layer}}`: same structure as segments, except each inner vector is from left to right (although this is usually symmetric), and each outer vector is for a separate web
 - `ds::float`: if provided, airfoil spacing will be resampling with approximately this spacing, normalized by chord.  e.g., 0.01 will have points on the airfoil roughly 1% chord apart.
 - `dt::float`: if provided, thickness will be resampled with this maximum mesh size (thickness is absolute). Note that the total number of cells remains constant along airfoil, so most thicknesses will be much less.  e.g., 0.01 will target a maximum mesh thickness of 0.01 (absolute).
-- `ne_web::int`: discretization level for number of elements vertically along web.
+- `ns::array{int}`: if provided, rather than use a targert size ds, we specify the number of cells to use in each segment.  This is desirable for gradient-based optimization, if airfoil coordinates are changed, so that during resizing operations the  mesh stretch/shrinks rather than experiencing discrete jumps.  For example, ns=[15, 20, 40, 30] would use 15 elements between xbreak[1] and xbreak[2] and so on.  
+- `nt::int`: if provided, defines how many elements to use across tangential direction.  Again, prefered over dt for gradient-based optimization, if the thicknesses are changed during optimization.
+- `nws::int`: discretization level for number of elements vertically along web.
 
 **Returns**
 - `nodes::Vector{Node}`: nodes for this mesh
 - `elements::Vector{MeshElement}`: elements for this mesh
 """
-function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ne_web=4)
+function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, nws=4)
 
     # -------------- preprocessing -----------------
     # preprocess the segments so all have same number of layers
-    segments, webs = preprocess_layers(segments, webs, dt)
+    segments, webs = preprocess_layers(segments, webs, dt, nt)
 
     # separate into upper and lower surfaces
-    xu, yu, xl, yl = parseairfoil(xaf, yaf, xbreak, ds)
+    xu, yu, xl, yl = parseairfoil(xaf, yaf, xbreak, ds, ns)
 
     # unnormalize
     xu *= chord; yu *= chord
@@ -762,9 +779,9 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     nodesl, elementsl = nodes_half(xl, yl, txl, tyl, xbreak, segments, chord, x_te)
 
     nlayer = length(segments[1])
-    nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer)
+    nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer, x_te)
 
-    nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, ne_web)
+    nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, nws)
     # -----------------------------------
     
     # ------ rotate with twist -------
@@ -774,7 +791,7 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     for i = 1:length(nodes)
         x = nodes[i].x
         y = nodes[i].y
-        nodes[i] = Node((x - xc)*c + y*s, -(x - xc)*s + y*c)
+        nodes[i] = Node((x - xc)*c + y*s + xc, -(x - xc)*s + y*c)  # added xc back to keep origin at original location
     end
     # -----------------------------------
 

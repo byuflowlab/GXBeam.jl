@@ -83,7 +83,7 @@ end
 
     # --------- Case 2 (S2, two isotropic materials) --------
     alpha = 1e1
-    iso2 = Material(100.0/alpha, 100.0/alpha, 41.667/alpha, 0.2, 1.0)  # note error in user guide for nu
+    iso2 = Material(100.0/alpha, 100.0/alpha, 100.0/alpha, 41.667/alpha, 41.667/alpha, 41.667/alpha, 0.2, 0.2, 0.2, 1.0)  # note error in user guide for nu
 
     let
     m = 1
@@ -297,7 +297,7 @@ end
     R = 0.3
     t = tratio*2*R
     rho = 2800.0
-    circmat = Material(E, E, G, nu, rho)
+    circmat = Material(E, E, E, G, G, G, nu, nu, nu, rho)
 
     nr = 20
     nt = 100
@@ -366,7 +366,7 @@ end
     nu12 = 0.42
     G12 = 0.87e6
     rho = 1.0
-    pipemat = Material(E1, E2, G12, nu12, rho)
+    pipemat = Material(E1, E2, E2, G12, G12, G12, nu12, nu12, nu12, rho)
 
     nx = 50
     nt = 24
@@ -567,18 +567,7 @@ end
     webs = [web, web]
 
 
-    nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, ds=0.005, dt=0.01, ne_web=20)
-
-    S, sc, tc = compliance(nodes, elements)
-    # K = inv(S)
-    sc0 = sc
-
-    # move to center of shear center and recompute
-    for i = 1:length(nodes)
-        x = nodes[i].x
-        y = nodes[i].y
-        nodes[i] = Node(x - sc[1], y - sc[2])
-    end
+    nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, ds=0.005, dt=0.01, nws=20)
 
     S, sc, tc = compliance(nodes, elements)
     K = inv(S)
@@ -654,13 +643,13 @@ end
     @test isapprox(M[1, 1], 258.053, rtol=0.01)
     @test isapprox(M[5, 5], 2.172, rtol=0.02)
     @test isapprox(M[6, 6], 46.418, rtol=0.03)
-    # relative to pitch axis
-    @test isapprox(sc0[1] + mc[1], 0.2778, rtol=0.01)
-    @test isapprox(sc0[2] + mc[2], 0.02743, rtol=0.02)
-    @test isapprox(sc0[1] + tc[1], 0.233, rtol=0.02)
-    @test isapprox(sc0[2] + tc[2], 0.029, rtol=0.02)
-    @test isapprox(sc0[1] + sc[1] + paxis*chord, 0.031 + paxis*chord, rtol=0.22) # relative to leading edge since its close to pitch axis
-    @test isapprox(sc0[2] + sc[2], 0.040, rtol=0.05)
+    # paper has it relative to pitch axis
+    @test isapprox(mc[1] - paxis*chord, 0.2778, rtol=0.01)
+    @test isapprox(mc[2], 0.02743, rtol=0.02)
+    @test isapprox(tc[1] - paxis*chord, 0.233, rtol=0.02)
+    @test isapprox(tc[2], 0.029, rtol=0.02)
+    @test isapprox(sc[1], 0.031 + paxis*chord, rtol=0.22) # relative to leading edge since its close to pitch axis
+    @test isapprox(sc[2], 0.040, rtol=0.05)
 
     Ixx = M[5, 5]
     Iyy = M[6, 6]
