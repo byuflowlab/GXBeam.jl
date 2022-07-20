@@ -558,6 +558,7 @@ end
     t = [0.000381, 0.00051, 17*0.00053, 0.003125, 16*0.00053]
     theta = [0, 0, 20, 0, 0]*pi/180
     layup4 = Layer.(mat[idx], t, theta)
+
     idx = [1, 5, 1]
     t = [38*0.00053, 0.003125, 38*0.00053]
     theta = [0, 0, 0]*pi/180
@@ -565,7 +566,6 @@ end
 
     segments = [layup1, layup2, layup3, layup4]
     webs = [web, web]
-
 
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, ds=0.005, dt=0.01, nws=20)
 

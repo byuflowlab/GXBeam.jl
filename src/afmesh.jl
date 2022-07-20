@@ -541,10 +541,10 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
         # find corresponding segment
         idx = find_segment_idx(xu[i], xbreak)
         layers = segments[idx]
-
+        
         # check if at segment break
         segmentbreak = false
-        if x == xbreak[idx+1] && xbreak[idx+1] != 1.0
+        if x == xbreak[idx+1] && xbreak[idx+1] != chord
             segmentbreak = true
         end
 
@@ -563,7 +563,7 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
         end
     end
 
-    # add trailing edge nodes (TODO: handle case where trailinng edge inner surface does not intersect, x_te == 0.0)
+    # add trailing edge nodes
     if x_te != 0.0
         # pull out last row thickness and normalize it
         last_t = [layer.t for layer in segments[end]]
@@ -577,18 +577,42 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
             nodesu[n] = Node(next_x, 0.0)
             n += 1
         end
+    else
+        # modify last row of nodes to create angled transition from n-1 to n-nl
+        # start
+        nsx = nodesu[n-nl-2].x
+        nsy = nodesu[n-nl-2].y
+        # end
+        nex = nodesu[n-nl-1].x
+        ney = nodesu[n-nl-1].y
 
-        # create elements
-        e = 1
-        for i = 1:nxu
+        for j = 1:nl+1
+            njy = nodesu[n - (nl+1) - j].y  # use last row height (could really do either)
+            
+            frac = (njy - nsy)/(ney - nsy)
+            nodesu[n - j] = Node(nsx + frac*(nex-nsx), njy)
+        end
 
-            idx = find_segment_idx(xu[i], xbreak)
-            layers = segments[idx]
+        # move second to last row back halfway to make room
+        for j = 1:nl+1
+            newx = 0.5 * (nodesu[n - (nl+1) - j].x + nodesu[n - 2*(nl+1) - j].x)
+            newy = 0.5 * (nodesu[n - (nl+1) - j].y + nodesu[n - 2*(nl+1) - j].y)
+            nodesu[n - nl-1 - j] = Node(newx, newy)
+        end
 
-            for j = 1:nl
-                elementsu[e] = MeshElement([(nl+1)*(i-1) + (j+1), (nl+1)*i + (j+1), (nl+1)*i + j, (nl+1)*(i-1) + j], layers[j].material, layers[j].theta)
-                e += 1
-            end
+        nxu -= 1  # hack for next part to create correct number of elements
+    end
+
+    # create elements
+    e = 1
+    for i = 1:nxu
+
+        idx = find_segment_idx(xu[i], xbreak)
+        layers = segments[idx]
+
+        for j = 1:nl
+            elementsu[e] = MeshElement([(nl+1)*(i-1) + (j+1), (nl+1)*i + (j+1), (nl+1)*i + j, (nl+1)*(i-1) + j], layers[j].material, layers[j].theta)
+            e += 1
         end
     end
 
@@ -606,8 +630,13 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
     nnl = length(nodesl) 
     neu = length(elementsu) 
     nel = length(elementsl) 
-    nn = nnu + nnl - 2*nt  # number of nodes
-    ne = neu + nel  # number of elements
+    if x_te != 0.0
+        nn = nnu + nnl - 2*nt  # number of nodes
+        ne = neu + nel  # number of elements
+    else
+        nn = nnu + nnl - nt  # no shared t.e.
+        ne = neu + nel + nlayers
+    end
     
     nodes = Vector{Node}(undef, nn)
     elements = Vector{MeshElement}(undef, ne)
@@ -629,22 +658,37 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
         nodenum = [nnu+j+1; j+1; j; nnu+j]
         elements[i] = MeshElement(nodenum, elementsl[j].material, elementsl[j].theta)
     end
+
     # middle section need to reorder nodes
-    for i = neu+nt:neu+nel-(nt-1)
+    if x_te != 0.0
+        lastidx = neu + nel - (nt-1)
+    else
+        lastidx = neu + nel  # no shared t.e.
+    end
+    for i = neu+nt:lastidx
         j = i - neu  # element index (starts at nt)
         oldnodenum = elementsl[j].nodenum
         oldnodenum .+= (nnu - nt)  # increase node number by upper surface (minus the ones reused on leading edge)
         nodenum = [oldnodenum[2]; oldnodenum[1]; oldnodenum[4]; oldnodenum[3]]  # reorder the old nodenumbers since lower surface is flipped (sttart at bottom left, ccw)
         elements[i] = MeshElement(nodenum, elementsl[j].material, elementsl[j].theta)
     end
+    
     # last nt-1 elements use the node numbers from the upper surface trailing edge
-    for i = neu+nel-(nt-1)+1:neu+nel
-        j = i - neu  # element index
-        k = i - (neu+nel-(nt-1))  # starts at 1
-        oldnodenum = elementsl[j].nodenum
-        oldnodenum .+= (nnu - nt)  # increase node number by upper surface (minus the ones reused on leading edge)
-        nodenum = [nnu-nt+k+1; oldnodenum[1]; oldnodenum[4]; nnu-nt+k]
-        elements[i] = MeshElement(nodenum, elementsl[j].material, elementsl[j].theta)
+    if x_te != 0.0
+        for i = neu+nel-(nt-1)+1:neu+nel
+            j = i - neu  # element index
+            k = i - (neu+nel-(nt-1))  # starts at 1
+            oldnodenum = elementsl[j].nodenum
+            oldnodenum .+= (nnu - nt)  # increase node number by upper surface (minus the ones reused on leading edge)
+            nodenum = [nnu-nt+k+1; oldnodenum[1]; oldnodenum[4]; nnu-nt+k]
+            elements[i] = MeshElement(nodenum, elementsl[j].material, elementsl[j].theta)
+        end
+    else
+        # add new elements to close trailing edge.
+        for i = 1:nlayers
+            nodenum = [nnl-i+1+(nnu-nt); nnl-i+(nnu-nt); nnu-i; nnu-i+1]
+            elements[neu+nel+i] = MeshElement(nodenum, elementsu[end-i+1].material, elementsu[end-i+1].theta)
+        end
     end
     
     return nodes, elements
