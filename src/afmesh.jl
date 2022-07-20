@@ -43,6 +43,16 @@ function redistribute_thickness(segments, dt, nt)
     ns = length(segments)
     newsegments = Vector{Vector{Layer}}(undef, ns)
 
+    if !isnothing(nt)
+        snt = sum.(nt)
+        if !all(==(snt[1]), snt)
+            error("number of elements in each subarray of nt must equal each other")
+        end
+        if any(vcat(nt...) .< 1)
+            error("every element in nt must be greater than or equal to 1")
+        end
+    end
+
     for i = 1:ns
         # initialize new properties for this segment
         matvec = Material[]
@@ -56,11 +66,7 @@ function redistribute_thickness(segments, dt, nt)
             if isnothing(nt)
                 nseg = round(Int64, layer.t/dt)  
             else
-                if i == nt[1][1]
-                    nseg = nt[2][j]
-                else
-                    nseg = 1
-                end
+                nseg = nt[i][j]
             end
 
             # decide whether to keep or divide up
@@ -85,17 +91,19 @@ end
 convert segments to all have the same number of layers for ease in meshing.  
 Overall definition remains consistent, just break up some thicker layers into multiple thinner layers (with same material and orientation properties)
 """
-function preprocess_layers(segments, webs, dt=nothing, nt=nothing)
+function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
 
-    # repartion thickneses if necessary so that thickness mesh is consistent
-    if !isnothing(dt) || !isnothing(nt)
-        segments = redistribute_thickness(segments, dt, nt)
-        webs = redistribute_thickness(webs, dt, nt)
-    end
-    
     # number of segments
     ns = length(segments)
 
+    # repartion thickneses if necessary so that thickness mesh is consistent    
+    if !isnothing(dt) || !isnothing(nt)
+        segments = redistribute_thickness(segments, dt, nt)
+    end
+    if !isnothing(dt) || !isnothing(wnt)
+        webs = redistribute_thickness(webs, dt, wnt)
+    end
+    
     # determine number of layers in each segment and thickness of each segment 
     nl = vector_ints(ns)
     t = Vector{Vector{Float64}}(undef, ns)
@@ -755,7 +763,7 @@ end
 
 
 """
-    afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, nws=4)
+    afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, wns=4, wnt=nothing)
 
 Create structural mesh for airfoil.  The airfoil coordinates define the meshing density tangential to the airfoil.
 Whereas the number of layers defines the resolution normal to the airfoil. All segments are meshed with the same resolution
@@ -772,19 +780,20 @@ in the normal direction, using the number of grid points as defined by segment w
 - `webs::Vector{Vector{Layer}}`: same structure as segments, except each inner vector is from left to right (although this is usually symmetric), and each outer vector is for a separate web
 - `ds::float`: if provided, airfoil spacing will be resampling with approximately this spacing, normalized by chord.  e.g., 0.01 will have points on the airfoil roughly 1% chord apart.
 - `dt::float`: if provided, thickness will be resampled with this maximum mesh size (thickness is absolute). Note that the total number of cells remains constant along airfoil, so most thicknesses will be much less.  e.g., 0.01 will target a maximum mesh thickness of 0.01 (absolute).
-- `ns::array{int}`: if provided, rather than use a targert size ds, we specify the number of cells to use in each segment.  This is desirable for gradient-based optimization, if airfoil coordinates are changed, so that during resizing operations the  mesh stretch/shrinks rather than experiencing discrete jumps.  For example, ns=[15, 20, 40, 30] would use 15 elements between xbreak[1] and xbreak[2] and so on.  
-- `nt::int`: if provided, defines how many elements to use across tangential direction.  Again, prefered over dt for gradient-based optimization, if the thicknesses are changed during optimization.
-- `nws::int`: discretization level for number of elements vertically along web.
+- `ns::vector{int}`: if provided, rather than use a targert size ds, we specify the number of cells to use in each segment.  This is desirable for gradient-based optimization, if airfoil coordinates are changed, so that during resizing operations the  mesh stretch/shrinks rather than experiencing discrete jumps.  For example, ns=[15, 20, 40, 30] would use 15 elements between xbreak[1] and xbreak[2] and so on.  
+- `nt::vector{vector{int}}`: if provided, defines how many elements to use across tangential direction.  Again, prefered over dt for gradient-based optimization, if the thicknesses are changed during optimization.  each entry defines how many cells to put in that layer following order of original layup.  for example, nt=[[1, 2, 1], [1, 3]] would use 1 element, 2 elements (subdivide), then 1 elements over first sector, and so on.
+- `wns::int`: discretization level for number of elements vertically along web.
+- `wnt::vector{vector{int}}`: same definition as nt but for the webs
 
 **Returns**
 - `nodes::Vector{Node}`: nodes for this mesh
 - `elements::Vector{MeshElement}`: elements for this mesh
 """
-function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, nws=4)
+function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, wns=4, wnt=nothing)
 
     # -------------- preprocessing -----------------
     # preprocess the segments so all have same number of layers
-    segments, webs = preprocess_layers(segments, webs, dt, nt)
+    segments, webs = preprocess_layers(segments, webs, dt, nt, wnt)
 
     # separate into upper and lower surfaces
     xu, yu, xl, yl = parseairfoil(xaf, yaf, xbreak, ds, ns)
@@ -825,7 +834,7 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     nlayer = length(segments[1])
     nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer, x_te)
 
-    nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, nws)
+    nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, wns)
     # -----------------------------------
     
     # ------ rotate with twist -------
