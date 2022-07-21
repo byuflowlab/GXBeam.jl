@@ -13,7 +13,7 @@
     nu13 = rand()
     rho = 1.0
     mat = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
-    cache = initializecache([Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0)], [MeshElement([1, 2, 3, 4], mat, 0.0)])
+    cache = initialize_cache([Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0)], [MeshElement([1, 2, 3, 4], mat, 0.0)])
     GXBeam.stiffness!(mat, cache)
     Q1 = cache.Q
 
@@ -66,7 +66,7 @@ end
     end
 
 
-    S, sc, tc = compliance(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 3.4899e-1, atol=0.0001e-1)
@@ -100,7 +100,7 @@ end
     end
 
 
-    S, sc, tc = compliance(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 1.28e-1, atol=0.01e-1)
@@ -126,7 +126,7 @@ end
         end
     end
 
-    S, sc, tc = compliance(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
     K = inv(S)
     @test isapprox(K[1, 1], 5.039E-01, atol=0.001e-1)
     @test isapprox(K[2, 2], 4.201E-01, atol=0.001e-1)
@@ -146,7 +146,7 @@ end
         end
     end
 
-    S, sc, tc = compliance(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
     K = inv(S)
     @test isapprox(K[1, 1], 7.598E-01, atol=0.001e-1)
     @test isapprox(K[2, 2], 4.129E-01, atol=0.001e-1)
@@ -168,7 +168,7 @@ end
         end
     end
 
-    S, sc, tc = compliance(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
     K = inv(S)
     @test isapprox(K[1, 1], 5.0202E-01, atol=0.0001e-1)
     @test isapprox(K[2, 2], 5.0406E-01, atol=0.0001e-1)
@@ -224,7 +224,7 @@ end
 
     # plotmesh(nodes, elements)
 
-    S, sc, tc = compliance(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 1.249E-01, atol=0.001e-1/2)
@@ -269,7 +269,7 @@ end
 
     # plotmesh(nodes, elements)
 
-    S, sc, tc = compliance(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 4.964E-02, atol=0.002e-2)
@@ -332,7 +332,7 @@ end
 
     # plotmesh(nodes, elements)
 
-    S, sc, tc = compliance(nodes, elements)
+    S, sc, tc = compliance_matrix(nodes, elements)
     K = inv(S)
 
     @test isapprox(K[1, 1], 1.835e10, rtol=0.001)
@@ -342,7 +342,7 @@ end
     @test isapprox(K[5, 5], 4.587e8, rtol=0.002)
     @test isapprox(K[6, 6], 4.587e8, rtol=0.002)
 
-    M, mc = massproperties(nodes, elements)
+    M, mc = mass_matrix(nodes, elements)
 
     @test isapprox(M[1, 1], 7.037e2, rtol=0.001)
     @test isapprox(M[5, 5], 1.759e1, rtol=0.003)
@@ -495,7 +495,7 @@ end
 
     # plotmesh(nodes, elements)
 
-    S, sc, tc = compliance(nodes, elements)
+    S, sc, tc = compliance_matrix(nodes, elements)
     K = inv(S)
 
     @test isapprox(K[1, 1], 1.03892e7, rtol=0.04)
@@ -570,7 +570,7 @@ end
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, ds=0.005, dt=0.01, wns=20)
     # nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, nt=[[1, 1, 7], [1, 1, 7], [1, 1, 1, 2, 1, 2, 1], [1, 1, 1, 1, 5]], wnt=[[1, 1, 1], [1, 1, 1]])
     
-    S, sc, tc = compliance(nodes, elements)
+    S, sc, tc = compliance_matrix(nodes, elements)
     K = inv(S)
 
     @test isapprox(log10(K[1, 1]), log10(abs(2.389e9)), rtol=0.006)
@@ -640,7 +640,7 @@ end
     # println("K66 = ", round((log10(K[6, 6])/log10(4.406e8) - 1)*100, digits=2), "%")
     
 
-    M, mc = massproperties(nodes, elements)
+    M, mc = mass_matrix(nodes, elements)
     @test isapprox(M[1, 1], 258.053, rtol=0.01)
     @test isapprox(M[5, 5], 2.172, rtol=0.02)
     @test isapprox(M[6, 6], 46.418, rtol=0.03)

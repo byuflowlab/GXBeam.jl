@@ -15,6 +15,20 @@ discretize_beam
 Assembly(points, start, stop)
 ```
 
+### Section Properties
+
+```@docs
+Material
+Node
+MeshElement
+Layer
+afmesh
+initialize_cache
+compliance_matrix
+mass_matrix
+plotmesh
+```
+
 ### Defining Point Masses
 ```@docs
 PointMass

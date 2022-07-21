@@ -11,7 +11,7 @@ for a fiber orientation of zero, 1 is along the beam axis.
 **Arguments**
 - `E::float`: Young's modulus along 1st, 2nd and 3rd axes.
 - `G::float`: shear moduli
-- `nu::float`: Poisson's ratio.  nu_ij E_j = nu_ji E_i
+- `nu::float`: Poisson's ratio.  ``nu_ij E_j = nu_ji E_i``
 - `rho::float`: density
 """
 struct Material{TF}
@@ -29,7 +29,7 @@ end
 
 
 """
-    Node(x, y, number)
+    Node(x, y)
 
 A node in the finite element mesh at location x, y.  If assembled in a vector, the vector index corresponds to the node number.
 
@@ -92,11 +92,11 @@ struct SectionCache{TM, TSM, TFM, TV}  # matrix, sparse matrix, float matrix, ve
 end
 
 """
-    initializecache(nodes, elements, etype=Float64)
+    initialize_cache(nodes, elements, etype=Float64)
 
 create cache.  set sizes of static matrices, and set sparsity patterns for those that are fixed.
 """
-function initializecache(nodes, elements, etype=Float64)
+function initialize_cache(nodes, elements, etype=Float64)
 
     # create cache
     Q = zeros(etype, 6, 6)
@@ -531,25 +531,25 @@ end
 
 
 """
-    compliance(nodes, elements; cache=initializecache(nodes, elements), gxbeam_order=true)
+    compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements), gxbeam_order=true)
 
 Compute compliance matrix given the finite element mesh described by nodes and elements.
 
 **Arguments**
 - `nodes::Vector{Node}`: all the nodes in the mesh
 - `elements::Vector{MeshElement}`: all the elements in the mesh
-- `gxbeam_order::Bool`: true if output compliance matrix should be in GXBeam order or internal ordering (see documentation)
+- `gxbeam_order::Bool`: true if output compliance matrix should be in GXBeam order or internal ordering
 - `cache::SectionCache`: if number of nodes, number of elements, and connectivity of mesh stays the same (and you will be repeating calls)
-# then you can should initialize cache yourself and pass in so you don't have to keep reconstructing it.
+    then you can should initialize cache yourself and pass in so you don't have to keep reconstructing it.
 
 **Returns**
-- `S::Matrix`: compliance matrix
+- `S::Matrix`: compliance matrix (about the shear center as long as gxbeam_order = true)
 - `sc::Vector{float}`: x, y location of shear center
     (location where a transverse/shear force will not produce any torsion, i.e., beam will not twist)
 - `tc::Vector{float}`: x, y location of tension center, aka elastic center, aka centroid 
     (location where an axial force will not produce any bending, i.e., beam will remain straight)
 """
-function compliance(nodes, elements; cache=initializecache(nodes, elements), gxbeam_order=true)
+function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements), gxbeam_order=true)
 
     # initialize
     ne = length(elements) # number of elements
@@ -669,7 +669,16 @@ function area_and_centroid_of_element(node)
 end
 
 
-function massproperties(nodes, elements)
+"""
+    mass_matrix(nodes, elements)
+
+Compute mass matrix for the structure using GXBeam ordering.
+    
+**Returns**
+- `M::Matrix`: mass matrix
+- `mc::Vector{float}`: x, y location of mass center
+"""
+function mass_matrix(nodes, elements)
 
     # --- find total mass and center of mass -----
     m = 0.0
@@ -724,7 +733,10 @@ end
 
 
 """
-plot nodes and elements for a quick visualization
+    plotmesh(nodes, elements, pyplot; plotnumbers=false)
+
+plot nodes and elements for a quick visualization.
+Need to pass in a PyPlot object as PyPlot is not loaded by this package.
 """
 function plotmesh(nodes, elements, pyplot; plotnumbers=false)
     ne = length(elements)

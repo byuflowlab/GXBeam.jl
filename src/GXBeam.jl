@@ -39,7 +39,7 @@ export left_eigenvectors, correlate_eigenmodes
 
 # from section
 export Material, Node, MeshElement
-export initializecache, compliance, massproperties, plotmesh
+export initialize_cache, compliance_matrix, mass_matrix, plotmesh
 # from afmesh
 export Layer
 export afmesh
