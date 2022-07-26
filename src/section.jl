@@ -27,7 +27,7 @@ struct Material{TF}
     rho::TF
 end
 
-Base.eltype(::Material{TF}) = TF
+Base.eltype(::Material{TF}) where TF = TF
 
 """
     Node(x, y)
@@ -43,7 +43,7 @@ struct Node{TF}
     y::TF
 end
 
-Base.eltype(::Node{TF}) = TF
+Base.eltype(::Node{TF}) where TF = TF
 
 """
     MeshElement(nodenum, material, theta)
@@ -62,7 +62,7 @@ struct MeshElement{VI, TF}
     theta::TF
 end
 
-Base.eltype(::MeshElement{VI, TF}) = TF
+Base.eltype(::MeshElement{VI, TF}) where {VI, TF} = TF
 
 """
 internal cache so allocations happen only once upfront
