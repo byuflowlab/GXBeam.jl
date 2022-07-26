@@ -41,7 +41,7 @@ Modify number of layers based on a given maximum thickness
 """
 function redistribute_thickness(segments, dt, nt)
     ns = length(segments)
-    newsegments = Vector{Vector{Layer{Float64}}(undef, ns)
+    newsegments = Vector{Vector{Layer{Float64}}}(undef, ns)
 
     if !isnothing(nt)
         snt = sum.(nt)
