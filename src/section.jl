@@ -27,6 +27,7 @@ struct Material{TF}
     rho::TF
 end
 
+Base.eltype(::Material{TF}) = TF
 
 """
     Node(x, y)
@@ -42,6 +43,8 @@ struct Node{TF}
     y::TF
 end
 
+Base.eltype(::Node{TF}) = TF
+
 """
     MeshElement(nodenum, material, theta)
 
@@ -55,9 +58,11 @@ An element in the mesh, consisting of four ordered nodes, a material, and a fibe
 """
 struct MeshElement{VI, TF}
     nodenum::VI
-    material::Material
+    material::Material{TF}
     theta::TF
 end
+
+Base.eltype(::MeshElement{VI, TF}) = TF
 
 """
 internal cache so allocations happen only once upfront
