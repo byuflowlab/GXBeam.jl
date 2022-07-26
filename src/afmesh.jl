@@ -43,7 +43,8 @@ Modify number of layers based on a given maximum thickness
 """
 function redistribute_thickness(segments, dt, nt)
     ns = length(segments)
-    newsegments = Vector{Vector{Layer{Float64}}}(undef, ns)
+    TF = eltype(eltype(eltype(segments)))
+    newsegments = Vector{Vector{Layer{TF}}}(undef, ns)
 
     if !isnothing(nt)
         snt = sum.(nt)
@@ -57,9 +58,9 @@ function redistribute_thickness(segments, dt, nt)
 
     for i = 1:ns
         # initialize new properties for this segment
-        matvec = Material{Float64}[]
-        tvec = Float64[]
-        thetavec = Float64[]
+        matvec = Material{TF}[]
+        tvec = TF[]
+        thetavec = TF[]
         
         for j = 1:length(segments[i])
             #extract layer
@@ -95,6 +96,8 @@ Overall definition remains consistent, just break up some thicker layers into mu
 """
 function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
 
+    TF = eltype(eltype(eltype(segments)))
+
     # number of segments
     ns = length(segments)
 
@@ -108,7 +111,7 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
     
     # determine number of layers in each segment and thickness of each segment 
     nl = vector_ints(ns)
-    t = Vector{Vector{Float64}}(undef, ns)
+    t = Vector{Vector{TF}}(undef, ns)
     for i = 1:ns
         nl[i] = length(segments[i])
         t[i] = vector(nl[i])
@@ -123,11 +126,11 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
     nlayers = nl[baseidx]
 
     # create new segments
-    newsegments = Vector{Vector{Layer{Float64}}}(undef, ns)
+    newsegments = Vector{Vector{Layer{TF}}}(undef, ns)
 
     for i = 1:ns
         # make all other segments have the same number of layers
-        newsegments[i] = Vector{Layer{Float64}}(undef, nlayers)  
+        newsegments[i] = Vector{Layer{TF}}(undef, nlayers)  
 
         # check if already has correct number of layers
         if length(segments[i]) == nlayers  
@@ -526,6 +529,8 @@ create nodes and elements for half (upper or lower) portion of airfoil
 function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
     nl = length(segments[1])  # number of layers (same for all segments)
     
+    TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(segments), eltype(chord), eltype(x_te))
+    
     # initialize
     nxu = length(xu)
     if x_te != 0.0
@@ -535,8 +540,8 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
         nodes_te = 0
         elements_te = 0
     end
-    nodesu = Vector{Node}(undef, nxu * (nl + 1) + nodes_te)
-    elementsu = Vector{MeshElement{Vector{Int},Float64}}(undef, (nxu - 1) * nl + elements_te)
+    nodesu = Vector{Node{TF}}(undef, nxu * (nl + 1) + nodes_te)
+    elementsu = Vector{MeshElement{Vector{Int},TF}}(undef, (nxu - 1) * nl + elements_te)
 
     # create nodes
     n = 1
@@ -635,6 +640,9 @@ combine into one set making sure to reuse the common nodes that occur at the LE/
 """
 function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
 
+    TN = promote_type(eltype(eltype(nodesu)), eltype(eltype(nodesl)))
+    TE = promote_type(eltype(eltype(elementsu)), eltype(eltype(elementsl)))
+
     nt = 1 + nlayers  # number of points across thickness
     nnu = length(nodesu) 
     nnl = length(nodesl) 
@@ -648,8 +656,8 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
         ne = neu + nel + nlayers
     end
     
-    nodes = Vector{Node{Float64}}(undef, nn)
-    elements = Vector{MeshElement{Vector{Int},Float64}}(undef, ne)
+    nodes = Vector{Node{TN}}(undef, nn)
+    elements = Vector{MeshElement{Vector{Int},TE}}(undef, ne)
 
     # copy over upper nodes and elements unchanged
     nodes[1:nnu] .= nodesu
@@ -711,14 +719,17 @@ and the number of grid points in the webs.
 function addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, nnu, nl, ne_web=4)
     nt = 1 + nl  # number of points across thickness
     
+    TN = eltype(eltype(nodes))
+    TE = promote_type(eltype(eltype(elements)), eltype(eltype(webs)))
+    
     # find nodes numbers for start of webs
     idx_webu *= nt  # there are nt points per nx index
     idx_webl *= nt
     idx_webl .+= (nnu - nt)  # lower surface node count is offset by this many nodes
 
     # initialize sizes of nodes and elements for web
-    web_nodes = Vector{Node{Float64}}(undef, (ne_web-1)*sum(nx_web))
-    web_elements = Vector{MeshElement{Float64}}(undef, ne_web*sum(nx_web .- 1))
+    web_nodes = Vector{Node{TN}}(undef, (ne_web-1)*sum(nx_web))
+    web_elements = Vector{MeshElement{TE}}(undef, ne_web*sum(nx_web .- 1))
     nn = length(nodes)
     n_web = 1
     e_web = 1
