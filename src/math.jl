@@ -55,21 +55,37 @@ parameter allows deflections greater than 360 degrees.
 
     θnorm = sqrt(θ'*θ)
 
-    if θnorm <= 4
-        scaling = one(θnorm)
-    else
-        half_rotations = θnorm/4
-        irot, m = floor(half_rotations/2), half_rotations%2
-        if m <= 1
-            scaling = 1 .- 8*irot/θnorm
-        else
-            scaling = 1 .- 8*(irot+1)/θnorm
-        end
+    scaling = 1
+
+    m = div(div(θnorm, 4) + 1, 2) # number of times to add/subtract
+
+    if θnorm > 4
+        scaling -= 8*m/θnorm
     end
 
     return scaling
 end
 
+@inline function rotation_parameter_scaling_θ(θ)
+    
+    return rotation_parameter_scaling_θ(rotation_parameter_scaling(θ), θ)
+end
+
+@inline function rotation_parameter_scaling_θ(scaling, θ)
+    
+    return ifelse(isone(scaling), zero(θ), (1 - scaling)*θ/(θ'*θ))
+end
+
+@inline function rotation_parameter_scaling_θ_θ(θ)
+    
+    return rotation_parameter_scaling_θ_θ(rotation_parameter_scaling(θ), θ)
+end
+
+@inline function rotation_parameter_scaling_θ_θ(scaling, θ)
+    
+    return ifelse(isone(scaling), (@SMatrix zeros(eltype(θ),3,3)), (1 - scaling)/(θ'*θ)*(I - 3*θ*θ'/(θ'*θ)))
+end
+        
 """
     get_C(θ)
 
@@ -85,6 +101,56 @@ Returns the transformation matrix `C` given the three angular parameters in `θ`
 end
 
 """
+    get_C_θ([C, ] θ)
+
+Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
+respect to each of the rotation parameters in `θ`.
+"""
+@inline get_C_θ(c) = get_C_θ(get_C(c), c)
+
+@inline function get_C_θ(C, θ)
+
+    scaling = rotation_parameter_scaling(θ)
+    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
+
+    c = scaling*θ
+    c_θ = scaling_θ*θ' + scaling*I3
+
+    c0 = 2 - c'*c/8
+    c0_c = -c/4
+
+    tmp = 1/(4-c0)^2
+    tmp_c = 2/(4-c0)^3*c0_c
+
+    C_c1 = tmp_c[1]*C/tmp + tmp*(@SMatrix [
+        2*c0*c0_c[1] + 2*c[1]    2*(c[2] + c0_c[1]*c[3]) 2*(c[3] - c0_c[1]*c[2]);
+         2*(c[2] - c0_c[1]*c[3])  2*c0*c0_c[1] - 2*c[1]   2*(c0_c[1]*c[1] + c0);
+         2*(c[3] + c0_c[1]*c[2]) -2*(c0_c[1]*c[1] + c0)   2*c0*c0_c[1] - 2*c[1]
+        ]
+    )
+
+    C_c2 = tmp_c[2]*C/tmp + tmp*(@SMatrix [
+        2*c0*c0_c[2] - 2*c[2]   2*(c[1] + c0_c[2]*c[3]) -2*(c0_c[2]*c[2] + c0);
+        2*(c[1] - c0_c[2]*c[3]) 2*c0*c0_c[2] + 2*c[2]    2*(c[3] + c0_c[2]*c[1]);
+         2*(c0_c[2]*c[2] + c0)   2*(c[3] - c0_c[2]*c[1])  2*c0*c0_c[2] - 2*c[2]
+        ]
+    )
+
+    C_c3 = tmp_c[3]*C/tmp + tmp*(@SMatrix [
+         2*c0*c0_c[3] - 2*c[3]   2*(c0_c[3]*c[3] + c0)    2*(c[1] - c0_c[3]*c[2]);
+        -2*(c0_c[3]*c[3] + c0)   2*c0*c0_c[3] - 2*c[3]    2*(c[2] + c0_c[3]*c[1]);
+         2*(c[1] + c0_c[3]*c[2]) 2*(c[2] - c0_c[3]*c[1])  2*c0*c0_c[3] + 2*c[3]
+        ]
+    )
+
+    C_θ1 = C_c1*c_θ[1,1] + C_c2*c_θ[2,1] + C_c3*c_θ[3,1]
+    C_θ2 = C_c1*c_θ[1,2] + C_c2*c_θ[2,2] + C_c3*c_θ[3,2]
+    C_θ3 = C_c1*c_θ[1,3] + C_c2*c_θ[2,3] + C_c3*c_θ[3,3]
+
+    return C_θ1, C_θ2, C_θ3
+end
+
+"""
     get_C_t([C, ] θ, θ_t)
 
 Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
@@ -96,9 +162,10 @@ respect to the scalar parameter `t`. `θ_t` is the derivative of the angular par
 @inline function get_C_t(C, θ, θ_t)
 
     scaling = rotation_parameter_scaling(θ)
+    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
 
     c = scaling*θ
-    c_t = scaling*θ_t
+    c_t = scaling_θ'*θ_t*θ + scaling*θ_t
 
     c0 = 2 - c'*c/8
     c0dot = -c'*c_t/4
@@ -121,50 +188,6 @@ respect to the scalar parameter `t`. `θ_t` is the derivative of the angular par
 end
 
 """
-    get_C_θ([C, ] θ)
-
-Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
-respect to each of the rotation parameters in `θ`.
-"""
-@inline get_C_θ(c) = get_C_θ(get_C(c), c)
-
-@inline function get_C_θ(C, θ)
-
-    scaling = rotation_parameter_scaling(θ)
-
-    c = scaling*θ
-
-    c0 = 2 - c'*c/8
-    c0_θ = -c/4
-
-    tmp = 1/(4-c0)^2
-    tmp_θ = 2/(4-c0)^3*c0_θ
-
-    C_θ1 = tmp_θ[1]*C/tmp + tmp*(@SMatrix [
-        2*c0*c0_θ[1] + 2*c[1]    2*(c[2] + c0_θ[1]*c[3]) 2*(c[3] - c0_θ[1]*c[2]);
-         2*(c[2] - c0_θ[1]*c[3])  2*c0*c0_θ[1] - 2*c[1]   2*(c0_θ[1]*c[1] + c0);
-         2*(c[3] + c0_θ[1]*c[2]) -2*(c0_θ[1]*c[1] + c0)   2*c0*c0_θ[1] - 2*c[1]
-        ]
-    )
-
-    C_θ2 = tmp_θ[2]*C/tmp + tmp*(@SMatrix [
-        2*c0*c0_θ[2] - 2*c[2]   2*(c[1] + c0_θ[2]*c[3]) -2*(c0_θ[2]*c[2] + c0);
-        2*(c[1] - c0_θ[2]*c[3]) 2*c0*c0_θ[2] + 2*c[2]    2*(c[3] + c0_θ[2]*c[1]);
-         2*(c0_θ[2]*c[2] + c0)   2*(c[3] - c0_θ[2]*c[1])  2*c0*c0_θ[2] - 2*c[2]
-        ]
-    )
-
-    C_θ3 = tmp_θ[3]*C/tmp + tmp*(@SMatrix [
-         2*c0*c0_θ[3] - 2*c[3]   2*(c0_θ[3]*c[3] + c0)    2*(c[1] - c0_θ[3]*c[2]);
-        -2*(c0_θ[3]*c[3] + c0)   2*c0*c0_θ[3] - 2*c[3]    2*(c[2] + c0_θ[3]*c[1]);
-         2*(c[1] + c0_θ[3]*c[2]) 2*(c[2] - c0_θ[3]*c[1])  2*c0*c0_θ[3] + 2*c[3]
-        ]
-    )
-
-    return scaling*C_θ1, scaling*C_θ2, scaling*C_θ3
-end
-
-"""
     get_C_t_θ(θ, θ_t)
 
 Calculate the derivative of the time derivative of the Wiener-Milenkovic
@@ -181,45 +204,18 @@ transformation matrix `C` with respect to `θ`.
 end
 
 """
-    get_C_t_θdot([C, ] θ)
+    get_C_t_θdot(θ)
 
 Calculate the derivative of the time derivative of the Wiener-Milenkovic
 transformation matrix `C` with respect to each of the time derivatives of `θ`.
 """
-get_C_t_θdot
+@inline function get_C_t_θdot(θ)
 
-@inline get_C_t_θdot(θ) = get_C_t_θdot(get_C(θ), θ)
-
-@inline function get_C_t_θdot(C, θ)
-
-    scaling = rotation_parameter_scaling(θ)
-
-    c = scaling*θ
-
-    c0 = 2 - c'*c/8
-    c0dot_θdot = -c/4
-    tmp = 1/(4-c0)^2
-    tmpdot_θdot = 2/(4-c0)^3*c0dot_θdot
-
-    C_θdot1 = tmpdot_θdot[1]*C/tmp + tmp*(@SMatrix [
-        2*c0*c0dot_θdot[1] + 2*c[1]   2*(c[2] + c[3]*c0dot_θdot[1]) 2*(c[3] - c[2]*c0dot_θdot[1]);
-        2*(c[2] - c[3]*c0dot_θdot[1]) 2*c0*c0dot_θdot[1] - 2*c[1]   2*(c[1]*c0dot_θdot[1] + c0);
-        2*(c[3] + c[2]*c0dot_θdot[1]) 2*(-c[1]*c0dot_θdot[1] - c0)  2*c0*c0dot_θdot[1] - 2*c[1]]
-    )
-
-    C_θdot2 = tmpdot_θdot[2]*C/tmp + tmp*(@SMatrix [
-        2*c0*c0dot_θdot[2] - 2*c[2]   2*(c[1] + c[3]*c0dot_θdot[2]) 2*(-c[2]*c0dot_θdot[2] - c0);
-        2*(c[1] - c[3]*c0dot_θdot[2]) 2*c0*c0dot_θdot[2] + 2*c[2]   2*(c[3] + c[1]*c0dot_θdot[2]);
-        2*(c[2]*c0dot_θdot[2] + c0)   2*(c[3] - c[1]*c0dot_θdot[2]) 2*c0*c0dot_θdot[2]- 2*c[2]]
-    )
-
-    C_θdot3 = tmpdot_θdot[3]*C/tmp + tmp*(@SMatrix [
-        2*c0*c0dot_θdot[3] - 2*c[3] 2*(c[3]*c0dot_θdot[3] + c0) 2*(c[1] - c[2]*c0dot_θdot[3]);
-        2*(-c[3]*c0dot_θdot[3] - c0) 2*c0*c0dot_θdot[3] - 2*c[3] 2*(c[2] + c[1]*c0dot_θdot[3]);
-        2*(c[1] + c[2]*c0dot_θdot[3]) 2*(c[2] - c[1]*c0dot_θdot[3]) 2*c0*c0dot_θdot[3] + 2*c[3]]
-    )
-
-    return scaling*C_θdot1, scaling*C_θdot2, scaling*C_θdot3
+    Cdot_θdot1 = ForwardDiff.derivative(cdot1 -> GXBeam.get_C_t(θ, SVector(cdot1, 0, 0)), 0)
+    Cdot_θdot2 = ForwardDiff.derivative(cdot2 -> GXBeam.get_C_t(θ, SVector(0, cdot2, 0)), 0)
+    Cdot_θdot3 = ForwardDiff.derivative(cdot3 -> GXBeam.get_C_t(θ, SVector(0, 0, cdot3)), 0)
+    
+    return Cdot_θdot1, Cdot_θdot2, Cdot_θdot3
 end
 
 """
@@ -245,29 +241,35 @@ end
     get_Q_θ(Q, θ)
 
 Calculate the derivative of the matrix `Q` with respect to each of the rotation
-parameters in `c`.
+parameters in `θ`.
 """
 @inline get_Q_θ(θ) = get_Q_θ(get_Q(θ), θ)
 
 @inline function get_Q_θ(Q, θ)
 
     scaling = rotation_parameter_scaling(θ)
+    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
 
     c = scaling*θ
+    c_θ = scaling_θ*θ' + scaling*I3
 
     c0 = 2 - c'*c/8
-    c0_θ = -c/4
+    c0_c = -c/4
 
     tmp = 1/(4-c0)^2
-    tmp_θ = 2/(4-c0)^3*c0_θ
+    tmp_c = 2/(4-c0)^3*c0_c
 
-    Q_θ1 = tmp_θ[1]*Q/tmp + tmp*(-c[1]/2*I - 2*tilde(e1) + (e1*c' + c*e1')/2)
+    Q_c1 = tmp_c[1]*Q/tmp + tmp*(-c[1]/2*I - 2*tilde(e1) + (e1*c' + c*e1')/2)
 
-    Q_θ2 = tmp_θ[2]*Q/tmp + tmp*(-c[2]/2*I - 2*tilde(e2) + (e2*c' + c*e2')/2)
+    Q_c2 = tmp_c[2]*Q/tmp + tmp*(-c[2]/2*I - 2*tilde(e2) + (e2*c' + c*e2')/2)
 
-    Q_θ3 = tmp_θ[3]*Q/tmp + tmp*(-c[3]/2*I - 2*tilde(e3) + (e3*c' + c*e3')/2)
+    Q_c3 = tmp_c[3]*Q/tmp + tmp*(-c[3]/2*I - 2*tilde(e3) + (e3*c' + c*e3')/2)
 
-    return scaling*Q_θ1, scaling*Q_θ2, scaling*Q_θ3
+    Q_θ1 = Q_c1*c_θ[1,1] + Q_c2*c_θ[2,1] + Q_c3*c_θ[3,1]
+    Q_θ2 = Q_c1*c_θ[1,2] + Q_c2*c_θ[2,2] + Q_c3*c_θ[3,2]
+    Q_θ3 = Q_c1*c_θ[1,3] + Q_c2*c_θ[2,3] + Q_c3*c_θ[3,3]
+
+    return Q_θ1, Q_θ2, Q_θ3
 end
 
 """
@@ -297,14 +299,20 @@ rotation parameters in `θ`.
 @inline function get_Qinv_θ(θ)
 
     scaling = rotation_parameter_scaling(θ)
+    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
 
     c = scaling*θ
+    c_θ = scaling_θ*θ' + scaling*I3
 
-    Qinv_θ1 = -c[1]/8*I3 + 1/2*tilde(e1) + 1/8*(e1*c' + c*e1')
-    Qinv_θ2 = -c[2]/8*I3 + 1/2*tilde(e2) + 1/8*(e2*c' + c*e2')
-    Qinv_θ3 = -c[3]/8*I3 + 1/2*tilde(e3) + 1/8*(e3*c' + c*e3')
+    Qinv_c1 = -c[1]/8*I3 + 1/2*tilde(e1) + 1/8*(e1*c' + c*e1')
+    Qinv_c2 = -c[2]/8*I3 + 1/2*tilde(e2) + 1/8*(e2*c' + c*e2')
+    Qinv_c3 = -c[3]/8*I3 + 1/2*tilde(e3) + 1/8*(e3*c' + c*e3')
 
-    return scaling*Qinv_θ1, scaling*Qinv_θ2, scaling*Qinv_θ3
+    Qinv_θ1 = Qinv_c1*c_θ[1,1] + Qinv_c2*c_θ[2,1] + Qinv_c3*c_θ[3,1]
+    Qinv_θ2 = Qinv_c1*c_θ[1,2] + Qinv_c2*c_θ[2,2] + Qinv_c3*c_θ[3,2]
+    Qinv_θ3 = Qinv_c1*c_θ[1,3] + Qinv_c2*c_θ[2,3] + Qinv_c3*c_θ[3,3]
+
+    return Qinv_θ1, Qinv_θ2, Qinv_θ3
 end
 
 """

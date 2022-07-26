@@ -1,7 +1,7 @@
 name = "GXBeam"
 uuid = "974624c9-1acb-4ad6-a627-8ac40fc27a3e"
 authors = ["Taylor McDonnell <taylor.golden.mcdonnell@gmail.com> and Andrew Ning"]
-version = "0.3.2"
+version = "0.3.3"
 
 [deps]
 ArnoldiMethod = "ec485272-7323-5ecc-a04f-4719b315124d"
@@ -24,7 +24,7 @@ ForwardDiff = "0.10"
 LinearMaps = "2, 3"
 NLsolve = "4"
 OffsetArrays = "1"
-Roots = "1"
+Roots = "1, 2"
 SciMLBase = "1"
 StaticArrays = "0.12, 1.0"
 WriteVTK = "1"
