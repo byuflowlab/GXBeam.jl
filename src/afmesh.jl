@@ -534,7 +534,7 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
         elements_te = 0
     end
     nodesu = Vector{Node}(undef, nxu * (nl + 1) + nodes_te)
-    elementsu = Vector{MeshElement}(undef, (nxu - 1) * nl + elements_te)
+    elementsu = Vector{MeshElement{Float64}}(undef, (nxu - 1) * nl + elements_te)
 
     # create nodes
     n = 1
@@ -646,8 +646,8 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
         ne = neu + nel + nlayers
     end
     
-    nodes = Vector{Node}(undef, nn)
-    elements = Vector{MeshElement}(undef, ne)
+    nodes = Vector{Node{Float64}}(undef, nn)
+    elements = Vector{MeshElement{Float64}}(undef, ne)
 
     # copy over upper nodes and elements unchanged
     nodes[1:nnu] .= nodesu
@@ -715,8 +715,8 @@ function addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, nnu, nl, ne_
     idx_webl .+= (nnu - nt)  # lower surface node count is offset by this many nodes
 
     # initialize sizes of nodes and elements for web
-    web_nodes = Vector{Node}(undef, (ne_web-1)*sum(nx_web))
-    web_elements = Vector{MeshElement}(undef, ne_web*sum(nx_web .- 1))
+    web_nodes = Vector{Node{Float64}}(undef, (ne_web-1)*sum(nx_web))
+    web_elements = Vector{MeshElement{Float64}}(undef, ne_web*sum(nx_web .- 1))
     nn = length(nodes)
     n_web = 1
     e_web = 1
@@ -786,8 +786,8 @@ in the normal direction, using the number of grid points as defined by segment w
 - `wnt::vector{vector{int}}`: same definition as nt but for the webs
 
 **Returns**
-- `nodes::Vector{Node}`: nodes for this mesh
-- `elements::Vector{MeshElement}`: elements for this mesh
+- `nodes::Vector{Node{Float64}}`: nodes for this mesh
+- `elements::Vector{MeshElement{Float64}}`: elements for this mesh
 """
 function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, wns=4, wnt=nothing)
 
