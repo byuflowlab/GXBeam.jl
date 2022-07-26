@@ -121,11 +121,11 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
     nlayers = nl[baseidx]
 
     # create new segments
-    newsegments = Vector{Vector{Layer}}(undef, ns)
+    newsegments = Vector{Vector{Layer{Float64}}}(undef, ns)
 
     for i = 1:ns
         # make all other segments have the same number of layers
-        newsegments[i] = Vector{Layer}(undef, nlayers)  
+        newsegments[i] = Vector{Layer{Float64}}(undef, nlayers)  
 
         # check if already has correct number of layers
         if length(segments[i]) == nlayers  
