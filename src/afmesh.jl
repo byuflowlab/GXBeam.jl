@@ -18,7 +18,7 @@ A layup is a vector of layers.
 - `theta::float`: fiber orientation (rad)
 """
 struct Layer{TF}
-    material::Material
+    material::Material{TF}
     t::TF
     theta::TF
 end
