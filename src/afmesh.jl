@@ -23,6 +23,8 @@ struct Layer{TF}
     theta::TF
 end
 
+Base.eltype(::Layer{TF}) = TF
+
 # from https://discourse.julialang.org/t/findnearest-function/4143/4
 function searchsortednearest(a, x)
     idx = searchsortedfirst(a, x)
