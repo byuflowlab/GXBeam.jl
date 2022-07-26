@@ -41,7 +41,7 @@ Modify number of layers based on a given maximum thickness
 """
 function redistribute_thickness(segments, dt, nt)
     ns = length(segments)
-    newsegments = Vector{Vector{Layer}}(undef, ns)
+    newsegments = Vector{Vector{Layer{Float64}}(undef, ns)
 
     if !isnothing(nt)
         snt = sum.(nt)
@@ -55,7 +55,7 @@ function redistribute_thickness(segments, dt, nt)
 
     for i = 1:ns
         # initialize new properties for this segment
-        matvec = Material[]
+        matvec = Material{Float64}[]
         tvec = Float64[]
         thetavec = Float64[]
         
