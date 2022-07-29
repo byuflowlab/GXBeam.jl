@@ -26,7 +26,8 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
  - Accurately models arbitrary systems of interconnected highly flexible composite beams.
     - Captures all geometric nonlinearities due to large deflections and rotations (subject to a small strain assumption)
     - Models angular displacements of any magnitude using only three parameters
-    - Uses the classic 6x6 Timoshenko beam stiffness matrix
+    - Uses the full 6x6 Timoshenko beam stiffness matrix
+    - Calculates section compliance and inertia matrices using 2D finite element analysis
  - Models time-varying distributed forces/moments including
     - Point and distributed loads which remain fixed in the body-frame
     - Point and distributed loads which rotate with the structure
@@ -36,6 +37,7 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
  - Optional [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface.
     - Constant mass matrix differential algebraic equation formulation
     - Fully implicit differential algebraic equation formulation
+ - Built-in optimization-friendly airfoil cross section mesher
  - Result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
  - Verified and validated against published analytical and computational results.  For more details, see the examples.
 
