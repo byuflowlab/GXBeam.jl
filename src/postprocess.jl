@@ -75,8 +75,8 @@ Struct for storing state variables for the points and elements in an assembly.
  - `points::TP`: Array of [`PointState`](@ref) for each point in the assembly
  - `elements::TE`: Array of [`ElementState`](@ref) for each element in the assembly
 """
-struct AssemblyState{TF, TB::BodyState{TF}, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
-    body::TB   
+struct AssemblyState{TF, TB<:BodyState{TF}, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
+    body::TB
     points::TP
     elements::TE
 end
