@@ -19,6 +19,7 @@ makedocs(;
             joinpath("examples", "tipmoment.md"),
             joinpath("examples", "curved.md"),
             joinpath("examples", "rotating.md"),
+            joinpath("examples", "excited.md"),
             joinpath("examples", "wind-turbine-blade.md"),
             joinpath("examples", "static-joined-wing.md"),
             joinpath("examples", "dynamic-joined-wing.md"),

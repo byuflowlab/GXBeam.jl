@@ -1,4 +1,44 @@
 """
+    Element{TF}
+
+Composite type that defines a beam element's properties
+
+# Fields
+ - `L`: Beam element length
+ - `x`: Beam element location
+ - `compliance`: Beam element compliance matrix
+ - `mass`: Beam element mass matrix
+ - `Cab`: Transformation matrix from the undeformed beam element frame to the body frame
+ - `mu`: Beam element damping coefficients
+"""
+struct Element{TF}
+    L::TF
+    x::SVector{3,TF}
+    compliance::SMatrix{6,6,TF,36}
+    mass::SMatrix{6,6,TF,36}
+    Cab::SMatrix{3,3,TF,9}
+    mu::SVector{6,TF}
+end
+
+"""
+    Element(L, x, compliance, mass, Cab, mu)
+
+Construct a beam element
+
+# Arguments
+- `L`: Length of the beam element
+- `x`: Location of the beam element (the center of the beam element)
+- `compliance`: Beam element compliance matrix
+- `mass`: Beam element mass matrix
+- `Cab`: Transformation matrix from the undeformed beam element frame to the body frame
+- `mu`: Beam element damping coefficients
+"""
+function Element(L, x, compliance, mass, Cab, mu)
+    TF = promote_type(typeof(L), eltype(x), eltype(compliance), eltype(mass), eltype(Cab), eltype(mu))
+    return Element{TF}(L, x, compliance, mass, Cab, mu)
+end
+
+"""
     Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}},
         TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
 

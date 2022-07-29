@@ -1,4 +1,11 @@
 """
+    AbstractSystem
+
+Supertype for types which contain the system state, residual vector, and jacobian matrix. 
+"""
+abstract type AbstractSystem end
+
+"""
     SystemIndices
 
 Structure for holding indices for accessing the state variables and equations associated 
@@ -157,34 +164,53 @@ function body_frame_acceleration_indices(system, prescribed_conditions)
 end
 
 """
-    prescribed_body_frame_acceleration(x, icol, ab, αb)
+    prescribed_body_frame_acceleration(x, icol, ab_p, αb_p)
 
 Extract the prescribed linear and angular acceleration of the body frame from the state 
 variable vector or provided inputs.
 """
-function prescribed_body_frame_acceleration(x, icol, ab, αb)
+function prescribed_body_frame_acceleration(x, icol, ab_p, αb_p)
 
-    ab = SVector(
-        iszero(icol[1]) ? ab[1] : x[icol[1]],
-        iszero(icol[2]) ? ab[2] : x[icol[2]],
-        iszero(icol[3]) ? ab[3] : x[icol[3]],
+    ab_p = SVector(
+        iszero(icol[1]) ? ab_p[1] : x[icol[1]],
+        iszero(icol[2]) ? ab_p[2] : x[icol[2]],
+        iszero(icol[3]) ? ab_p[3] : x[icol[3]],
     )
 
-    αb = SVector(
-        iszero(icol[4]) ? αb[1] : x[icol[4]],
-        iszero(icol[5]) ? αb[2] : x[icol[5]],
-        iszero(icol[6]) ? αb[3] : x[icol[6]],
+    αb_p = SVector(
+        iszero(icol[4]) ? αb_p[1] : x[icol[4]],
+        iszero(icol[5]) ? αb_p[2] : x[icol[5]],
+        iszero(icol[6]) ? αb_p[3] : x[icol[6]],
     )
 
-    return ab, αb
+    return ab_p, αb_p
 end
 
 """
-    AbstractSystem
+    default_force_scaling(assembly)
 
-Supertype for types which contain the system state, residual vector, and jacobian matrix. 
+Defines a suitable default force scaling factor based on the nonzero elements of the 
+compliance matrices in `assembly`.
 """
-abstract type AbstractSystem end
+function default_force_scaling(assembly)
+
+    TF = eltype(assembly)
+
+    nsum = 0
+    csum = zero(TF)
+    for elem in assembly.elements
+        for val in elem.compliance
+            csum += abs(val)
+            if eps(TF) < abs(val)
+                nsum += 1
+            end
+        end
+    end
+
+    force_scaling = iszero(nsum) ? 1.0 : nextpow(2.0, nsum/csum/100)
+
+    return force_scaling
+end
 
 """
     StaticSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}} <: AbstractSystem
@@ -301,9 +327,6 @@ function DynamicSystem(TF, assembly; force_scaling = default_force_scaling(assem
         force_scaling, udot, θdot, Vdot, Ωdot, t)
 end
 
-# default system is a DynamicSystem
-const System = DynamicSystem
-
 """
     ExpandedSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}} <: AbstractSystem
 
@@ -358,31 +381,8 @@ function ExpandedSystem(TF, assembly; force_scaling = default_force_scaling(asse
         force_scaling, t)
 end
 
-"""
-    default_force_scaling(assembly)
-
-Defines a suitable default force scaling factor based on the nonzero elements of the 
-compliance matrices in `assembly`.
-"""
-function default_force_scaling(assembly)
-
-    TF = eltype(assembly)
-
-    nsum = 0
-    csum = zero(TF)
-    for elem in assembly.elements
-        for val in elem.compliance
-            csum += abs(val)
-            if eps(TF) < abs(val)
-                nsum += 1
-            end
-        end
-    end
-
-    force_scaling = iszero(nsum) ? 1.0 : nextpow(2.0, nsum/csum/100)
-
-    return force_scaling
-end
+# default system is a DynamicSystem
+const System = DynamicSystem
 
 """
     reset_state!(system)
@@ -491,12 +491,12 @@ function copy_state!(system1, system2, assembly;
     force_scaling1 = system1.force_scaling
     force_scaling2 = system2.force_scaling
 
-    # copy over body frame displacements and velocities
+    # copy over body frame displacements, velocities, and accelerations
     if typeof(system1) <: Union{DynamicSystem,ExpandedSystem}
         if typeof(system2) <: StaticSystem
-            x1[1:12] .= 0
+            x1[1:18] .= 0
         else
-            x1[1:12] .= x2[1:12]
+            x1[1:18] .= x2[1:18]
         end
     end
 
@@ -600,8 +600,8 @@ function copy_state!(system1, system2, assembly;
             elseif typeof(system2) <: DynamicSystem
 
                 # compute steady state element properties
-                properties = steady_state_element_properties(x2, system2.indices, icol_accel, 
-                    force_scaling2, structural_damping, assembly, ielem, pcond, gvec, 
+                properties = steady_state_element_properties(x2, system2.indices, 
+                    force_scaling2, structural_damping, assembly, ielem, pcond, gvec,
                     ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
                 @unpack C, Cab, CtCab, mass11, mass12, mass21, mass22, V1, V2, Ω1, Ω2, V, Ω, ω = properties
@@ -720,737 +720,6 @@ function copy_state!(system1, system2, assembly;
 end
 
 """
-    set_state!([x,] system::StaticSystem, prescribed_conditions; kwargs...)
-
-Set the state variables in `system` (or in the vector `x`) to the provided values.
-
-# Keyword Arguments
-- `u`: Vector containing the linear displacement of each point.
-- `theta`: Vector containing the angular displacement of each point.
-- `F`: Vector containing the externally applied forces acting on each point
-- `M`: Vector containing the externally applied moments acting on each point
-- `Fi`: Vector containing internal forces for each beam element
-- `Mi`: Vector containing internal moments for each beam element
-"""
-set_state!(system::StaticSystem, prescribed_conditions; kwargs...)
-
-"""
-    set_state!([x,] system::DynamicSystem, prescribed_conditions; kwargs...)
-
-Set the state variables in `system` (or in the vector `x`) to the provided values.
-
-# Keyword Arguments
- - `u`: Vector containing the linear displacement of each point.
- - `theta`: Vector containing the angular displacement of each point.
- - `V`: Vector containing the linear velocity of each point.
- - `Omega` Vector containing the angular velocity of each point
- - `F`: Vector containing the externally applied forces acting on each point
- - `M`: Vector containing the externally applied moments acting on each point
- - `Fi`: Vector containing internal forces for each beam element (in the deformed 
-        element frame)
- - `Mi`: Vector containing internal moments for each beam element (in the deformed 
-        element frame)
- - `linear_displacement`: Linear displacement of the body frame.
- - `angular_displacement`: Angular displacement of the body frame (Wiener Milenković)
- - `linear_velocity`: Linear velocity of the body frame
- - `angular_velocity`: Angular velocity of the body frame
- - `linear_acceleration`: Linear acceleration of the body frame
- - `angular_acceleration`: Angular acceleration of the body frame
-"""
-set_state!(system::DynamicSystem, prescribed_conditions; kwargs...)
-
-"""
-    set_state!([x,] system::ExpandedSystem, prescribed_conditions; kwargs...)
-
-Set the state variables in `system` (or in the vector `x`) to the provided values.
-
-# Keyword Arguments
- - `u`: Vector containing the linear displacement of each point.
- - `theta`: Vector containing the angular displacement of each point.
- - `F`: Vector containing the externally applied forces acting on each point
- - `M`: Vector containing the externally applied moments acting on each point
- - `F1`: Vector containing resultant forces at the start of each beam element (in the 
-    deformed element frame)
- - `M1`: Vector containing resultant moments at the start of each beam element (in the 
-    deformed element frame)
- - `F2`: Vector containing resultant forces at the end of each beam element (in the 
-    deformed element frame)
- - `M2`: Vector containing resultant moments at the end of each beam element (in the 
-    deformed element frame)
- - `V_p`: Vector containing the linear velocity of each point in a deformed 
-    point reference frame.
- - `Omega_p` Vector containing the angular velocity of each point in a deformed 
-    point reference frame.
- - `V_e`: Vector containing the linear velocity of each beam element in the deformed
-    beam element reference frame.
- - `Omega_e` Vector containing the angular velocity of each beam element in the deformed
-    beam element reference frame.
- - `linear_displacement`: Linear displacement of the body frame.
- - `angular_displacement`: Angular displacement of the body frame (Wiener Milenković)
- - `linear_velocity`: Linear velocity of the body frame
- - `angular_velocity`: Angular velocity of the body frame
- - `linear_acceleration`: Linear acceleration of the body frame
- - `angular_acceleration`: Angular acceleration of the body frame
-"""
-set_state!(system::ExpandedSystem, prescribed_conditions; kwargs...)
-
-function set_state!(system, prescribed_conditions; kwargs...)
-    x = set_state!(system.x, system, prescribed_conditions; kwargs...)
-    return system
-end
-
-function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing, 
-    V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing,
-    F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, 
-    V_p = nothing, Omega_p = nothing, V_e = nothing, Omega_e = nothing,
-    linear_displacement=nothing, angular_displacement=nothing, 
-    linear_velocity=nothing, angular_velocity=nothing,
-    linear_acceleration=nothing, angular_acceleration=nothing) 
-
-    if !isnothing(u)
-        for ipoint = 1:length(u)
-            set_linear_displacement!(x, system, prescribed_conditions, u[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(theta)
-        for ipoint = 1:length(theta)
-            set_angular_displacement!(x, system, prescribed_conditions, theta[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(F)
-        for ipoint = 1:length(F)
-            set_external_forces!(x, system, prescribed_conditions, F[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(M)
-        for ipoint = 1:length(M)
-            set_external_moments!(x, system, prescribed_conditions, M[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(V)
-        for ipoint = 1:length(V)
-            set_linear_velocity!(x, system, V[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(Omega)
-        for ipoint = 1:length(Omega)
-            set_angular_velocity!(x, system, Omega[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(Fi)
-        for ielem = 1:length(Fi)
-            set_internal_forces!(x, system, Fi[ielem], ielem)
-        end
-    end
-
-    if !isnothing(Mi)
-        for ielem = 1:length(Mi)
-            set_internal_moments!(x, system, Mi[ielem], ielem)
-        end
-    end
-
-    if !isnothing(F1)
-        for ielem = 1:length(F1)
-            set_start_forces!(x, system, F1[ielem], ielem)
-        end
-    end
-
-    if !isnothing(M1)
-        for ielem = 1:length(M1)
-            set_start_moments!(x, system, M1[ielem], ielem)
-        end
-    end
-
-    if !isnothing(F2)
-        for ielem = 1:length(F2)
-            set_end_forces!(x, system, F2[ielem], ielem)
-        end
-    end
-
-    if !isnothing(M2)
-        for ielem = 1:length(M2)
-            set_end_moments!(x, system, M2[ielem], ielem)
-        end
-    end
-
-    if !isnothing(V_p)
-        for ipoint = 1:length(V_p)
-            set_point_linear_velocity!(x, system, V_p[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(Omega_p)
-        for ipoint = 1:length(Omega_p)
-            set_point_angular_velocity!(x, system, Omega_p[ipoint], ipoint)
-        end
-    end
-
-    if !isnothing(V_e)
-        for ielem = 1:length(V_e)
-            set_element_linear_velocity!(x, system, V_e[ielem], ielem)
-        end
-    end
-
-    if !isnothing(Omega_e)
-        for ielem = 1:length(Omega_e)
-            set_element_angular_velocity!(x, system, Omega_e[ielem], ielem)
-        end
-    end
-
-    if !isnothing(linear_displacement)
-        set_body_linear_displacement!(x, system, linear_displacement)
-    end
-
-    if !isnothing(angular_displacement)
-        set_body_angular_displacement!(x, system, angular_displacement)
-    end
-
-    if !isnothing(linear_velocity)
-        set_body_linear_velocity!(x, system, linear_velocity)
-    end
-
-    if !isnothing(angular_velocity)
-        set_body_angular_velocity!(x, system, angular_velocity)
-    end
-
-    if !isnothing(linear_acceleration)
-        set_body_linear_acceleration!(x, system, prescribed_conditions, linear_acceleration)
-    end
-
-    if !isnothing(angular_acceleration)
-        set_body_angular_acceleration!(x, system, prescribed_conditions, angular_acceleration)
-    end
-
-    return x
-end
-
-"""
-    set_linear_displacement!([x,] system, prescribed_conditions, u, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear deflection of point `ipoint` to the provided values.
-"""
-function set_linear_displacement!(system, prescribed_conditions, u, ipoint)
-    set_linear_displacement!(system.x, system, prescribed_conditions, u, ipoint)
-    return system
-end
-
-function set_linear_displacement!(x, system, prescribed_conditions, u, ipoint)
-    
-    icol = system.indices.icol_point[ipoint]
-    
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-
-    if haskey(prescribed, ipoint)
-        !prescribed[ipoint].pd[1] && setindex!(x, u[1], icol)
-        !prescribed[ipoint].pd[2] && setindex!(x, u[2], icol+1)
-        !prescribed[ipoint].pd[3] && setindex!(x, u[3], icol+2)
-    else
-        x[icol  ] = u[1]
-        x[icol+1] = u[2]
-        x[icol+2] = u[3]
-    end
-
-    return x
-end
-
-"""
-    set_angular_displacement!([x,] system, prescribed_conditions, theta, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular deflection of point `ipoint` to the provided values.
-"""
-function set_angular_displacement!(system, prescribed_conditions, theta, ipoint)
-    set_angular_displacement!(system.x, system, prescribed_conditions, theta, ipoint)
-    return system
-end
-
-function set_angular_displacement!(x, system, prescribed_conditions, theta, ipoint)
-
-    icol = system.indices.icol_point[ipoint]
-    
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-
-    if haskey(prescribed, ipoint)
-        !prescribed[ipoint].pd[4] && setindex!(x, theta[1], icol+3)
-        !prescribed[ipoint].pd[5] && setindex!(x, theta[2], icol+4)
-        !prescribed[ipoint].pd[6] && setindex!(x, theta[3], icol+5)
-    else
-        x[icol+3] = theta[1]
-        x[icol+4] = theta[2]
-        x[icol+5] = theta[3]
-    end
-
-    return x
-end
-
-"""
-    set_linear_velocity!([x,] system, V, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear velocity of point `ipoint` to the provided values.
-"""
-function set_linear_velocity!(system, V, ipoint)
-    set_linear_velocity!(system.x, system, V, ipoint)
-    return system
-end
-
-function set_linear_velocity!(x, system, V, ipoint)
-
-    icol = system.indices.icol_point[ipoint]
-
-    x[icol+6] = V[1]
-    x[icol+7] = V[2]
-    x[icol+8] = V[3]
-
-    return x
-end
-
-"""
-    set_angular_velocity!([x,] system, Omega, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular velocity of point `ipoint` to the provided values.
-"""
-function set_angular_velocity!(system, Omega, ipoint)
-    set_angular_velocity!(system.x, system, Omega, ipoint)
-    return system
-end
-
-function set_angular_velocity!(x, system, Omega, ipoint)
-
-    icol = system.indices.icol_point[ipoint]
-
-    x[icol+9] = Omega[1]
-    x[icol+10] = Omega[2]
-    x[icol+11] = Omega[3]
-
-    return x
-end
-
-"""
-    set_external_forces!([x,] system, prescribed_conditions, F, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-external forces applied at point `ipoint` to the provided values.
-"""
-function set_external_forces!(system, prescribed_conditions, F, ipoint)
-    set_external_forces!(system.x, system, prescribed_conditions, F, ipoint)
-    return system
-end
-
-function set_external_forces!(x, system, prescribed_conditions, F, ipoint)
-    
-    icol = system.indices.icol_point[ipoint]
-
-    force_scaling = system.force_scaling
-    
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-
-    if haskey(prescribed, ipoint)
-        !prescribed[ipoint].pl[1] && setindex!(x, F[1] / force_scaling, icol)
-        !prescribed[ipoint].pl[2] && setindex!(x, F[2] / force_scaling, icol+1)
-        !prescribed[ipoint].pl[3] && setindex!(x, F[3] / force_scaling, icol+2)
-    else
-        x[icol  ] = F[1] / force_scaling
-        x[icol+1] = F[2] / force_scaling
-        x[icol+2] = F[3] / force_scaling
-    end
-
-    return x
-end
-
-"""
-    set_external_moments!([x,] system, prescribed_conditions, M, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-external moments applied at point `ipoint` to the provided values.
-"""
-function set_external_moments!(system, prescribed_conditions, M, ipoint)
-    set_external_moments!(system.x, system, prescribed_conditions, M, ipoint)
-    return system
-end
-
-function set_external_moments!(x, system, prescribed_conditions, M, ipoint)
-
-    icol = system.indices.icol_point[ipoint]
-    
-    force_scaling = system.force_scaling
-
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-
-    if haskey(prescribed, ipoint)
-        !prescribed[ipoint].pl[4] && setindex!(x, M[1] / force_scaling, icol+3)
-        !prescribed[ipoint].pl[5] && setindex!(x, M[2] / force_scaling, icol+4)
-        !prescribed[ipoint].pl[6] && setindex!(x, M[3] / force_scaling, icol+5)
-    else
-        x[icol+3] = M[1] / force_scaling
-        x[icol+4] = M[2] / force_scaling
-        x[icol+5] = M[3] / force_scaling
-    end
-
-    return x
-end
-
-"""
-    set_internal_forces!([x,] system::Union{StaticSystem,DynamicSystem}, Fi, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-internal forces of element `ielem` to the provided values.
-"""
-function set_internal_forces!(system::Union{StaticSystem,DynamicSystem}, Fi, ielem)
-    set_internal_forces!(system.x, system, Fi, ielem)
-    return system
-end
-
-function set_internal_forces!(x, system::Union{StaticSystem,DynamicSystem}, Fi, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    force_scaling = system.force_scaling
-
-    x[icol  ] = Fi[1] / force_scaling
-    x[icol+1] = Fi[2] / force_scaling
-    x[icol+2] = Fi[3] / force_scaling
-
-    return x
-end
-
-"""
-    set_internal_moments!([x,] system::Union{StaticSystem, DynamicSystem}, Mi, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-internal moments of element `ielem` to the provided values.
-"""
-function set_internal_moments!(system::Union{StaticSystem, DynamicSystem}, Mi, ielem)
-    set_internal_moments!(system.x, system, Mi, ielem)
-    return system
-end
-
-function set_internal_moments!(x, system::Union{StaticSystem, DynamicSystem}, Mi, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    force_scaling = system.force_scaling
-
-    x[icol+3] = Mi[1] / force_scaling
-    x[icol+4] = Mi[2] / force_scaling
-    x[icol+5] = Mi[3] / force_scaling
-
-    return x
-end
-
-"""
-    set_start_forces!([x,] system, F1, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-resultant forces at the start of element `ielem` to the provided values.
-"""
-function set_start_forces!(system::ExpandedSystem, F1, ielem)
-    set_start_forces!(system.x, system, F1, ielem)
-    return system
-end
-
-function set_start_forces!(x, system::ExpandedSystem, F1, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    force_scaling = system.force_scaling
-
-    x[icol] = F1[1] / force_scaling
-    x[icol+1] = F1[2] / force_scaling
-    x[icol+2] = F1[3] / force_scaling
-
-    return x
-end
-
-"""
-    set_start_moments!([x,] system, M1, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-resultant moments at the start of element `ielem` to the provided values.
-"""
-function set_start_moments!(system::ExpandedSystem, M1, ielem)
-    set_start_moments!(system.x, system, M1, ielem)
-    return system
-end
-
-function set_start_moments!(x, system::ExpandedSystem, M1, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    force_scaling = system.force_scaling
-
-    x[icol+3] = M1[1] / force_scaling
-    x[icol+4] = M1[2] / force_scaling
-    x[icol+5] = M1[3] / force_scaling
-
-    return x
-end
-
-"""
-    set_end_forces!([x,] system, F2, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-resultant forces at the end of element `ielem` to the provided values.
-"""
-function set_end_forces!(system::ExpandedSystem, F2, ielem)
-    set_end_forces!(system.x, system, F2, ielem)
-    return system
-end
-
-function set_end_forces!(x, system::ExpandedSystem, F2, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    force_scaling = system.force_scaling
-
-    x[icol+6] = F2[1] / force_scaling
-    x[icol+7] = F2[2] / force_scaling
-    x[icol+8] = F2[3] / force_scaling
-
-    return x
-end
-
-"""
-    set_end_moments!([x,] system, M2, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-resultant moments at the end of element `ielem` to the provided values.
-"""
-function set_end_moments!(system::ExpandedSystem, M2, ielem)
-    set_end_moments!(system.x, system, M2, ielem)
-    return system
-end
-
-function set_end_moments!(x, system::ExpandedSystem, M2, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    force_scaling = system.force_scaling
-
-    x[icol+9] = M2[1] / force_scaling
-    x[icol+10] = M2[2] / force_scaling
-    x[icol+11] = M2[3] / force_scaling
-
-    return x
-end
-
-"""
-    set_point_linear_velocity!([x,] system::ExpandedSystem, V, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear velocity of point `ipoint` to the provided values.
-"""
-function set_point_linear_velocity!(system::ExpandedSystem, V, ipoint)
-    set_point_linear_velocity!(system.x, system::ExpandedSystem, V, ipoint)
-    return system
-end
-
-function set_point_linear_velocity!(x, system::ExpandedSystem, V, ipoint)
-
-    icol = system.indices.icol_point[ipoint]
-
-    x[icol+6] = V[1]
-    x[icol+7] = V[2]
-    x[icol+8] = V[3]
-
-    return x
-end
-
-"""
-    set_point_angular_velocity!([x,] system::ExpandedSystem, Omega, ipoint)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular velocity of point `ipoint` to the provided values.
-"""
-function set_point_angular_velocity!(system::ExpandedSystem, Omega, ipoint)
-    set_point_angular_velocity!(system.x, system, Omega, ipoint)
-    return system
-end
-
-function set_point_angular_velocity!(x, system::ExpandedSystem, Omega, ipoint)
-
-    icol = system.indices.icol_point[ipoint]
-
-    x[icol+9] = Omega[1]
-    x[icol+10] = Omega[2]
-    x[icol+11] = Omega[3]
-
-    return x
-end
-
-"""
-    set_element_linear_velocity!([x,] system::ExpandedSystem, V, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear velocity of beam element `ielem` to the provided values.
-"""
-function set_element_linear_velocity!(system::ExpandedSystem, V, ielem)
-    set_element_linear_velocity!(system.x, system::ExpandedSystem, V, ielem)
-    return system
-end
-
-function set_element_linear_velocity!(x, system::ExpandedSystem, V, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    x[icol+12] = V[1]
-    x[icol+13] = V[2]
-    x[icol+14] = V[3]
-
-    return x
-end
-
-"""
-    set_element_angular_velocity!([x,] system::ExpandedSystem, Omega, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular velocity of element `ielem` to the provided values.
-"""
-function set_element_angular_velocity!(system::ExpandedSystem, Omega, ielem)
-    set_element_angular_velocity!(system.x, system, Omega, ielem)
-    return system
-end
-
-function set_element_angular_velocity!(x, system::ExpandedSystem, Omega, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    x[icol+15] = Omega[1]
-    x[icol+16] = Omega[2]
-    x[icol+17] = Omega[3]
-
-    return x
-end
-
-"""
-    set_body_linear_displacement!([x,] system, linear_displacement)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear displacement of the body frame to the provided values.
-"""
-function set_body_linear_displacement!(system, linear_displacement)
-    set_body_linear_displacement!(system.x, system, linear_displacement)
-    return system
-end
-
-function set_body_linear_displacement!(x, system, linear_displacement)
-        
-    x[1:3] .= linear_displacement
-
-    return x
-end
-
-"""
-    set_body_angular_displacement!([x,] system, angular_displacement)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular deflection of point `ipoint` to the provided values.
-"""
-function set_body_angular_displacement!(system, angular_displacement)
-    set_body_angular_displacement!(system.x, system, angular_displacement)
-    return system
-end
-
-function set_body_angular_displacement!(x, system, angular_displacement)
-
-    x[4:6] .= angular_displacement
-
-    return x
-end
-
-"""
-    set_body_linear_velocity!([x,] system, linear_velocity)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear velocity of the body frame to the provided values.
-"""
-function set_body_linear_velocity!(system, linear_velocity)
-    set_body_linear_velocity!(system.x, system, linear_velocity)
-    return system
-end
-
-function set_body_linear_velocity!(x, system, linear_velocity)
-        
-    x[7:9] .= linear_velocity
-
-    return x
-end
-
-"""
-    set_body_angular_velocity!([x,] system, angular_velocity)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular deflection of point `ipoint` to the provided values.
-"""
-function set_body_angular_velocity!(system, angular_velocity)
-    set_body_angular_velocity!(system.x, system, angular_velocity)
-    return system
-end
-
-function set_body_angular_velocity!(x, system, angular_velocity)
-
-    x[10:12] .= angular_velocity
-
-    return x
-end
-
-"""
-    set_body_linear_acceleration!([x,] system, prescribed_conditions, linear_acceleration)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear acceleration of the body frame to the provided values.
-"""
-function set_body_linear_acceleration!(system, prescribed_conditions, linear_acceleration)
-    set_body_linear_acceleration!(system.x, system, prescribed_conditions, linear_acceleration)
-    return system
-end
-
-function set_body_linear_acceleration!(x, system, prescribed_conditions, linear_acceleration)
-        
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-
-    icol = body_frame_acceleration_indices(system, prescribed)
-
-    !iszero(icol[1]) && setindex!(x, linear_acceleration[1], icol[1])
-    !iszero(icol[2]) && setindex!(x, linear_acceleration[2], icol[2])
-    !iszero(icol[3]) && setindex!(x, linear_acceleration[3], icol[3])
-
-    return x
-end
-
-"""
-    set_body_angular_acceleration!([x,] system, prescribed_conditions, angular_acceleration)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular deflection of point `ipoint` to the provided values.
-"""
-function set_body_angular_acceleration!(system, prescribed_conditions, angular_acceleration)
-    set_body_angular_acceleration!(system.x, system, prescribed_conditions, angular_acceleration)
-    return system
-end
-
-function set_body_angular_acceleration!(x, system, prescribed_conditions, angular_acceleration)
-
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-
-    icol = body_frame_acceleration_indices(system, prescribed)
-
-    !iszero(icol[4]) && setindex!(x, angular_acceleration[1], icol[4])
-    !iszero(icol[5]) && setindex!(x, angular_acceleration[2], icol[5])
-    !iszero(icol[6]) && setindex!(x, angular_acceleration[3], icol[6])
-
-    return x
-end
-
-"""
     static_system_residual!(resid, x, indices, force_scaling, 
         assembly, prescribed_conditions, distributed_loads, point_masses, gravity)
 
@@ -1483,27 +752,50 @@ function steady_state_system_residual!(resid, x, indices, icol_accel, force_scal
     structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses, 
     gravity, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
+    # set body frame displacement explicitly
+    ub, θb = ub_p, θb_p
+
+    # set body frame velocity explicitly
+    vb, ωb = vb_p, ωb_p
+
+    # set body frame acceleration from state variables
+    ab, αb = body_frame_acceleration(x)
+
+    # overwrite accelerations with prescribed accelerations
+    ab = SVector(
+        ifelse(icol_accel[1] > 0, ab[1], ab_p[1]),
+        ifelse(icol_accel[2] > 0, ab[2], ab_p[2]),
+        ifelse(icol_accel[3] > 0, ab[3], ab_p[3]),
+    )
+
+    αb = SVector(
+        ifelse(icol_accel[4] > 0, ab[1], αb_p[1]),
+        ifelse(icol_accel[5] > 0, ab[2], αb_p[2]),
+        ifelse(icol_accel[6] > 0, ab[3], αb_p[3]),
+    )
+
     # contributions to the residual vector from the body frame motion
     steady_state_body_residual!(resid, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
     # contributions to the residual vector from points
     for ipoint = 1:length(assembly.points)
         steady_state_point_residual!(resid, x, indices, force_scaling, 
-            assembly, ipoint, prescribed_conditions, point_masses, gravity)
+            assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+            ub, θb, vb, ωb, ab, αb)
     end
 
     # contributions to the residual vector from elements
     for ielem = 1:length(assembly.elements)
         steady_state_element_residual!(resid, x, indices, force_scaling, 
             structural_damping, assembly, ielem, prescribed_conditions, 
-            distributed_loads, gravity)
+            distributed_loads, gravity, ub, θb, vb, ωb, ab, αb)
     end
 
     return resid
 end
 
 """
-    initial_condition_system_residual!(resid, x, indices, rate_vars, icol_accel, 
+    initial_condition_system_residual!(resid, x, indices, rate_vars1, rate_vars2, icol_accel, 
         force_scaling, structural_damping, assembly, prescribed_conditions, 
         distributed_loads, point_masses, gravity, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, 
         u0, theta0, V0, Omega0, Vdot0, Omegadot0)
@@ -1511,26 +803,72 @@ end
 Populate the system residual vector `resid` for the initialization of a time domain 
 simulation.
 """
-function initial_condition_system_residual!(resid, x, indices, rate_vars, icol_accel, 
+function initial_condition_system_residual!(resid, x, indices, rate_vars1, rate_vars2, icol_accel, 
     force_scaling, structural_damping, assembly, prescribed_conditions, distributed_loads, 
     point_masses, gravity, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, 
     u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+
+    # set body frame displacement explicitly
+    ub, θb = ub_p, θb_p
+
+    # set body frame velocity explicitly
+    vb, ωb = vb_p, ωb_p
+
+    # set body frame acceleration from state variables
+    ab, αb = body_frame_acceleration(x)
+
+    # overwrite accelerations with prescribed accelerations
+    ab = SVector(
+        ifelse(icol_accel[1] > 0, ab[1], ab_p[1]),
+        ifelse(icol_accel[2] > 0, ab[2], ab_p[2]),
+        ifelse(icol_accel[3] > 0, ab[3], ab_p[3]),
+    )
+
+    αb = SVector(
+        ifelse(icol_accel[4] > 0, ab[1], αb_p[1]),
+        ifelse(icol_accel[5] > 0, ab[2], αb_p[2]),
+        ifelse(icol_accel[6] > 0, ab[3], αb_p[3]),
+    )
 
     # contributions to the residual vector from the body frame motion
     initial_condition_body_residual!(resid, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
     # contributions to the residual vector from points
     for ipoint = 1:length(assembly.points)
-        initial_condition_point_residual!(resid, x, indices, rate_vars, force_scaling, 
+        initial_condition_point_residual!(resid, x, indices, rate_vars2, force_scaling, 
             assembly, ipoint, prescribed_conditions, point_masses, gravity, 
-            u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+            ub, θb, vb, ωb, ab, αb, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
     end
     
     # contributions to the residual vector from elements
     for ielem = 1:length(assembly.elements)
-        initial_condition_element_residual!(resid, x, indices, rate_vars, force_scaling, 
+        initial_condition_element_residual!(resid, x, indices, rate_vars2, force_scaling, 
             structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+            gravity, ub, θb, vb, ωb, ab, αb, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    end
+
+    # replace equilibrium equations, if necessary
+    for ipoint = 1:length(assembly.points)
+        irow = indices.irow_point[ipoint]
+        icol = indices.icol_point[ipoint]
+        Vdot, Ωdot = initial_point_velocity_rates(x, ipoint, indices.icol_point, 
+            prescribed_conditions, Vdot0, Ωdot0, rate_vars2)
+        if haskey(prescribed_conditions, ipoint)
+            pd = prescribed_conditions[ipoint].pd
+            !pd[1] && !rate_vars1[icol+6] && rate_vars2[icol+6] && setindex!(resid, Vdot[1] - Vdot0[ipoint][1], irow)
+            !pd[2] && !rate_vars1[icol+7] && rate_vars2[icol+7] && setindex!(resid, Vdot[2] - Vdot0[ipoint][2], irow+1)
+            !pd[3] && !rate_vars1[icol+8] && rate_vars2[icol+8] && setindex!(resid, Vdot[3] - Vdot0[ipoint][3], irow+2)
+            !pd[4] && !rate_vars1[icol+9] && rate_vars2[icol+9] && setindex!(resid, Ωdot[1] - Ωdot0[ipoint][1], irow+3)
+            !pd[5] && !rate_vars1[icol+10] && rate_vars2[icol+10] && setindex!(resid, Ωdot[2] - Ωdot0[ipoint][2], irow+4)
+            !pd[6] && !rate_vars1[icol+11] && rate_vars2[icol+11] && setindex!(resid, Ωdot[3] - Ωdot0[ipoint][3], irow+5)
+        else
+            !rate_vars1[icol+6] && rate_vars2[icol+6] && setindex!(resid, Vdot[1] - Vdot0[ipoint][1], irow)
+            !rate_vars1[icol+7] && rate_vars2[icol+7] && setindex!(resid, Vdot[2] - Vdot0[ipoint][2], irow+1)
+            !rate_vars1[icol+8] && rate_vars2[icol+8] && setindex!(resid, Vdot[3] - Vdot0[ipoint][3], irow+2)
+            !rate_vars1[icol+9] && rate_vars2[icol+9] && setindex!(resid, Ωdot[1] - Ωdot0[ipoint][1], irow+3)
+            !rate_vars1[icol+10] && rate_vars2[icol+10] && setindex!(resid, Ωdot[2] - Ωdot0[ipoint][2], irow+4)
+            !rate_vars1[icol+11] && rate_vars2[icol+11] && setindex!(resid, Ωdot[3] - Ωdot0[ipoint][3], irow+5)
+        end
     end
 
     return resid
@@ -1546,27 +884,34 @@ Populate the system residual vector `resid` for a Newmark scheme time marching a
 """
 function newmark_system_residual!(resid, x, indices, icol_accel, force_scaling, 
     structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses, 
-    gravity, ab_p, αb_p, ubdot_init, θbdot_init, 
-    vbdot_init, ωbdot_init, udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
+    gravity, ab_p, αb_p, ubdot_init, θbdot_init, vbdot_init, ωbdot_init, 
+    udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
     
-    resid .= 0
+    # body frame displacement
+    ub, θb = body_frame_displacement(x)
+    
+    # body frame velocity
+    vb, ωb = body_frame_velocity(x)
+
+    # body frame linear and angular acceleration are captured by Vdot, Ωdot
+    ab = αb = @SVector zeros(3)
 
     # contributions to the residual vector from the body frame motion
-    newmark_body_residual!(resid, x, icol_accel, ab_p, αb_p, ubdot_init, θbdot_init, 
-        vbdot_init, ωbdot_init, dt)
+    newmark_body_residual!(resid, x, icol_accel, ab_p, αb_p, 
+        ubdot_init, θbdot_init, vbdot_init, ωbdot_init, dt)
 
     # contributions to the residual vector from points
     for ipoint = 1:length(assembly.points)
         newmark_point_residual!(resid, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity, 
+            ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb,
             udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
     end
     
     # contributions to the residual vector from elements
     for ielem = 1:length(assembly.elements)
-        newmark_element_residual!(resid, x, indices, force_scaling, 
-            structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity, Vdot_init, Ωdot_init, dt)
+        newmark_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            ub, θb, vb, ωb, ab, αb, Vdot_init, Ωdot_init, dt)
     end
     
     return resid
@@ -1583,20 +928,29 @@ function dynamic_system_residual!(resid, dx, x, indices, icol_accel, force_scali
     structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses, 
     gravity, linear_acceleration, angular_acceleration)
 
+    # body frame displacement
+    ub, θb = body_frame_displacement(x)
+    
+    # body frame velocity
+    vb, ωb = body_frame_velocity(x)
+
+    # body frame linear and angular acceleration are captured by Vdot, Ωdot
+    ab = αb = @SVector zeros(3)
+
     # contributions to the residual vector from the body
     dynamic_body_residual!(resid, dx, x, icol_accel, linear_acceleration, angular_acceleration)
 
     # contributions to the residual vector from points
     for ipoint = 1:length(assembly.points)
         dynamic_point_residual!(resid, dx, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity)
+            ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
     end
     
     # contributions to the residual vector from elements
     for ielem = 1:length(assembly.elements)
-        dynamic_element_residual!(resid, dx, x, indices, force_scaling, 
-            structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity)
+        dynamic_element_residual!(resid, dx, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            ub, θb, vb, ωb, ab, αb)
     end
     
     return resid
@@ -1613,20 +967,42 @@ function expanded_steady_system_residual!(resid, x, indices, icol_accel, force_s
     structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses, 
     gravity, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
+    # set body frame displacement explicitly
+    ub, θb = ub_p, θb_p
+
+    # set body frame velocity explicitly
+    vb, ωb = vb_p, ωb_p
+
+    # set body frame acceleration from state variables
+    ab, αb = body_frame_acceleration(x)
+
+    # overwrite accelerations with prescribed accelerations
+    ab = SVector(
+        ifelse(icol_accel[1] > 0, ab[1], ab_p[1]),
+        ifelse(icol_accel[2] > 0, ab[2], ab_p[2]),
+        ifelse(icol_accel[3] > 0, ab[3], ab_p[3]),
+    )
+
+    αb = SVector(
+        ifelse(icol_accel[4] > 0, ab[1], αb_p[1]),
+        ifelse(icol_accel[5] > 0, ab[2], αb_p[2]),
+        ifelse(icol_accel[6] > 0, ab[3], αb_p[3]),
+    )
+
     # contributions to the residual vector from the body
     expanded_steady_body_residual!(resid, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
     # point residuals
     for ipoint = 1:length(assembly.points)
-        expanded_steady_point_residual!(resid, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity)
+        expanded_steady_point_residual!(resid, x, indices, force_scaling, assembly, ipoint, 
+            prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
     end
     
     # element residuals
     for ielem = 1:length(assembly.elements)
-        expanded_steady_element_residual!(resid, x, indices, force_scaling, 
-            structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity)
+        expanded_steady_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            ub, θb, vb, ωb, ab, αb)
     end
     
     return resid
@@ -1643,20 +1019,29 @@ function expanded_dynamic_system_residual!(resid, x, indices, icol_accel, force_
     structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses, 
     gravity, ab_p, αb_p)
 
+    # body frame displacement
+    ub, θb = body_frame_displacement(x)
+    
+    # body frame velocity
+    vb, ωb = body_frame_velocity(x)
+
+    # body frame linear and angular acceleration are captured by Vdot, Ωdot
+    ab = αb = @SVector zeros(3)
+
     # contributions to the residual vector from the body
     expanded_dynamic_body_residual!(resid, x, icol_accel, ab_p, αb_p)
 
     # point residuals
     for ipoint = 1:length(assembly.points)
-        expanded_dynamic_point_residual!(resid, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity)
+        expanded_dynamic_point_residual!(resid, x, indices, force_scaling, assembly, ipoint, 
+            prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
     end
     
     # element residuals
     for ielem = 1:length(assembly.elements)
-        expanded_dynamic_element_residual!(resid, x, indices, force_scaling, 
-            structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity)
+        expanded_dynamic_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            ub, θb, vb, ωb, ab, αb)
     end
     
     return resid
@@ -1672,7 +1057,7 @@ function static_system_jacobian!(jacob, x, indices, force_scaling,
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity)
 
     jacob .= 0
-    
+
     for ipoint = 1:length(assembly.points)
         static_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint, 
             prescribed_conditions, point_masses, gravity)
@@ -1699,24 +1084,64 @@ function steady_state_system_jacobian!(jacob, x, indices, icol_accel, force_scal
 
     jacob .= 0
     
-    steady_state_body_jacobian!(jacob, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, 
-        ab_p, αb_p)
+    # set body frame displacement explicitly
+    ub, θb = ub_p, θb_p
+
+    # set body frame velocity explicitly
+    vb, ωb = vb_p, ωb_p
+
+    # set body frame acceleration from state variables or prescribed values
+    ab, αb = body_frame_acceleration(x)
+    
+    ab = SVector(
+        ifelse(icol_accel[1] > 0, ab[1], ab_p[1]),
+        ifelse(icol_accel[2] > 0, ab[2], ab_p[2]),
+        ifelse(icol_accel[3] > 0, ab[3], ab_p[3]),
+    )
+
+    αb = SVector(
+        ifelse(icol_accel[4] > 0, ab[1], αb_p[1]),
+        ifelse(icol_accel[5] > 0, ab[2], αb_p[2]),
+        ifelse(icol_accel[6] > 0, ab[3], αb_p[3]),
+    )
+
+    ub_ub = @SMatrix zeros(3,3)
+    θb_θb = @SMatrix zeros(3,3)
+    
+    vb_vb = @SMatrix zeros(3,3) 
+    ωb_ωb = @SMatrix zeros(3,3)
+
+    ab_ab = hcat(
+        ifelse(icol_accel[1] > 0, e1, zero(e1)),
+        ifelse(icol_accel[2] > 0, e2, zero(e2)),
+        ifelse(icol_accel[3] > 0, e3, zero(e3)),
+    )
+
+    αb_αb = hcat(
+        ifelse(icol_accel[4] > 0, e1, zero(e1)),
+        ifelse(icol_accel[5] > 0, e2, zero(e2)),
+        ifelse(icol_accel[6] > 0, e3, zero(e3)),
+    )
+
+    steady_state_body_jacobian!(jacob, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
     for ipoint = 1:length(assembly.points)
         steady_state_point_jacobian!(jacob, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity)
+            ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb,
+            ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     for ielem = 1:length(assembly.elements)
         steady_state_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
-            assembly, ielem, prescribed_conditions, distributed_loads, gravity)
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, ub, θb, vb, ωb, ab, αb,
+            ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     return jacob
 end
 
 """
-    initial_condition_system_jacobian!(jacob, x, indices, rate_vars, icol_accel,
+    initial_condition_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2, icol_accel,
         force_scaling, structural_damping, assembly, prescribed_conditions, 
         distributed_loads, point_masses, gravity, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, 
         u0, θ0, V0, Ω0, Vdot0, Ωdot0)
@@ -1724,24 +1149,123 @@ end
 Populate the system jacobian matrix `jacob` for the initialization of a time domain 
 simulation.
 """
-function initial_condition_system_jacobian!(jacob, x, indices, rate_vars, icol_accel, 
+function initial_condition_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2, icol_accel, 
     force_scaling, structural_damping, assembly, prescribed_conditions, distributed_loads, 
     point_masses, gravity, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
     
     jacob .= 0
+    
+    # body frame states
+    ub, θb = ub_p, θb_p
+
+    vb, ωb = vb_p, ωb_p
+
+    ab, αb = body_frame_acceleration(x)
+    
+    ab = SVector(
+        ifelse(icol_accel[1] > 0, ab[1], ab_p[1]),
+        ifelse(icol_accel[2] > 0, ab[2], ab_p[2]),
+        ifelse(icol_accel[3] > 0, ab[3], ab_p[3]),
+    )
+
+    αb = SVector(
+        ifelse(icol_accel[4] > 0, ab[1], αb_p[1]),
+        ifelse(icol_accel[5] > 0, ab[2], αb_p[2]),
+        ifelse(icol_accel[6] > 0, ab[3], αb_p[3]),
+    )
+
+    # body frame jacobians
+    ub_ub = @SMatrix zeros(3,3)
+    θb_θb = @SMatrix zeros(3,3)
+    
+    vb_vb = @SMatrix zeros(3,3) 
+    ωb_ωb = @SMatrix zeros(3,3)
+
+    ab_ab = hcat(
+        ifelse(icol_accel[1] > 0, e1, zero(e1)),
+        ifelse(icol_accel[2] > 0, e2, zero(e2)),
+        ifelse(icol_accel[3] > 0, e3, zero(e3)),
+    )
+
+    αb_αb = hcat(
+        ifelse(icol_accel[4] > 0, e1, zero(e1)),
+        ifelse(icol_accel[5] > 0, e2, zero(e2)),
+        ifelse(icol_accel[6] > 0, e3, zero(e3)),
+    )
 
     initial_condition_body_jacobian!(jacob, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
     
     for ipoint = 1:length(assembly.points)
-        initial_condition_point_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
-            assembly, ipoint, prescribed_conditions, point_masses, gravity, 
-            u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+        initial_condition_point_jacobian!(jacob, x, indices, rate_vars2, force_scaling, 
+            assembly, ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb, 
+            ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
     end
     
     for ielem = 1:length(assembly.elements)
-        initial_condition_element_jacobian!(jacob, x, indices, rate_vars, force_scaling, 
+        initial_condition_element_jacobian!(jacob, x, indices, rate_vars2, force_scaling, 
             structural_damping, assembly, ielem, prescribed_conditions, 
-            distributed_loads, gravity, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+            distributed_loads, gravity, ub, θb, vb, ωb, ab, αb, 
+            ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+
+    end
+
+    # replace equilibrium equations, if necessary
+    for ipoint = 1:length(assembly.points)
+        irow = indices.irow_point[ipoint]
+        icol = indices.icol_point[ipoint]
+        if haskey(prescribed_conditions, ipoint)
+            pd = prescribed_conditions[ipoint].pd
+            # displacements not prescribed, Vdot and Ωdot are arbitrary, F and M from compatability
+            if !pd[1] && !rate_vars1[icol+6] && rate_vars2[icol+6]
+                jacob[irow,:] .= 0
+                jacob[irow,icol] = 1
+            end
+            if !pd[2] && !rate_vars1[icol+7] && rate_vars2[icol+7]
+                jacob[irow+1,:] .= 0
+                jacob[irow+1,icol+1] = 1
+            end
+            if !pd[3] && !rate_vars1[icol+8] && rate_vars2[icol+8]
+                jacob[irow+2,:] .= 0
+                jacob[irow+2,icol+2] = 1
+            end
+            if !pd[4] && !rate_vars1[icol+9] && rate_vars2[icol+9]
+                jacob[irow+3,:] .= 0
+                jacob[irow+3,icol+3] = 1
+            end
+            if !pd[5] && !rate_vars1[icol+10] && rate_vars2[icol+10]
+                jacob[irow+4,:] .= 0
+                jacob[irow+4,icol+4] = 1
+            end
+            if !pd[6] && !rate_vars1[icol+11] && rate_vars2[icol+11]
+                jacob[irow+5,:] .= 0
+                jacob[irow+5,icol+5] = 1
+            end
+        else
+            if !rate_vars1[icol+6] && rate_vars2[icol+6]
+                jacob[irow,:] .= 0
+                jacob[irow,icol] = 1
+            end
+            if !rate_vars1[icol+7] && rate_vars2[icol+7]
+                jacob[irow+1,:] .= 0
+                jacob[irow+1,icol+1] = 1
+            end
+            if !rate_vars1[icol+8] && rate_vars2[icol+8]
+                jacob[irow+2,:] .= 0
+                jacob[irow+2,icol+2] = 1
+            end
+            if !rate_vars1[icol+9] && rate_vars2[icol+9]
+                jacob[irow+3,:] .= 0
+                jacob[irow+3,icol+3] = 1
+            end
+            if !rate_vars1[icol+10] && rate_vars2[icol+10]
+                jacob[irow+4,:] .= 0
+                jacob[irow+4,icol+4] = 1
+            end
+            if !rate_vars1[icol+11] && rate_vars2[icol+11]
+                jacob[irow+5,:] .= 0
+                jacob[irow+5,icol+5] = 1
+            end
+        end
     end
 
     return jacob
@@ -1762,17 +1286,38 @@ function newmark_system_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
     
     jacob .= 0
 
+    # body frame displacement
+    ub, θb = body_frame_displacement(x)
+    
+    # body frame velocity
+    vb, ωb = body_frame_velocity(x)
+
+    # body frame linear and angular acceleration are captured by Vdot, Ωdot
+    ab = αb = @SVector zeros(3)
+
+    # body frame jacobians
+    ub_ub = I3
+    θb_θb = I3
+    
+    vb_vb = I3
+    ωb_ωb = I3
+
+    ab_ab = @SMatrix zeros(3,3)
+    αb_αb = @SMatrix zeros(3,3)
+
     newmark_body_jacobian!(jacob, x, icol_accel, ab_p, αb_p, ubdot_init, θbdot_init, vbdot_init, ωbdot_init, dt)
     
     for ipoint = 1:length(assembly.points)
         newmark_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint, 
             prescribed_conditions, point_masses, gravity, 
+            ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb, 
             udot_init, θdot_init, Vdot_init, Ωdot_init, dt)
     end
     
     for ielem = 1:length(assembly.elements)
         newmark_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
             assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb, 
             Vdot_init, Ωdot_init, dt)
     end
     
@@ -1792,17 +1337,37 @@ function dynamic_system_jacobian!(jacob, dx, x, indices, icol_accel, force_scali
     
     jacob .= 0
 
+    # body frame displacement
+    ub, θb = body_frame_displacement(x)
+    
+    # body frame velocity
+    vb, ωb = body_frame_velocity(x)
+
+    # body frame linear and angular acceleration are captured by Vdot, Ωdot
+    ab = αb = @SVector zeros(3)
+
+    # body frame jacobians
+    ub_ub = I3
+    θb_θb = I3
+    
+    vb_vb = I3
+    ωb_ωb = I3
+
+    ab_ab = @SMatrix zeros(3,3)
+    αb_αb = @SMatrix zeros(3,3)
+
     dynamic_body_jacobian!(jacob, dx, x, icol_accel, ab_p, αb_p)
     
     for ipoint = 1:length(assembly.points)
         dynamic_point_jacobian!(jacob, dx, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity)
+            ipoint, prescribed_conditions, point_masses, gravity,
+            ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     for ielem = 1:length(assembly.elements)
-        dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, 
-            structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity)
+        dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
+            assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
+            ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     return jacob
@@ -1822,17 +1387,57 @@ function expanded_steady_system_jacobian!(jacob, x, indices, icol_accel, force_s
     
     jacob .= 0
 
+    # set body frame displacement explicitly
+    ub, θb = ub_p, θb_p
+
+    # set body frame velocity explicitly
+    vb, ωb = vb_p, ωb_p
+
+    # set body frame acceleration from state variables or prescribed values
+    ab, αb = body_frame_acceleration(x)
+    
+    ab = SVector(
+        ifelse(icol_accel[1] > 0, ab[1], ab_p[1]),
+        ifelse(icol_accel[2] > 0, ab[2], ab_p[2]),
+        ifelse(icol_accel[3] > 0, ab[3], ab_p[3]),
+    )
+
+    αb = SVector(
+        ifelse(icol_accel[4] > 0, ab[1], αb_p[1]),
+        ifelse(icol_accel[5] > 0, ab[2], αb_p[2]),
+        ifelse(icol_accel[6] > 0, ab[3], αb_p[3]),
+    )
+
+    ub_ub = @SMatrix zeros(3,3)
+    θb_θb = @SMatrix zeros(3,3)
+    
+    vb_vb = @SMatrix zeros(3,3) 
+    ωb_ωb = @SMatrix zeros(3,3)
+
+    ab_ab = hcat(
+        ifelse(icol_accel[1] > 0, e1, zero(e1)),
+        ifelse(icol_accel[2] > 0, e2, zero(e2)),
+        ifelse(icol_accel[3] > 0, e3, zero(e3)),
+    )
+
+    αb_αb = hcat(
+        ifelse(icol_accel[4] > 0, e1, zero(e1)),
+        ifelse(icol_accel[5] > 0, e2, zero(e2)),
+        ifelse(icol_accel[6] > 0, e3, zero(e3)),
+    )
+
     expanded_steady_body_jacobian!(jacob, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
     
     for ipoint = 1:length(assembly.points)
         expanded_steady_point_jacobian!(jacob, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity)
+            ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb,
+            ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     for ielem = 1:length(assembly.elements)
         expanded_steady_element_jacobian!(jacob, x, indices, force_scaling, 
             structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity)
+            gravity, ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     return jacob
@@ -1852,54 +1457,115 @@ function expanded_dynamic_system_jacobian!(jacob, x, indices, icol_accel, force_
     
     jacob .= 0
 
+    # body frame displacement
+    ub, θb = body_frame_displacement(x)
+    
+    # body frame velocity
+    vb, ωb = body_frame_velocity(x)
+
+    # body frame linear and angular acceleration are captured by Vdot, Ωdot
+    ab = αb = @SVector zeros(3)
+
+    # body frame jacobians
+    ub_ub = I3
+    θb_θb = I3
+    
+    vb_vb = I3
+    ωb_ωb = I3
+
+    ab_ab = @SMatrix zeros(3,3)
+    αb_αb = @SMatrix zeros(3,3)
+
     expanded_dynamic_body_jacobian!(jacob, x, icol_accel, ab_p, αb_p)
     
     for ipoint = 1:length(assembly.points)
         expanded_dynamic_point_jacobian!(jacob, x, indices, force_scaling, assembly, 
-            ipoint, prescribed_conditions, point_masses, gravity)
+            ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb,
+            ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     for ielem = 1:length(assembly.elements)
         expanded_dynamic_element_jacobian!(jacob, x, indices, force_scaling, 
             structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
-            gravity)
+            gravity, ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     return jacob
 end
 
 """
-    system_mass_matrix!(jacob, x, indices, force_scaling,  assembly, prescribed_conditions, 
+    steady_system_mass_matrix!(jacob, x, indices, force_scaling,  assembly, prescribed_conditions, 
         point_masses)
 
 Calculate the jacobian of the residual expressions with respect to the state rates.
 """
-function system_mass_matrix!(jacob, x, indices, force_scaling, assembly, 
+function steady_system_mass_matrix!(jacob, x, indices, force_scaling, assembly, 
     prescribed_conditions, point_masses)
 
     jacob .= 0
 
     gamma = 1
 
-    system_mass_matrix!(jacob, gamma, x, indices, force_scaling,  assembly, 
+    steady_system_mass_matrix!(jacob, gamma, x, indices, force_scaling,  assembly, 
         prescribed_conditions, point_masses)
 
     return jacob
 end
 
 """
-    system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
+    steady_system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
         prescribed_conditions, point_masses, steady=false)
 
 Calculate the jacobian of the residual expressions with respect to the state rates and 
 add the result multiplied by `gamma` to `jacob`.
 """
-function system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
+function steady_system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
     prescribed_conditions, point_masses, steady=false)
 
-    if !steady
-        mass_matrix_body_jacobian!(jacob)
+    for ipoint = 1:length(assembly.points)
+        mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, ipoint, 
+            prescribed_conditions, point_masses)
     end
+    
+    for ielem = 1:length(assembly.elements)
+        mass_matrix_element_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, ielem, 
+            prescribed_conditions)
+    end
+
+    return jacob
+end
+
+
+"""
+    dynamic_system_mass_matrix!(jacob, x, indices, force_scaling,  assembly, prescribed_conditions, 
+        point_masses)
+
+Calculate the jacobian of the residual expressions with respect to the state rates.
+"""
+function dynamic_system_mass_matrix!(jacob, x, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
+
+    jacob .= 0
+
+    gamma = 1
+
+    dynamic_system_mass_matrix!(jacob, gamma, x, indices, force_scaling,  assembly, 
+        prescribed_conditions, point_masses)
+
+    return jacob
+end
+
+"""
+    dynamic_system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
+        prescribed_conditions, point_masses)
+
+Calculate the jacobian of the residual expressions with respect to the state rates and 
+add the result multiplied by `gamma` to `jacob`.
+"""
+function dynamic_system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
+
+    mass_matrix_body_jacobian!(jacob)
 
     for ipoint = 1:length(assembly.points)
         mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, ipoint, 
@@ -1915,14 +1581,14 @@ function system_mass_matrix!(jacob, gamma, x, indices, force_scaling, assembly,
 end
 
 """
-    expanded_system_mass_matrix(system, assembly;
+    expanded_steady_system_mass_matrix(system, assembly;
         prescribed_conditions=Dict{Int, PrescribedConditions}(), 
         point_masses=Dict{Int, PointMass}())
 
 Calculate the jacobian of the residual expressions with respect to the state rates for a 
 constant mass matrix system.
 """
-function expanded_system_mass_matrix(system, assembly;
+function expanded_steady_system_mass_matrix(system, assembly;
     prescribed_conditions=Dict{Int, PrescribedConditions}(), 
     point_masses=Dict{Int, PointMass}())
 
@@ -1935,38 +1601,106 @@ function expanded_system_mass_matrix(system, assembly;
     pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0)
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(0)
 
-    expanded_system_mass_matrix!(jacob, gamma, expanded_indices, force_scaling, assembly, pcond, pmass) 
+    expanded_steady_system_mass_matrix!(jacob, gamma, expanded_indices, force_scaling, assembly, pcond, pmass) 
 
     return jacob
 end
 
 """
-    expanded_system_mass_matrix!(jacob, indices, force_scaling,  assembly, prescribed_conditions, 
+    expanded_steady_system_mass_matrix!(jacob, indices, force_scaling,  assembly, prescribed_conditions, 
         point_masses)
 
 Calculate the jacobian of the residual expressions with respect to the state rates.
 """
-function expanded_system_mass_matrix!(jacob, indices, force_scaling, assembly, 
+function expanded_steady_system_mass_matrix!(jacob, indices, force_scaling, assembly, 
     prescribed_conditions, point_masses)
 
     jacob .= 0
 
     gamma = 1
 
-    expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+    expanded_steady_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
         prescribed_conditions, point_masses)
 
     return jacob
 end
 
 """
-    expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+    expanded_steady_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
         prescribed_conditions, point_masses)
 
 Calculate the jacobian of the residual expressions with respect to the state rates and 
 add the result multiplied by `gamma` to `jacob`.
 """
-function expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+function expanded_steady_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
+
+    for ipoint = 1:length(assembly.points)
+        expanded_mass_matrix_point_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+            ipoint, prescribed_conditions, point_masses)
+    end
+    
+    for ielem = 1:length(assembly.elements)
+        expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+            ielem, prescribed_conditions)
+    end
+
+    return jacob
+end
+
+"""
+    expanded_dynamic_system_mass_matrix(system, assembly;
+        prescribed_conditions=Dict{Int, PrescribedConditions}(), 
+        point_masses=Dict{Int, PointMass}())
+
+Calculate the jacobian of the residual expressions with respect to the state rates for a 
+constant mass matrix system.
+"""
+function expanded_dynamic_system_mass_matrix(system, assembly;
+    prescribed_conditions=Dict{Int, PrescribedConditions}(), 
+    point_masses=Dict{Int, PointMass}())
+
+    @unpack expanded_indices, force_scaling = system
+
+    TF = eltype(system)
+    nx = expanded_indices.nstates
+    jacob = spzeros(TF, nx, nx)
+    gamma = -1
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0)
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(0)
+
+    expanded_dynamic_system_mass_matrix!(jacob, gamma, expanded_indices, force_scaling, assembly, pcond, pmass) 
+
+    return jacob
+end
+
+"""
+    expanded_dynamic_system_mass_matrix!(jacob, indices, force_scaling,  assembly, prescribed_conditions, 
+        point_masses)
+
+Calculate the jacobian of the residual expressions with respect to the state rates.
+"""
+function expanded_dynamic_system_mass_matrix!(jacob, indices, force_scaling, assembly, 
+    prescribed_conditions, point_masses)
+
+    jacob .= 0
+
+    gamma = 1
+
+    expanded_dynamic_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+        prescribed_conditions, point_masses)
+
+    return jacob
+end
+
+"""
+    expanded_dynamic_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
+        prescribed_conditions, point_masses)
+
+Calculate the jacobian of the residual expressions with respect to the state rates and 
+add the result multiplied by `gamma` to `jacob`.
+"""
+function expanded_dynamic_system_mass_matrix!(jacob, gamma, indices, force_scaling, assembly, 
     prescribed_conditions, point_masses)
 
     mass_matrix_body_jacobian!(jacob)
@@ -1983,4 +1717,5 @@ function expanded_system_mass_matrix!(jacob, gamma, indices, force_scaling, asse
 
     return jacob
 end
+
 

@@ -1,3 +1,16 @@
+# # [Excited Second Bending Mode](@id excited)
+# 
+# This example shows how to simulate a simply supported beam with an excited second bending 
+# mode
+#
+# ![](../assets/excited-simulation.gif)
+# 
+#-
+#md # !!! tip
+#md #     This example is also available as a Jupyter notebook:
+#md #     [`excited.ipynb`](@__NBVIEWER_ROOT_URL__/examples/excited.ipynb).
+#-
+
 using GXBeam, LinearAlgebra
 
 ## simply-supported beam with excited second bending mode 
@@ -20,23 +33,24 @@ start = 1:nelem
 stop = 2:nelem+1
 
 ## compliance matrix for each beam element
-compliance = fill(Diagonal([0.0, 0.0, 0.0, 0.0, 1/(EI), 0.0]), nelem)
+compliance = fill(Diagonal([1e-6, 1e-6, 1e-6, 1e-6, 1/EI, 1e-6]), nelem)
 
 ## mass matrix for each beam element
 mass = fill(Diagonal([ρA, ρA, ρA, 0.0, 0.0, 0.0]), nelem)
 
-## create assembly 
+## create assembly
 assembly = Assembly(points, start, stop; compliance=compliance, mass=mass)
 
 ## excite the second bending mode
 delta = 1e-3 ## displacement magnitude
 uz = delta*sin.(2*pi*x/L) ## linear displacement
+u0 = [[0, 0, uz[i]] for i in eachindex(uz)]
 
 ## prescribe the vertical displacement of each point
 prescribed_conditions = Dict(i => PrescribedConditions(uz = uz[i]) for i = 1:length(points))
 
 ## simply supported left side
-prescribed_conditions[1] = PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_z=0)
+prescribed_conditions[1] = PrescribedConditions(ux=0, uy=0, uz=0)
 
 ## simply supported right side
 prescribed_conditions[nelem+1] = PrescribedConditions(uz=0)
@@ -65,21 +79,20 @@ prescribed_conditions = Dict(
 ## solution time vector
 t = range(0, 2*pi/ω, step=0.001)
 
-## initialize state variables (note that this doesn't converge)
-system, converged = initial_condition_analysis(assembly, t[1]; 
+## perform time domain analysis
+system, history, converged = time_domain_analysis(assembly, t; 
     prescribed_conditions = prescribed_conditions,
+    initialize = true,
     structural_damping = false, 
     u0=u0, theta0=theta0)
 
-## perform time domain analysis
-system, history, converged = time_domain_analysis!(system, assembly, t; 
-    prescribed_conditions = prescribed_conditions,
-    structural_damping = false, 
-    initialize = false, 
-    reset_state=false)
-
 ## write visualization file
-write_vtk("excited", assembly, history, t; scaling = 100)
+write_vtk("excited-simulation", assembly, history, t; scaling = 100)
+
+# ![](../assets/excited-simulation.gif)
+
+# Plotting the results reveals that the analytical and computational solutions show 
+# excellent agreement.
 
 ## Get displacements at 1/4 of the beam's length
 ipoint = div(nelem, 4) + 1
@@ -103,4 +116,10 @@ plot(
     )   
 plot!(t, w14_analytic, label="Analytic")    
 plot!(t, w14_gxbeam, label="GXBeam")     
-plot!(show=true)
+plot!(show=true) #!nb
+#md savefig("../assets/excited-deflection.svg") #hide
+#md closeall() #hide
+#md end #hide
+#md nothing #hide
+
+#md # ![](../assets/excited-deflection.svg)
