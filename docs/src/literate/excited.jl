@@ -119,7 +119,6 @@ plot!(t, w14_gxbeam, label="GXBeam")
 plot!(show=true) #!nb
 #md savefig("../assets/excited-deflection.svg") #hide
 #md closeall() #hide
-#md end #hide
 #md nothing #hide
 
 #md # ![](../assets/excited-deflection.svg)
