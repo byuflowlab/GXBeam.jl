@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Nonlinear Dynamic Analysis of a Wind Turbine Blade" begin
 
     L = 60 # m

@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Nonlinear Dynamic Analysis of a Joined-Wing" begin
 
     # Set endpoints of each beam

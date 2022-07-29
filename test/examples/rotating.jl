@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Rotating Beam with a Swept Tip" begin
     sweep = 45 * pi/180
     rpm = 0:25:750

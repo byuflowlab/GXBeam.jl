@@ -1,4 +1,4 @@
-using GXBeam, Random, Test
+using GXBeam, LinearAlgebra, Random, Test
 
 @testset "Input and Output" begin
 

@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Nonlinear Analysis of the Bending of a Curved Beam in 3D Space" begin
 
     # problem constants

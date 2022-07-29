@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Zero Mass Matrix" begin
     sweep = 45 * pi/180
     rpm = 750

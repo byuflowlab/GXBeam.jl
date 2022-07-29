@@ -16,12 +16,6 @@ corresponding to a point for a dynamic analysis
 
     @unpack C, Cdot, mass11, mass12, mass21, mass22, V, Ω, Vdot, Ωdot, v, ω, C_θ1, C_θ2, C_θ3 = properties
 
-    # redefine linear and angular acceleration (accelerations are included in Vdot and Ωdot)
-    a_u = Z3
-    a_ab = Z3
-    a_αb = Z3
-    α_αb = Z3
-
     # linear and angular momentum rates
     Pdot_ωb = -C'*mass11*C*tilde(V) - C'*mass12*C*tilde(Ω) + 
         tilde(C'*mass11*C*V) + tilde(C'*mass12*C*Ω)

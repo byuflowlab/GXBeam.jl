@@ -1,6 +1,45 @@
 using GXBeam, Random, ForwardDiff, Test
 
+@testset "Rotation Parameter Jacobians" begin
+    
+    RNG = MersenneTwister(1234)
+
+    θ = 1e3*rand(RNG, 3)
+    Δθ = 1e3*rand(RNG, 3)
+
+    # get_C_θ
+    C_θ1, C_θ2, C_θ3 = GXBeam.get_C_θ(θ)
+    @test isapprox(C_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_C([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(C_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_C([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(C_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_C([θ[1], θ[2], θ3]), θ[3]))
+
+    # get_Q_θ
+    Q_θ1, Q_θ2, Q_θ3 = GXBeam.get_Q_θ(θ)
+    @test isapprox(Q_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_Q([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(Q_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_Q([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(Q_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_Q([θ[1], θ[2], θ3]), θ[3]))
+
+    # get_Qinv_θ
+    Qinv_θ1, Qinv_θ2, Qinv_θ3 = GXBeam.get_Qinv_θ(θ)
+    @test isapprox(Qinv_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_Qinv([θ1, θ[2], θ[3]]), θ[1]))
+    @test isapprox(Qinv_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_Qinv([θ[1], θ2, θ[3]]), θ[2]))
+    @test isapprox(Qinv_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_Qinv([θ[1], θ[2], θ3]), θ[3]))
+
+    # get_ΔQ
+    ΔQ = GXBeam.get_ΔQ(θ, Δθ)
+    @test isapprox(ΔQ, GXBeam.mul3(Q_θ1, Q_θ2, Q_θ3, Δθ))
+
+    # get_ΔQ_θ
+    ΔQ_θ1, ΔQ_θ2, ΔQ_θ3 = GXBeam.get_ΔQ_θ(θ, Δθ)
+    @test isapprox(ΔQ_θ1, ForwardDiff.derivative(θ1 -> GXBeam.get_ΔQ([θ1, θ[2], θ[3]], Δθ), θ[1]))
+    @test isapprox(ΔQ_θ2, ForwardDiff.derivative(θ2 -> GXBeam.get_ΔQ([θ[1], θ2, θ[3]], Δθ), θ[2]))
+    @test isapprox(ΔQ_θ3, ForwardDiff.derivative(θ3 -> GXBeam.get_ΔQ([θ[1], θ[2], θ3], Δθ), θ[3]))
+
+end
+
 @testset "Prescribed Force Jacobians" begin
+
+    RNG = MersenneTwister(1234)
 
     x = rand(RNG, 6)
 
@@ -52,6 +91,8 @@ using GXBeam, Random, ForwardDiff, Test
 end
 
 @testset "Jacobian and Mass Matrix Calculations" begin
+
+    RNG = MersenneTwister(1234)
 
     L = 60 # m
 
@@ -107,7 +148,7 @@ end
     )
 
     # gravity vector
-    gvec = SVector{3}(1e3*rand(RNG, 3))
+    gvec = 1e3*rand(RNG, 3)
 
     # --- Static Analysis --- #
 
@@ -136,12 +177,12 @@ end
 
     structural_damping = true
 
-    ub_p = SVector{3}(1e2*rand(RNG, 3))
-    θb_p = SVector{3}(1e2*rand(RNG, 3))
-    vb_p = SVector{3}(1e2*rand(RNG, 3))
-    ωb_p = SVector{3}(1e2*rand(RNG, 3))
-    ab_p = SVector{3}(1e2*rand(RNG, 3))
-    αb_p = SVector{3}(1e2*rand(RNG, 3))
+    ub_p = 1e2*rand(RNG, 3)
+    θb_p = 1e2*rand(RNG, 3)
+    vb_p = 1e2*rand(RNG, 3)
+    ωb_p = 1e2*rand(RNG, 3)
+    ab_p = 1e2*rand(RNG, 3)
+    αb_p = 1e2*rand(RNG, 3)
 
     f = (x) -> GXBeam.steady_state_system_residual!(similar(x), x, indices, icol_accel, 
         force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
@@ -155,12 +196,12 @@ end
 
     # --- Initial Condition Analysis --- #
 
-    u0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
-    theta0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
-    V0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
-    Omega0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
-    Vdot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
-    Omegadot0 = [SVector{3}(rand(RNG, 3)) for ielem = 1:length(assembly.points)]
+    u0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    theta0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    V0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    Omega0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    Vdot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
+    Omegadot0 = [rand(RNG, 3) for ielem = 1:length(assembly.points)]
 
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
@@ -180,14 +221,14 @@ end
 
     # --- Newmark Scheme Time-Marching Analysis --- #
 
-    ubdot = SVector{3}(rand(RNG, 3))
-    θbdot = SVector{3}(rand(RNG, 3))
-    vbdot = SVector{3}(rand(RNG, 3))
-    ωbdot = SVector{3}(rand(RNG, 3))
-    udot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
-    θdot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
-    Vdot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
-    Ωdot = [SVector{3}(rand(RNG, 3)) for ipoint = 1:length(assembly.points)]
+    ubdot = rand(RNG, 3)
+    θbdot = rand(RNG, 3)
+    vbdot = rand(RNG, 3)
+    ωbdot = rand(RNG, 3)
+    udot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
+    θdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
+    Vdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
+    Ωdot = [rand(RNG, 3) for ipoint = 1:length(assembly.points)]
     dt = rand(RNG)
 
     x = rand(RNG, length(system.x))

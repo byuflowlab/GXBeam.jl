@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Elliptic, Test
+
 @testset "Nonlinear Analysis of a Cantilever Subjected to a Constant Tip Load" begin
 
     L = 1

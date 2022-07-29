@@ -1,39 +1,33 @@
-using GXBeam
-using LinearAlgebra
-using StaticArrays
-using DifferentialEquations
-using Test
-import Elliptic
-using ForwardDiff
-using Random
+using GXBeam, DifferentialEquations, LinearAlgebra, ForwardDiff, Random, Test
 
-const RNG = MersenneTwister(1234)
+# input/output tests
+include("io.jl")
 
-# internals
-include("internals/io.jl")
-include("internals/rotations.jl")
-include("internals/jacobians.jl")
+# jacobian tests
+include("jacobians.jl")
+
+# cross-section tests
+include("section.jl")
 
 # examples
-include("examples/cantilever.jl")
-include("examples/overdetermined.jl")
-include("examples/tipforce.jl")
-include("examples/tipmoment.jl")
-include("examples/curved.jl")
-include("examples/rotating.jl")
-include("examples/wind-turbine-blade.jl")
-include("examples/static-joined-wing.jl")
-include("examples/dynamic-joined-wing.jl")
+include(joinpath("examples", "cantilever.jl"))
+include(joinpath("examples", "overdetermined.jl"))
+include(joinpath("examples", "tipforce.jl"))
+include(joinpath("examples", "tipmoment.jl"))
+include(joinpath("examples", "curved.jl"))
+include(joinpath("examples", "rotating.jl"))
+include(joinpath("examples", "wind-turbine-blade.jl"))
+include(joinpath("examples", "static-joined-wing.jl"))
+include(joinpath("examples", "dynamic-joined-wing.jl"))
 
 # interfaces
-include("interfaces/diffeq.jl")
-include("interfaces/forwarddiff.jl")
+include(joinpath("interfaces", "diffeq.jl"))
+include(joinpath("interfaces", "forwarddiff.jl"))
 
 # issues
-include("issues/zeros.jl")
-include("issues/pointmass.jl")
+include(joinpath("issues", "zeros.jl"))
+include(joinpath("issues", "pointmass.jl"))
 
 
 
 
-include("sectiontests.jl")

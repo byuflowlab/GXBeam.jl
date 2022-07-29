@@ -1,6 +1,3 @@
-using LinearAlgebra: I, Symmetric, det, factorize
-using SparseArrays: spzeros, sparse
-
 """
     Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
 
@@ -737,8 +734,6 @@ function mass_matrix(nodes, elements)
 
     return M, [xm, ym]
 end
-
-
 
 """
     plotmesh(nodes, elements, pyplot; plotnumbers=false)

@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, ForwardDiff, Test
+
 @testset "ForwardDiff" begin
 
     # Linear Analysis of a Beam Under a Linear Distributed Load

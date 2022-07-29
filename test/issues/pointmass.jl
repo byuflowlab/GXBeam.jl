@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Point Masses" begin
 
     nodes = [[0,i,0] for i in 0:0.1:1]

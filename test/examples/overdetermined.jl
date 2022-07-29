@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Linear Analysis of a Beam Under a Linear Distributed Load" begin
 
     nelem = 16

@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, Test
+
 @testset "Nonlinear Analysis of a Cantilever Subjected to a Constant Moment" begin
 
     L = 12 # inches

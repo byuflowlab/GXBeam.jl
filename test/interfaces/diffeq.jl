@@ -1,3 +1,5 @@
+using GXBeam, LinearAlgebra, DifferentialEquations, Test
+
 @testset "DifferentialEquations" begin
 
     L = 60 # m
