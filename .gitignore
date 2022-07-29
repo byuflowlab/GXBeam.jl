@@ -1,3 +1,4 @@
 *.bak
 *.tmp
 Manifest.toml
+.DS_Store

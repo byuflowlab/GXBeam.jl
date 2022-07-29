@@ -37,6 +37,13 @@ export deform_cross_section, deform_cross_section!
 export write_vtk
 export left_eigenvectors, correlate_eigenmodes
 
+# from section
+export Material, Node, MeshElement
+export initialize_cache, compliance_matrix, mass_matrix, plotmesh
+# from afmesh
+export Layer
+export afmesh
+
 const GAUSS_NODES = SVector(-0.8611363115940526, -0.3399810435848563, 0.3399810435848563, 0.8611363115940526)
 const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451548625462, 0.34785484513745385)
 
@@ -48,6 +55,8 @@ include("assembly.jl")
 include("system.jl")
 include("analyses.jl")
 include("postprocess.jl")
+include("section.jl")
+include("afmesh.jl")
 
 include("interfaces/differentialequations.jl")
 include("interfaces/forwarddiff.jl")
