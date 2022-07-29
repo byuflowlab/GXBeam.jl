@@ -5,7 +5,6 @@ vector(n) = Vector{Float64}(undef, n)
 vector_ints(n) = Vector{Int64}(undef, n)
 matrix(m, n) = Matrix{Float64}(undef, m, n)
 
-
 """
     Layer(material, t, theta)
 
@@ -22,8 +21,8 @@ struct Layer{TF}
     t::TF
     theta::TF
 end
-
-Base.eltype(::Layer{TF}) where TF = TF
+Base.eltype(::Layer{TF}) where {TF} = TF
+Base.eltype(::Type{Layer{TF}}) where {TF} = TF
 
 # from https://discourse.julialang.org/t/findnearest-function/4143/4
 function searchsortednearest(a, x)
@@ -43,6 +42,7 @@ Modify number of layers based on a given maximum thickness
 """
 function redistribute_thickness(segments, dt, nt)
     ns = length(segments)
+
     TF = eltype(eltype(eltype(segments)))
     newsegments = Vector{Vector{Layer{TF}}}(undef, ns)
 
@@ -529,7 +529,7 @@ create nodes and elements for half (upper or lower) portion of airfoil
 function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
     nl = length(segments[1])  # number of layers (same for all segments)
     
-    TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(segments), eltype(chord), eltype(x_te))
+    TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(eltype(eltype(segments))), eltype(chord), eltype(x_te))
     
     # initialize
     nxu = length(xu)
@@ -720,7 +720,7 @@ function addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, nnu, nl, ne_
     nt = 1 + nl  # number of points across thickness
     
     TN = eltype(eltype(nodes))
-    TE = promote_type(eltype(eltype(elements)), eltype(eltype(webs)))
+    TE = promote_type(eltype(eltype(elements)), eltype(eltype(eltype(webs))))
     
     # find nodes numbers for start of webs
     idx_webu *= nt  # there are nt points per nx index
@@ -729,7 +729,7 @@ function addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, nnu, nl, ne_
 
     # initialize sizes of nodes and elements for web
     web_nodes = Vector{Node{TN}}(undef, (ne_web-1)*sum(nx_web))
-    web_elements = Vector{MeshElement{TE}}(undef, ne_web*sum(nx_web .- 1))
+    web_elements = Vector{MeshElement{Vector{Int},TE}}(undef, ne_web*sum(nx_web .- 1))
     nn = length(nodes)
     n_web = 1
     e_web = 1
