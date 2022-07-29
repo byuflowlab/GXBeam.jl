@@ -54,6 +54,13 @@ export deform_cross_section, deform_cross_section!
 
 export write_vtk
 
+# from section
+export Material, Node, MeshElement
+export initialize_cache, compliance_matrix, mass_matrix, plotmesh
+# from afmesh
+export Layer
+export afmesh
+
 const GAUSS_NODES = SVector(-0.8611363115940526, -0.3399810435848563, 0.3399810435848563, 0.8611363115940526)
 const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451548625462, 0.34785484513745385)
 
@@ -77,6 +84,8 @@ include("system.jl")
 # input and output methods
 include("preprocess.jl")
 include("postprocess.jl")
+include("section.jl")
+include("afmesh.jl")
 
 # point residuals
 include("point/residual/static.jl")

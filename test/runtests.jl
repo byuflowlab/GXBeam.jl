@@ -36,3 +36,4 @@ include("issues/pointmass.jl")
 
 
 
+include("sectiontests.jl")
