@@ -148,9 +148,11 @@ GXBeam.steady_state_body_residual!
 GXBeam.initial_condition_body_residual!
 GXBeam.newmark_body_residual!
 GXBeam.dynamic_body_residual!
+GXBeam.expanded_steady_body_residual!
 GXBeam.steady_state_body_jacobian!
 GXBeam.initial_condition_body_jacobian!
 GXBeam.newmark_body_jacobian!
+
 ```
 
 ### Points
@@ -163,10 +165,10 @@ GXBeam.point_displacement_jacobians
 GXBeam.point_displacement_rates
 GXBeam.point_velocities
 GXBeam.point_velocity_rates
-GXBeam.initial_point_displacement :: NTuple{7, Any}
-GXBeam.initial_point_velocity_rates :: NTuple{7, Any}
-GXBeam.initial_point_displacement_jacobian :: NTuple{4, Any}
-GXBeam.initial_point_velocity_rate_jacobian :: NTuple{4, Any}
+GXBeam.initial_point_displacement
+GXBeam.initial_point_velocity_rates
+GXBeam.initial_point_displacement_jacobian
+GXBeam.initial_point_velocity_rate_jacobian
 GXBeam.static_point_properties
 GXBeam.steady_state_point_properties
 GXBeam.initial_condition_point_properties
@@ -254,7 +256,8 @@ GXBeam.steady_state_element_residual!
 GXBeam.initial_condition_element_residual!
 GXBeam.newmark_element_residual!
 GXBeam.dynamic_element_residual!
-GXBeam.expanded_element_residual!
+GXBeam.expanded_steady_element_residual!
+GXBeam.expanded_dynamic_element_residual!
 GXBeam.static_element_jacobian_properties
 GXBeam.steady_state_element_jacobian_properties
 GXBeam.initial_condition_element_jacobian_properties
@@ -290,8 +293,8 @@ GXBeam.expanded_mass_matrix_element_jacobian!
 
 ```@docs
 GXBeam.SystemIndices
-GXBeam.body_frame_acceleration_indices :: Tuple{Any, Any}
-GXBeam.prescribed_body_frame_acceleration :: NTuple{4, Any}
+GXBeam.body_frame_acceleration_indices
+GXBeam.prescribed_body_frame_acceleration
 GXBeam.default_force_scaling
 GXBeam.curve_triad
 GXBeam.curve_coordinates
