@@ -323,10 +323,9 @@ function initial_condition_analysis!(system, assembly, t0;
         converged = true
     else
         # perform a nonlinear analysis
-        df = OnceDifferentiable(f!, j!, x, r, collect(K))
+        df = OnceDifferentiable(f!, j!, x, r, K)
 
-        result = NLsolve.nlsolve(#f!, x, autodiff=:forward,
-            df, x,
+        result = NLsolve.nlsolve(df, x,
             show_trace=show_trace,
             linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
             method=method,

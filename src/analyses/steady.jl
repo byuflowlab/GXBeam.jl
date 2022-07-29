@@ -182,8 +182,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             # perform a nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
 
-            # result = NLsolve.nlsolve(df, x,
-            result = NLsolve.nlsolve(f!, x, autodiff=:forward,
+            result = NLsolve.nlsolve(df, x,
                 show_trace=show_trace,
                 linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
                 method=method,
