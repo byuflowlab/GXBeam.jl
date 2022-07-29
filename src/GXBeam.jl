@@ -68,11 +68,11 @@ const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451
 # common math functions
 include("math.jl")
 
-# airfoil meshing
-include("afmesh.jl")
-
 # section properties
 include("section.jl")
+
+# airfoil meshing
+include("afmesh.jl")
 
 # assembly creation
 include("assembly.jl")
