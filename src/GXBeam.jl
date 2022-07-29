@@ -24,7 +24,10 @@ export time_domain_analysis, time_domain_analysis!
 
 export reset_state!, copy_state!, set_state!
 
-export set_linear_deflection!, set_angular_deflection!
+export set_body_linear_displacement!, set_body_angular_displacement!
+export set_body_linear_velocity!, set_body_angular_velocity!
+export set_body_linear_acceleration!, set_body_angular_acceleration!
+export set_linear_displacement!, set_angular_displacement!
 export set_external_forces!, set_external_moments!
 export set_linear_velocity!, set_angular_velocity!
 export set_internal_forces!, set_internal_moments!
@@ -40,7 +43,7 @@ export PrescribedConditions, DistributedLoads, PointMass
 export combine_loads, combine_masses
 
 export AssemblyState
-export BodyState
+export BodyState, extract_body_state
 export PointState, extract_point_state, extract_point_states, extract_point_states!
 export ElementState, extract_element_state, extract_element_states, extract_element_states!
 

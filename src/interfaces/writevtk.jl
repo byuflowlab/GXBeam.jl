@@ -410,7 +410,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                 # extract point locations
                 points = Matrix{eltype(assembly)}(undef, 3, npoint)
                 for ip = 1:npoint
-                    points[i,ip] = ub + Ct_b*(assembly.points[ip] +
+                    points[:,ip] = ub + Ct_b*(assembly.points[ip] +
                         scaling*state.points[ip].u +
                         mode_scaling*real.(eigenstate.points[ip].u*exp(λ*t)))
                 end
