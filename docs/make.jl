@@ -12,6 +12,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Getting Started" => joinpath("examples", "guide.md"),
+        "Section Properties" => joinpath("examples", "section.md"),
         "Examples" => [
             joinpath("examples", "cantilever.md"),
             joinpath("examples", "overdetermined.md"),
