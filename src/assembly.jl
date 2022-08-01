@@ -122,7 +122,7 @@ function Assembly(points, start, stop;
 
     elements = Element.(lengths, midpoints, compliance, mass, frames, damping)
 
-    return Assembly(points, promote(start, stop)..., elements)
+    return Assembly(SVector{3}.(points), promote(start, stop)..., elements)
 end
 
 """

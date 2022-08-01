@@ -199,12 +199,11 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         # indices corresponding to rigid body acceleration state variables
         icol_accel = body_frame_acceleration_indices(system, pcond)
 
-        # set current state rate initialization parameters
-
         # state variables for the body frame motion
         ub, θb = body_frame_displacement(x)
         vb, ωb = body_frame_velocity(x)
         ab, αb = body_frame_acceleration(x)
+
         # initialization terms for the body frame motion
         ubdot = 2/dt*ub + vb
         θbdot = 2/dt*θb + get_Qinv(θb)*get_C(θb)*ωb
@@ -216,7 +215,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             # state variables for this point
             u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
             V, Ω = point_velocities(x, ipoint, indices.icol_point)
-            # initialization terms for this point, use storage for state rates
+            # initialization terms for this point
             udot[ipoint] = 2/dt*u + udot[ipoint]
             θdot[ipoint] = 2/dt*θ + θdot[ipoint]
             Vdot[ipoint] = 2/dt*V + Vdot[ipoint]

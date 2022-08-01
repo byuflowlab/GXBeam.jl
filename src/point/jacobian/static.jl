@@ -58,13 +58,15 @@ end
     M3_θ = ifelse(pl[6], SVector(M_θ[3,1], M_θ[3,2], M_θ[3,3]), @SVector zeros(eltype(x), 3))
     M_θ = vcat(M1_θ', M2_θ', M3_θ')
 
-    F_F = hcat(ifelse(pl[1], zero(e1), e1),
-               ifelse(pl[2], zero(e2), e2),
-               ifelse(pl[3], zero(e3), e3))
+    F_F1 = ifelse(pl[1], SVector{3,eltype(x)}(0,0,0), SVector{3,eltype(x)}(1,0,0))
+    F_F2 = ifelse(pl[2], SVector{3,eltype(x)}(0,0,0), SVector{3,eltype(x)}(0,1,0))
+    F_F3 = ifelse(pl[3], SVector{3,eltype(x)}(0,0,0), SVector{3,eltype(x)}(0,0,1))
+    F_F = hcat(F_F1, F_F2, F_F3)
 
-    M_M = hcat(ifelse(pl[4], zero(e1), e1),
-               ifelse(pl[5], zero(e2), e2),
-               ifelse(pl[6], zero(e3), e3))
+    M_M1 = ifelse(pl[4], SVector{3,eltype(x)}(0,0,0), SVector{3,eltype(x)}(1,0,0))
+    M_M2 = ifelse(pl[5], SVector{3,eltype(x)}(0,0,0), SVector{3,eltype(x)}(0,1,0))
+    M_M3 = ifelse(pl[6], SVector{3,eltype(x)}(0,0,0), SVector{3,eltype(x)}(0,0,1))
+    M_M = hcat(M_M1, M_M2, M_M3)
 
     return F_θ, F_F, M_θ, M_M
 end

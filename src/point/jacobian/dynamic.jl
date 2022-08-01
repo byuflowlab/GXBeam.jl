@@ -208,7 +208,7 @@ system jacobian matrix.
     jacob[irow+3:irow+5, 13:15] .= -M_ab ./ force_scaling
     jacob[irow+3:irow+5, 16:18] .= -M_αb ./ force_scaling
 
-    jacob[irow+3:irow+5, icol:icol+2] .-= M_u ./ force_scaling
+    @views jacob[irow+3:irow+5, icol:icol+2] .-= M_u ./ force_scaling
     jacob[irow+3:irow+5, icol+6:icol+8] .= -M_V ./ force_scaling
     jacob[irow+3:irow+5, icol+9:icol+11] .= -M_Ω ./ force_scaling
 
