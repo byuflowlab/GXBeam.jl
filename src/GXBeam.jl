@@ -78,9 +78,9 @@ include("afmesh.jl")
 include("assembly.jl")
 
 # prescribed conditions, distributed loads, and point masses
-include(joinpath("loads", "prescribed.jl"))
-include(joinpath("loads", "distributed.jl"))
-include(joinpath("loads", "pointmass.jl"))
+include("loads/prescribed.jl")
+include("loads/distributed.jl")
+include("loads/pointmass.jl")
 
 # system storage and pointers 
 include("system.jl")
@@ -93,51 +93,51 @@ include("postprocess.jl")
 include("body.jl")
 
 # point residuals
-include(joinpath("point", "residual", "static.jl"))
-include(joinpath("point", "residual", "steady.jl"))
-include(joinpath("point", "residual", "initial.jl"))
-include(joinpath("point", "residual", "newmark.jl"))
-include(joinpath("point", "residual", "dynamic.jl"))
-include(joinpath("point", "residual", "expanded.jl"))
+include("point/residual/static.jl")
+include("point/residual/steady.jl")
+include("point/residual/initial.jl")
+include("point/residual/newmark.jl")
+include("point/residual/dynamic.jl")
+include("point/residual/expanded.jl")
 
 # point jacobians
-include(joinpath("point", "jacobian", "static.jl"))
-include(joinpath("point", "jacobian", "steady.jl"))
-include(joinpath("point", "jacobian", "initial.jl"))
-include(joinpath("point", "jacobian", "newmark.jl"))
-include(joinpath("point", "jacobian", "dynamic.jl"))
-include(joinpath("point", "jacobian", "expanded.jl"))
+include("point/jacobian/static.jl")
+include("point/jacobian/steady.jl")
+include("point/jacobian/initial.jl")
+include("point/jacobian/newmark.jl")
+include("point/jacobian/dynamic.jl")
+include("point/jacobian/expanded.jl")
 
 # element residuals
-include(joinpath("element", "residual", "static.jl"))
-include(joinpath("element", "residual", "steady.jl"))
-include(joinpath("element", "residual", "initial.jl"))
-include(joinpath("element", "residual", "newmark.jl"))
-include(joinpath("element", "residual", "dynamic.jl"))
-include(joinpath("element", "residual", "expanded.jl"))
+include("element/residual/static.jl")
+include("element/residual/steady.jl")
+include("element/residual/initial.jl")
+include("element/residual/newmark.jl")
+include("element/residual/dynamic.jl")
+include("element/residual/expanded.jl")
 
 # element jacobians
-include(joinpath("element", "jacobian", "static.jl"))
-include(joinpath("element", "jacobian", "steady.jl"))
-include(joinpath("element", "jacobian", "initial.jl"))
-include(joinpath("element", "jacobian", "newmark.jl"))
-include(joinpath("element", "jacobian", "dynamic.jl"))
-include(joinpath("element", "jacobian", "expanded.jl"))
+include("element/jacobian/static.jl")
+include("element/jacobian/steady.jl")
+include("element/jacobian/initial.jl")
+include("element/jacobian/newmark.jl")
+include("element/jacobian/dynamic.jl")
+include("element/jacobian/expanded.jl")
 
 # system analyses
-include(joinpath("analyses", "static.jl"))
-include(joinpath("analyses", "steady.jl"))
-include(joinpath("analyses", "initial.jl"))
-include(joinpath("analyses", "newmark.jl"))
-include(joinpath("analyses", "eigen.jl"))
+include("analyses/static.jl")
+include("analyses/steady.jl")
+include("analyses/initial.jl")
+include("analyses/newmark.jl")
+include("analyses/eigen.jl")
 
 # DifferentialEquations Interface
-include(joinpath("interfaces", "diffeq.jl"))
+include("interfaces/diffeq.jl")
 
 # ForwardDiff Interface
-include(joinpath("interfaces", "forwarddiff.jl"))
+include("interfaces/forwarddiff.jl")
 
 # WriteVTK Interface
-include(joinpath("interfaces", "writevtk.jl"))
+include("interfaces/writevtk.jl")
 
 end

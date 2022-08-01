@@ -10,23 +10,23 @@ include("jacobians.jl")
 include("section.jl")
 
 # examples
-include(joinpath("examples", "cantilever.jl"))
-include(joinpath("examples", "overdetermined.jl"))
-include(joinpath("examples", "tipforce.jl"))
-include(joinpath("examples", "tipmoment.jl"))
-include(joinpath("examples", "curved.jl"))
-include(joinpath("examples", "rotating.jl"))
-include(joinpath("examples", "wind-turbine-blade.jl"))
-include(joinpath("examples", "static-joined-wing.jl"))
-include(joinpath("examples", "dynamic-joined-wing.jl"))
+include("examples/cantilever.jl")
+include("examples/overdetermined.jl")
+include("examples/tipforce.jl")
+include("examples/tipmoment.jl")
+include("examples/curved.jl")
+include("examples/rotating.jl")
+include("examples/wind-turbine-blade.jl")
+include("examples/static-joined-wing.jl")
+include("examples/dynamic-joined-wing.jl")
 
 # interfaces
-include(joinpath("interfaces", "diffeq.jl"))
-include(joinpath("interfaces", "forwarddiff.jl"))
+include("interfaces/diffeq.jl")
+include("interfaces/forwarddiff.jl")
 
 # issues
-include(joinpath("issues", "zeros.jl"))
-include(joinpath("issues", "pointmass.jl"))
+include("issues/zeros.jl")
+include("issues/pointmass.jl")
 
 
 
