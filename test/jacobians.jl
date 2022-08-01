@@ -158,13 +158,16 @@ end
     x = 1e2 .* rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
+    
     f = (x) -> GXBeam.static_system_residual!(similar(x), x, indices, force_scaling, 
         assembly, pcond, dload, pmass, gvec)
 
     GXBeam.static_system_jacobian!(J, x, indices, force_scaling,
         assembly, pcond, dload, pmass, gvec)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+    J_fd = ForwardDiff.jacobian(f, x)
+
+    @test all(isapprox.(J, J_fd, atol=1e-10))
 
     # --- Steady State Analysis --- #
 
@@ -192,7 +195,9 @@ end
         structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, 
         vb_p, ωb_p, ab_p, αb_p)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+    J_fd = ForwardDiff.jacobian(f, x)
+
+    @test all(isapprox.(J, J_fd, atol=1e-10))
 
     # --- Initial Condition Analysis --- #
 
@@ -217,7 +222,9 @@ end
         force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
         ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+    J_fd = ForwardDiff.jacobian(f, x)
+
+    @test all(isapprox.(J, J_fd, atol=1e-10))
 
     # --- Newmark Scheme Time-Marching Analysis --- #
 
@@ -242,7 +249,9 @@ end
         structural_damping, assembly, pcond, dload, pmass, gvec, 
         ab_p, αb_p, ubdot, θbdot, vbdot, ωbdot, udot, θdot, Vdot, Ωdot, dt)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+    J_fd = ForwardDiff.jacobian(f, x)
+
+    @test all(isapprox.(J, J_fd, atol=1e-10))
 
     # --- General Dynamic Analysis --- #
 
@@ -262,9 +271,13 @@ end
 
     GXBeam.dynamic_system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(fx, x), atol=1e-10))
+    J_fd = ForwardDiff.jacobian(fx, x)
 
-    @test all(isapprox.(M, ForwardDiff.jacobian(fdx, dx), atol=1e-10))
+    M_fd = ForwardDiff.jacobian(fdx, dx)
+
+    @test all(isapprox.(J, J_fd, atol=1e-10))
+
+    @test all(isapprox.(M, M_fd, atol=1e-10))
 
     # --- Constant Mass Matrix --- #
 
@@ -280,7 +293,9 @@ end
     GXBeam.expanded_steady_system_jacobian!(J, x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+    J_fd = ForwardDiff.jacobian(f, x)
+
+    @test all(isapprox.(J, J_fd, atol=1e-10))
 
     f = (x) -> GXBeam.expanded_dynamic_system_residual!(similar(x), x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
@@ -288,6 +303,8 @@ end
     GXBeam.expanded_dynamic_system_jacobian!(J, x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
-    @test all(isapprox.(J, ForwardDiff.jacobian(f, x), atol=1e-10))
+    J_fd = ForwardDiff.jacobian(f, x)
+
+    @test all(isapprox.(J, J_fd, atol=1e-10))
 
 end
