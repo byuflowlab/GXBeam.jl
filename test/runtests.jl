@@ -4,7 +4,7 @@ using GXBeam, DifferentialEquations, LinearAlgebra, ForwardDiff, Random, Test
 include("io.jl")
 
 # jacobian tests
-include("jacobians.jl")
+# include("jacobians.jl")
 
 # cross-section tests
 include("section.jl")
