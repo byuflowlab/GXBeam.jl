@@ -3,6 +3,7 @@ module GXBeam
 using ArnoldiMethod
 using ForwardDiff
 using FillArrays
+using FLOWMath
 using LinearAlgebra
 using LinearMaps
 using NLsolve
@@ -69,10 +70,10 @@ const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451
 include("math.jl")
 
 # section properties
-include("section.jl")
+include("section/section.jl")
 
 # airfoil meshing
-include("afmesh.jl")
+include("section/afmesh.jl")
 
 # assembly creation
 include("assembly.jl")
@@ -85,9 +86,9 @@ include("loads/pointmass.jl")
 # system storage and pointers 
 include("system.jl")
 
-# input and output methods
-include("preprocess.jl")
-include("postprocess.jl")
+# state variable input and output methods
+include("input.jl")
+include("output.jl")
 
 # body residuals and jacobians
 include("body.jl")

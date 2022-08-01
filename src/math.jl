@@ -341,3 +341,75 @@ Default gauss-quadrature function used for integrating distributed loads.
     x = h/2*GAUSS_NODES .+ c
     return h/2*GAUSS_WEIGHTS'*f.(x)
 end
+
+"""
+    rotate(xyz, r, theta)
+
+Rotate the vectors in `xyz` about point `r` using the Wiener-Milenkovic
+parameters in `theta`.
+"""
+rotate(xyz, r, theta) = rotate!(copy(xyz), r, theta)
+
+"""
+    rotate!(xyz, r, theta)
+
+Pre-allocated version of [`rotate`](@ref)
+"""
+function rotate!(xyz, r, theta)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    r = SVector{3}(r)
+    theta = SVector{3}(theta)
+    # create rotation matrix
+    Ct = wiener_milenkovic(theta)'
+    # rotate each point
+    for ipt = 1:size(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= Ct*(p - r) + r
+    end
+    # return the result
+    return xyz
+end
+
+"""
+    translate(xyz, u)
+
+Translate the points in `xyz` by the displacements in `u`.
+"""
+translate(xyz, u) = translate!(copy(xyz), u)
+
+"""
+    translate!(xyz, u)
+
+Pre-allocated version of [`translate`](@ref)
+"""
+function translate!(xyz, u)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    u = SVector{3}(u)
+    # translate each point
+    for ipt = 1:size(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= p .+ u
+    end
+    # return the result
+    return xyz
+end
+
+"""
+    deform_cross_section(xyz, r, u, theta)
+
+Rotate the points in `xyz` (of shape (3, :)) about point `r` using
+the Wiener-Milenkovic parameters in `theta`, then translate the points by the
+displacements in `u`.
+"""
+deform_cross_section(xyz, r, u, theta) = deform_cross_section!(copy(xyz), r, u, theta)
+
+"""
+    deform_cross_section!(xyz, r, u, theta)
+
+Pre-allocated version of [`deform_cross_section`](@ref)
+"""
+deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)

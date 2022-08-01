@@ -252,7 +252,7 @@ Pre-allocated version of [`extract_point_states`](@ref)
 function extract_point_states!(points, system, assembly, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-    for ipoint = 1:length(points)
+    for ipoint in eachindex(points)
         points[ipoint] = extract_point_state(system, assembly, ipoint, x; prescribed_conditions)
     end
 
@@ -427,80 +427,8 @@ end
 Pre-allocated version of [`extract_element_states`](@ref)
 """
 function extract_element_states!(elements, system, assembly, x = system.x; kwargs...)
-    for ielem = 1:length(elements)
+    for ielem in eachindex(elements)
         elements[ielem] = extract_element_state(system, assembly, ielem, x; kwargs...)
     end
     return elements
 end
-
-"""
-    rotate(xyz, r, theta)
-
-Rotate the vectors in `xyz` about point `r` using the Wiener-Milenkovic
-parameters in `theta`.
-"""
-rotate(xyz, r, theta) = rotate!(copy(xyz), r, theta)
-
-"""
-    rotate!(xyz, r, theta)
-
-Pre-allocated version of [`rotate`](@ref)
-"""
-function rotate!(xyz, r, theta)
-    # reshape cross section points (if necessary)
-    rxyz = reshape(xyz, 3, :)
-    # convert inputs to static arrays
-    r = SVector{3}(r)
-    theta = SVector{3}(theta)
-    # create rotation matrix
-    Ct = wiener_milenkovic(theta)'
-    # rotate each point
-    for ipt = 1:size(rxyz, 2)
-        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
-        rxyz[:,ipt] .= Ct*(p - r) + r
-    end
-    # return the result
-    return xyz
-end
-
-"""
-    translate(xyz, u)
-
-Translate the points in `xyz` by the displacements in `u`.
-"""
-translate(xyz, u) = translate!(copy(xyz), u)
-
-"""
-    translate!(xyz, u)
-
-Pre-allocated version of [`translate`](@ref)
-"""
-function translate!(xyz, u)
-    # reshape cross section points (if necessary)
-    rxyz = reshape(xyz, 3, :)
-    # convert inputs to static arrays
-    u = SVector{3}(u)
-    # translate each point
-    for ipt = 1:size(rxyz, 2)
-        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
-        rxyz[:,ipt] .= p .+ u
-    end
-    # return the result
-    return xyz
-end
-
-"""
-    deform_cross_section(xyz, r, u, theta)
-
-Rotate the points in `xyz` (of shape (3, :)) about point `r` using
-the Wiener-Milenkovic parameters in `theta`, then translate the points by the
-displacements in `u`.
-"""
-deform_cross_section(xyz, r, u, theta) = deform_cross_section!(copy(xyz), r, u, theta)
-
-"""
-    deform_cross_section!(xyz, r, u, theta)
-
-Pre-allocated version of [`deform_cross_section`](@ref)
-"""
-deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)
