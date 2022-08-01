@@ -5,7 +5,7 @@ using GXBeam, LinearAlgebra, Test
     L = 60 # m
 
     # create points
-    nelem = 10
+    nelem = 5
     x = range(0, L, length=nelem+1)
     y = zero(x)
     z = zero(x)
@@ -39,7 +39,7 @@ using GXBeam, LinearAlgebra, Test
     assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
 
     # simulation time
-    tvec = 0:0.001:2.0
+    tvec = 0:0.001:0.1
 
     # prescribed conditions
     prescribed_conditions = (t) -> begin

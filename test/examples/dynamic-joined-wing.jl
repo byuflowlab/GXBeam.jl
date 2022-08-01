@@ -22,13 +22,13 @@ using GXBeam, LinearAlgebra, Test
     # beam 1
     L_b1 = norm(p1-p2)
     r_b1 = p2
-    nelem_b1 = 8
+    nelem_b1 = 4
     lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1, frame=Cab_1)
 
     # beam 2
     L_b2 = norm(p3-p1)
     r_b2 = p1
-    nelem_b2 = 8
+    nelem_b2 = 4
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=Cab_2)
 
     # combine elements and points into one array
@@ -51,7 +51,7 @@ using GXBeam, LinearAlgebra, Test
         frames=Cab, lengths=lengths, midpoints=midpoints)
 
     # time
-    tvec = range(0, 0.04, length=1001)
+    tvec = range(0, 0.01, length=201)
 
     F_L = (t) -> begin
         if 0.0 <= t < 0.01
