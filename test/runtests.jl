@@ -1,4 +1,11 @@
-using GXBeam, DifferentialEquations, Elliptic, LinearAlgebra, ForwardDiff, Random, Test
+using GXBeam
+using DifferentialEquations
+import Elliptic
+using LinearAlgebra
+using ForwardDiff
+using Random 
+using StaticArrays
+using Test
 
 # input/output tests
 include("io.jl")
@@ -16,12 +23,12 @@ include("examples/tipforce.jl")
 include("examples/tipmoment.jl")
 include("examples/curved.jl")
 include("examples/rotating.jl")
-# include("examples/wind-turbine-blade.jl")
+include("examples/wind-turbine-blade.jl")
 include("examples/static-joined-wing.jl")
-# include("examples/dynamic-joined-wing.jl")
+include("examples/dynamic-joined-wing.jl")
 
 # interfaces
-# include("interfaces/diffeq.jl")
+include("interfaces/diffeq.jl")
 include("interfaces/forwarddiff.jl")
 
 # issues
