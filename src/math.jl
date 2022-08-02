@@ -364,7 +364,7 @@ function rotate!(xyz, r, theta)
     # create rotation matrix
     Ct = wiener_milenkovic(theta)'
     # rotate each point
-    for ipt = 1:size(rxyz, 2)
+    for ipt in axes(rxyz, 2)
         p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
         rxyz[:,ipt] .= Ct*(p - r) + r
     end
@@ -390,7 +390,7 @@ function translate!(xyz, u)
     # convert inputs to static arrays
     u = SVector{3}(u)
     # translate each point
-    for ipt = 1:size(rxyz, 2)
+    for ipt in axes(rxyz, 2)
         p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
         rxyz[:,ipt] .= p .+ u
     end
