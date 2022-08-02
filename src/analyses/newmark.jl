@@ -30,7 +30,7 @@ converged for every time step.
  - `linear_acceleration = zeros(3)`: Prescribed linear acceleration of the body frame.
  - `angular_acceleration = zeros(3)`: Prescribed angular acceleration of the body frame.
  - `gravity = [0,0,0]`: Gravity vector in the inertial frame.
- - `save = 1:length(time)`: Steps at which to save the time history
+ - `save = eachindex(tvec)`: Steps at which to save the time history
 
  # Initial Condition Keyword Arguments
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of 
@@ -93,7 +93,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     linear_acceleration=(@SVector zeros(3)),
     angular_acceleration=(@SVector zeros(3)),
     gravity=(@SVector zeros(3)), 
-    save=1:length(tvec),
+    save=eachindex(tvec),
     # initial condition keyword arguments
     u0=fill((@SVector zeros(3)), length(assembly.points)),
     theta0=fill((@SVector zeros(3)), length(assembly.points)),
@@ -126,7 +126,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # perform initial condition analysis
     if initialize
         # perform initialization procedure
-        system, converged = initial_condition_analysis!(system, assembly, tvec[1];
+        system, converged = initial_condition_analysis!(system, assembly, first(tvec);
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
@@ -169,13 +169,13 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # add initial state to the solution history
     if isave in save
         pcond = typeof(prescribed_conditions) <: AbstractDict ?
-            prescribed_conditions : prescribed_conditions(tvec[1])
+            prescribed_conditions : prescribed_conditions(first(tvec))
         history[isave] = AssemblyState(system, assembly, prescribed_conditions=pcond)
         isave += 1
     end
 
     # begin time stepping
-    for it = 2:length(tvec)
+    for it in eachindex(tvec)[2:end]
 
         # print the current time
         if show_trace
