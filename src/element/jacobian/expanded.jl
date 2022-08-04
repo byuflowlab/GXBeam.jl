@@ -221,14 +221,14 @@ corresponding to a element for a steady state analysis
 end
 
 """
-    expanded_dynamic_element_jacobian_properties(properties, x, indices, force_scaling, 
+    expanded_dynamic_element_jacobian_properties(properties, dx, x, indices, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity,
         ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 
 Calculate/extract the element properties needed to calculate the jacobian entries 
 corresponding to a element for a dynamic analysis
 """
-@inline function expanded_dynamic_element_jacobian_properties(properties, x, indices, 
+@inline function expanded_dynamic_element_jacobian_properties(properties, dx, x, indices, 
     force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity,
     ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 
@@ -393,18 +393,6 @@ Calculate the jacobians of the element velocity residuals for a constant mass ma
     # rΩ = CtCab*Ω - 1/2*(C1'*Ω1 + C2'*Ω2)
 
     return (; rV_vb, rV_ωb, rV_u1, rV_u2, rV_θ1, rV_θ2, rV_V, rΩ_ωb, rΩ_θ1, rΩ_θ2, rΩ_Ω)
-end
-
-@inline function expanded_mass_matrix_velocity_jacobians(properties)
-
-    @unpack u1dot_u1dot, u2dot_u2dot, θ1dot_θ1dot, θ2dot_θ2dot = properties
-
-    rV_u1dot = -u1dot_u1dot ./ 2
-    rV_u2dot = -u2dot_u2dot ./ 2
-    rΩ_θ1dot = -θ1dot_θ1dot ./ 2
-    rΩ_θ2dot = -θ2dot_θ2dot ./ 2
-
-    return (; rV_u1dot, rV_u2dot, rΩ_θ1dot, rΩ_θ2dot)
 end
 
 """
@@ -752,21 +740,21 @@ analysis into the system jacobian matrix.
 end
 
 """
-    expanded_dynamic_element_jacobian!(jacob, x, indices, force_scaling, 
+    expanded_dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
         gravity, ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 
 Calculate and insert the jacobian entries corresponding to a beam element for a dynamic
 analysis into the system jacobian matrix.
 """
-@inline function expanded_dynamic_element_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+@inline function expanded_dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
     assembly, ielem, prescribed_conditions, distributed_loads, gravity, ub, θb, vb, ωb, ab, αb,
     ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 
-    properties = expanded_dynamic_element_properties(x, indices, force_scaling, 
+    properties = expanded_dynamic_element_properties(dx, x, indices, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity, ub, θb, vb, ωb, ab, αb)
 
-    properties = expanded_dynamic_element_jacobian_properties(properties, x, indices, 
+    properties = expanded_dynamic_element_jacobian_properties(properties, dx, x, indices, 
         force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity,
         ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 

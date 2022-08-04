@@ -990,7 +990,7 @@ function expanded_steady_system_residual!(resid, x, indices, icol_accel, force_s
     )
 
     # contributions to the residual vector from the body
-    expanded_steady_body_residual!(resid, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
+    steady_state_body_residual!(resid, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
     # point residuals
     for ipoint = 1:length(assembly.points)
@@ -1009,15 +1009,15 @@ function expanded_steady_system_residual!(resid, x, indices, icol_accel, force_s
 end
 
 """
-    expanded_dynamic_system_residual!(resid, x, indices, icol_accel, force_scaling, 
+    expanded_dynamic_system_residual!(resid, dx, x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, prescribed_conditions, distributed_loads, 
         point_masses, gravity, ab_p, αb_p)
 
 Populate the system residual vector `resid` for a constant mass matrix system.
 """
-function expanded_dynamic_system_residual!(resid, x, indices, icol_accel, force_scaling, 
+function expanded_dynamic_system_residual!(resid, dx, x, indices, icol_accel, force_scaling, 
     structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses, 
-    gravity, ab_p, αb_p)
+    gravity, linear_acceleration, angular_acceleration)
 
     # body frame displacement
     ub, θb = body_frame_displacement(x)
@@ -1029,17 +1029,17 @@ function expanded_dynamic_system_residual!(resid, x, indices, icol_accel, force_
     ab = αb = @SVector zeros(3)
 
     # contributions to the residual vector from the body
-    expanded_dynamic_body_residual!(resid, x, icol_accel, ab_p, αb_p)
+    dynamic_body_residual!(resid, dx, x, icol_accel, linear_acceleration, angular_acceleration)
 
     # point residuals
     for ipoint = 1:length(assembly.points)
-        expanded_dynamic_point_residual!(resid, x, indices, force_scaling, assembly, ipoint, 
+        expanded_dynamic_point_residual!(resid, dx, x, indices, force_scaling, assembly, ipoint, 
             prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
     end
     
     # element residuals
     for ielem = 1:length(assembly.elements)
-        expanded_dynamic_element_residual!(resid, x, indices, force_scaling, structural_damping, 
+        expanded_dynamic_element_residual!(resid, dx, x, indices, force_scaling, structural_damping, 
             assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
             ub, θb, vb, ωb, ab, αb)
     end
@@ -1444,14 +1444,14 @@ function expanded_steady_system_jacobian!(jacob, x, indices, icol_accel, force_s
 end
 
 """
-    expanded_dynamic_system_jacobian!(jacob, x, indices, force_scaling, structural_damping, 
+    expanded_dynamic_system_jacobian!(jacob, dx, x, indices, force_scaling, structural_damping, 
         assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
         ab_p, αb_p)
 
 Populate the system jacobian matrix `jacob` for a general dynamic analysis with a 
 constant mass matrix system.
 """
-function expanded_dynamic_system_jacobian!(jacob, x, indices, icol_accel, force_scaling, 
+function expanded_dynamic_system_jacobian!(jacob, dx, x, indices, icol_accel, force_scaling, 
     structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses, 
     gravity, ab_p, αb_p)
     
@@ -1476,16 +1476,16 @@ function expanded_dynamic_system_jacobian!(jacob, x, indices, icol_accel, force_
     ab_ab = @SMatrix zeros(3,3)
     αb_αb = @SMatrix zeros(3,3)
 
-    expanded_dynamic_body_jacobian!(jacob, x, icol_accel, ab_p, αb_p)
+    dynamic_body_jacobian!(jacob, dx, x, icol_accel, ab_p, αb_p)
     
     for ipoint = 1:length(assembly.points)
-        expanded_dynamic_point_jacobian!(jacob, x, indices, force_scaling, assembly, 
+        expanded_dynamic_point_jacobian!(jacob, dx, x, indices, force_scaling, assembly, 
             ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb,
             ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end
     
     for ielem = 1:length(assembly.elements)
-        expanded_dynamic_element_jacobian!(jacob, x, indices, force_scaling, 
+        expanded_dynamic_element_jacobian!(jacob, dx, x, indices, force_scaling, 
             structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
             gravity, ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
     end

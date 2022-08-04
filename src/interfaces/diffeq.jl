@@ -121,8 +121,12 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
 
         indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=true)
 
+        du = zeros(indices.nstates)
+
         # residual function (constant mass matrix system)
         f = function(resid, u, p, t)
+
+            println("TIME: $t")
 
             # extract parameters from the parameter vector using `pfunc`
             parameters = pfunc(p, t)
@@ -147,7 +151,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             icol_accel = body_frame_acceleration_indices(system, pcond)
 
             # calculate residual
-            expanded_dynamic_system_residual!(resid, u, indices, icol_accel, force_scaling, 
+            expanded_dynamic_system_residual!(resid, du, u, indices, icol_accel, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
             return resid
@@ -190,7 +194,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             J .= 0.0
 
             # calculate jacobian
-            expanded_dynamic_system_jacobian!(J, u, indices, icol_accel, force_scaling, 
+            expanded_dynamic_system_jacobian!(J, du, u, indices, icol_accel, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
             return J
@@ -200,8 +204,12 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
 
         indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=false)
 
+        du = zeros(indices.nstates)
+
         # residual function
         f = function(resid, u, p, t)
+
+            println("TIME: $t")
 
             # extract parameters from the parameter vector using `pfunc`
             parameters = pfunc(p, t)
@@ -226,7 +234,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             icol_accel = body_frame_acceleration_indices(system, pcond)
 
             # calculate residual
-            dynamic_system_residual!(resid, FillArrays.Zeros(u), u, indices, icol_accel, force_scaling, 
+            dynamic_system_residual!(resid, du, u, indices, icol_accel, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
             return resid
@@ -288,7 +296,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             J .= 0.0
 
             # calculate jacobian
-            dynamic_system_jacobian!(J, FillArrays.Zeros(u), u, indices, icol_accel, force_scaling, 
+            dynamic_system_jacobian!(J, du, u, indices, icol_accel, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
             return J
@@ -296,10 +304,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
 
     end
 
-    return SciMLBase.ODEFunction{true,true}(f; 
-        mass_matrix = mass_matrix,
-        jac = update_jacobian!
-        )
+    return SciMLBase.ODEFunction{true,true}(f; mass_matrix = mass_matrix, jac = update_jacobian!)
 end
 
 """

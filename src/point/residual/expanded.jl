@@ -54,13 +54,23 @@ mass matrix system.
         vb, ωb, ab, αb, Δx, v, ω, a, α) 
 end
 
-@inline function expanded_dynamic_point_properties(x, indices, force_scaling, assembly, 
+@inline function expanded_dynamic_point_properties(dx, x, indices, force_scaling, assembly, 
     ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
 
     properties = expanded_steady_point_properties(x, indices, force_scaling, assembly, 
         ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
 
-    @unpack θb, a, α = properties
+    @unpack θb, mass11, mass12, mass21, mass22, a, α = properties
+
+    # displacement rates
+    udot, θdot = point_displacement_rates(dx, ipoint, indices.icol_point, prescribed_conditions)
+
+    # velocity rates
+    Vdot, Ωdot = point_velocities(dx, ipoint, indices.icol_point)
+
+    # momentum rates
+    Pdot = mass11*Vdot + mass12*Ωdot
+    Hdot = mass21*Vdot + mass22*Ωdot
 
     # NOTE: All acceleration terms except gravity are included in Vdot and Ωdot
 
@@ -68,17 +78,17 @@ end
     a = -get_C(θb)*SVector{3}(gravity)
     α = @SVector zeros(3)
 
-    return (; properties..., a, α)
+    return (; properties..., udot, θdot, Vdot, Ωdot, Pdot, Hdot, a, α)
 end
 
 # --- Point Resultants --- #
 
 """
-    expanded_point_resultants(properties)
+    expanded_steady_point_resultants(properties)
 
 Calculate the net loads `F` and `M` applied at a point for a constant mass matrix system.
 """
-@inline function expanded_point_resultants(properties)
+@inline function expanded_steady_point_resultants(properties)
 
     @unpack C, mass11, mass12, mass21, mass22, F, M, V, Ω, P, H, ω, a, α = properties
 
@@ -97,19 +107,54 @@ Calculate the net loads `F` and `M` applied at a point for a constant mass matri
     return F, M
 end
 
+"""
+    expanded_dynamic_point_resultants(properties)
+
+Calculate the net loads `F` and `M` applied at a point for a constant mass matrix system.
+"""
+@inline function expanded_dynamic_point_resultants(properties)
+
+    F, M = expanded_steady_point_resultants(properties)
+
+    @unpack Pdot, Hdot = properties
+
+    # add loads due to linear and angular momentum rates
+    F -= Pdot
+    M -= Hdot
+
+    return F, M
+end
+
 # --- Velocity Residuals --- #
 
 """
-    expanded_point_velocity_residuals(properties)
+    expanded_steady_point_velocity_residuals(properties)
 
 Calculate the velocity residuals `rV` and `rΩ` for a point for a steady state analysis.
 """
-@inline function expanded_point_velocity_residuals(properties)
+@inline function expanded_steady_point_velocity_residuals(properties)
 
     @unpack u, C, Qinv, V, Ω, v, ω = properties
     
     rV = C'*V - v
     rΩ = Qinv*(Ω - C*ω)
+
+    return (; rV, rΩ)
+end
+
+"""
+    expanded_dynamic_point_velocity_residuals(properties)
+
+Calculate the velocity residuals `rV` and `rΩ` for a point.
+"""
+@inline function expanded_dynamic_point_velocity_residuals(properties)
+
+    rV, rΩ = expanded_steady_point_velocity_residuals(properties)
+
+    @unpack udot, θdot = properties
+    
+    rV -= udot
+    rΩ -= θdot
 
     return (; rV, rΩ)
 end
@@ -131,9 +176,9 @@ vector for a constant mass matrix system.
     properties = expanded_steady_point_properties(x, indices, force_scaling, assembly, ipoint, 
         prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
 
-    F, M = expanded_point_resultants(properties)
+    F, M = expanded_steady_point_resultants(properties)
 
-    rV, rΩ = expanded_point_velocity_residuals(properties)
+    rV, rΩ = expanded_steady_point_velocity_residuals(properties)
 
     resid[irow:irow+2] .= -F ./ force_scaling
     resid[irow+3:irow+5] .= -M ./ force_scaling
@@ -144,23 +189,23 @@ vector for a constant mass matrix system.
 end
 
 """
-    expanded_dynamic_point_residual!(resid, x, indices, force_scaling, assembly, ipoint,  
+    expanded_dynamic_point_residual!(resid, dx, x, indices, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
 
 Calculate and insert the residual entries corresponding to a point into the system residual 
 vector for a constant mass matrix system.
 """
-@inline function expanded_dynamic_point_residual!(resid, x, indices, force_scaling, 
+@inline function expanded_dynamic_point_residual!(resid, dx, x, indices, force_scaling, 
     assembly, ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
 
     irow = indices.irow_point[ipoint]
 
-    properties = expanded_dynamic_point_properties(x, indices, force_scaling, assembly, ipoint, 
+    properties = expanded_dynamic_point_properties(dx, x, indices, force_scaling, assembly, ipoint, 
         prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
 
-    F, M = expanded_point_resultants(properties)
+    F, M = expanded_dynamic_point_resultants(properties)
 
-    rV, rΩ = expanded_point_velocity_residuals(properties)
+    rV, rΩ = expanded_dynamic_point_velocity_residuals(properties)
 
     resid[irow:irow+2] .= -F ./ force_scaling
     resid[irow+3:irow+5] .= -M ./ force_scaling

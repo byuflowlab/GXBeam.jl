@@ -172,53 +172,6 @@ function dynamic_body_residual!(resid, dx, x, icol_accel, ab_p, αb_p)
 end
 
 """
-    expanded_steady_body_residual!(resid, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
-
-Calculate and insert the residual entries corresponding to the prescribed body frame motion
-of a constant mass matrix system into the system residual vector.
-"""
-const expanded_steady_body_residual! = steady_state_body_residual!
-
-"""
-    expanded_dynamic_body_residual!(resid, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
-
-Calculate and insert the residual entries corresponding to the motion of the body frame 
-for a constant mass matrix system into the system residual vector.
-"""
-function expanded_dynamic_body_residual!(resid, x, icol_accel, ab_p, αb_p)
-    
-    # update prescribed accelerations (with accelerations for satisying prescribed conditions)
-    ab_p, αb_p = prescribed_body_frame_acceleration(x, icol_accel, ab_p, αb_p)
-
-    # extract body states
-    ub, θb = body_frame_displacement(x)
-    vb, ωb = body_frame_velocity(x)
-    ab, αb = body_frame_acceleration(x)
-
-    # rotation parameter matrices
-    C = get_C(θb)
-    Qinv = get_Qinv(θb)
-
-    # construct residuals
-    ru = vb
-    rθ = Qinv*C*ωb
-    rv = ab
-    rω = αb
-    ra = ab - ab_p
-    rα = αb - αb_p
-
-    # insert residuals into the residual vector
-    resid[1:3] = ru
-    resid[4:6] = rθ
-    resid[7:9] = rv
-    resid[10:12] = rω
-    resid[13:15] = ra
-    resid[16:18] = rα
-    
-    return resid
-end
-
-"""
     steady_state_body_jacobian!(jacob, x, icol_accel, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
 
 Calculate and insert the jacobian entries corresponding to the motion of the body frame 
@@ -378,13 +331,6 @@ function dynamic_body_jacobian!(jacob, dx, x, icol_accel, ab_p, αb_p)
     icol_accel[6] > 0 && setindex!(jacob, -1, 18, icol_accel[6])
 
     return jacob
-end
-
-const expanded_steady_body_jacobian! = steady_state_body_jacobian!
-
-function expanded_dynamic_body_jacobian!(jacob, x, icol_accel, ab_p, αb_p)
-    
-    return dynamic_body_jacobian!(jacob, x, x, icol_accel, ab_p, αb_p)
 end
 
 function mass_matrix_body_jacobian!(jacob)

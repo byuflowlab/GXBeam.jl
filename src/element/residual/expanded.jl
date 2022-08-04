@@ -19,7 +19,7 @@ from the state variable vector for a constant mass matrix system.
 end
 
 """
-    expanded_element_velocities(x, ielem, icol_elem, force_scaling)
+    expanded_element_velocities(x, ielem, icol_elem)
 
 Extract the velocities of a beam element from the state variable vector for a constant mass
 matrix system.
@@ -180,13 +180,26 @@ mass matrix system
     return properties
 end
 
-function expanded_dynamic_element_properties(x, indices, force_scaling, structural_damping, 
+function expanded_dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
     assembly, ielem, prescribed_conditions, gravity, ub, θb, vb, ωb, ab, αb)
 
     properties = expanded_steady_element_properties(x, indices, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity, ub, θb, vb, ωb, ab, αb)
 
-    @unpack θb, a, α = properties
+    @unpack θb, mass11, mass12, mass21, mass22, a, α = properties
+
+    # displacement rates
+    u1dot, θ1dot = point_displacement_rates(dx, assembly.start[ielem], indices.icol_point, prescribed_conditions)
+    u2dot, θ2dot = point_displacement_rates(dx, assembly.stop[ielem], indices.icol_point, prescribed_conditions)
+    udot = (u1dot + u2dot)/2
+    θdot = (θ1dot + θ2dot)/2
+
+    # velocity rates
+    Vdot, Ωdot = expanded_element_velocities(dx, ielem, indices.icol_elem)
+
+    # linear and angular momentum rates
+    Pdot = mass11*Vdot + mass12*Ωdot
+    Hdot = mass21*Vdot + mass22*Ωdot
 
     # NOTE: All acceleration terms except gravity are included in Vdot and Ωdot
     
@@ -194,18 +207,18 @@ function expanded_dynamic_element_properties(x, indices, force_scaling, structur
     a = -get_C(θb)*SVector{3}(gravity)
     α = @SVector zeros(3)
 
-    return (; properties..., a, α)
+    return (; properties..., udot, θdot, Vdot, Ωdot, Pdot, Hdot, a, α)
 end
 
 # --- Velocity Residuals --- #
 
 """
-    expanded_element_velocity_residuals(properties)
+    expanded_steady_element_velocity_residuals(properties)
 
 Calculate the velocity residuals `rV` and `rΩ` of a beam element for a constant mass matrix 
 system.
 """
-@inline function expanded_element_velocity_residuals(properties)
+@inline function expanded_steady_element_velocity_residuals(properties)
 
     @unpack C, Cab, CtCab, Qinv, u, V, Ω, v, ω = properties
     
@@ -219,14 +232,32 @@ system.
     return (; rV, rΩ)
 end
 
+"""
+    expanded_dynamic_element_velocity_residuals(properties)
+
+Calculate the velocity residuals `rV` and `rΩ` of a beam element for a constant mass matrix 
+system.
+"""
+@inline function expanded_dynamic_element_velocity_residuals(properties)
+
+    rV, rΩ = expanded_steady_element_velocity_residuals(properties)
+
+    @unpack udot, θdot = properties
+    
+    rV -= udot
+    rΩ -= θdot
+
+    return (; rV, rΩ)
+end
+
 # --- Equilibrium Residuals --- #
 
 """
-    expanded_element_equilibrium_residuals(properties, distributed_loads, ielem)
+    expanded_steady_element_equilibrium_residuals(properties, distributed_loads, ielem)
 
 Calculate the equilibrium residuals of a beam element for a constant mass matrix system.
 """
-@inline function expanded_element_equilibrium_residuals(properties, distributed_loads, ielem)
+@inline function expanded_steady_element_equilibrium_residuals(properties, distributed_loads, ielem)
   
     @unpack L, C, Cab, CtCab, mass11, mass12, mass21, mass22, F1, F2, M1, M2, F, M, γ, κ, 
         V, Ω, P, H, v, ω, a, α = properties
@@ -256,6 +287,24 @@ Calculate the equilibrium residuals of a beam element for a constant mass matrix
         m2 = CtCab'*dload.m2 + Cab'*dload.m2_follower
         rM += m1 + m2
     end
+
+    return (; rF, rM)
+end
+
+"""
+    expanded_dynamic_element_equilibrium_residuals(properties, distributed_loads, ielem)
+
+Calculate the equilibrium residuals of a beam element for a constant mass matrix system.
+"""
+@inline function expanded_dynamic_element_equilibrium_residuals(properties, distributed_loads, ielem)
+  
+    rF, rM = expanded_steady_element_equilibrium_residuals(properties, distributed_loads, ielem)
+
+    @unpack Pdot, Hdot = properties
+
+    # add loads due to linear and angular momentum rates
+    rF -= Pdot
+    rM -= Hdot
 
     return (; rF, rM)
 end
@@ -330,9 +379,9 @@ mass matrix system into the system residual vector.
 
     compatability = compatability_residuals(properties)
 
-    velocities = expanded_element_velocity_residuals(properties)
+    velocities = expanded_steady_element_velocity_residuals(properties)
 
-    equilibrium = expanded_element_equilibrium_residuals(properties, distributed_loads, ielem)
+    equilibrium = expanded_steady_element_equilibrium_residuals(properties, distributed_loads, ielem)
 
     resultants = expanded_element_resultants(properties)
 
@@ -343,25 +392,25 @@ mass matrix system into the system residual vector.
 end
 
 """
-    expanded_dynamic_element_residual!(resid, x, indices, force_scaling, 
+    expanded_dynamic_element_residual!(resid, dx, x, indices, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, 
         gravity)
 
 Calculate and insert the residual entries corresponding to a beam element for a constant
 mass matrix system into the system residual vector.
 """
-@inline function expanded_dynamic_element_residual!(resid, x, indices, force_scaling, 
+@inline function expanded_dynamic_element_residual!(resid, dx, x, indices, force_scaling, 
     structural_damping, assembly, ielem, prescribed_conditions, distributed_loads, gravity, 
     ub, θb, vb, ωb, ab, αb)
 
-    properties = expanded_dynamic_element_properties(x, indices, force_scaling, structural_damping, 
+    properties = expanded_dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
         assembly, ielem, prescribed_conditions, gravity, ub, θb, vb, ωb, ab, αb)
 
     compatability = compatability_residuals(properties)
 
-    velocities = expanded_element_velocity_residuals(properties)
+    velocities = expanded_dynamic_element_velocity_residuals(properties)
 
-    equilibrium = expanded_element_equilibrium_residuals(properties, distributed_loads, ielem)
+    equilibrium = expanded_dynamic_element_equilibrium_residuals(properties, distributed_loads, ielem)
 
     resultants = expanded_element_resultants(properties)
 

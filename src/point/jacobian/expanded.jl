@@ -50,13 +50,13 @@ corresponding to a point for a constant mass matrix system
 end
 
 """
-    expanded_dynamic_point_jacobian_properties(properties, x, indices, 
+    expanded_dynamic_point_jacobian_properties(properties, dx, x, indices, 
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity)
 
 Calculate/extract the point properties needed to calculate the jacobian entries 
 corresponding to a point for a dynamic analysis
 """
-@inline function expanded_dynamic_point_jacobian_properties(properties, x, indices, 
+@inline function expanded_dynamic_point_jacobian_properties(properties, dx, x, indices, 
     force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity,
     ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 
@@ -235,20 +235,21 @@ matrix system into the system jacobian matrix.
 end
 
 """
-    expanded_dynamic_point_jacobian!(jacob, x, indices, force_scaling, assembly, ipoint,  
+    expanded_dynamic_point_jacobian!(jacob, dx, x, indices, force_scaling, assembly, ipoint,  
         prescribed_conditions, point_masses, gravity)
 
 Calculate and insert the jacobian entries corresponding to a point for a constant mass 
 matrix system into the system jacobian matrix.
 """
-@inline function expanded_dynamic_point_jacobian!(jacob, x, indices, force_scaling, 
+@inline function expanded_dynamic_point_jacobian!(jacob, dx, x, indices, force_scaling, 
     assembly, ipoint, prescribed_conditions, point_masses, gravity,
     ub, θb, vb, ωb, ab, αb, ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 
-    properties = expanded_dynamic_point_properties(x, indices, force_scaling, 
-        assembly, ipoint, prescribed_conditions, point_masses, gravity, ub, θb, vb, ωb, ab, αb)
+    properties = expanded_dynamic_point_properties(dx, x, indices, force_scaling, 
+        assembly, ipoint, prescribed_conditions, point_masses, gravity, 
+        ub, θb, vb, ωb, ab, αb)
 
-    properties = expanded_dynamic_point_jacobian_properties(properties, x, indices,
+    properties = expanded_dynamic_point_jacobian_properties(properties, dx, x, indices,
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity,
         ub_ub, θb_θb, vb_vb, ωb_ωb, ab_ab, αb_αb)
 

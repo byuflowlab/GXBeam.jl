@@ -1,4 +1,4 @@
-using GXBeam, Random, ForwardDiff, Test
+using GXBeam, LinearAlgebra, Random, StaticArrays, ForwardDiff, Test
 
 @testset "Rotation Parameter Jacobians" begin
     
@@ -283,8 +283,10 @@ end
     system = ExpandedSystem(assembly)
     force_scaling = system.force_scaling
     indices = system.indices
+    dx = rand(RNG, length(system.x))
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
+    M = similar(x, length(x), length(x))
 
     f = (x) -> GXBeam.expanded_steady_system_residual!(similar(x), x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
@@ -296,14 +298,24 @@ end
 
     @test all(isapprox.(J, J_fd, atol=1e-10))
 
-    f = (x) -> GXBeam.expanded_dynamic_system_residual!(similar(x), x, indices, icol_accel, force_scaling, 
+    fx = (x) -> GXBeam.expanded_dynamic_system_residual!(similar(x), dx, x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
-    GXBeam.expanded_dynamic_system_jacobian!(J, x, indices, icol_accel, force_scaling, 
+    fdx = (dx) -> GXBeam.expanded_dynamic_system_residual!(similar(dx), dx, x, indices, icol_accel, force_scaling, 
         structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
-    J_fd = ForwardDiff.jacobian(f, x)
+    GXBeam.expanded_dynamic_system_jacobian!(J, dx, x, indices, icol_accel, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
+
+    GXBeam.expanded_dynamic_system_mass_matrix!(M, indices, force_scaling, assembly, 
+        pcond, pmass)
+
+    J_fd = ForwardDiff.jacobian(fx, x)
+
+    M_fd = ForwardDiff.jacobian(fdx, x)
 
     @test all(isapprox.(J, J_fd, atol=1e-10))
+
+    @test all(isapprox.(M, M_fd, atol=1e-10))
 
 end
