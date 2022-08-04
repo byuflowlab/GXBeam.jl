@@ -327,7 +327,7 @@ nmode = 10
 nev = 2*nmode
 
 ## initialize system storage
-system = System(assembly, false; prescribed_points=keys(prescribed_conditions))
+system = DynamicSystem(assembly)
 
 ## storage for results
 freq = zeros(length(rpm), nmode)

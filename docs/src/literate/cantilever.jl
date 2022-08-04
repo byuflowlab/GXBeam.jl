@@ -61,10 +61,12 @@ system, converged = static_analysis(assembly;
 state = AssemblyState(system, assembly;
     prescribed_conditions = prescribed_conditions)
 
-#!jl nothing #hide
+#nb nothing
+#md nothing #hide
 
 #
-# We can construct the analytical solution for this problem by integrating from the free end of the beam and applying the appropriate boundary conditions.
+# We can construct the analytical solution for this problem by integrating from the free 
+# end of the beam and applying the appropriate boundary conditions.
 #
 
 ## construct analytical solution
@@ -84,7 +86,8 @@ theta_a = -atan.(slope_a)
 ## switch analytical system frame of reference
 M_a = -M_a
 
-#!jl nothing #hide
+#nb nothing
+#md nothing #hide
 
 # Plotting the results reveals that the analytical and computational solutions show 
 # excellent agreement.
@@ -114,7 +117,7 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
 deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, deflection_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/cantilever-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -143,7 +146,7 @@ theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint =
     1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/cantilever-twist.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -168,10 +171,10 @@ plot(
 
 x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for
     ielem = 1:length(assembly.elements)]
-M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+M = [state.elements[ielem].Mi[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/cantilever-moment.svg") #hide
 #md closeall() #hide
 #md end #hide
