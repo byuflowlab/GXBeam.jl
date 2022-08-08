@@ -1,26 +1,4 @@
 """
-    BodyState{TF}
-
-Holds the state variables for the motion of the body frame
-
-# Fields:
- - `u`: Linear deflection
- - `theta`: Angular deflection (Wiener-Milenkovic parameters)
- - `v`: Linear velocity
- - `omega`: Angular velocity
- - `a`: Linear acceleration
- - `alpha`: Angular acceleration
-"""
-struct BodyState{TF}
-    u::SVector{3, TF}
-    theta::SVector{3, TF}
-    v::SVector{3, TF}
-    omega::SVector{3, TF}
-    a::SVector{3, TF}
-    alpha::SVector{3, TF}
-end
-
-"""
     PointState
 
 Holds the state variables for a point
@@ -65,22 +43,19 @@ struct ElementState{TF}
 end
 
 """
-    AssemblyState{TF, TB<:BodyState{TF}, TP<:AbstractVector{PointState{TF}},
-        TE<:AbstractVector{ElementState{TF}}}
+    AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
 
 Struct for storing state variables for the points and elements in an assembly.
 
 # Fields:
- - `body::TB`: Object of type [`BodyState`](@ref)
  - `points::TP`: Array of [`PointState`](@ref) for each point in the assembly
  - `elements::TE`: Array of [`ElementState`](@ref) for each element in the assembly
 """
-struct AssemblyState{TF, TB<:BodyState{TF}, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
-    body::TB
+struct AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
     points::TP
     elements::TE
 end
-Base.eltype(::AssemblyState{TF, TB, TP, TE}) where {TF, TB, TP, TE} = TF
+Base.eltype(::AssemblyState{TF, TP, TE}) where {TF, TP, TE} = TF
 
 """
     AssemblyState(system, assembly, x = system.x; prescribed_conditions = Dict())
@@ -92,11 +67,7 @@ If `prescribed_conditions` is not provided, all point state variables are assume
 to be displacements/rotations, rather than their actual identities as used in the
 analysis.
 """
-function AssemblyState(system, assembly, x = system.x; 
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    kwargs...)
-
-    body = extract_body_state(system, x)
+function AssemblyState(system, assembly, x = system.x; prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     points = extract_point_states(system, assembly, x; prescribed_conditions)
 
@@ -104,31 +75,6 @@ function AssemblyState(system, assembly, x = system.x;
 
     return AssemblyState{eltype(x), typeof(body), typeof(points), typeof(elements)}(
         body, points, elements)
-end
-
-"""
-    extract_body_state(system, x = system.x)
-
-Return the state variables corresponding to the motion of the body frame (see 
-[`BodyState`](@ref)) given the solution vector `x`.
-"""
-extract_body_state
-
-function extract_body_state(system, x = system.x)
-
-    # displacement and velocity state variables
-    u, θ = body_frame_displacement(x)
-    v, ω = body_frame_velocity(x)
-    a, α = body_frame_acceleration(x)
-
-    # convert rotation parameter to Wiener-Milenkovic parameters
-    scaling = rotation_parameter_scaling(θ)
-    θ *= scaling
-
-    # promote all variables to the same type
-    u, θ, v, ω, a, α = promote(u, θ, v, ω, a, α)
-
-    return BodyState(u, θ, v, ω, a, α)
 end
 
 """
@@ -364,27 +310,7 @@ function extract_element_state(system::ExpandedSystem, assembly, ielem, x = syst
     F = (F1 + F2)/2
     M = (M1 + M2)/2
 
-    # linear and angular displacement of the body frame
-    ub, θb = body_frame_displacement(x)
-
-    # linear and angular velocity of the body frame
-    vb, ωb = body_frame_velocity(x)
-
-    # linear and angular acceleration of the body frame
-    ab, αb = body_frame_acceleration(x)
-
-    # distance from the rotation center
-    Δx = assembly.elements[ielem].x
-
     # linear and angular velocity
-    v = vb + cross(ωb, Δx) + cross(ωb, u)# + udot = CtCab*V
-    ω = ωb# + Cab'*Q*θdot = CtCab*Ω
-
-    # linear and angular acceleration
-    a = ab + cross(αb, Δx) + cross(αb, u)# + cross(ω, V) + uddot = CtCabdot*V + CtCab*Vdot
-    α = αb# + Cab'*Qdot*θdot + Cab'*Q*θddot = CtCabdot*Ωdot + CtCab*Ωdot
-
-    # linear and angular velocity **excluding contributions from body frame motion**
     V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
 
     # rotate linear and angular velocites into the body frame
@@ -393,10 +319,6 @@ function extract_element_state(system::ExpandedSystem, assembly, ielem, x = syst
     CtCab = C'*Cab
     V = CtCab*V
     Ω = CtCab*Ω
-
-    # add contributions from body frame motion to velocities
-    V += v
-    Ω += ω
 
     # convert rotation parameter to Wiener-Milenkovic parameters
     scaling = rotation_parameter_scaling(θ)

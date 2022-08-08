@@ -70,18 +70,16 @@ const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451
 include("math.jl")
 
 # section properties
-include("section/section.jl")
+include("section.jl")
 
 # airfoil meshing
-include("section/afmesh.jl")
+include("afmesh.jl")
 
 # assembly creation
 include("assembly.jl")
 
 # prescribed conditions, distributed loads, and point masses
-include("loads/prescribed.jl")
-include("loads/distributed.jl")
-include("loads/pointmass.jl")
+include("loads.jl")
 
 # system storage and pointers 
 include("system.jl")
@@ -90,47 +88,14 @@ include("system.jl")
 include("input.jl")
 include("output.jl")
 
-# body residuals and jacobians
-include("body.jl")
+# point residuals and jacobians
+include("point.jl")
 
-# point residuals
-include("point/residual/static.jl")
-include("point/residual/steady.jl")
-include("point/residual/initial.jl")
-include("point/residual/newmark.jl")
-include("point/residual/dynamic.jl")
-include("point/residual/expanded.jl")
-
-# point jacobians
-include("point/jacobian/static.jl")
-include("point/jacobian/steady.jl")
-include("point/jacobian/initial.jl")
-include("point/jacobian/newmark.jl")
-include("point/jacobian/dynamic.jl")
-include("point/jacobian/expanded.jl")
-
-# element residuals
-include("element/residual/static.jl")
-include("element/residual/steady.jl")
-include("element/residual/initial.jl")
-include("element/residual/newmark.jl")
-include("element/residual/dynamic.jl")
-include("element/residual/expanded.jl")
-
-# element jacobians
-include("element/jacobian/static.jl")
-include("element/jacobian/steady.jl")
-include("element/jacobian/initial.jl")
-include("element/jacobian/newmark.jl")
-include("element/jacobian/dynamic.jl")
-include("element/jacobian/expanded.jl")
+# element residuals and jacobians
+include("element.jl")
 
 # system analyses
-include("analyses/static.jl")
-include("analyses/steady.jl")
-include("analyses/initial.jl")
-include("analyses/newmark.jl")
-include("analyses/eigen.jl")
+include("analyses.jl")
 
 # DifferentialEquations Interface
 include("interfaces/diffeq.jl")

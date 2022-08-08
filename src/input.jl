@@ -29,12 +29,6 @@ Set the state variables in `system` (or in the vector `x`) to the provided value
         element frame)
  - `Mi`: Vector containing internal moments for each beam element (in the deformed 
         element frame)
- - `linear_displacement`: Linear displacement of the body frame.
- - `angular_displacement`: Angular displacement of the body frame (Wiener Milenković)
- - `linear_velocity`: Linear velocity of the body frame
- - `angular_velocity`: Angular velocity of the body frame
- - `linear_acceleration`: Linear acceleration of the body frame
- - `angular_acceleration`: Angular acceleration of the body frame
 """
 set_state!(system::DynamicSystem, prescribed_conditions; kwargs...)
 
@@ -64,12 +58,6 @@ Set the state variables in `system` (or in the vector `x`) to the provided value
     beam element reference frame.
  - `Omega_e` Vector containing the angular velocity of each beam element in the deformed
     beam element reference frame.
- - `linear_displacement`: Linear displacement of the body frame.
- - `angular_displacement`: Angular displacement of the body frame (Wiener Milenković)
- - `linear_velocity`: Linear velocity of the body frame
- - `angular_velocity`: Angular velocity of the body frame
- - `linear_acceleration`: Linear acceleration of the body frame
- - `angular_acceleration`: Angular acceleration of the body frame
 """
 set_state!(system::ExpandedSystem, prescribed_conditions; kwargs...)
 
@@ -81,129 +69,102 @@ end
 function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing, 
     V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing,
     F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, 
-    V_p = nothing, Omega_p = nothing, V_e = nothing, Omega_e = nothing,
-    linear_displacement=nothing, angular_displacement=nothing, 
-    linear_velocity=nothing, angular_velocity=nothing,
-    linear_acceleration=nothing, angular_acceleration=nothing) 
+    V_p = nothing, Omega_p = nothing, V_e = nothing, Omega_e = nothing) 
 
     if !isnothing(u)
-        for ipoint = 1:length(u)
+        for ipoint in eachindex(u)
             set_linear_displacement!(x, system, prescribed_conditions, u[ipoint], ipoint)
         end
     end
 
     if !isnothing(theta)
-        for ipoint = 1:length(theta)
+        for ipoint in eachindex(theta)
             set_angular_displacement!(x, system, prescribed_conditions, theta[ipoint], ipoint)
         end
     end
 
     if !isnothing(F)
-        for ipoint = 1:length(F)
+        for ipoint in eachindex(F)
             set_external_forces!(x, system, prescribed_conditions, F[ipoint], ipoint)
         end
     end
 
     if !isnothing(M)
-        for ipoint = 1:length(M)
+        for ipoint in eachindex(M)
             set_external_moments!(x, system, prescribed_conditions, M[ipoint], ipoint)
         end
     end
 
     if !isnothing(V)
-        for ipoint = 1:length(V)
+        for ipoint in eachindex(V)
             set_linear_velocity!(x, system, V[ipoint], ipoint)
         end
     end
 
     if !isnothing(Omega)
-        for ipoint = 1:length(Omega)
+        for ipoint in eachindex(Omega)
             set_angular_velocity!(x, system, Omega[ipoint], ipoint)
         end
     end
 
     if !isnothing(Fi)
-        for ielem = 1:length(Fi)
+        for ielem in eachindex(Fi)
             set_internal_forces!(x, system, Fi[ielem], ielem)
         end
     end
 
     if !isnothing(Mi)
-        for ielem = 1:length(Mi)
+        for ielem in eachindex(Mi)
             set_internal_moments!(x, system, Mi[ielem], ielem)
         end
     end
 
     if !isnothing(F1)
-        for ielem = 1:length(F1)
+        for ielem in eachindex(F1)
             set_start_forces!(x, system, F1[ielem], ielem)
         end
     end
 
     if !isnothing(M1)
-        for ielem = 1:length(M1)
+        for ielem in eachindex(M1)
             set_start_moments!(x, system, M1[ielem], ielem)
         end
     end
 
     if !isnothing(F2)
-        for ielem = 1:length(F2)
+        for ielem in eachindex(F2)
             set_end_forces!(x, system, F2[ielem], ielem)
         end
     end
 
     if !isnothing(M2)
-        for ielem = 1:length(M2)
+        for ielem in eachindex(M2)
             set_end_moments!(x, system, M2[ielem], ielem)
         end
     end
 
     if !isnothing(V_p)
-        for ipoint = 1:length(V_p)
+        for ipoint in eachindex(V_p)
             set_point_linear_velocity!(x, system, V_p[ipoint], ipoint)
         end
     end
 
     if !isnothing(Omega_p)
-        for ipoint = 1:length(Omega_p)
+        for ipoint in eachindex(Omega_p)
             set_point_angular_velocity!(x, system, Omega_p[ipoint], ipoint)
         end
     end
 
     if !isnothing(V_e)
-        for ielem = 1:length(V_e)
+        for ielem in eachindex(V_e)
             set_element_linear_velocity!(x, system, V_e[ielem], ielem)
         end
     end
 
     if !isnothing(Omega_e)
-        for ielem = 1:length(Omega_e)
+        for ielem in eachindex(Omega_e)
             set_element_angular_velocity!(x, system, Omega_e[ielem], ielem)
         end
-    end
-
-    if !isnothing(linear_displacement)
-        set_body_linear_displacement!(x, system, linear_displacement)
-    end
-
-    if !isnothing(angular_displacement)
-        set_body_angular_displacement!(x, system, angular_displacement)
-    end
-
-    if !isnothing(linear_velocity)
-        set_body_linear_velocity!(x, system, linear_velocity)
-    end
-
-    if !isnothing(angular_velocity)
-        set_body_angular_velocity!(x, system, angular_velocity)
-    end
-
-    if !isnothing(linear_acceleration)
-        set_body_linear_acceleration!(x, system, prescribed_conditions, linear_acceleration)
-    end
-
-    if !isnothing(angular_acceleration)
-        set_body_angular_acceleration!(x, system, prescribed_conditions, angular_acceleration)
     end
 
     return x
@@ -605,126 +566,6 @@ function set_element_angular_velocity!(x, system::ExpandedSystem, Omega, ielem)
     x[icol+15] = Omega[1]
     x[icol+16] = Omega[2]
     x[icol+17] = Omega[3]
-
-    return x
-end
-
-"""
-    set_body_linear_displacement!([x,] system, linear_displacement)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear displacement of the body frame to the provided values.
-"""
-function set_body_linear_displacement!(system, linear_displacement)
-    set_body_linear_displacement!(system.x, system, linear_displacement)
-    return system
-end
-
-function set_body_linear_displacement!(x, system, linear_displacement)
-        
-    x[1:3] .= linear_displacement
-
-    return x
-end
-
-"""
-    set_body_angular_displacement!([x,] system, angular_displacement)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular deflection of point `ipoint` to the provided values.
-"""
-function set_body_angular_displacement!(system, angular_displacement)
-    set_body_angular_displacement!(system.x, system, angular_displacement)
-    return system
-end
-
-function set_body_angular_displacement!(x, system, angular_displacement)
-
-    x[4:6] .= angular_displacement
-
-    return x
-end
-
-"""
-    set_body_linear_velocity!([x,] system, linear_velocity)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear velocity of the body frame to the provided values.
-"""
-function set_body_linear_velocity!(system, linear_velocity)
-    set_body_linear_velocity!(system.x, system, linear_velocity)
-    return system
-end
-
-function set_body_linear_velocity!(x, system, linear_velocity)
-        
-    x[7:9] .= linear_velocity
-
-    return x
-end
-
-"""
-    set_body_angular_velocity!([x,] system, angular_velocity)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular deflection of point `ipoint` to the provided values.
-"""
-function set_body_angular_velocity!(system, angular_velocity)
-    set_body_angular_velocity!(system.x, system, angular_velocity)
-    return system
-end
-
-function set_body_angular_velocity!(x, system, angular_velocity)
-
-    x[10:12] .= angular_velocity
-
-    return x
-end
-
-"""
-    set_body_linear_acceleration!([x,] system, prescribed_conditions, linear_acceleration)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear acceleration of the body frame to the provided values.
-"""
-function set_body_linear_acceleration!(system, prescribed_conditions, linear_acceleration)
-    set_body_linear_acceleration!(system.x, system, prescribed_conditions, linear_acceleration)
-    return system
-end
-
-function set_body_linear_acceleration!(x, system, prescribed_conditions, linear_acceleration)
-        
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
-
-    icol = body_frame_acceleration_indices(system, prescribed)
-
-    !iszero(icol[1]) && setindex!(x, linear_acceleration[1], icol[1])
-    !iszero(icol[2]) && setindex!(x, linear_acceleration[2], icol[2])
-    !iszero(icol[3]) && setindex!(x, linear_acceleration[3], icol[3])
-
-    return x
-end
-
-"""
-    set_body_angular_acceleration!([x,] system, prescribed_conditions, angular_acceleration)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular deflection of point `ipoint` to the provided values.
-"""
-function set_body_angular_acceleration!(system, prescribed_conditions, angular_acceleration)
-    set_body_angular_acceleration!(system.x, system, prescribed_conditions, angular_acceleration)
-    return system
-end
-
-function set_body_angular_acceleration!(x, system, prescribed_conditions, angular_acceleration)
-
-    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
-
-    icol = body_frame_acceleration_indices(system, prescribed)
-
-    !iszero(icol[4]) && setindex!(x, angular_acceleration[1], icol[4])
-    !iszero(icol[5]) && setindex!(x, angular_acceleration[2], icol[5])
-    !iszero(icol[6]) && setindex!(x, angular_acceleration[3], icol[6])
 
     return x
 end

@@ -326,12 +326,9 @@ GXBeam.newmark_system_jacobian!
 GXBeam.dynamic_system_jacobian!
 GXBeam.expanded_steady_system_jacobian!
 GXBeam.expanded_dynamic_system_jacobian!
-GXBeam.steady_system_mass_matrix!
-GXBeam.dynamic_system_mass_matrix!
-GXBeam.expanded_steady_system_mass_matrix
-GXBeam.expanded_steady_system_mass_matrix!
-GXBeam.expanded_dynamic_system_mass_matrix
-GXBeam.expanded_dynamic_system_mass_matrix!
+GXBeam.system_mass_matrix!
+GXBeam.expanded_system_mass_matrix
+GXBeam.expanded_system_mass_matrix!
 ```
 
 ## Index

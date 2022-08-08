@@ -163,7 +163,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
         mass_matrix = spzeros(TF, nx, nx)
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0)
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(0)
-        expanded_dynamic_system_mass_matrix!(mass_matrix, -1, indices, force_scaling, assembly, pcond, pmass) 
+        expanded_system_mass_matrix!(mass_matrix, -1, indices, force_scaling, assembly, pcond, pmass) 
     
         # jacobian
         update_jacobian! = function(J, u, p, t)
@@ -258,7 +258,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             M .= 0.0
     
             # calculate mass matrix
-            dynamic_system_mass_matrix!(M, u, indices, force_scaling, assembly, pcond, pmass)
+            system_mass_matrix!(M, u, indices, force_scaling, assembly, pcond, pmass)
     
             M .*= -1
     
@@ -467,7 +467,7 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
             structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p)
 
         # add gamma multiplied by the mass matrix
-        dynamic_system_mass_matrix!(J, gamma, u, indices, force_scaling, 
+        system_mass_matrix!(J, gamma, u, indices, force_scaling, 
             assembly, pcond, pmass)
 
         return J
@@ -486,7 +486,7 @@ function get_differential_vars(system::DynamicSystem, assembly, prescribed_condi
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
 
     # solve for the system mass matrix
-    dynamic_system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+    system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
 
     # identify differential variables
     differential_vars = dropdims(.!(iszero.(sum(M, dims=1))), dims=1)
