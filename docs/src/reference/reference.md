@@ -148,7 +148,7 @@ GXBeam.gauss_quadrature
 
 ```@docs
 GXBeam.update_body_acceleration_indices!
-GXBeam.body_acceleration
+GXBeam.body_accelerations
 ```
 
 ### Points
@@ -172,11 +172,9 @@ GXBeam.newmark_point_properties
 GXBeam.dynamic_point_properties
 GXBeam.expanded_steady_point_properties
 GXBeam.expanded_dynamic_point_properties
-GXBeam.steady_point_velocity_residuals
-GXBeam.dynamic_point_velocity_residuals
+GXBeam.point_velocity_residuals
 GXBeam.expanded_point_velocity_residuals
 GXBeam.static_point_resultants
-GXBeam.steady_point_resultants
 GXBeam.dynamic_point_resultants
 GXBeam.expanded_point_resultants
 GXBeam.static_point_residual!
@@ -198,11 +196,10 @@ GXBeam.expanded_mass_matrix_point_jacobian_properties
 GXBeam.static_point_resultant_jacobians
 GXBeam.steady_point_resultant_jacobians
 GXBeam.initial_point_resultant_jacobians
-GXBeam.newmark_point_resultant_jacobians
 GXBeam.dynamic_point_resultant_jacobians
-GXBeam.expanded_point_resultant_jacobians
+GXBeam.expanded_steady_point_resultant_jacobians
+GXBeam.expanded_dynamic_point_resultant_jacobians
 GXBeam.mass_matrix_point_resultant_jacobians
-GXBeam.steady_point_velocity_jacobians
 GXBeam.initial_point_velocity_jacobians
 GXBeam.newmark_point_velocity_jacobians
 GXBeam.dynamic_point_velocity_jacobians
@@ -211,7 +208,8 @@ GXBeam.mass_matrix_point_velocity_jacobians
 GXBeam.insert_static_point_jacobians!
 GXBeam.insert_initial_point_jacobians!
 GXBeam.insert_dynamic_point_jacobians!
-GXBeam.insert_expanded_point_jacobians!
+GXBeam.insert_expanded_steady_point_jacobians!
+GXBeam.insert_expanded_dynamic_point_jacobians!
 GXBeam.insert_mass_matrix_point_jacobians!
 GXBeam.static_point_jacobian!
 GXBeam.steady_point_jacobian!
@@ -239,10 +237,10 @@ GXBeam.dynamic_element_properties
 GXBeam.expanded_steady_element_properties
 GXBeam.expanded_dynamic_element_properties
 GXBeam.compatability_residuals
-GXBeam.expanded_element_velocity_residuals
+GXBeam.expanded_element_steady_velocity_residuals
+GXBeam.expanded_element_dynamic_velocity_residuals
 GXBeam.expanded_element_equilibrium_residuals
 GXBeam.static_element_resultants
-GXBeam.steady_element_resultants
 GXBeam.dynamic_element_resultants
 GXBeam.expanded_element_resultants
 GXBeam.insert_element_residuals!
@@ -263,13 +261,14 @@ GXBeam.expanded_steady_element_jacobian_properties
 GXBeam.expanded_dynamic_element_jacobian_properties
 GXBeam.mass_matrix_element_jacobian_properties
 GXBeam.expanded_mass_matrix_element_jacobian_properties
-GXBeam.expanded_element_velocity_jacobians
-GXBeam.expanded_element_equilibrium_jacobians
+GXBeam.expanded_element_steady_velocity_jacobians
+GXBeam.expanded_element_dynamic_velocity_jacobians
+GXBeam.expanded_steady_element_equilibrium_jacobians
+GXBeam.expanded_dynamic_element_equilibrium_jacobians
 GXBeam.expanded_mass_matrix_element_equilibrium_jacobians
 GXBeam.static_element_resultant_jacobians
 GXBeam.steady_element_resultant_jacobians
 GXBeam.initial_element_resultant_jacobians
-GXBeam.newmark_element_resultant_jacobians
 GXBeam.dynamic_element_resultant_jacobians
 GXBeam.expanded_element_resultant_jacobians
 GXBeam.mass_matrix_element_resultant_jacobians
@@ -289,8 +288,6 @@ GXBeam.expanded_mass_matrix_element_jacobian!
 
 ```@docs
 GXBeam.SystemIndices
-GXBeam.body_frame_acceleration_indices
-GXBeam.prescribed_body_frame_acceleration
 GXBeam.default_force_scaling
 GXBeam.curve_triad
 GXBeam.curve_coordinates

@@ -612,7 +612,6 @@ end
 Calculate/extract the point properties needed to construct the residual for a steady state 
 analysis
 """
-
 @inline function steady_point_properties(x, indices, force_scaling, assembly, ipoint, 
     prescribed_conditions, point_masses, gravity, linear_velocity, angular_velocity, 
     linear_acceleration=(@SVector zeros(3)), angular_acceleration=(@SVector zeros(3)))
@@ -891,6 +890,14 @@ mass matrix system.
         Δx, vb, ωb, ab, αb, V, Ω, P, H, udot, θdot, Vdot, Ωdot, Pdot, Hdot)
 end
 
+"""
+    expanded_dynamic_point_properties(dx, x, indices, force_scaling, assembly, 
+        ipoint, prescribed_conditions, point_masses, gravity, linear_velocity, 
+        angular_velocity)
+
+Calculate/extract the point properties needed to construct the residual for a constant 
+mass matrix system.
+"""
 @inline function expanded_dynamic_point_properties(dx, x, indices, force_scaling, assembly, 
     ipoint, prescribed_conditions, point_masses, gravity, linear_velocity, angular_velocity)
 

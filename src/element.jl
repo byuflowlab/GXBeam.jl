@@ -592,6 +592,13 @@ mass matrix system
     return properties
 end
 
+"""
+    expanded_dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
+        assembly, ielem, prescribed_conditions, gravity, linear_velocity, angular_velocity)
+
+Calculate/extract the element properties needed to construct the residual for a constant
+mass matrix system
+"""
 function expanded_dynamic_element_properties(dx, x, indices, force_scaling, structural_damping, 
     assembly, ielem, prescribed_conditions, gravity, linear_velocity, angular_velocity)
 

@@ -249,7 +249,7 @@ mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
 
 # Our case is simple enough that we can analytically calculate most values for the 
 # compliance and mass matrices, but this is not generally the case.  For more complex 
-# geometries/structures see the section below titled [`Section Properties`](@ref)
+# geometries/structures see the section of the documentation titled [`Computing Stiffness and Mass Matrices`](@ref section)
 # Also note that any row/column of the stiffness and/or compliance matrix which is zero 
 # will be interpreted as infinitely stiff in that degree of freedom.  This corresponds to a 
 # row/column of zeros in the compliance matrix.
