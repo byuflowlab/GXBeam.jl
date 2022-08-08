@@ -147,12 +147,21 @@ function update_body_acceleration_indices!(system, prescribed_conditions)
 end
 
 """
-    body_accelerations(x, icol, ab, αb)
+    body_accelerations(system, x=system.x; linear_acceleration=zeros(3), angular_acceleration=zeros(3))
 
 Extract the linear and angular acceleration of the body frame from the state vector or 
-prescribed accelerations.
+prescribed accelerations.  Valid for the results of steady state and initial condition 
+analyses.
 """
-function body_accelerations(x, icol, ab, αb)
+function body_accelerations(system::AbstractSystem, x=system.x; 
+    linear_acceleration=(@SVector zeros(3)), 
+    angular_acceleration=(@SVector zeros(3))
+    )
+
+    return body_accelerations(x, system.indices.icol_indices, linear_acceleration, angular_acceleration)
+end
+
+function body_accelerations(x, icol, ab=(@SVector zeros(3)), αb=(@SVector zeros(3)))
 
     ab = SVector(
         iszero(icol[1]) ? ab[1] : x[icol[1]],
@@ -398,10 +407,6 @@ Copy the state variables from `system2` into `system1`
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `linear_displacement = zeros(3)`: Prescribed body frame linear displacement vector. 
-    This vector may also be provided as a function of time.
- - `angular_displacement = zeros(3)`: Prescribed body frame angular displacement vector 
-    (Wiener Milenković parameters). This vector may also be provided as a function of time.
  - `linear_velocity = zeros(3)`: Prescribed body frame linear velocity vector. 
     This vector may also be provided as a function of time.
  - `angular_velocity = zeros(3)`: Prescribed body frame angular velocity vector. 
@@ -423,8 +428,6 @@ function copy_state!(system1, system2, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    linear_displacement=(@SVector zeros(3)),
-    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -451,8 +454,6 @@ function copy_state!(system1, system2, assembly;
     pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
     gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
-    ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(t))
-    θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(t))
     vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
     ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
     ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
@@ -467,8 +468,8 @@ function copy_state!(system1, system2, assembly;
     x2 = system2.x
 
     # extract body frame state variable pointers for each system
-    icol_accel1 = system1.indices.icol_accel
-    icol_accel2 = system2.indices.icol_accel
+    icol_body1 = system1.indices.icol_body
+    icol_body2 = system2.indices.icol_body
 
     # extract point state variable pointers for each system
     icol_point1 = system1.indices.icol_point
@@ -483,12 +484,12 @@ function copy_state!(system1, system2, assembly;
     force_scaling2 = system2.force_scaling
 
     # copy over body frame accelerations
-    !iszero(icol_accel1[1]) && setindex!(x1, x2[icol_accel2[1]], icol_accel1[1])
-    !iszero(icol_accel1[2]) && setindex!(x1, x2[icol_accel2[2]], icol_accel1[2])
-    !iszero(icol_accel1[3]) && setindex!(x1, x2[icol_accel2[3]], icol_accel1[3])
-    !iszero(icol_accel1[4]) && setindex!(x1, x2[icol_accel2[4]], icol_accel1[4])
-    !iszero(icol_accel1[5]) && setindex!(x1, x2[icol_accel2[5]], icol_accel1[5])
-    !iszero(icol_accel1[6]) && setindex!(x1, x2[icol_accel2[6]], icol_accel1[6])
+    !iszero(icol_body1[1]) && setindex!(x1, x2[icol_body2[1]], icol_body1[1])
+    !iszero(icol_body1[2]) && setindex!(x1, x2[icol_body2[2]], icol_body1[2])
+    !iszero(icol_body1[3]) && setindex!(x1, x2[icol_body2[3]], icol_body1[3])
+    !iszero(icol_body1[4]) && setindex!(x1, x2[icol_body2[4]], icol_body1[4])
+    !iszero(icol_body1[5]) && setindex!(x1, x2[icol_body2[5]], icol_body1[5])
+    !iszero(icol_body1[6]) && setindex!(x1, x2[icol_body2[6]], icol_body1[6])
 
     # copy over state variables for each point
     for ipoint = 1:length(assembly.points)
@@ -581,11 +582,10 @@ function copy_state!(system1, system2, assembly;
             elseif typeof(system2) <: DynamicSystem
 
                 # compute steady state element properties
-                properties = steady_element_properties(x2, system2.indices, 
-                    force_scaling2, structural_damping, assembly, ielem, pcond, gvec,
-                    ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
+                properties = steady_element_properties(x2, system2.indices, force_scaling2, 
+                    structural_damping, assembly, ielem, pcond, gvec, vb_p, ωb_p, ab_p, αb_p)
 
-                @unpack C, Cab, CtCab, mass11, mass12, mass21, mass22, V1, V2, Ω1, Ω2, V, Ω, ω = properties
+                @unpack ωb, C, Cab, CtCab, mass11, mass12, mass21, mass22, V1, V2, Ω1, Ω2, V, Ω = properties
 
                 # linear and angular velocity rates
                 V1dot = system2.Vdot[assembly.start[ielem]]
@@ -598,16 +598,16 @@ function copy_state!(system1, system2, assembly;
                 Ωdot = (Ω1dot + Ω2dot)/2
 
                 # linear and angular momentum rates
-                CtCabdot = C'*tilde(Ω - ω)*Cab
+                CtCabdot = tilde(Ω - ωb)*CtCab
                 
                 Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot +
                     CtCab*mass11*CtCabdot'*V + CtCab*mass12*CtCabdot'*Ω +
                     CtCabdot*mass11*CtCab'*V + CtCabdot*mass12*CtCab'*Ω
-                
+            
                 Hdot = CtCab*mass21*CtCab'*Vdot + CtCab*mass22*CtCab'*Ωdot +
                     CtCab*mass21*CtCabdot'*V + CtCab*mass22*CtCabdot'*Ω +
                     CtCabdot*mass21*CtCab'*V + CtCabdot*mass22*CtCab'*Ω
-
+        
                 # combine steady state and dynamic element properties
                 properties = (; properties..., CtCabdot, Vdot, Ωdot, Pdot, Hdot) 
 

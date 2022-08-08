@@ -73,8 +73,7 @@ function AssemblyState(system, assembly, x = system.x; prescribed_conditions = D
 
     elements = extract_element_states(system, assembly, x; prescribed_conditions)
 
-    return AssemblyState{eltype(x), typeof(body), typeof(points), typeof(elements)}(
-        body, points, elements)
+    return AssemblyState{eltype(x), typeof(points), typeof(elements)}(points, elements)
 end
 
 """

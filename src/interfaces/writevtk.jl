@@ -13,7 +13,6 @@ without any associated data.
 If the solution time `history` is provided, the time step must also be provided
 
 # Keyword Arguments
- - `body_motion = true`: Flag indicating whether to visualize body frame motion.
  - `sections = nothing`: Cross section geometry corresponding to each point,
     defined in a frame aligned with the body frame but centered around the
     corresponding point. Defined as an array with shape `(3, ncross, np)` where `ncross`
@@ -99,7 +98,7 @@ function write_vtk(name, assembly; sections=nothing, metadata=Dict())
     return nothing
 end
 
-function write_vtk(name, assembly, state; body_motion = true, sections = nothing, 
+function write_vtk(name, assembly, state; sections = nothing, 
     scaling=1.0, metadata=Dict())
 
     # get problem dimensions
@@ -107,23 +106,11 @@ function write_vtk(name, assembly, state; body_motion = true, sections = nothing
     ncross = isnothing(sections) ? 1 : size(sections, 2)
     nelem = length(assembly.elements)
 
-    # extract body position and orientation
-    if body_motion
-        ub = scaling*state.body.u
-        θb = scaling*state.body.theta
-    else
-        ub = @SVector zeros(3)
-        θb = @SVector zeros(3)
-    end
-
-    # rotation matrix for body frame rotation
-    Ct_b = wiener_milenkovic(θb)'
-
     if isnothing(sections)
         # extract point locations
         points = Matrix{eltype(assembly)}(undef, 3, npoint)
         for ip = 1:npoint
-            points[:,ip] = ub + Ct_b*(assembly.points[ip] + scaling*(state.points[ip].u))
+            points[:,ip] = assembly.points[ip] + scaling*(state.points[ip].u)
         end
 
         # create cells
@@ -139,7 +126,7 @@ function write_vtk(name, assembly, state; body_motion = true, sections = nothing
                     u = scaling*state.points[ip].u
                     c = scaling*state.points[ip].theta
                     Ct_p = wiener_milenkovic(c)'
-                    points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic,ip])
+                    points[:,li[ic,ip]] = assembly.points[ip] + u + Ct_p*sections[:,ic,ip]
                 end
             end
         else
@@ -148,7 +135,7 @@ function write_vtk(name, assembly, state; body_motion = true, sections = nothing
                     u = scaling*state.points[ip].u
                     c = scaling*state.points[ip].theta
                     Ct_p = wiener_milenkovic(c)'
-                    points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic])
+                    points[:,li[ic,ip]] = assembly.points[ip] + u + Ct_p*sections[:,ic]
                 end
             end
         end
@@ -192,11 +179,6 @@ function write_vtk(name, assembly, state; body_motion = true, sections = nothing
             vtkfile[axis_name[i], VTKCellData()] = data
         end
 
-        # add body frame data
-        for field in fieldnames(BodyState)
-            vtkfile[string(field)] = getproperty(state.body, field)
-        end
-
         # add point data
         for field in fieldnames(PointState)
             data = Matrix{eltype(assembly)}(undef, 3, npoint*ncross)
@@ -221,8 +203,7 @@ function write_vtk(name, assembly, state; body_motion = true, sections = nothing
     return nothing
 end
 
-function write_vtk(name, assembly, history, t; body_motion=true, sections=nothing, scaling=1.0,
-    metadata=Dict())
+function write_vtk(name, assembly, history, t; sections=nothing, scaling=1.0, metadata=Dict())
 
     # get problem dimensions
     npoint = length(assembly.points)
@@ -233,23 +214,11 @@ function write_vtk(name, assembly, history, t; body_motion=true, sections=nothin
 
         for (current_step, state) in enumerate(history)
 
-            # extract body position and orientation
-            if body_motion
-                ub = scaling*state.body.u
-                θb = scaling*state.body.theta
-            else
-                ub = @SVector zeros(3)
-                θb = @SVector zeros(3)
-            end
-
-            # rotation matrix for body frame rotation
-            Ct_b = wiener_milenkovic(θb)'
-
             if isnothing(sections)
                 # extract point locations
                 points = Matrix{eltype(assembly)}(undef, 3, npoint)
                 for ip = 1:npoint
-                    points[:,ip] = ub + Ct_b*(assembly.points[ip] + scaling*state.points[ip].u)
+                    points[:,ip] = assembly.points[ip] + scaling*state.points[ip].u
                 end
 
                 # create cells
@@ -266,7 +235,7 @@ function write_vtk(name, assembly, history, t; body_motion=true, sections=nothin
                             u = scaling*state.points[ip].u
                             c = scaling*state.points[ip].theta
                             Ct_p = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic,ip])
+                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct_p*sections[:,ic,ip]
                         end
                     end
                 else
@@ -275,7 +244,7 @@ function write_vtk(name, assembly, history, t; body_motion=true, sections=nothin
                             u = scaling*state.points[ip].u
                             c = scaling*state.points[ip].theta
                             Ct_p = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct_p*sections[:,ic])
+                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct_p*sections[:,ic]
                         end
                     end
                 end
@@ -319,11 +288,6 @@ function write_vtk(name, assembly, history, t; body_motion=true, sections=nothin
                 vtkfile[axis_name[i], VTKCellData()] = data
             end
 
-            # add body frame data
-            for field in fieldnames(BodyState)
-                vtkfile[string(field)] = getproperty(state.body, field)
-            end
-
             # add point data
             for field in fieldnames(PointState)
                 data = Matrix{eltype(assembly)}(undef, 3, npoint*ncross)
@@ -365,7 +329,6 @@ deflections can be scaled using `mode_scaling`.
 The current time is encoded in the metadata tag "time"
 """
 function write_vtk(name, assembly, state, λ, eigenstate;
-    body_motion=true, 
     sections = nothing,
     scaling=1.0,
     mode_scaling=1.0,
@@ -393,26 +356,13 @@ function write_vtk(name, assembly, state, λ, eigenstate;
 
         for (current_step, t) in enumerate(time)
 
-            # extract body position and orientation
-            if body_motion
-                ub = scaling*state.body.u + mode_scaling*real(state.body.u)*exp(λ*t)
-                θb = scaling*state.body.theta + mode_scaling*real(state.body.theta)*exp(λ*t)
-            else
-                ub = @SVector zeros(3)
-                θb = @SVector zeros(3)
-            end
-
-            # rotation matrix for body frame rotation
-            Ct_b = wiener_milenkovic(θb)'
-
             if isnothing(sections)
 
                 # extract point locations
                 points = Matrix{eltype(assembly)}(undef, 3, npoint)
                 for ip = 1:npoint
-                    points[:,ip] = ub + Ct_b*(assembly.points[ip] +
-                        scaling*state.points[ip].u +
-                        mode_scaling*real.(eigenstate.points[ip].u*exp(λ*t)))
+                    points[:,ip] = assembly.points[ip] + scaling*state.points[ip].u +
+                        mode_scaling*real.(eigenstate.points[ip].u*exp(λ*t))
                 end
 
                 # create cells
@@ -430,7 +380,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                             u = mode_scaling*real.(eigenstate.points[ip].u .* exp(λ*t))
                             c = mode_scaling*real.(eigenstate.points[ip].theta .* exp(λ*t))
                             Ct = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct*sections[:,ic,ip])
+                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic,ip]
                         end
                     end
                 else
@@ -439,7 +389,7 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                             u = mode_scaling*real.(eigenstate.points[ip].u .* exp(λ*t))
                             c = mode_scaling*real.(eigenstate.points[ip].theta .* exp(λ*t))
                             Ct = wiener_milenkovic(c)'
-                            points[:,li[ic,ip]] = ub + Ct_b*(assembly.points[ip] + u + Ct*sections[:,ic])
+                            points[:,li[ic,ip]] = assembly.points[ip] + u + Ct*sections[:,ic]
                         end
                     end
                 end
@@ -481,12 +431,6 @@ function write_vtk(name, assembly, state, λ, eigenstate;
                     data[:, ielem] .= CtCab * axis_vector[i]
                 end
                 vtkfile[axis_name[i], VTKCellData()] = data
-            end
-
-            # add body data
-            for field in fieldnames(BodyState)
-                vtkfile[string(field)] = getproperty(state.body, field) +
-                    mode_scaling*real(getproperty(eigenstate.body, field) .* exp(λ*t))
             end
 
             # add point data

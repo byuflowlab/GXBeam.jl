@@ -176,11 +176,6 @@ iteration procedure converged.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `linear_displacement = zeros(3)`: Prescribed linear displacement of the body frame.  
-        If time varying, this input may be provided as a function of time.
- - `angular_displacement = zeros(3)`: Prescribed angular displacement of the body frame. 
-        (using Wiener Milenkovic parameters). If time varying, this input may be provided 
-        as a function of time.
  - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame. 
         If time varying, this input may be provided as a function of time.
  - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame. 
@@ -236,8 +231,6 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    linear_displacement=(@SVector zeros(3)),
-    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -290,31 +283,29 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
-        ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(t))
-        θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(t))
         vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
         ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
         ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t))
         αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t))
 
         # update acceleration state variable indices
-        update_body_state_indices!(system, pcond)
+        update_body_acceleration_indices!(system, pcond)
 
         # define the residual and jacobian functions
         if constant_mass_matrix
             f! = (resid, x) -> expanded_steady_system_residual!(resid, x, indices, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
+                vb_p, ωb_p, ab_p, αb_p)
             j! = (jacob, x) -> expanded_steady_system_jacobian!(jacob, x, indices, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
+                vb_p, ωb_p, ab_p, αb_p)
         else
-            f! = (resid, x) -> steady_state_system_residual!(resid, x, indices, 
+            f! = (resid, x) -> steady_system_residual!(resid, x, indices, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
-            j! = (jacob, x) -> steady_state_system_jacobian!(jacob, x, indices, 
+                vb_p, ωb_p, ab_p, αb_p)
+            j! = (jacob, x) -> steady_system_jacobian!(jacob, x, indices, 
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p)
+                vb_p, ωb_p, ab_p, αb_p)
         end
 
         # solve for the new set of state variables
@@ -355,7 +346,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         # update state variable rates
         if !constant_mass_matrix
             @unpack udot, θdot, Vdot, Ωdot = system
-            ab, αb = body_frame_acceleration(x)
+            ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
             for ipoint = 1:length(assembly.points)
                 Δx = assembly.points[ipoint]
                 u, _ = point_displacement(x, ipoint, indices.icol_point, pcond)
@@ -395,11 +386,6 @@ with variables in `system` so a copy should be made prior to modifying them.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `linear_displacement = zeros(3)`: Prescribed linear displacement of the body frame.  
-        If time varying, this input may be provided as a function of time.
- - `angular_displacement = zeros(3)`: Prescribed angular displacement of the body frame. 
-        (using Wiener Milenkovic parameters). If time varying, this input may be provided 
-        as a function of time.
  - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame. 
         If time varying, this input may be provided as a function of time.
  - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame. 
@@ -425,8 +411,6 @@ function linearize!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    linear_displacement=(@SVector zeros(3)),
-    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -450,22 +434,16 @@ function linearize!(system, assembly;
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(time)
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(time)
     gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(time))
-    ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(time))
-    θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(time))
     vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(time))
     ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(time))
     ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(time))
     αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(time))
 
-    # indices corresponding to rigid body acceleration state variables
-    icol_accel = body_frame_acceleration_indices(system, pcond)
-
     if constant_mass_matrix
 
         # solve for the system stiffness matrix
-        expanded_steady_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, 
-            vb_p, ωb_p, ab_p, αb_p)
+        expanded_steady_system_jacobian!(K, x, indices, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p)
 
         # solve for the system mass matrix
         expanded_system_mass_matrix!(M, indices, force_scaling, assembly, 
@@ -474,9 +452,8 @@ function linearize!(system, assembly;
     else
 
         # solve for the system stiffness matrix
-        steady_state_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, ub_p, θb_p, 
-            vb_p, ωb_p, ab_p, αb_p)
+        steady_system_jacobian!(K, x, indices, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p)
 
         # solve for the system mass matrix
         system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
@@ -614,7 +591,7 @@ function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
             ldiv!(u, KmλMfact, tmp)
             # normalize u
             unorm = zero(TC)
-            for k = 1:length(valM)
+            for k in eachindex(valM)
                 unorm += conj(u[iM[k]])*valM[k]*V[jM[k],iλ]
             end
             rdiv!(u, conj(unorm))
@@ -713,11 +690,6 @@ converged.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `linear_displacement = zeros(3)`: Prescribed linear displacement of the body frame.  
-        If time varying, this input may be provided as a function of time.
- - `angular_displacement = zeros(3)`: Prescribed angular displacement of the body frame. 
-        (using Wiener Milenkovic parameters). If time varying, this input may be provided 
-        as a function of time.
  - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame. 
         If time varying, this input may be provided as a function of time.
  - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame. 
@@ -754,7 +726,7 @@ converged.
 
 # Eigenvalue Solution Keyword Arguments
  - `nev = 6`: Number of eigenvalues to compute
- - `steady_state = reset_state && !linear`: Flag indicating whether the steady state 
+ - `steady = reset_state && !linear`: Flag indicating whether the steady state 
         solution should be found prior to performing the eigenvalue analysis.
  - `left = false`: Flag indicating whether to return left and right eigenvectors rather 
         than just right eigenvectors.  
@@ -782,8 +754,6 @@ function eigenvalue_analysis!(system, assembly;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    linear_displacement=(@SVector zeros(3)),
-    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -806,7 +776,7 @@ function eigenvalue_analysis!(system, assembly;
     update_linearization=false,
     # eigenvalue solution keyword arguments
     nev = 6,
-    steady_state=true,
+    steady=true,
     left=false,
     Uprev=nothing,
     )
@@ -820,7 +790,7 @@ function eigenvalue_analysis!(system, assembly;
     end
 
     # set linearization state variables
-    if steady_state
+    if steady
 
         if show_trace
             println("Finding a Steady-State Solution")
@@ -832,8 +802,6 @@ function eigenvalue_analysis!(system, assembly;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            linear_displacement=linear_displacement,
-            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -874,8 +842,6 @@ function eigenvalue_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
-        linear_displacement=linear_displacement,
-        angular_displacement=angular_displacement,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
         linear_acceleration=linear_acceleration,
@@ -934,9 +900,6 @@ resulting system and a flag indicating whether the iteration procedure converged
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `linear_displacement = zeros(3)`: Initial linear displacement of the body frame.  
- - `angular_displacement = zeros(3)`: Initial angular displacement of the body frame. 
-        (using Wiener Milenkovic parameters).
  - `linear_velocity = zeros(3)`: Initial linear velocity of the body frame. 
  - `angular_velocity = zeros(3)`: Initial angular velocity of the body frame. 
  - `linear_acceleration = zeros(3)`: Initial linear acceleration of the body frame.
@@ -962,7 +925,7 @@ resulting system and a flag indicating whether the iteration procedure converged
  - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
- - `steady_state=false`: Flag indicating whether to initialize by performing a steady state 
+ - `steady=false`: Flag indicating whether to initialize by performing a steady state 
         analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
@@ -1000,8 +963,6 @@ function initial_condition_analysis!(system, assembly, t0;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    linear_displacement=(@SVector zeros(3)),
-    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -1018,7 +979,7 @@ function initial_condition_analysis!(system, assembly, t0;
     structural_damping=true,
     constant_mass_matrix=typeof(system)<:ExpandedSystem,
     reset_state=true,
-    steady_state=false,
+    steady=false,
     linear=false,
     show_trace=false,
     # nonlinear solver keyword arguments
@@ -1032,14 +993,12 @@ function initial_condition_analysis!(system, assembly, t0;
     )
 
     # perform steady state analysis (if requested)
-    if steady_state
+    if steady
         return steady_state_analysis!(system, assembly;
             # general keyword arguments
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            linear_displacement=linear_displacement,
-            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -1083,8 +1042,6 @@ function initial_condition_analysis!(system, assembly, t0;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            linear_displacement=linear_displacement,
-            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -1112,8 +1069,6 @@ function initial_condition_analysis!(system, assembly, t0;
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t0)
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t0)
     gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t0))
-    ub_p = typeof(linear_displacement) <: AbstractVector ? SVector{3}(linear_displacement) : SVector{3}(linear_displacement(t0))
-    θb_p = typeof(angular_displacement) <: AbstractVector ? SVector{3}(angular_displacement) : SVector{3}(angular_displacement(t0))
     vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t0))
     ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t0))
     ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t0))
@@ -1168,7 +1123,7 @@ function initial_condition_analysis!(system, assembly, t0;
     # println(not_constrained)
 
     # indices corresponding to rigid body acceleration state variables
-    icol_accel = body_frame_acceleration_indices(system, pcond)
+    update_body_acceleration_indices!(system, pcond)
 
     # --- Determine whether Vdot and Ωdot may be found using the equilibrium equations --- #
 
@@ -1210,13 +1165,13 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # --- Define the residual and jacobian functions --- #
 
-    f! = (resid, x) -> initial_condition_system_residual!(resid, x, indices, rate_vars1, rate_vars2, 
-        icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-        gvec, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+    f! = (resid, x) -> initial_system_residual!(resid, x, indices, rate_vars1, rate_vars2, 
+        force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+        gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
-    j! = (jacob, x) -> initial_condition_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2,
-        icol_accel, force_scaling, structural_damping, assembly, pcond, dload, pmass, 
-        gvec, ub_p, θb_p, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
+    j! = (jacob, x) -> initial_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2,
+        force_scaling, structural_damping, assembly, pcond, dload, pmass, 
+        gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
     # --- Solve for the corresponding state variables --- #
 
@@ -1272,9 +1227,9 @@ function initial_condition_analysis!(system, assembly, t0;
             indices.icol_point, pcond, Vdot0, Omegadot0, rate_vars2)
         # add rigid body accelerations to node accelerations
         Δx = assembly.points[ipoint]
-        a, α = body_frame_acceleration(x)
-        Vdot[ipoint] += a + cross(α, Δx) + cross(α, u)
-        Ωdot[ipoint] += α
+        ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
+        Vdot[ipoint] += ab + cross(αb, Δx) + cross(αb, u)
+        Ωdot[ipoint] += αb
         # set new state variables
         set_external_forces!(system, prescribed_conditions, Fe, ipoint)
         set_external_moments!(system, prescribed_conditions, Me, ipoint)
@@ -1292,8 +1247,6 @@ function initial_condition_analysis!(system, assembly, t0;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            linear_displacement=linear_displacement,
-            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -1329,9 +1282,6 @@ converged for every time step.
         corresponding to the points to which point masses are attached and values 
         of type [`PointMass`](@ref) which contain the properties of the attached 
         point masses.  If time varying, this input may be provided as a function of time.
- - `linear_displacement = zeros(3)`: Initial linear displacement of the body frame.  
- - `angular_displacement = zeros(3)`: Initial angular displacement of the body frame. 
-        (using Wiener Milenkovic parameters).
  - `linear_velocity = zeros(3)`: Initial linear velocity of the body frame. 
  - `angular_velocity = zeros(3)`: Initial angular velocity of the body frame. 
  - `linear_acceleration = zeros(3)`: Prescribed linear acceleration of the body frame.
@@ -1359,7 +1309,7 @@ converged for every time step.
         set to zero prior to performing this analysis.
  - `initialize = true`: Flag indicating whether a consistent set of initial
         conditions should be found using [`initial_condition_analysis`](@ref).
- - `steady_state=false`: Flag indicating whether to initialize by performing a steady state 
+ - `steady=false`: Flag indicating whether to initialize by performing a steady state 
         analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
@@ -1393,8 +1343,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
-    linear_displacement=(@SVector zeros(3)),
-    angular_displacement=(@SVector zeros(3)),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     linear_acceleration=(@SVector zeros(3)),
@@ -1412,7 +1360,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     structural_damping=true,
     reset_state=true,
     initialize=true,
-    steady_state=false,
+    steady=false,
     linear=false,
     show_trace=false,
     # nonlinear solver keyword arguments
@@ -1437,8 +1385,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             prescribed_conditions=prescribed_conditions,
             distributed_loads=distributed_loads,
             point_masses=point_masses,
-            linear_displacement=linear_displacement,
-            angular_displacement=angular_displacement,
             linear_velocity=linear_velocity,
             angular_velocity=angular_velocity,
             linear_acceleration=linear_acceleration,
@@ -1453,7 +1399,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             structural_damping=structural_damping,
             reset_state=reset_state,
             linear=linear,
-            steady_state=steady_state,
+            steady=steady,
             show_trace=show_trace,
             method=method,
             linesearch=linesearch,
@@ -1500,22 +1446,8 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(tvec[it])
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(tvec[it])
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(tvec[it]))
-        ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(tvec[it]))
-        αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(tvec[it]))
-
-        # indices corresponding to rigid body acceleration state variables
-        icol_accel = body_frame_acceleration_indices(system, pcond)
-
-        # state variables for the body frame motion
-        ub, θb = body_frame_displacement(x)
-        vb, ωb = body_frame_velocity(x)
-        ab, αb = body_frame_acceleration(x)
-
-        # initialization terms for the body frame motion
-        ubdot = 2/dt*ub + vb
-        θbdot = 2/dt*θb + get_Qinv(θb)*get_C(θb)*ωb
-        vbdot = 2/dt*vb + ab
-        ωbdot = 2/dt*ωb + αb
+        vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(tvec[it]))
+        ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(tvec[it]))
 
         # initialization terms for each point
         for ipoint = 1:length(assembly.points)
@@ -1530,13 +1462,13 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         end
 
         # define the residual and jacobian functions
-        f! = (r, x) -> newmark_system_residual!(r, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p, 
-            ubdot, θbdot, vbdot, ωbdot, udot, θdot, Vdot, Ωdot, dt)
+        f! = (r, x) -> newmark_system_residual!(r, x, indices, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p,
+            udot, θdot, Vdot, Ωdot, dt)
 
-        j! = (K, x) -> newmark_system_jacobian!(K, x, indices, icol_accel, force_scaling, 
-            structural_damping, assembly, pcond, dload, pmass, gvec, ab_p, αb_p, 
-            ubdot, θbdot, vbdot, ωbdot, udot, θdot, Vdot, Ωdot, dt)
+        j! = (K, x) -> newmark_system_jacobian!(K, x, indices, force_scaling, 
+            structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p,
+            udot, θdot, Vdot, Ωdot, dt)
 
         # solve for the new set of state variables
         if linear
