@@ -1775,30 +1775,13 @@ Calculate the jacobians of the element equilibrium residuals for a constant mass
     @unpack Pdot_ab, Pdot_αb, Hdot_ab, Hdot_αb = properties
 
     # add loads due to linear and angular momentum
+    rF_ab = -Pdot_ab
+    rF_αb = -Pdot_αb
+    rM_ab = -Hdot_ab
+    rM_αb = -Hdot_αb
 
-    tmp = 1/2*Pdot_ab
-
-    F1_ab = -tmp
-    F2_ab = tmp
-
-    tmp = 1/2*Pdot_αb
-
-    F1_αb = -tmp
-    F2_αb = tmp
-
-    tmp = 1/2*Hdot_ab
-
-    M1_ab = -tmp
-    M2_ab = tmp
-
-    tmp = 1/2*Hdot_αb
-
-    M1_αb = -tmp
-    M2_αb = tmp
-
-    return (; jacobians..., F1_ab, F1_αb, F2_ab, F2_αb, M1_ab, M1_αb, M2_ab, M2_αb)
+    return (; jacobians..., rF_ab, rF_αb, rM_ab, rM_αb)
 end
-
 
 """
     expanded_dynamic_element_equilibrium_jacobians(properties)
@@ -2782,7 +2765,36 @@ end
     return jacob
 end
 
-@inline function insert_expanded_element_jacobians!(jacob, indices, force_scaling,
+@inline function insert_expanded_steady_element_jacobians!(jacob, indices, force_scaling,
+    assembly, ielem, properties, compatability, velocities, equilibrium, resultants)
+
+    insert_expanded_dynamic_element_jacobians!(jacob, indices, force_scaling,
+        assembly, ielem, properties, compatability, velocities, equilibrium, resultants)
+
+    @unpack rF_ab, rF_αb, rM_ab, rM_αb = equilibrium
+
+    # jacobians wrt prescribed linear and angular acceleration
+    irow = indices.irow_elem[ielem]
+    icol = indices.icol_body
+
+    for i = 1:3
+        if !iszero(icol[i])
+            jacob[irow+6:irow+8, icol[i]] .= rF_ab[:,i] ./ force_scaling
+            jacob[irow+9:irow+11, icol[i]] .= rM_ab[:,i] ./ force_scaling
+        end
+    end
+
+    for i = 4:6
+        if !iszero(icol[i])
+            jacob[irow+6:irow+8, icol[i]] .= rF_αb[:,i-3] ./ force_scaling
+            jacob[irow+9:irow+11, icol[i]] .= rM_αb[:,i-3] ./ force_scaling
+        end
+    end
+
+    return jacob
+end
+
+@inline function insert_expanded_dynamic_element_jacobians!(jacob, indices, force_scaling,
     assembly, ielem, properties, compatability, velocities, equilibrium, resultants)
 
     @unpack u1_u1, u2_u2, θ1_θ1, θ2_θ2 = properties
@@ -3321,7 +3333,7 @@ analysis into the system jacobian matrix.
 
     resultants = expanded_element_resultant_jacobians(properties)
 
-    insert_expanded_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
+    insert_expanded_steady_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
         properties, compatability, velocities, equilibrium, resultants)
 
     return jacob
@@ -3352,7 +3364,7 @@ analysis into the system jacobian matrix.
 
     resultants = expanded_element_resultant_jacobians(properties)
 
-    insert_expanded_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
+    insert_expanded_dynamic_element_jacobians!(jacob, indices, force_scaling, assembly, ielem, 
         properties, compatability, velocities, equilibrium, resultants)
 
     return jacob
