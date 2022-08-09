@@ -881,6 +881,10 @@ function expanded_steady_system_residual!(resid, x, indices, force_scaling, stru
     assembly, prescribed_conditions, distributed_loads, point_masses, gravity, 
     linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
+    # overwrite prescribed body frame accelerations (if necessary)
+    linear_acceleration, angular_acceleration = body_accelerations(x, indices.icol_body, 
+        linear_acceleration, angular_acceleration)
+
     # point residuals
     for ipoint = 1:length(assembly.points)
         expanded_steady_point_residual!(resid, x, indices, force_scaling, assembly, ipoint, 
