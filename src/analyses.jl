@@ -1074,53 +1074,47 @@ function initial_condition_analysis!(system, assembly, t0;
     ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(t0))
     αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(t0))
 
-    # # --- Determine whether all rigid body modes are constrained --- #
+    # --- Determine whether all rigid body modes are constrained --- #
 
-    # # save original prescribed conditions
-    # original_pcond = pcond
+    # find unconstrained rigid body modes
+    not_constrained = (reduce(.&, [.!p.pd for (i,p) in pcond]))
 
-    # # find unconstrained rigid body modes
-    # not_constrained = (reduce(.&, [.!p.pd for (i,p) in pcond]))
+    # constrain unconstrained rigid body modes
+    if any(not_constrained)
+        # create copy of the original prescribed conditions (so we don't overwrite them)
+        pcond = copy(pcond)
 
-    # # constrain unconstrained rigid body modes
-    # if any(not_constrained)
-    #     # create copy of the original prescribed conditions
-    #     pcond = copy(pcond)
+        # unpack prescribed condition fields
+        if haskey(pcond, 1)
+            @unpack pd, pl, u, theta, F, M, Ff, Mf = pcond[1]
+        else
+            pd = @SVector zeros(Bool, 6)
+            pl = @SVector ones(Bool, 6)
+            u = @SVector zeros(Float64, 3)
+            theta = @SVector zeros(Float64, 3)
+            F = @SVector zeros(Float64, 3)
+            M = @SVector zeros(Float64, 3)
+            Ff = @SVector zeros(Float64, 3)
+            Mf = @SVector zeros(Float64, 3)
+        end
 
-    #     # unpack prescribed condition fields
-    #     if haskey(pcond, 1)
-    #         @unpack pd, pl, u, theta, F, M, Ff, Mf = pcond[1]
-    #     else
-    #         pd = @SVector zeros(Bool, 6)
-    #         pl = @SVector ones(Bool, 6)
-    #         u = @SVector zeros(Float64, 3)
-    #         theta = @SVector zeros(Float64, 3)
-    #         F = @SVector zeros(Float64, 3)
-    #         M = @SVector zeros(Float64, 3)
-    #         Ff = @SVector zeros(Float64, 3)
-    #         Mf = @SVector zeros(Float64, 3)
-    #     end
+        # add constraints for unconstrained rigid body modes
+        for i = 1:3
+            # prescribe linear displacement, introduce linear acceleration state variable
+            if not_constrained[i]
+                pd = setindex(pd, true, i)
+                u = setindex(u, u0[1][i], i)
+            end
+            # prescribe angular displacement, introduce angular acceleration state variable
+            if not_constrained[3+i]
+                pd = setindex(pd, true, 3+i)
+                theta = setindex(theta, theta0[1][i], i)
+            end
+        end
 
-    #     # add constraints for unconstrained rigid body modes
-    #     for i = 1:3
-    #         # prescribe linear displacement, introduce linear acceleration state variable
-    #         if not_constrained[i]
-    #             pd = setindex(pd, true, i)
-    #             u = setindex(u, u0[1][i], i)
-    #         end
-    #         # prescribe angular displacement, introduce angular acceleration state variable
-    #         if not_constrained[3+i]
-    #             pd = setindex(pd, true, 3+i)
-    #             theta = setindex(theta, theta0[1][i], i)
-    #         end
-    #     end
-
-    #     # overwrite original prescribed condition
-    #     pcond[1] = PrescribedConditions(pd, pl, u, theta, F, M, Ff, Mf)
-    # end
-
-    # not_constrained = (reduce(.&, [.!p.pd for (i,p) in pcond]))
-    # println(not_constrained)
+        # overwrite original prescribed condition
+        pcond[1] = PrescribedConditions(pd, pl, u, theta, F, M, Ff, Mf)
+    end
 
     # indices corresponding to rigid body acceleration state variables
     update_body_acceleration_indices!(system, pcond)
