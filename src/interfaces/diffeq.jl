@@ -11,18 +11,21 @@ may be used with the DifferentialEquations package.
     nonlinear beam elements.
  - `tspan`: Time span over which to solve the ODE problem
  - `p`: Parameters, as defined in conjunction with the keyword argument `pfunc`.
-    Defaults to an empty named tuple.   
+    Defaults to an empty named tuple.  
 
 # Keyword Arguments
  - `pfunc = (p, t) -> p`: Function which returns a named tuple with parameters as 
     described in [`ODEFunction`](@ref).
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
- - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.  
+ - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.
+
+Additional keyword arguments are passed forward to ODEProblem.
 """
 function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan, p=(;); 
     pfunc = (p, t) -> p,
     structural_damping = true,
-    constant_mass_matrix = typeof(system) <: ExpandedSystem)
+    constant_mass_matrix = typeof(system) <: ExpandedSystem,
+    kwargs...)
 
     # extract parameters from the parameter vector using `pfunc`
     parameters = pfunc(p, tspan[1])
@@ -45,7 +48,7 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan, p=(;);
         prescribed_conditions = pcond,
         point_masses = pmass)
 
-    return SciMLBase.ODEProblem{true}(func, u0, tspan, p)
+    return SciMLBase.ODEProblem{true}(func, u0, tspan, p; kwargs...)
 end
 
 """
