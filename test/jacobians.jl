@@ -101,7 +101,7 @@ end
     x = range(0, L, length=nelem+1)
     y = zero(x)
     z = zero(x)
-    points = [[x[i],y[i],z[i]] in eachindex(x)]
+    points = [[x[i],y[i],z[i]] for i in eachindex(x)]
 
     # index of endpoints of each beam element
     start = 1:nelem
