@@ -1077,7 +1077,7 @@ function initial_condition_analysis!(system, assembly, t0;
     # --- Determine whether all rigid body modes are constrained --- #
 
     # find unconstrained rigid body modes
-    not_constrained = (reduce(.&, [.!p.pd for (i,p) in pcond]))
+    not_constrained = reduce(.&, [.!p.pd for (i,p) in pcond])
 
     # constrain unconstrained rigid body modes
     if any(not_constrained)
