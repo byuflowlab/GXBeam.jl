@@ -1929,6 +1929,10 @@ the system jacobian matrix for a constant mass matrix system.
     insert_expanded_dynamic_point_jacobians!(jacob, indices, force_scaling, ipoint, properties, 
         resultants, velocities)
 
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
     @unpack u_u, θ_θ = properties
 
     @unpack F_u, F_ab, F_αb, M_u, M_ab, M_αb = resultants
@@ -1936,8 +1940,8 @@ the system jacobian matrix for a constant mass matrix system.
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
 
-    @views jacob[irow:irow+2, icol:icol+2] .-= F_u*u_u ./ force_scaling
-    @views jacob[irow+3:irow+5, icol:icol+2] .-= M_u*u_u ./ force_scaling
+    @views jacob[irow+6:irow+8, icol:icol+2] .-= F_u*u_u ./ force_scaling
+    @views jacob[irow+9:irow+11, icol:icol+2] .-= M_u*u_u ./ force_scaling
 
     # jacobians of prescribed linear and angular acceleration
     irow = indices.irow_point[ipoint]
@@ -1945,15 +1949,15 @@ the system jacobian matrix for a constant mass matrix system.
 
     for i = 1:3
         if !iszero(icol[i])
-            jacob[irow:irow+2, icol[i]] .= -F_ab[:,i] ./ force_scaling
-            jacob[irow+3:irow+5, icol[i]] .= -M_ab[:,i] ./ force_scaling
+            jacob[irow+6:irow+8, icol[i]] .= -F_ab[:,i] ./ force_scaling
+            jacob[irow+9:irow+11, icol[i]] .= -M_ab[:,i] ./ force_scaling
         end
     end
 
     for i = 4:6
         if !iszero(icol[i])
-            jacob[irow:irow+2, icol[i]] .= -F_αb[:,i-3] ./ force_scaling
-            jacob[irow+3:irow+5, icol[i]] .= -M_αb[:,i-3] ./ force_scaling
+            jacob[irow+6:irow+8, icol[i]] .= -F_αb[:,i-3] ./ force_scaling
+            jacob[irow+9:irow+11, icol[i]] .= -M_αb[:,i-3] ./ force_scaling
         end
     end
 
@@ -1970,17 +1974,33 @@ the system jacobian matrix for a constant mass matrix system.
 @inline function insert_expanded_dynamic_point_jacobians!(jacob, indices, force_scaling, ipoint,  
     properties, resultants, velocities)
 
-    insert_dynamic_point_jacobians!(jacob, indices, force_scaling, ipoint, properties, 
-        resultants, velocities)
 
-    @unpack θ_θ = properties
-
-    @unpack rV_θ = velocities
+    @unpack u_u, θ_θ, F_F, M_M = properties
+    @unpack F_θ, F_V, F_Ω, M_θ, M_V, M_Ω = resultants
+    @unpack rV_u, rV_θ, rV_V, rΩ_θ, rΩ_Ω = velocities
 
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
 
-    jacob[irow+6:irow+8, icol+3:icol+5] .= rV_θ*θ_θ
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
+    jacob[irow:irow+2, icol:icol+2] .= rV_u*u_u
+    jacob[irow:irow+2, icol+3:icol+5] .= rV_θ*θ_θ
+    jacob[irow:irow+2, icol+6:icol+8] .= rV_V
+
+    jacob[irow+3:irow+5, icol+3:icol+5] .= rΩ_θ*θ_θ
+    jacob[irow+3:irow+5, icol+9:icol+11] .= rΩ_Ω
+
+    jacob[irow+6:irow+8, icol:icol+2] .= -F_F
+    jacob[irow+6:irow+8, icol+3:icol+5] .= -F_θ*θ_θ ./ force_scaling
+    jacob[irow+6:irow+8, icol+6:icol+8] .= -F_V ./ force_scaling
+    jacob[irow+6:irow+8, icol+9:icol+11] .= -F_Ω ./ force_scaling
+
+    jacob[irow+9:irow+11, icol+3:icol+5] .= -M_M - M_θ*θ_θ ./ force_scaling
+    jacob[irow+9:irow+11, icol+6:icol+8] .= -M_V ./ force_scaling
+    jacob[irow+9:irow+11, icol+9:icol+11] .= -M_Ω ./ force_scaling
 
     return jacob
 end
@@ -2008,8 +2028,38 @@ matrix.
     @views jacob[irow+3:irow+5, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
     @views jacob[irow+3:irow+5, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
 
-    @views jacob[irow+6:irow+8, icol:icol+2] .+= rV_udot * udot_udot .* gamma
-    @views jacob[irow+9:irow+11, icol+3:icol+5] .+= rΩ_θdot * θdot_θdot .* gamma
+    return jacob
+end
+
+"""
+    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint, 
+        properties, resultants, velocities)
+
+Insert the mass matrix jacobian entries corresponding to a point into the system jacobian 
+matrix.
+"""
+@inline function insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
+    properties, resultants, velocities)
+
+    @unpack udot_udot, θdot_θdot = properties
+    @unpack F_Vdot, F_Ωdot, M_Vdot, M_Ωdot = resultants
+    @unpack rV_udot, rΩ_θdot = velocities
+
+    irow = indices.irow_point[ipoint]
+    icol = indices.icol_point[ipoint]
+
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
+    @views jacob[irow:irow+2, icol:icol+2] .+= rV_udot * udot_udot .* gamma
+    @views jacob[irow+3:irow+5, icol+3:icol+5] .+= rΩ_θdot * θdot_θdot .* gamma
+
+    @views jacob[irow+6:irow+8, icol+6:icol+8] .-= F_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+6:irow+8, icol+9:icol+11] .-= F_Ωdot .* gamma ./ force_scaling
+
+    @views jacob[irow+9:irow+11, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+9:irow+11, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
 
     return jacob
 end
@@ -2181,10 +2231,14 @@ vector for a constant mass matrix system.
 
     rV, rΩ = expanded_point_velocity_residuals(properties)
 
-    resid[irow:irow+2] .= -F ./ force_scaling
-    resid[irow+3:irow+5] .= -M ./ force_scaling
-    resid[irow+6:irow+8] .= rV
-    resid[irow+9:irow+11] .= rΩ
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
+    resid[irow:irow+2] .= rV
+    resid[irow+3:irow+5] .= rΩ
+    resid[irow+6:irow+8] .= -F ./ force_scaling
+    resid[irow+9:irow+11] .= -M ./ force_scaling
 
     return resid
 end
@@ -2208,10 +2262,14 @@ vector for a constant mass matrix system.
 
     rV, rΩ = expanded_point_velocity_residuals(properties)
 
-    resid[irow:irow+2] .= -F ./ force_scaling
-    resid[irow+3:irow+5] .= -M ./ force_scaling
-    resid[irow+6:irow+8] .= rV
-    resid[irow+9:irow+11] .= rΩ
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
+    resid[irow:irow+2] .= rV
+    resid[irow+3:irow+5] .= rΩ
+    resid[irow+6:irow+8] .= -F ./ force_scaling
+    resid[irow+9:irow+11] .= -M ./ force_scaling
 
     return resid
 end
@@ -2453,8 +2511,8 @@ system jacobian matrix for a constant mass matrix system
 
     velocities = mass_matrix_point_velocity_jacobians(properties)
     
-    insert_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint, 
-        properties, resultants, velocities)
+    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, 
+        ipoint, properties, resultants, velocities)
 
     return jacob
 end

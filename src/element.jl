@@ -2476,21 +2476,39 @@ for a constant mass matrix system.
 @inline function insert_expanded_element_residuals!(resid, indices, force_scaling, assembly, 
     ielem, compatability, velocities, equilibrium, resultants)
 
-    insert_element_residuals!(resid, indices, force_scaling, assembly, ielem, 
-        compatability, resultants)
-
+    @unpack ru, rθ = compatability
     @unpack rV, rΩ = velocities
     @unpack rF, rM = equilibrium
+    @unpack F1, F2, M1, M2 = resultants
 
     irow = indices.irow_elem[ielem]
-
-    # equilibrium residuals
-    resid[irow+6:irow+8] .= rF ./ force_scaling
-    resid[irow+9:irow+11] .= rM ./ force_scaling
     
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
+    # compatability equations
+    irow = indices.irow_elem[ielem]
+    resid[irow:irow+2] .= ru
+    resid[irow+3:irow+5] .= rθ
+
     # velocity residuals
-    resid[irow+12:irow+14] .= rV
-    resid[irow+15:irow+17] .= rΩ
+    resid[irow+6:irow+8] .= rV
+    resid[irow+9:irow+11] .= rΩ
+
+    # equilibrium residuals for the beam element
+    resid[irow+12:irow+14] .= rF ./ force_scaling
+    resid[irow+15:irow+17] .= rM ./ force_scaling
+
+    # equilibrium equations for the start of the beam element
+    irow = indices.irow_point[assembly.start[ielem]]
+    @views resid[irow+6:irow+8] .-= F1 ./ force_scaling
+    @views resid[irow+9:irow+11] .-= M1 ./ force_scaling
+
+    # equilibrium equations for the end of the beam element
+    irow = indices.irow_point[assembly.stop[ielem]]
+    @views resid[irow+6:irow+8] .+= F2 ./ force_scaling
+    @views resid[irow+9:irow+11] .+= M2 ./ force_scaling
 
     return resid
 end
@@ -2773,21 +2791,25 @@ end
 
     @unpack rF_ab, rF_αb, rM_ab, rM_αb = equilibrium
 
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
     # jacobians wrt prescribed linear and angular acceleration
     irow = indices.irow_elem[ielem]
     icol = indices.icol_body
 
     for i = 1:3
         if !iszero(icol[i])
-            jacob[irow+6:irow+8, icol[i]] .= rF_ab[:,i] ./ force_scaling
-            jacob[irow+9:irow+11, icol[i]] .= rM_ab[:,i] ./ force_scaling
+            jacob[irow+12:irow+14, icol[i]] .= rF_ab[:,i] ./ force_scaling
+            jacob[irow+15:irow+17, icol[i]] .= rM_ab[:,i] ./ force_scaling
         end
     end
 
     for i = 4:6
         if !iszero(icol[i])
-            jacob[irow+6:irow+8, icol[i]] .= rF_αb[:,i-3] ./ force_scaling
-            jacob[irow+9:irow+11, icol[i]] .= rM_αb[:,i-3] ./ force_scaling
+            jacob[irow+12:irow+14, icol[i]] .= rF_αb[:,i-3] ./ force_scaling
+            jacob[irow+15:irow+17, icol[i]] .= rM_αb[:,i-3] ./ force_scaling
         end
     end
 
@@ -2817,6 +2839,10 @@ end
 
     irow = indices.irow_elem[ielem]
 
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
     # element compatability residuals
     jacob[irow:irow+2, icol1:icol1+2] .= ru_u1*u1_u1
     jacob[irow:irow+2, icol2:icol2+2] .= ru_u2*u2_u2
@@ -2839,86 +2865,57 @@ end
     jacob[irow+3:irow+5, icol+6:icol+8] .= rθ_F2 .* force_scaling
     jacob[irow+3:irow+5, icol+9:icol+11] .= rθ_M2 .* force_scaling
 
-    # element equilibrium residuals
-    jacob[irow+6:irow+8, icol1:icol1+2] .= rF_u1*u1_u1 ./ force_scaling
-    jacob[irow+6:irow+8, icol2:icol2+2] .= rF_u2*u2_u2 ./ force_scaling
-    jacob[irow+6:irow+8, icol1+3:icol1+5] .= rF_θ1*θ1_θ1 ./ force_scaling
-    jacob[irow+6:irow+8, icol2+3:icol2+5] .= rF_θ2*θ2_θ2 ./ force_scaling
-    jacob[irow+6:irow+8, icol:icol+2] .= rF_F1
-    jacob[irow+6:irow+8, icol+6:icol+8] .= rF_F2
-    jacob[irow+6:irow+8, icol+12:icol+14] .= rF_V ./ force_scaling
-    jacob[irow+6:irow+8, icol+15:icol+17] .= rF_Ω ./ force_scaling
-
-    jacob[irow+9:irow+11, icol1:icol1+2] .= rM_u1*u1_u1 ./ force_scaling
-    jacob[irow+9:irow+11, icol2:icol2+2] .= rM_u2*u2_u2 ./ force_scaling
-    jacob[irow+9:irow+11, icol1+3:icol1+5] .= rM_θ1*θ1_θ1 ./ force_scaling
-    jacob[irow+9:irow+11, icol2+3:icol2+5] .= rM_θ2*θ2_θ2 ./ force_scaling
-    jacob[irow+9:irow+11, icol1+6:icol1+8] .= rM_V1 ./ force_scaling
-    jacob[irow+9:irow+11, icol2+6:icol2+8] .= rM_V2 ./ force_scaling
-    jacob[irow+9:irow+11, icol:icol+2] .= rM_F1
-    jacob[irow+9:irow+11, icol+3:icol+5] .= rM_M1
-    jacob[irow+9:irow+11, icol+6:icol+8] .= rM_F2
-    jacob[irow+9:irow+11, icol+9:icol+11] .= rM_M2
-    jacob[irow+9:irow+11, icol+12:icol+14] .= rM_V ./ force_scaling
-    jacob[irow+9:irow+11, icol+15:icol+17] .= rM_Ω ./ force_scaling
-
     # velocity residuals
+    jacob[irow+6:irow+8, icol1:icol1+2] .= rV_u1*u1_u1
+    jacob[irow+6:irow+8, icol2:icol2+2] .= rV_u2*u2_u2
+    jacob[irow+6:irow+8, icol1+3:icol1+5] .= rV_θ1*θ1_θ1
+    jacob[irow+6:irow+8, icol2+3:icol2+5] .= rV_θ2*θ2_θ2
+    jacob[irow+6:irow+8, icol+12:icol+14] .= rV_V
 
-    jacob[irow+12:irow+14, icol1:icol1+2] .= rV_u1*u1_u1
-    jacob[irow+12:irow+14, icol2:icol2+2] .= rV_u2*u2_u2
-    jacob[irow+12:irow+14, icol1+3:icol1+5] .= rV_θ1*θ1_θ1
-    jacob[irow+12:irow+14, icol2+3:icol2+5] .= rV_θ2*θ2_θ2
-    jacob[irow+12:irow+14, icol+12:icol+14] .= rV_V
+    jacob[irow+9:irow+11, icol1+3:icol1+5] .= rΩ_θ1*θ1_θ1
+    jacob[irow+9:irow+11, icol2+3:icol2+5] .= rΩ_θ2*θ2_θ2
+    jacob[irow+9:irow+11, icol+15:icol+17] .= rΩ_Ω
 
-    jacob[irow+15:irow+17, icol1+3:icol1+5] .= rΩ_θ1*θ1_θ1
-    jacob[irow+15:irow+17, icol2+3:icol2+5] .= rΩ_θ2*θ2_θ2
-    jacob[irow+15:irow+17, icol+15:icol+17] .= rΩ_Ω
+    # element equilibrium residuals
+    jacob[irow+12:irow+14, icol1:icol1+2] .= rF_u1*u1_u1 ./ force_scaling
+    jacob[irow+12:irow+14, icol2:icol2+2] .= rF_u2*u2_u2 ./ force_scaling
+    jacob[irow+12:irow+14, icol1+3:icol1+5] .= rF_θ1*θ1_θ1 ./ force_scaling
+    jacob[irow+12:irow+14, icol2+3:icol2+5] .= rF_θ2*θ2_θ2 ./ force_scaling
+    jacob[irow+12:irow+14, icol:icol+2] .= rF_F1
+    jacob[irow+12:irow+14, icol+6:icol+8] .= rF_F2
+    jacob[irow+12:irow+14, icol+12:icol+14] .= rF_V ./ force_scaling
+    jacob[irow+12:irow+14, icol+15:icol+17] .= rF_Ω ./ force_scaling
+
+    jacob[irow+15:irow+17, icol1:icol1+2] .= rM_u1*u1_u1 ./ force_scaling
+    jacob[irow+15:irow+17, icol2:icol2+2] .= rM_u2*u2_u2 ./ force_scaling
+    jacob[irow+15:irow+17, icol1+3:icol1+5] .= rM_θ1*θ1_θ1 ./ force_scaling
+    jacob[irow+15:irow+17, icol2+3:icol2+5] .= rM_θ2*θ2_θ2 ./ force_scaling
+    jacob[irow+15:irow+17, icol1+6:icol1+8] .= rM_V1 ./ force_scaling
+    jacob[irow+15:irow+17, icol2+6:icol2+8] .= rM_V2 ./ force_scaling
+    jacob[irow+15:irow+17, icol:icol+2] .= rM_F1
+    jacob[irow+15:irow+17, icol+3:icol+5] .= rM_M1
+    jacob[irow+15:irow+17, icol+6:icol+8] .= rM_F2
+    jacob[irow+15:irow+17, icol+9:icol+11] .= rM_M2
+    jacob[irow+15:irow+17, icol+12:icol+14] .= rM_V ./ force_scaling
+    jacob[irow+15:irow+17, icol+15:icol+17] .= rM_Ω ./ force_scaling
 
     # equilibrium equations for the start of the beam element
     irow = indices.irow_point[assembly.start[ielem]]
-    @views jacob[irow:irow+2, icol1+3:icol1+5] .-= F1_θ1*θ1_θ1 ./ force_scaling
-    @views jacob[irow:irow+2, icol2+3:icol2+5] .-= F1_θ2*θ2_θ2 ./ force_scaling
-    @views jacob[irow:irow+2, icol:icol+2] .-= F1_F1
-    @views jacob[irow+3:irow+5, icol1+3:icol1+5] .-= M1_θ1*θ1_θ1 ./ force_scaling
-    @views jacob[irow+3:irow+5, icol2+3:icol2+5] .-= M1_θ2*θ2_θ2 ./ force_scaling
-    @views jacob[irow+3:irow+5, icol+3:icol+5] .-= M1_M1
+    @views jacob[irow+6:irow+8, icol1+3:icol1+5] .-= F1_θ1*θ1_θ1 ./ force_scaling
+    @views jacob[irow+6:irow+8, icol2+3:icol2+5] .-= F1_θ2*θ2_θ2 ./ force_scaling
+    @views jacob[irow+6:irow+8, icol:icol+2] .-= F1_F1
+    @views jacob[irow+9:irow+11, icol1+3:icol1+5] .-= M1_θ1*θ1_θ1 ./ force_scaling
+    @views jacob[irow+9:irow+11, icol2+3:icol2+5] .-= M1_θ2*θ2_θ2 ./ force_scaling
+    @views jacob[irow+9:irow+11, icol+3:icol+5] .-= M1_M1
 
     # equilibrium equations for the end of the beam element
     irow = indices.irow_point[assembly.stop[ielem]]
-    @views jacob[irow:irow+2, icol1+3:icol1+5] .+= F2_θ1*θ1_θ1 ./ force_scaling
-    @views jacob[irow:irow+2, icol2+3:icol2+5] .+= F2_θ2*θ2_θ2 ./ force_scaling
-    @views jacob[irow:irow+2, icol+6:icol+8] .+= F2_F2
-    @views jacob[irow+3:irow+5, icol1+3:icol1+5] .+= M2_θ1*θ1_θ1 ./ force_scaling
-    @views jacob[irow+3:irow+5, icol2+3:icol2+5] .+= M2_θ2*θ2_θ2 ./ force_scaling
-    @views jacob[irow+3:irow+5, icol+9:icol+11] .+= M2_M2
-
-    return jacob
-end
-
-@inline function insert_expanded_mass_matrix_element_jacobians!(jacob, gamma, indices, 
-    force_scaling, assembly, ielem, equilibrium, velocities)
-
-    @unpack rF_Vdot, rF_Ωdot, rM_Vdot, rM_Ωdot = equilibrium
-
-    rV_u1dot, rV_u2dot, rΩ_θ1dot, rΩ_θ2dot = velocities
-
-    irow = indices.irow_elem[ielem] 
-    icol = indices.icol_elem[ielem]
-    icol1 = indices.icol_point[assembly.start[ielem]]
-    icol2 = indices.icol_point[assembly.stop[ielem]]
-
-    # equilibrium residuals
-    @views jacob[irow+6:irow+8, icol+12:icol+14] .+= rF_Vdot .* gamma ./ force_scaling
-    @views jacob[irow+6:irow+8, icol+15:icol+17] .+= rF_Ωdot .* gamma ./ force_scaling
-
-    @views jacob[irow+9:irow+11, icol+12:icol+14] .+= rM_Vdot .* gamma ./ force_scaling
-    @views jacob[irow+9:irow+11, icol+15:icol+17] .+= rM_Ωdot .* gamma ./ force_scaling
-
-    # velocity residuals
-    @views jacob[irow+12:irow+14, icol1:icol1+2] .+= rV_u1dot .* gamma
-    @views jacob[irow+12:irow+14, icol2:icol2+2] .+= rV_u2dot .* gamma
-    @views jacob[irow+15:irow+17, icol1+3:icol1+5] .+= rΩ_θ1dot .* gamma
-    @views jacob[irow+15:irow+17, icol2+3:icol2+5] .+= rΩ_θ2dot .* gamma
+    @views jacob[irow+6:irow+8, icol1+3:icol1+5] .+= F2_θ1*θ1_θ1 ./ force_scaling
+    @views jacob[irow+6:irow+8, icol2+3:icol2+5] .+= F2_θ2*θ2_θ2 ./ force_scaling
+    @views jacob[irow+6:irow+8, icol+6:icol+8] .+= F2_F2
+    @views jacob[irow+9:irow+11, icol1+3:icol1+5] .+= M2_θ1*θ1_θ1 ./ force_scaling
+    @views jacob[irow+9:irow+11, icol2+3:icol2+5] .+= M2_θ2*θ2_θ2 ./ force_scaling
+    @views jacob[irow+9:irow+11, icol+9:icol+11] .+= M2_M2
 
     return jacob
 end
@@ -2963,6 +2960,39 @@ end
 
     @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2dot .* gamma ./ force_scaling
     @views jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2dot .* gamma ./ force_scaling
+
+    return jacob
+end
+
+@inline function insert_expanded_mass_matrix_element_jacobians!(jacob, gamma, indices, 
+    force_scaling, assembly, ielem, equilibrium, velocities)
+
+    @unpack rF_Vdot, rF_Ωdot, rM_Vdot, rM_Ωdot = equilibrium
+
+    rV_u1dot, rV_u2dot, rΩ_θ1dot, rΩ_θ2dot = velocities
+
+    irow = indices.irow_elem[ielem] 
+    icol = indices.icol_elem[ielem]
+    icol1 = indices.icol_point[assembly.start[ielem]]
+    icol2 = indices.icol_point[assembly.stop[ielem]]
+
+    # NOTE: We have to switch the order of the equations here in order to match the indices
+    # of the differential variables with their equations.  This is done for compatability
+    # with the DiffEqSensitivity package.
+
+    # velocity residuals
+    @views jacob[irow+6:irow+8, icol1:icol1+2] .+= rV_u1dot .* gamma
+    @views jacob[irow+6:irow+8, icol2:icol2+2] .+= rV_u2dot .* gamma
+    @views jacob[irow+9:irow+11, icol1+3:icol1+5] .+= rΩ_θ1dot .* gamma
+    @views jacob[irow+9:irow+11, icol2+3:icol2+5] .+= rΩ_θ2dot .* gamma
+
+    # equilibrium residuals
+    @views jacob[irow+12:irow+14, icol+12:icol+14] .+= rF_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+12:irow+14, icol+15:icol+17] .+= rF_Ωdot .* gamma ./ force_scaling
+
+    @views jacob[irow+15:irow+17, icol+12:icol+14] .+= rM_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+15:irow+17, icol+15:icol+17] .+= rM_Ωdot .* gamma ./ force_scaling
+
 
     return jacob
 end
