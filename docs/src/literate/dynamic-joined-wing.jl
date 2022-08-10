@@ -121,7 +121,8 @@ end
 t = range(0, 0.04, length=1001)
 
 system, history, converged = time_domain_analysis(assembly, t;
-    prescribed_conditions=prescribed_conditions)
+    prescribed_conditions=prescribed_conditions,
+    structural_damping=false)
 
 #!jl nothing #hide
 
@@ -170,7 +171,7 @@ for i = 1:12
     end
 
     plot!(t, y, label="")
-#!nb     plot!(show=true)
+    plot!(show=true) #!nb
 #md     savefig("../assets/dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); #hide 
 #md     closeall() #hide
 end

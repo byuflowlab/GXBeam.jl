@@ -39,7 +39,7 @@ compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
 assembly = Assembly(points, start, stop, compliance=compliance)
 
 ## pre-initialize system storage
-system = System(assembly, true)
+system = StaticSystem(assembly)
 
 ## run an analysis for each prescribed tip load
 states = Vector{AssemblyState{Float64}}(undef, length(P))
@@ -113,26 +113,27 @@ plot(
     ylim = (0, 1.2),
     yticks = 0.0:0.2:1.2,
     ylabel = "Nondimensional Tip Displacements",
+    legend=:bottomright,
     grid = false,
     overwrite_figure=false
     )
 
 plot!([0], [0], color=:black, label="Analytical")
 scatter!([0], [0], color=:black, label="GXBeam")
-plot!([0], [0], color=1, label="Vertical \$\\left(w/L\\right)\$")
-plot!([0], [0], color=2, label="Horizontal \$\\left(-u/L\\right)\$")
-plot!([0], [0], color=3, label="\$ \\theta/(\\pi/2) \$")
+plot!([0], [0], color=1, label="\$ \\theta/(\\pi/2) \$")
+plot!([0], [0], color=2, label="Vertical \$\\left(w/L\\right)\$")
+plot!([0], [0], color=3, label="Horizontal \$\\left(-u/L\\right)\$")
 
-plot!(λ_a, η_a, color=1, label="")
-scatter!(λ, w/L, color=1, label="")
+plot!(λ_a, θ_a*2/pi, color=1, label="")
+scatter!(λ, -4*atan.(θ/4)*2/pi, color=1, label="")
 
-plot!(λ_a, -ξ_a, color=2, label="")
-scatter!(λ, -u/L, color=2, label="")
+plot!(λ_a, η_a, color=2, label="")
+scatter!(λ, w/L, color=2, label="")
 
-plot!(λ_a, θ_a*2/pi, color=3, label="")
-scatter!(λ, -4*atan.(θ/4)*2/pi, color=3, label="")
+plot!(λ_a, -ξ_a, color=3, label="")
+scatter!(λ, -u/L, color=3, label="")
 
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/tipforce-displacement.svg") #hide
 #md closeall() #hide
 #md end #hide

@@ -1,5 +1,3 @@
-using FLOWMath: linear
-
 # conveneince methods for initializing vectors and matrices
 vector(n) = Vector{Float64}(undef, n)
 vector_ints(n) = Vector{Int64}(undef, n)

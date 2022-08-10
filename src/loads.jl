@@ -1,40 +1,50 @@
 """
     PrescribedConditions{T}
 
-Type which contains the forces, moments, displacements, and/or rotations prescribed at a point.
+Type which defines the prescribed displacements and loads at a point.
 
 # Fields:
- - `isforce`: Flag for each degree of freedom indicating whether forces/moments or 
-    displacements are prescribed 
- - `value`: Magnitude of the prescribed force/moment and/or displacement associated 
-    with each degree of freedom 
- - `follower`: Magnitude of the follower force/moment associated with each degree of 
-    freedom (if applicable)
+ - `pd`: Flag for each degree of freedom indicating whether displacements are prescribed
+ - `pl`: Flag for each degree of freedom indicating whether loads are prescribed
+ - `u`: Linear displacement
+ - `theta`: Angular displacement
+ - `F`: External forces
+ - `M`: External moments
+ - `Ff`: Follower forces
+ - `Mf`: Follower moments
 """
 struct PrescribedConditions{T}
-    isforce::SVector{6, Bool}
-    value::SVector{6, T}
-    follower::SVector{6, T}
+    pd::SVector{6, Bool}
+    pl::SVector{6, Bool}
+    u::SVector{3, T}
+    theta::SVector{3, T}
+    F::SVector{3, T}
+    M::SVector{3, T}
+    Ff::SVector{3, T}
+    Mf::SVector{3, T}
 end
 Base.eltype(::PrescribedConditions{T}) where T = T
 
 function PrescribedConditions{T}(p::PrescribedConditions) where T
-    PrescribedConditions{T}(p.isforce, p.value, p.follower)
+    PrescribedConditions{T}(p.pd, p.pl, p.u, p.theta, p.F, p.M, p.Ff, p.Mf)
 end
 
-PrescribedConditions(isforce, value, follower) = PrescribedConditions(isforce, promote(value, follower)...)
+PrescribedConditions(pd, pl, u, theta, F, M, Ff, Mf) = PrescribedConditions(
+    promote(pd, pl)..., promote(u, theta, F, M, Ff, Mf)...)
 
 """
-    PrescribedConditions(t = 0.0; kwargs...)
+    PrescribedConditions(; kwargs...)
 
-Return the prescribed conditions at a point at time `t`.
-
-Individual prescribed conditions may be assigned as either a scalar parameter or
-as a function of time.
+Define the prescribed conditions at a point.  Individual prescribed conditions 
+may be assigned as either a scalar parameter or as a function of time.
 
 Prescribed Wiener-Milenkovic parameters must satisfy the following inequality:
 sqrt(theta_x^2 + theta_y^2 + theta_z^2) <= 4.  Note that this restriction still
 allows all possible rotations to be represented.
+
+Note that if displacements and loads corresponding to the same degree of freedom are 
+prescribed at the same point, the global body-fixed acceleration corresponding to the 
+same degree of freedom will be modified to attempt to satisfy both conditions.
 
 # Keyword Arguments
  - `ux`: Prescribed x-displacement (in the body frame)
@@ -56,7 +66,7 @@ allows all possible rotations to be represented.
  - `My_follower`: Prescribed y-direction follower moment
  - `Mz_follower`: Prescribed z-direction follower moment
 """
-function PrescribedConditions(t = 0.0;
+function PrescribedConditions(;
     ux = nothing,
     uy = nothing,
     uz = nothing,
@@ -76,90 +86,163 @@ function PrescribedConditions(t = 0.0;
     My_follower = nothing,
     Mz_follower = nothing)
 
-    # Set function for first slot
+    # first degree of freedom
     if isnothing(ux)
-        f1 = true
-        v1 = isnothing(Fx) ? 0.0 : typeof(Fx) <: Number ? Fx : Fx(t)
-        v1_f = isnothing(Fx_follower) ? 0.0 : typeof(Fx_follower) <: Number ? Fx_follower : Fx_follower(t)
-    elseif !isnothing(ux) && (isnothing(Fx) && isnothing(Fx_follower))
-        f1 = false
-        v1 = isnothing(ux) ? 0.0 : typeof(ux) <: Number ? ux : ux(t)
-        v1_f = 0.0
+        # prescribed load, displacement state variable
+        pd1 = false
+        pl1 = true
+        ux = NaN
+        Fx = isnothing(Fx) ? 0.0 : Fx
+        Fx_follower = isnothing(Fx_follower) ? 0.0 : Fx_follower
+    elseif isnothing(Fx) && isnothing(Fx_follower)
+        # prescribed displacement, load state variable
+        pd1 = true
+        pl1 = false
+        ux = isnothing(ux) ? 0.0 : ux
+        Fx = NaN
+        Fx_follower = 0.0
     else
-        error("Both `ux` and `Fx` or `Fx_follower` cannot be specified at the same time")
+        # prescribed displacement and load, body-fixed acceleration state variable
+        pd1 = true
+        pl1 = true
+        ux = isnothing(ux) ? 0.0 : ux
+        Fx = isnothing(Fx) ? 0.0 : Fx
+        Fx_follower = isnothing(Fx_follower) ? 0.0 : Fx_follower
     end
 
-    # Set function for second slot
+    # second degree of freedom
     if isnothing(uy)
-        f2 = true
-        v2 = isnothing(Fy) ? 0.0 : typeof(Fy) <: Number ? Fy : Fy(t)
-        v2_f = isnothing(Fy_follower) ? 0.0 : typeof(Fy_follower) <: Number ? Fy_follower : Fy_follower(t)
-    elseif !isnothing(uy) && (isnothing(Fy) && isnothing(Fy_follower))
-        f2 = false
-        v2 = isnothing(uy) ? 0.0 : typeof(uy) <: Number ? uy : uy(t)
-        v2_f = 0.0
+        # prescribed load, displacement state variable
+        pd2 = false
+        pl2 = true
+        uy = NaN
+        Fy = isnothing(Fy) ? 0.0 : Fy
+        Fy_follower = isnothing(Fy_follower) ? 0.0 : Fy_follower
+    elseif isnothing(Fz) && isnothing(Fz_follower)
+        # prescribed displacement, load state variable
+        pd2 = true
+        pl2 = false
+        uy = isnothing(uy) ? 0.0 : uy
+        Fy = NaN
+        Fy_follower = 0.0
     else
-        error("Both `uy` and `Fy` or `Fy_follower` cannot be specified at the same time")
+        # prescribed displacement and load, body-fixed acceleration state variable
+        pd2 = true
+        pl2 = true
+        uy = isnothing(uy) ? 0.0 : uy
+        Fy = isnothing(Fy) ? 0.0 : Fy
+        Fy_follower = isnothing(Fy_follower) ? 0.0 : Fy_follower
     end
 
-    # Set function for third slot
+    # third degree of freedom
     if isnothing(uz)
-        f3 = true
-        v3 = isnothing(Fz) ? 0.0 : typeof(Fz) <: Number ? Fz : Fz(t)
-        v3_f = isnothing(Fz_follower) ? 0.0 : typeof(Fz_follower) <: Number ? Fz_follower : Fz_follower(t)
-    elseif !isnothing(uz) && (isnothing(Fz) && isnothing(Fz_follower))
-        f3 = false
-        v3 = isnothing(uz) ? 0.0 : typeof(uz) <: Number ? uz : uz(t)
-        v3_f = 0.0
+        # prescribed load, displacement state variable
+        pd3 = false
+        pl3 = true
+        uz = NaN
+        Fz = isnothing(Fz) ? 0.0 : Fz
+        Fz_follower = isnothing(Fz_follower) ? 0.0 : Fz_follower
+    elseif isnothing(Fz) && isnothing(Fz_follower)
+        # prescribed displacement, load state variable
+        pd3 = true
+        pl3 = false
+        uz = isnothing(uz) ? 0.0 : uz
+        Fz = NaN
+        Fz_follower = 0.0
     else
-        error("Both `uz` and `Fz` or `Fz_follower` cannot be specified at the same time")
+        # prescribed displacement and load, body-fixed acceleration state variable
+        pd3 = true
+        pl3 = true
+        uz = isnothing(uz) ? 0.0 : uz
+        Fz = isnothing(Fz) ? 0.0 : Fz
+        Fz_follower = isnothing(Fz_follower) ? 0.0 : Fz_follower
     end
 
-    # Set function for fourth slot
+    # fourth degree of freedom
     if isnothing(theta_x)
-        f4 = true
-        v4 = isnothing(Mx) ? 0.0 : typeof(Mx) <: Number ? Mx : Mx(t)
-        v4_f = isnothing(Mx_follower) ? 0.0 : typeof(Mx_follower) <: Number ? Mx_follower : Mx_follower(t)
-    elseif !isnothing(theta_x) && (isnothing(Mx) && isnothing(Mx_follower))
-        f4 = false
-        v4 = isnothing(theta_x) ? 0.0 : typeof(theta_x) <: Number ? theta_x : theta_x(t)
-        v4_f = 0.0
+        # prescribed load, displacement state variable
+        pd4 = false
+        pl4 = true
+        theta_x = NaN
+        Mx = isnothing(Mx) ? 0.0 : Mx
+        Mx_follower = isnothing(Mx_follower) ? 0.0 : Mx_follower
+    elseif isnothing(Mx) && isnothing(Mx_follower)
+        # prescribed displacement, load state variable
+        pd4 = true
+        pl4 = false
+        theta_x = isnothing(theta_x) ? 0.0 : theta_x
+        Mx = NaN
+        Mx_follower = 0.0
     else
-        error("Both `theta_x` and `Mx` or `Mx_follower` cannot be specified at the same time")
+        # prescribed displacement and load, body-fixed acceleration state variable
+        pd4 = true
+        pl4 = true
+        theta_x = isnothing(theta_x) ? 0.0 : theta_x
+        Mx = isnothing(Mx) ? 0.0 : Mx
+        Mx_follower = isnothing(Mx_follower) ? 0.0 : Mx_follower
     end
 
-    # Set function for fifth slot
+    # fifth degree of freedom
     if isnothing(theta_y)
-        f5 = true
-        v5 = isnothing(My) ? 0.0 : typeof(My) <: Number ? My : My(t)
-        v5_f = isnothing(My_follower) ? 0.0 : typeof(My_follower) <: Number ? My_follower : My_follower(t)
-    elseif !isnothing(theta_y) && (isnothing(My) && isnothing(My_follower))
-        f5 = false
-        v5 = isnothing(theta_y) ? 0.0 : typeof(theta_y) <: Number ? theta_y : theta_y(t)
-        v5_f = 0.0
+        # prescribed load, displacement state variable
+        pd5 = false
+        pl5 = true
+        theta_y = NaN
+        My = isnothing(My) ? 0.0 : My
+        My_follower = isnothing(My_follower) ? 0.0 : My_follower
+    elseif isnothing(My) && isnothing(My_follower)
+        # prescribed displacement, load state variable
+        pd5 = true
+        pl5 = false
+        theta_y = isnothing(theta_y) ? 0.0 : theta_y
+        My = NaN
+        My_follower = 0.0
     else
-        error("Both `theta_y` and `My` or `My_follower` cannot be specified at the same time")
+        # prescribed displacement and load, body-fixed acceleration state variable
+        pd5 = true
+        pl5 = true
+        theta_y = isnothing(theta_y) ? 0.0 : theta_y
+        My = isnothing(My) ? 0.0 : My
+        My_follower = isnothing(My_follower) ? 0.0 : My_follower
     end
 
-    # Set function for sixth slot
+    # sixth degree of freedom
     if isnothing(theta_z)
-        f6 = true
-        v6 = isnothing(Mz) ? 0.0 : typeof(Mz) <: Number ? Mz : Mz(t)
-        v6_f = isnothing(Mz_follower) ? 0.0 : typeof(Mz_follower) <: Number ? Mz_follower : Mz_follower(t)
-    elseif !isnothing(theta_z) && (isnothing(Mz) && isnothing(Mz_follower))
-        f6 = false
-        v6 = isnothing(theta_z) ? 0.0 : typeof(theta_z) <: Number ? theta_z : theta_z(t)
-        v6_f = 0.0
+        # prescribed load, displacement state variable
+        pd6 = false
+        pl6 = true
+        theta_z = NaN
+        Mz = isnothing(Mz) ? 0.0 : Mz
+        Mz_follower = isnothing(Mz_follower) ? 0.0 : Mz_follower
+    elseif isnothing(Mz) && isnothing(Mz_follower)
+        # prescribed displacement, load state variable
+        pd6 = true
+        pl6 = false
+        theta_z = isnothing(theta_z) ? 0.0 : theta_z
+        Mz = NaN
+        Mz_follower = 0.0
     else
-        error("Both `theta_z` and `Mz` or `Mz_follower` cannot be specified at the same time")
+        # prescribed displacement and load, body-fixed acceleration state variable
+        pd6 = true
+        pl6 = true
+        theta_z = isnothing(theta_z) ? 0.0 : theta_z
+        Mz = isnothing(Mz) ? 0.0 : Mz
+        Mz_follower = isnothing(Mz_follower) ? 0.0 : Mz_follower
     end
 
-    force = SVector(f1, f2, f3, f4, f5, f6)
-    value = SVector(v1, v2, v3, v4, v5, v6)
-    follower = SVector(v1_f, v2_f, v3_f, v4_f, v5_f, v6_f)
+    # define prescribed conditions
+    pd = SVector(pd1, pd2, pd3, pd4, pd5, pd6)
+    pl = SVector(pl1, pl2, pl3, pl4, pl5, pl6)
+    u = SVector(ux, uy, uz)
+    theta = SVector(theta_x, theta_y, theta_z)
+    F = SVector(Fx, Fy, Fz)
+    M = SVector(Mx, My, Mz)
+    Ff = SVector(Fx_follower, Fy_follower, Fz_follower)
+    Mf = SVector(Mx_follower, My_follower, Mz_follower)
 
-    return PrescribedConditions(force, value, follower)
+    return PrescribedConditions(pd, pl, u, theta, F, M, Ff, Mf)
 end
+
 
 """
     DistributedLoads{T}
@@ -167,14 +250,14 @@ end
 Type which contains pre-integrated distributed forces and moments applied to a beam element.
 
 # Fields
- - f1: Integrated non-follower distributed force corresponding to the start of the beam element.
- - f2: Integrated non-follower distributed force corresponding to the end of the beam element.
- - m1: Integrated non-follower distributed moment corresponding to the start of the beam element.
- - m2: Integrated non-follower distributed moment corresponding to the end of the beam element.
- - f1_follower: Integrated follower distributed force corresponding to the start of the beam element.
- - f2_follower: Integrated follower distributed force corresponding to the end of the beam element.
- - m1_follower: Integrated follower distributed moment corresponding to the start of the beam element.
- - m2_follower: Integrated follower distributed moment corresponding to the end of the beam element.
+- f1: Integrated non-follower distributed force corresponding to the start of the beam element.
+- f2: Integrated non-follower distributed force corresponding to the end of the beam element.
+- m1: Integrated non-follower distributed moment corresponding to the start of the beam element.
+- m2: Integrated non-follower distributed moment corresponding to the end of the beam element.
+- f1_follower: Integrated follower distributed force corresponding to the start of the beam element.
+- f2_follower: Integrated follower distributed force corresponding to the end of the beam element.
+- m1_follower: Integrated follower distributed moment corresponding to the start of the beam element.
+- m2_follower: Integrated follower distributed moment corresponding to the end of the beam element.
 """
 struct DistributedLoads{T}
     f1::SVector{3, T}
@@ -194,7 +277,7 @@ function DistributedLoads{T}(d::DistributedLoads) where T
 end
 
 DistributedLoads(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower) =
-    DistributedLoads(promote(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower)...)
+DistributedLoads(promote(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follower)...)
 
 """
     DistributedLoads(assembly, ielem; kwargs...)
@@ -202,27 +285,27 @@ DistributedLoads(f1, f2, m1, m2, f1_follower, f2_follower, m1_follower, m2_follo
 Pre-integrate distributed loads on a beam element for use in an analysis.
 
 # Arguments
- - `assembly`: Beam element assembly (of type [`Assembly`](@ref))
- - `ielem`: Beam element index
+- `assembly`: Beam element assembly (of type [`Assembly`](@ref))
+- `ielem`: Beam element index
 
 # Keyword Arguments
- - `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
- - `s2 = 1.0`: End of the beam element (used solely for integrating the distributed loads)
- - `method = (f, s1, s2) -> gauss_quadrature(f, s1, s2)`: Method which integrates function
-    `f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points 
-    on each element.
- - `fx = (s) -> 0.0`: Distributed x-direction force
- - `fy = (s) -> 0.0`: Distributed y-direction force
- - `fz = (s) -> 0.0`: Distributed z-direction force
- - `mx = (s) -> 0.0`: Distributed x-direction moment
- - `my = (s) -> 0.0`: Distributed y-direction moment
- - `mz = (s) -> 0.0`: Distributed z-direction moment
- - `fx_follower = (s) -> 0.0`: Distributed x-direction follower force
- - `fy_follower = (s) -> 0.0`: Distributed y-direction follower force
- - `fz_follower = (s) -> 0.0`: Distributed z-direction follower force
- - `mx_follower = (s) -> 0.0`: Distributed x-direction follower moment
- - `my_follower = (s) -> 0.0`: Distributed y-direction follower moment
- - `mz_follower = (s) -> 0.0`: Distributed z-direction follower moment
+- `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
+- `s2 = 1.0`: End of the beam element (used solely for integrating the distributed loads)
+- `method = (f, s1, s2) -> gauss_quadrature(f, s1, s2)`: Method which integrates function
+`f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points 
+on each element.
+- `fx = (s) -> 0.0`: Distributed x-direction force
+- `fy = (s) -> 0.0`: Distributed y-direction force
+- `fz = (s) -> 0.0`: Distributed z-direction force
+- `mx = (s) -> 0.0`: Distributed x-direction moment
+- `my = (s) -> 0.0`: Distributed y-direction moment
+- `mz = (s) -> 0.0`: Distributed z-direction moment
+- `fx_follower = (s) -> 0.0`: Distributed x-direction follower force
+- `fy_follower = (s) -> 0.0`: Distributed y-direction follower force
+- `fz_follower = (s) -> 0.0`: Distributed z-direction follower force
+- `mx_follower = (s) -> 0.0`: Distributed x-direction follower moment
+- `my_follower = (s) -> 0.0`: Distributed y-direction follower moment
+- `mz_follower = (s) -> 0.0`: Distributed z-direction follower moment
 """
 function DistributedLoads(assembly, ielem;
     s1 = 0.0,
@@ -267,27 +350,27 @@ end
 Pre-integrate distributed loads on a beam element for use in an analysis.
 
 # Arguments
- - `assembly`: Beam element assembly (of type [`Assembly`](@ref))
- - `ielem`: Beam element index
- - `t`: Current time
+- `assembly`: Beam element assembly (of type [`Assembly`](@ref))
+- `ielem`: Beam element index
+- `t`: Current time
 
 # Keyword Arguments
- - `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
- - `s2 = 1.0`: End of the beam element (used solely for integrating the distributed loads)
- - `method = (f, s1, s2) -> gauss_quadrature(f, s1, s2)`: Method which integrates function
-    `f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points on each element.
- - `fx = (s, t) -> 0.0`: Distributed x-direction force
- - `fy = (s, t) -> 0.0`: Distributed y-direction force
- - `fz = (s, t) -> 0.0`: Distributed z-direction force
- - `mx = (s, t) -> 0.0`: Distributed x-direction moment
- - `my = (s, t) -> 0.0`: Distributed y-direction moment
- - `mz = (s, t) -> 0.0`: Distributed z-direction moment
- - `fx_follower = (s, t) -> 0.0`: Distributed x-direction follower force
- - `fy_follower = (s, t) -> 0.0`: Distributed y-direction follower force
- - `fz_follower = (s, t) -> 0.0`: Distributed z-direction follower force
- - `mx_follower = (s, t) -> 0.0`: Distributed x-direction follower moment
- - `my_follower = (s, t) -> 0.0`: Distributed y-direction follower moment
- - `mz_follower = (s, t) -> 0.0`: Distributed z-direction follower moment
+- `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
+- `s2 = 1.0`: End of the beam element (used solely for integrating the distributed loads)
+- `method = (f, s1, s2) -> gauss_quadrature(f, s1, s2)`: Method which integrates function
+`f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points on each element.
+- `fx = (s, t) -> 0.0`: Distributed x-direction force
+- `fy = (s, t) -> 0.0`: Distributed y-direction force
+- `fz = (s, t) -> 0.0`: Distributed z-direction force
+- `mx = (s, t) -> 0.0`: Distributed x-direction moment
+- `my = (s, t) -> 0.0`: Distributed y-direction moment
+- `mz = (s, t) -> 0.0`: Distributed z-direction moment
+- `fx_follower = (s, t) -> 0.0`: Distributed x-direction follower force
+- `fy_follower = (s, t) -> 0.0`: Distributed y-direction follower force
+- `fz_follower = (s, t) -> 0.0`: Distributed z-direction follower force
+- `mx_follower = (s, t) -> 0.0`: Distributed x-direction follower moment
+- `my_follower = (s, t) -> 0.0`: Distributed y-direction follower moment
+- `mz_follower = (s, t) -> 0.0`: Distributed z-direction follower moment
 """
 function DistributedLoads(assembly, ielem, t;
     s1 = 0.0,
@@ -446,47 +529,3 @@ function combine_masses(masses)
     end
     return PointMass(M)
 end
-
-"""
-    acceleration_loads(mass11, mass12, mass21, mass22, CtCab, u, a, α)
-
-Calculate the integrated distributed loads on an element caused by acceleration.
-"""
-@inline function acceleration_loads(mass11, mass12, mass21, mass22, CtCab, a, α)
-   
-    # force and moment per unit length due to accelerating reference frame
-    f = -CtCab*(mass11*CtCab'*a + mass12*CtCab'*α)
-    m = -CtCab*(mass21*CtCab'*a + mass22*CtCab'*α)
-
-    # integrate force and moment per unit length
-    f1 = f2 = f/2
-    m1 = m2 = m/2
-
-    # return result
-    return f1, f2, m1, m2
-end
-
-@inline function acceleration_loads_jacobian(mass11, mass12, mass21, mass22, a, α, 
-    Cab, CtCab, C_θ1, C_θ2, C_θ3, Ct_θ1, Ct_θ2, Ct_θ3)
-
-    # force and moment per unit length due to accelerating reference frame
-    f_u = -CtCab*mass11*CtCab'*tilde(α)
-    m_u = -CtCab*mass21*CtCab'*tilde(α)
-
-    f_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass11*CtCab'*a + mass12*CtCab'*α)) - 
-        CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) -
-        CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
-    m_θ = -mul3(Ct_θ1, Ct_θ2, Ct_θ3, Cab*(mass21*CtCab'*a + mass22*CtCab'*α)) - 
-        CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, a) -
-        CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, α)
-
-    # calculate integrated force and moment per unit length
-    f1_u = f2_u = f_u/2
-    m1_u = m2_u = m_u/2
-    f1_θ = f2_θ = f_θ/2
-    m1_θ = m2_θ = m_θ/2
-
-    return f1_u, f2_u, m1_u, m2_u, f1_θ, f2_θ, m1_θ, m2_θ
-end
-
-

@@ -121,7 +121,7 @@ Fz = range(0, 70e3, length=141)
 ijoint = nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1
 prescribed_points = [1, ijoint, nelem+1]
 static = true
-system = System(assembly, static; prescribed_points)
+system = StaticSystem(assembly)
 
 linear_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
 for i = 1:length(Fz)
@@ -237,7 +237,7 @@ uz_fnl = [nonlinear_follower_states[i].points[ijoint].u[3] for i = 1:length(Fz)]
 plot!(uz_l, Fz./1e3, label="Linear")
 plot!(uz_nl, Fz./1e3, label="Nonlinear with Dead Force")
 plot!(uz_fnl, Fz./1e3, label="Nonlinear with Follower Force")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/static-joined-wing-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
