@@ -1256,7 +1256,7 @@ converged for every time step.
         each point in the body frame **excluding contributions from body frame motion**
 
 # Control Flag Keyword Arguments
- - `structural_damping = false`: Indicates whether to enable structural damping
+ - `structural_damping = true`: Indicates whether to enable structural damping
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
  - `initialize = true`: Flag indicating whether a consistent set of initial

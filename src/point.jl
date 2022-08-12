@@ -2028,6 +2028,9 @@ matrix.
     @views jacob[irow+3:irow+5, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
     @views jacob[irow+3:irow+5, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
 
+    @views jacob[irow+6:irow+8, icol:icol+2] .+= rV_udot * udot_udot .* gamma
+    @views jacob[irow+9:irow+11, icol+3:icol+5] .+= rΩ_θdot * θdot_θdot .* gamma
+
     return jacob
 end
 
