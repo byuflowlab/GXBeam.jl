@@ -80,10 +80,10 @@ function SystemIndices(start, stop; static=false, expanded=false)
         irow_elem[ielem] = irow
         icol_elem[ielem] = icol
         if expanded
-            # states: F1, F2, M1, M2, u, θ, V, Ω  
-            # residuals: compatability (x2), velocity (x1), equilibrium (x1)  
-            irow += 24
-            icol += 24
+            # states: F1, F2, M1, M2, V, Ω  
+            # residuals: compatability (x1), velocity (x1), equilibrium (x1)  
+            irow += 18
+            icol += 18
         else
             # states: F, M
             # residuals: compatability (x1)
@@ -665,19 +665,6 @@ function copy_state!(system1, system2, assembly;
             x1[icol+10] = M2[2] / force_scaling1
             x1[icol+11] = M2[3] / force_scaling1
 
-            # linear and angular displacement
-            u1, θ1 = point_displacement(x2, assembly.start[ielem], icol_point2, pcond)
-            u2, θ2 = point_displacement(x2, assembly.stop[ielem], icol_point2, pcond)
-            u = (u1 + u2)/2
-            θ = (θ1 + θ2)/2
-
-            x1[icol+12] = u[1]
-            x1[icol+13] = u[2]
-            x1[icol+14] = u[3]
-            x1[icol+15] = θ[1]
-            x1[icol+16] = θ[2]
-            x1[icol+17] = θ[3]
-
             # linear and angular velocity
             if typeof(system2) <: StaticSystem
                 V = Ω = @SVector zeros(3)
@@ -689,12 +676,12 @@ function copy_state!(system1, system2, assembly;
                 V, Ω = expanded_element_velocities(x2, ielem, icol_point2)
             end
 
-            x1[icol+18] = V[1]
-            x1[icol+19] = V[2]
-            x1[icol+20] = V[3]
-            x1[icol+21] = Ω[1]
-            x1[icol+22] = Ω[2]
-            x1[icol+23] = Ω[3]
+            x1[icol+12] = V[1]
+            x1[icol+13] = V[2]
+            x1[icol+14] = V[3]
+            x1[icol+15] = Ω[1]
+            x1[icol+16] = Ω[2]
+            x1[icol+17] = Ω[3]
 
         end
     end

@@ -52,8 +52,6 @@ Set the state variables in `system` (or in the vector `x`) to the provided value
     deformed element frame)
  - `M2`: Vector containing resultant moments at the end of each beam element (in the 
     deformed element frame)
- - `u_e`: Vector containing the linear displacement of each element.
- - `theta_e`: Vector containing the angular displacement of each element.
  - `V_e`: Vector containing the linear velocity of each beam element in the deformed
     beam element reference frame.
  - `Omega_e` Vector containing the angular velocity of each beam element in the deformed
@@ -68,8 +66,7 @@ end
 
 function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing, 
     V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing,
-    F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, 
-    u_e=nothing, theta_e=nothing, V_e = nothing, Omega_e = nothing
+    F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, V_e = nothing, Omega_e = nothing
 
     ) 
 
@@ -142,18 +139,6 @@ function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothi
     if !isnothing(M2)
         for ielem in eachindex(M2)
             set_end_moments!(x, system, M2[ielem], ielem)
-        end
-    end
-
-    if !isnothing(u_e)
-        for ielem in eachindex(u_e)
-            set_element_linear_displacement!(x, system, u_e[ielem], ielem)
-        end
-    end
-
-    if !isnothing(theta_e)
-        for ielem in eachindex(theta_e)
-            set_element_angular_displacement!(x, system, theta_e[ielem], ielem)
         end
     end
 
@@ -530,50 +515,6 @@ function set_end_moments!(x, system::ExpandedSystem, M2, ielem)
 end
 
 """
-    set_element_linear_displacement!([x,] system::ExpandedSystem, u, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-linear displacement of beam element `ielem` to the provided values.
-"""
-function set_element_linear_displacement!(system::ExpandedSystem, u, ielem)
-    set_element_linear_displacement!(system.x, system::ExpandedSystem, u, ielem)
-    return system
-end
-
-function set_element_linear_displacement!(x, system::ExpandedSystem, u, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    x[icol+12] = u[1]
-    x[icol+13] = u[2]
-    x[icol+14] = u[3]
-
-    return x
-end
-
-"""
-    set_element_angular_displacement!([x,] system::ExpandedSystem, theta, ielem)
-
-Set the state variables in `system` (or in the vector `x`) corresponding to the
-angular displacement of element `ielem` to the provided values.
-"""
-function set_element_angular_displacement!(system::ExpandedSystem, theta, ielem)
-    set_element_angular_displacement!(system.x, system, theta, ielem)
-    return system
-end
-
-function set_element_angular_displacement!(x, system::ExpandedSystem, theta, ielem)
-
-    icol = system.indices.icol_elem[ielem]
-
-    x[icol+15] = theta[1]
-    x[icol+16] = theta[2]
-    x[icol+17] = theta[3]
-
-    return x
-end
-
-"""
     set_element_linear_velocity!([x,] system::ExpandedSystem, V, ielem)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
@@ -588,9 +529,9 @@ function set_element_linear_velocity!(x, system::ExpandedSystem, V, ielem)
 
     icol = system.indices.icol_elem[ielem]
 
-    x[icol+18] = V[1]
-    x[icol+19] = V[2]
-    x[icol+20] = V[3]
+    x[icol+12] = V[1]
+    x[icol+13] = V[2]
+    x[icol+14] = V[3]
 
     return x
 end
@@ -610,9 +551,9 @@ function set_element_angular_velocity!(x, system::ExpandedSystem, Omega, ielem)
 
     icol = system.indices.icol_elem[ielem]
 
-    x[icol+21] = Omega[1]
-    x[icol+22] = Omega[2]
-    x[icol+23] = Omega[3]
+    x[icol+15] = Omega[1]
+    x[icol+16] = Omega[2]
+    x[icol+17] = Omega[3]
 
     return x
 end
