@@ -180,12 +180,12 @@ state analysis
         # linear displacement rates 
         udot1 = V1 - vb - cross(ωb, Δx1) - cross(ωb, u1)
         udot2 = V2 - vb - cross(ωb, Δx2) - cross(ωb, u2)
-        udot = (udot1 + udot2)/2
+        uedot = (udot1 + udot2)/2
 
         # angular displacement rates
         θdot1 = Qinv1*C1*(Ω1 - ωb)
         θdot2 = Qinv2*C2*(Ω2 - ωb)
-        θdot = (θdot1 + θdot2)/2
+        θedot = (θdot1 + θdot2)/2
 
         # change in linear and angular displacement
         Δu = u2 - u1
@@ -200,7 +200,7 @@ state analysis
 
         # strain rates
         γdot = -CtCab'*tilde(Ω - ωb)*Δu + CtCab'*Δudot - L*CtCab'*tilde(Ω - ωb)*Cab*e1
-        κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
+        κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θedot
 
         # adjust strains to account for strain rates
         γ -= μ11*γdot
@@ -209,7 +209,7 @@ state analysis
         # save new strains and structural damping properties
         properties = (; properties..., γ, κ, γdot, κdot,
             μ11, μ22, C1, C2, Qinv1, Qinv2, Δx1, Δx2, 
-            udot1, udot2, udot, θdot1, θdot2, θdot, Δu, Δθ, Δudot, Δθdot, ΔQ)
+            udot1, udot2, uedot, θdot1, θdot2, θedot, Δu, Δθ, Δudot, Δθdot, ΔQ)
     end
 
     return properties
