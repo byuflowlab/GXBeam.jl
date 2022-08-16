@@ -151,74 +151,6 @@ respect to each of the rotation parameters in `θ`.
 end
 
 """
-    get_C_t([C, ] θ, θ_t)
-
-Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
-respect to the scalar parameter `t`. `θ_t` is the derivative of the angular parameter
-`θ` with respect to `t`.
-"""
-@inline get_C_t(θ, θ_t) = get_C_t(get_C(θ), θ, θ_t)
-
-@inline function get_C_t(C, θ, θ_t)
-
-    scaling = rotation_parameter_scaling(θ)
-    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
-
-    c = scaling*θ
-    c_t = scaling_θ'*θ_t*θ + scaling*θ_t
-
-    c0 = 2 - c'*c/8
-    c0dot = -c'*c_t/4
-    tmp = 1/(4-c0)^2
-    tmpdot = 2/(4-c0)^3*c0dot
-
-    Cdot = tmpdot*C/tmp + tmp*(@SMatrix [
-        2*c0*c0dot + 2*c[1]*c_t[1] - 2*c[2]*c_t[2] - 2*c[3]*c_t[3] (
-        2*(c_t[1]*c[2] + c[1]*c_t[2] + c0dot*c[3] + c0*c_t[3])) (
-        2*(c_t[1]*c[3] + c[1]*c_t[3] - c0dot*c[2] - c0*c_t[2]));
-        2*(c_t[1]*c[2] + c[1]*c_t[2] - c0dot*c[3] - c0*c_t[3]) (
-        2*c0*c0dot - 2*c[1]*c_t[1] + 2*c[2]*c_t[2] - 2*c[3]*c_t[3]) (
-        2*(c_t[2]*c[3] + c[2]*c_t[3] + c0dot*c[1] + c0*c_t[1]));
-        2*(c_t[1]*c[3] + c[1]*c_t[3] + c0dot*c[2] + c0*c_t[2]) (
-        2*(c_t[2]*c[3] + c[2]*c_t[3] - c0dot*c[1] - c0*c_t[1])) (
-        2*c0*c0dot - 2*c[1]*c_t[1] - 2*c[2]*c_t[2] + 2*c[3]*c_t[3])]
-    )
-
-    return Cdot
-end
-
-"""
-    get_C_t_θ(θ, θ_t)
-
-Calculate the derivative of the time derivative of the Wiener-Milenkovic
-transformation matrix `C` with respect to `θ`.
-"""
-@inline function get_C_t_θ(θ, θ_t)
-
-    θ1, θ2, θ3 = θ
-    C_t_θ1 = ForwardDiff.derivative(θ1 -> get_C_t(SVector(θ1, θ2, θ3), θ_t), θ1)
-    C_t_θ2 = ForwardDiff.derivative(θ2 -> get_C_t(SVector(θ1, θ2, θ3), θ_t), θ2)
-    C_t_θ3 = ForwardDiff.derivative(θ3 -> get_C_t(SVector(θ1, θ2, θ3), θ_t), θ3)
-
-    return C_t_θ1, C_t_θ2, C_t_θ3
-end
-
-"""
-    get_C_t_θdot(θ)
-
-Calculate the derivative of the time derivative of the Wiener-Milenkovic
-transformation matrix `C` with respect to each of the time derivatives of `θ`.
-"""
-@inline function get_C_t_θdot(θ)
-
-    Cdot_θdot1 = ForwardDiff.derivative(cdot1 -> GXBeam.get_C_t(θ, SVector(cdot1, 0, 0)), 0)
-    Cdot_θdot2 = ForwardDiff.derivative(cdot2 -> GXBeam.get_C_t(θ, SVector(0, cdot2, 0)), 0)
-    Cdot_θdot3 = ForwardDiff.derivative(cdot3 -> GXBeam.get_C_t(θ, SVector(0, 0, cdot3)), 0)
-    
-    return Cdot_θdot1, Cdot_θdot2, Cdot_θdot3
-end
-
-"""
     get_Q(θ)
 
 Calculate the matrix Q as defined in the paper "Geometrically nonlinear analysis
@@ -270,6 +202,81 @@ parameters in `θ`.
     Q_θ3 = Q_c1*c_θ[1,3] + Q_c2*c_θ[2,3] + Q_c3*c_θ[3,3]
 
     return Q_θ1, Q_θ2, Q_θ3
+end
+
+"""
+    get_ΔQ(θ, Δθ [, Q])
+
+Calculate the matrix `ΔQ` for structural damping calculations
+"""
+@inline function get_ΔQ(θ, Δθ, Q=get_Q(θ))
+
+    scaling = rotation_parameter_scaling(θ)
+    scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
+
+    c = scaling*θ
+    c_θ = scaling_θ*θ' + scaling*I3
+
+    c0 = 2 - c'*c/8
+    c0_θ = -c'/4*c_θ
+
+    tmp1 = 1/(4-c0)^2
+    tmp1_θ = 2/(4-c0)^3*c0_θ
+
+    tmp2 = -Δθ*c' + 4*tilde(Δθ) + c'*Δθ*I3 + c*Δθ'
+
+    ΔQ = Q*Δθ*tmp1_θ/tmp1 + 1/2*tmp1*tmp2*(scaling*I3 + scaling_θ*θ')
+
+    return ΔQ
+end
+
+"""
+    get_ΔQ_θ(θ, Δθ, [Q, Q_θ1, Q_θ2, Q_θ3])
+
+Calculate the derivative of the matrix `ΔQ` with respect to each of the rotation
+parameters in `θ`.
+"""
+get_ΔQ_θ(θ, Δθ, Q=get_Q(θ)) = get_ΔQ_θ(θ, Δθ, Q, get_Q_θ(Q, θ)...)
+
+@inline function get_ΔQ_θ(θ, Δθ, Q, Q_θ1, Q_θ2, Q_θ3)
+
+    # calculate scaling factor
+    scaling = GXBeam.rotation_parameter_scaling(θ)
+    scaling_θ = GXBeam.rotation_parameter_scaling_θ(scaling, θ)
+    scaling_θ_θ = GXBeam.rotation_parameter_scaling_θ_θ(scaling, θ)
+
+    # scale rotation parameters
+    c = scaling*θ    
+    c_θ = scaling_θ*θ' + scaling*I3
+
+    # calculate c0 constant
+    c0 = 2 - c'*c/8
+    c0_θ = -c'/4*c_θ
+    c0_θ_θ = -I/4*c_θ'*c_θ - 1/2*c*scaling_θ' - 1/4*c'*θ*scaling_θ_θ
+
+    # calculate tmp1 constant
+    tmp1 = 1/(4-c0)^2    
+    tmp1_θ = 2/(4-c0)^3*c0_θ
+    tmp1_θ_θ = 6/(4-c0)^4*c0_θ'*c0_θ + 2/(4-c0)^3*c0_θ_θ
+
+    # calculate tmp2 matrix
+    tmp2 = -Δθ*c' + 4*tilde(Δθ) + c'*Δθ*I3 + c*Δθ'
+    tmp2_θ1 = -Δθ*c_θ[1,:]' + c_θ[1,:]'*Δθ*I3 + c_θ[1,:]*Δθ'
+    tmp2_θ2 = -Δθ*c_θ[2,:]' + c_θ[2,:]'*Δθ*I3 + c_θ[2,:]*Δθ'
+    tmp2_θ3 = -Δθ*c_θ[3,:]' + c_θ[3,:]'*Δθ*I3 + c_θ[3,:]*Δθ'
+
+    # calculate ΔQ
+    ΔQ_θ1 = (Q_θ1*Δθ*tmp1_θ)/tmp1 + (Q*Δθ*tmp1_θ_θ[1,:]')/tmp1 - (Q*Δθ*tmp1_θ)/tmp1^2*tmp1_θ[1] +
+        1/2*tmp1_θ[1]*tmp2*(scaling*I3 + scaling_θ*θ') + 1/2*tmp1*tmp2_θ1*(scaling*I3 + scaling_θ*θ') +
+        1/2*tmp1*tmp2*(scaling_θ[1]*I3 + scaling_θ_θ[1,:]*θ' + scaling_θ*e1')
+    ΔQ_θ2 = (Q_θ2*Δθ*tmp1_θ)/tmp1 + (Q*Δθ*tmp1_θ_θ[2,:]')/tmp1 - (Q*Δθ*tmp1_θ)/tmp1^2*tmp1_θ[2] +
+        1/2*tmp1_θ[2]*tmp2*(scaling*I3 + scaling_θ*θ') + 1/2*tmp1*tmp2_θ2*(scaling*I3 + scaling_θ*θ') +
+        1/2*tmp1*tmp2*(scaling_θ[2]*I3 + scaling_θ_θ[2,:]*θ' + scaling_θ*e2')
+    ΔQ_θ3 = (Q_θ3*Δθ*tmp1_θ)/tmp1 + (Q*Δθ*tmp1_θ_θ[3,:]')/tmp1 - (Q*Δθ*tmp1_θ)/tmp1^2*tmp1_θ[3] +
+        1/2*tmp1_θ[3]*tmp2*(scaling*I3 + scaling_θ*θ') + 1/2*tmp1*tmp2_θ3*(scaling*I3 + scaling_θ*θ') +
+        1/2*tmp1*tmp2*(scaling_θ[3]*I3 + scaling_θ_θ[3,:]*θ' + scaling_θ*e3')
+
+    return ΔQ_θ1, ΔQ_θ2, ΔQ_θ3
 end
 
 """
@@ -335,54 +342,74 @@ Default gauss-quadrature function used for integrating distributed loads.
     return h/2*GAUSS_WEIGHTS'*f.(x)
 end
 
-# this function is not used
-# @inline function linf_norm_scaling(A)
-#
-#     droptol!(A, eps(eltype(A)))
-#
-#     m, n = size(A)
-#     rows = rowvals(A)
-#     vals = nonzeros(A)
-#
-#     # initialize outputs
-#     rowmax = fill(typemin(eltype(A)), n)
-#     rowmin = fill(typemax(eltype(A)), n)
-#     @inbounds for j = 1:n
-#         @inbounds for i in nzrange(A, j)
-#            row = rows[i]
-#            val = abs(vals[i])
-#            # perform sparse wizardry...
-#            if val > rowmax[row]
-#                rowmax[row] = val
-#            end
-#            if val < rowmin[row]
-#                rowmin[row] = val
-#            end
-#         end
-#     end
-#
-#     # use storage already allocated for rowmax for r
-#     r = rowmax
-#     @inbounds for i = 1:m
-#         if i in rows
-#             r[i] = nextpow(2, 1/sqrt(rowmax[i]*rowmin[i]))
-#         else
-#             r[i] = 1
-#         end
-#     end
-#
-#     # use storage already allocated for rowmin for s
-#     s = rowmin
-#     @inbounds for j = 1:n
-#         colrange = nzrange(A, j)
-#         if isempty(colrange)
-#             s[j] = 1
-#         else
-#             colmax = maximum(i -> r[rows[i]]*abs(vals[i]), colrange)
-#             colmin = minimum(i -> r[rows[i]]*abs(vals[i]), colrange)
-#             s[j] = nextpow(2, 1/sqrt(colmax*colmin))
-#         end
-#     end
-#
-#     return r, s
-# end
+"""
+    rotate(xyz, r, theta)
+
+Rotate the vectors in `xyz` about point `r` using the Wiener-Milenkovic
+parameters in `theta`.
+"""
+rotate(xyz, r, theta) = rotate!(copy(xyz), r, theta)
+
+"""
+    rotate!(xyz, r, theta)
+
+Pre-allocated version of [`rotate`](@ref)
+"""
+function rotate!(xyz, r, theta)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    r = SVector{3}(r)
+    theta = SVector{3}(theta)
+    # create rotation matrix
+    Ct = wiener_milenkovic(theta)'
+    # rotate each point
+    for ipt in axes(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= Ct*(p - r) + r
+    end
+    # return the result
+    return xyz
+end
+
+"""
+    translate(xyz, u)
+
+Translate the points in `xyz` by the displacements in `u`.
+"""
+translate(xyz, u) = translate!(copy(xyz), u)
+
+"""
+    translate!(xyz, u)
+
+Pre-allocated version of [`translate`](@ref)
+"""
+function translate!(xyz, u)
+    # reshape cross section points (if necessary)
+    rxyz = reshape(xyz, 3, :)
+    # convert inputs to static arrays
+    u = SVector{3}(u)
+    # translate each point
+    for ipt in axes(rxyz, 2)
+        p = SVector(rxyz[1,ipt], rxyz[2,ipt], rxyz[3,ipt])
+        rxyz[:,ipt] .= p .+ u
+    end
+    # return the result
+    return xyz
+end
+
+"""
+    deform_cross_section(xyz, r, u, theta)
+
+Rotate the points in `xyz` (of shape (3, :)) about point `r` using
+the Wiener-Milenkovic parameters in `theta`, then translate the points by the
+displacements in `u`.
+"""
+deform_cross_section(xyz, r, u, theta) = deform_cross_section!(copy(xyz), r, u, theta)
+
+"""
+    deform_cross_section!(xyz, r, u, theta)
+
+Pre-allocated version of [`deform_cross_section`](@ref)
+"""
+deform_cross_section!(xyz, r, u, theta) = translate!(rotate!(xyz, r, theta), u)

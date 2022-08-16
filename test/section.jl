@@ -1,16 +1,20 @@
 # Unit Tests for section.jl and afmesh.jl
 
+using GXBeam, LinearAlgebra, Random, Test
+
 @testset "section properties: material stiffness matrix" begin
     
-    E1 = rand()
-    E2 = rand()
-    E3 = rand()
-    G12 = rand()
-    G13 = rand()
-    G23 = rand()
-    nu12 = rand()
-    nu23 = rand()
-    nu13 = rand()
+    RNG = MersenneTwister(1234)
+
+    E1 = rand(RNG)
+    E2 = rand(RNG)
+    E3 = rand(RNG)
+    G12 = rand(RNG)
+    G13 = rand(RNG)
+    G23 = rand(RNG)
+    nu12 = rand(RNG)
+    nu23 = rand(RNG)
+    nu13 = rand(RNG)
     rho = 1.0
     mat = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
     cache = initialize_cache([Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0)], [MeshElement([1, 2, 3, 4], mat, 0.0)])

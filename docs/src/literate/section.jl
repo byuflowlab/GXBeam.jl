@@ -1,4 +1,4 @@
-# # Computing Stiffness and Mass Matrices
+# # [Computing Stiffness and Mass Matrices](@id section)
 
 # Cross section stiffness and inertial properties are provided as direct inputs for most of the 
 # examples in this package.  In general, however, we need to compute these section 

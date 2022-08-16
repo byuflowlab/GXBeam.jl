@@ -1,4 +1,4 @@
-# # [Overdetermined Beam](@ref overdetermined)
+# # [Overdetermined Beam](@id overdetermined)
 # 
 # This example shows how to predict the behavior of a beam which is clamped at one end and 
 # simply supported at the other end when subjected to a linear distributed load.
@@ -105,7 +105,7 @@ x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
 deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
 plot!(x_a, w_a, label="Analytical")
 scatter!(x, deflection, label="GXBeam")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/overdetermined-linear-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -133,7 +133,7 @@ theta = [4*atan.(state.points[ipoint].theta[2]/4)
     for ipoint = 1:length(assembly.points)]
 plot!(x_a, theta_a, label="Analytical")
 scatter!(x, theta, label="GXBeam")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/overdetermined-angular-deflection.svg") #hide
 #md closeall() #hide
 #md end #hide
@@ -157,10 +157,10 @@ plot(
 
 x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem =
     1:length(assembly.elements)]
-M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+M = [state.elements[ielem].Mi[2] for ielem = 1:length(assembly.elements)]
 plot!(x_a, M_a, label="Analytical")
 scatter!(x, M, label="GXBeam")
-#!nb plot!(show=true)
+plot!(show=true) #!nb
 #md savefig("../assets/overdetermined-bending-moment.svg") #hide
 #md closeall() #hide
 #md end #hide

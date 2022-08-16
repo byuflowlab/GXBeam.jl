@@ -10,7 +10,7 @@
 
 Author: Taylor McDonnell
 
-**GXBeam** is a pure Julia implementation of Geometrically Exact Beam Theory, originally based on the open source code [GEBT](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2).
+**GXBeam** is a pure Julia implementation of Geometrically Exact Beam Theory, originally based on the open source code [GEBT](https://cdmhub.org/resources/367) and its associated papers[[1]](#1)[[2]](#2), though it has since been augmented with a number of additional features.
 
 As a sample of one of the many things this package can do, here's a time domain simulation of the dynamic response of a joined wing subjected to a simulated gust, scaled up in order to visualize the deflections:
 ![](docs/src/assets/dynamic-joined-wing-simulation.gif)
@@ -21,28 +21,26 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
 ## Package Features
  - Performs multiple types of analyses including:
     - Linear/Nonlinear static analyses
-    - Linear/Nonlinear steady-state dynamic analyses
+    - Linear/Nonlinear steady-state analyses
     - Linear/Nonlinear eigenvalue analyses (by linearizing about a steady state condition)
     - Linear/Nonlinear time-marching dynamic analyses
  - Accurately models arbitrary systems of interconnected highly flexible composite beams.
-    - Captures all geometric nonlinearities due to large deflections and rotations
-    - Capable of using the full 6x6 Timoshenko beam stiffness matrix
+    - Captures all geometric nonlinearities due to large deflections and rotations (subject to a small strain assumption)
+    - Models angular displacements of any magnitude using only three parameters
+    - Uses the full 6x6 Timoshenko beam stiffness matrix
     - Calculates section compliance and inertia matrices using 2D finite element analysis
-    - Singularity-free rotational deflections of any magnitude using only 3 rotational parameters
- - Models arbitrary time-varying distributed forces/moments on beam elements using:
-    - Dead forces/moments (which do not rotate as the beam element rotates)
-    - Follower forces/moments (which rotate as the beam element rotates)
-    - Forces/moments due to the presence of rigidly attached point masses
-    - Forces/moments due to gravitational loads
-    - Forces/moments due to body frame linear/angular velocities and accelerations
- - Models arbitrary time-varying prescribed forces/moments and/or displacements/rotations at the connection points between beam elements using:
-    - Dead forces/moments (which do not rotate as the point rotates)
-    - Follower forces/moments (which rotate as the point rotates)
+ - Models time-varying distributed forces/moments including
+    - Point and distributed loads which remain fixed in the body-frame
+    - Point and distributed loads which rotate with the structure
+    - Loads due to known body frame velocities and accelerations
+    - Gravitational loads acting on beam elements and point masses
+    - Loads resulting from stiffness-proportional structural damping
+ - Optional [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface.
+    - Constant mass matrix differential algebraic equation formulation
+    - Fully implicit differential algebraic equation formulation
  - Built-in optimization-friendly airfoil cross section mesher
- - Capable of using arbitrary units (as long as they are compatible)
- - Simple result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
- - Built-in [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface for time domain simulations.
- - Extensively validated against published analytical and computational results.  See the examples in the [documentation](https://flow.byu.edu/GXBeam.jl/dev/).
+ - Result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
+ - Verified and validated against published analytical and computational results.  See the examples in the [documentation](https://flow.byu.edu/GXBeam.jl/dev/).
 
 ## Installation
 
@@ -77,7 +75,7 @@ This package relies on the results of linear cross-sectional analyses.  Most not
 
 [GEBT](https://cdmhub.org/resources/367): Open source geometrically exact beam theory code developed in Fortran as a companion to the proprietary cross sectional analysis tool [VABS](https://analyswift.com/vabs-cross-sectional-analysis-tool-for-composite-beams/).  The theory for this code is provided in references [1](#1) and [2](#2).  GXBeam was originally developed based on this package and its associated papers, but has since been augmented with additional features.
 
-[BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html): Open source geometrically exact beam theory code developed in Fortran by NREL as part of the OpenFAST project.  This code was also developed based on [GEBT](https://cdmhub.org/resources/367), but uses Legendre spectral finite elements.  This allows for exponential rather than algebraic convergence when the solution is smooth.  This makes this code a good candidate for use when analyzing beams with smoothly varying properties.  Unfortunately, this code is limited to analyzing a single beam, rather than an assembly of beams, which limits its applicability.
+[BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html): Open source geometrically exact beam theory code developed in Fortran by NREL as part of the OpenFAST project.  This code was also developed based on [GEBT](https://cdmhub.org/resources/367), but uses Legendre spectral finite elements.  This allows for exponential rather than algebraic convergence when the solution is smooth.  This makes this code a good candidate for use when analyzing beams with smoothly varying properties.  Unfortunately, the code is limited to analyzing a single beam, rather than an assembly of beams.
 
 ## Contributing
 

@@ -12,27 +12,31 @@
 #md # ```
 #
 #-
+#
 #md # !!! tip
 #md #     This guide is also available as a Jupyter notebook:
 #md #     [`diffeq.ipynb`](@__NBVIEWER_ROOT_URL__/examples/diffeq.ipynb).
+#
 #-
 # 
-# ## Interface Functions
+#md # ## Interface Functions
+#md #
+#md # The following constructors are available for modeling the differential algebraic 
+#md # equations from GXBeam in DifferentialEquations.
+#md #
+#md # ```@docs
+#md # GXBeam.ODEFunction(system::AbstractSystem, assembly; kwargs...)
+#md # GXBeam.ODEProblem(system::AbstractSystem, assembly, tspan; kwargs...)
+#md # GXBeam.DAEFunction(system::DynamicSystem, assembly; kwargs...)
+#md # GXBeam.DAEProblem(system::DynamicSystem, assembly, tspan; kwargs...)
+#md # ```
 #
-# The following constructors are available for modeling the differential algebraic 
-# equations from GXBeam in DifferentialEquations.
-#
-# ```@docs
-# GXBeam.ODEFunction(system::System, assembly; kwargs...)
-# GXBeam.ODEProblem(system::System, assembly, tspan; kwargs...)
-# GXBeam.DAEFunction(system::System, assembly; kwargs...)
-# GXBeam.DAEProblem(system::System, assembly, tspan; kwargs...)
-# ```
+#-
 #
 # ## Example Usage
 #
-# For this example we demonstrate how to solve the [Nonlinear Dynamic Analysis of a Wind 
-# Turbine Blade](@ref) problem using DifferentialEquations.
+# For this example we demonstrate how to solve the wind turbine [Time-Domain Simulation of 
+# a Wind Turbine Blade](@ref wind-turbine-blade) problem using DifferentialEquations.
 # 
 # We start by setting up the problem as if we were solving the problem using GXBeam's 
 # internal solver.
@@ -94,39 +98,69 @@ end
 t = 0:0.001:2.0
 
 system, gxbeam_history, converged = time_domain_analysis(assembly, t;
-    prescribed_conditions = prescribed_conditions)
+    prescribed_conditions = prescribed_conditions,
+    structural_damping = false)
 
 #!jl nothing #hide
 
-# To instead use the capabilities of the DifferentialEquations package we can do the 
-# following.
+# To instead use the capabilities of the DifferentialEquations package we first initialize 
+# our system using the `initial_condition_analysis` function and then construct and solve
+# a `DAEProblem`.
 
 using DifferentialEquations
 
 ## define simulation time
 tspan = (0.0, 2.0)
 
+## define named tuple with parameters
+p = (; prescribed_conditions=prescribed_conditions)
+
 ## run initial condition analysis to get consistent set of initial conditions
-system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
+dae_system, converged = initial_condition_analysis(assembly, tspan[1]; 
+    prescribed_conditions = prescribed_conditions,
+    structural_damping = false)
 
-## construct a DAEProblem
-prob = DAEProblem(system, assembly, tspan; prescribed_conditions)
+## construct an ODEProblem (with a constant mass matrix)
+dae_prob = DAEProblem(dae_system, assembly, tspan, p; 
+    structural_damping = false)
 
-## solve DAEProblem
-sol = solve(prob, DABDF2())
+## solve the problem
+dae_sol = solve(dae_prob, DABDF2())
 
 #!jl nothing #hide
 
-# We can extract the outputs from the solution in a easy to understand format using the 
+# Alternatively, we can construct and solve a constant mass matrix formulation of our
+# differential algebraic equations. 
+
+## run initial condition analysis to get consistent set of initial conditions
+ode_system, converged = initial_condition_analysis(assembly, tspan[1]; 
+    prescribed_conditions = prescribed_conditions,
+    constant_mass_matrix = true,
+    structural_damping = false)
+
+## construct an ODEProblem (with a constant mass matrix)
+ode_prob = ODEProblem(ode_system, assembly, tspan, p; 
+    constant_mass_matrix = true,
+    structural_damping = false)
+
+## solve the problem
+ode_sol = solve(ode_prob, Rodas4())
+
+#!jl nothing #hide
+
+# We can then extract the outputs from the solution in a easy to understand format using the 
 # [`AssemblyState`](@ref) constructor.
 
-diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions)
-    for it in eachindex(sol)]
+ode_history = [AssemblyState(ode_system, assembly, ode_sol[it]; prescribed_conditions)
+    for it in eachindex(ode_sol)]
+
+dae_history = [AssemblyState(dae_system, assembly, dae_sol[it]; prescribed_conditions)
+    for it in eachindex(dae_sol)]
 
 #!jl nothing #hide
 
-# Let's now compare the solutions from GXBeam's internal solver and the `DABDF2` solver 
-# from DifferentialEquations.
+# Let's now compare the solutions from GXBeam's internal solver and the 
+# DifferentialEquations solvers.
 
 using Plots
 #md using Suppressor #hide
@@ -148,7 +182,7 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
 for i = 1:12
     #md local y #hide
 #nb    ph[i] = plot(
-#!nb    plot(
+    plot( #!nb
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
         xlabel = "Time (s)",
@@ -159,26 +193,33 @@ for i = 1:12
     y_gxbeam = [getproperty(state.points[point[i]], field[i])[direction[i]]
         for state in gxbeam_history]
 
-    y_diffeq = [getproperty(state.points[point[i]], field[i])[direction[i]]
-        for state in diffeq_history]
+    y_ode = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in ode_history]
+
+    y_dae = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in dae_history]
 
     if field[i] == :theta
         ## convert to Rodriguez parameter
         @. y_gxbeam = 4*atan(y_gxbeam/4)
-        @. y_diffeq = 4*atan(y_diffeq/4)
+        @. y_ode = 4*atan(y_ode/4)
+        @. y_dae = 4*atan(y_dae/4)
         ## convert to degrees
         @. y_gxbeam = rad2deg(y_gxbeam)
-        @. y_diffeq = rad2deg(y_diffeq)
+        @. y_ode = rad2deg(y_ode)
+        @. y_dae = rad2deg(y_dae)
     end
 
     if field[i] == :F || field[i] == :M
         y_gxbeam = -y_gxbeam
-        y_diffeq = -y_diffeq
+        y_ode = -y_ode
+        y_dae = -y_dae
     end
 
     plot!(t, y_gxbeam, label="GXBeam")
-    plot!(sol.t, y_diffeq, label="DifferentialEquations")
-#!nb     plot!(show=true)
+    plot!(ode_sol.t, y_ode, label="ODEProblem")
+    plot!(dae_sol.t, y_dae, label="DAEProblem")
+    plot!(show=true) #!nb
 #md     savefig("../assets/diffeq-"*string(field[i])*string(direction[i])*".svg"); #hide
 #md     closeall() #hide
 end
@@ -186,6 +227,7 @@ end
 #md end #hide
 #md nothing #hide
 
+#nb #-
 #nb ph[1]
 #nb #-
 #nb ph[2]
@@ -307,6 +349,6 @@ for ip = 1:length(points)
     sections[3, :, ip] .= chord .* airfoil[:,2]
 end
 
-write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, sol.t; sections = sections)
+write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, t; sections = sections)
 
 # ![](../assets/wind-turbine-blade-simulation.gif)

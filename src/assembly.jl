@@ -1,15 +1,54 @@
 """
+    Element{TF}
+
+Composite type that defines a beam element's properties
+
+# Fields
+ - `L`: Beam element length
+ - `x`: Beam element location
+ - `compliance`: Beam element compliance matrix
+ - `mass`: Beam element mass matrix
+ - `Cab`: Transformation matrix from the undeformed beam element frame to the body frame
+ - `mu`: Beam element damping coefficients
+"""
+struct Element{TF}
+    L::TF
+    x::SVector{3,TF}
+    compliance::SMatrix{6,6,TF,36}
+    mass::SMatrix{6,6,TF,36}
+    Cab::SMatrix{3,3,TF,9}
+    mu::SVector{6,TF}
+end
+
+"""
+    Element(L, x, compliance, mass, Cab, mu)
+
+Construct a beam element
+
+# Arguments
+- `L`: Length of the beam element
+- `x`: Location of the beam element (the center of the beam element)
+- `compliance`: Beam element compliance matrix
+- `mass`: Beam element mass matrix
+- `Cab`: Transformation matrix from the undeformed beam element frame to the body frame
+- `mu`: Beam element damping coefficients
+"""
+function Element(L, x, compliance, mass, Cab, mu)
+    TF = promote_type(typeof(L), eltype(x), eltype(compliance), eltype(mass), eltype(Cab), eltype(mu))
+    return Element{TF}(L, x, compliance, mass, Cab, mu)
+end
+
+"""
     Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}},
         TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
 
-Composite type that defines an assembly of connected nonlinear beam elements for
-analysis.
+Composite type that defines an assembly of connected nonlinear beam elements.
 
 # Fields
  - `points`: Array of all beam element endpoints
  - `start`: Array containing point index where each beam element starts
  - `stop`: Array containing point index where each beam element stops
- - `elements`: Array of `Element`s
+ - `elements`: Array containing beam element definitions (see [`Element`](@ref))
 """
 struct Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector{<:Integer}, TE<:AbstractVector{Element{TF}}}
     points::TP
@@ -22,9 +61,8 @@ Base.eltype(::Assembly{TF, TP, TC, TE}) where {TF, TP, TC, TE} = TF
 """
     Assembly(points, start, stop; kwargs...)
 
-Construct an assembly of connected nonlinear beam elements for analysis.  Beam lengths
-and midpoints may be manually specified in case beam elements are curved rather than
-straight.
+Construct an assembly of connected nonlinear beam elements.  Beam lengths and midpoints 
+may be manually specified in case beam elements are curved rather than straight.
 
 # Arguments
  - `points`: Array of all beam element endpoints
@@ -51,6 +89,7 @@ function Assembly(points, start, stop;
     compliance = nothing,
     mass = nothing,
     frames = nothing,
+    damping = nothing,
     lengths = norm.(points[stop] - points[start]),
     midpoints = (points[stop] + points[start])/2)
 
@@ -77,9 +116,13 @@ function Assembly(points, start, stop;
         frames = fill(I3, nelem)
     end
 
-    elements = Element.(lengths, midpoints, compliance, mass, frames)
+    if isnothing(damping)
+        damping = fill(0.01*(@SVector ones(6)), nelem)
+    end
 
-    return Assembly(points, promote(start, stop)..., elements)
+    elements = Element.(lengths, midpoints, compliance, mass, frames, damping)
+
+    return Assembly(SVector{3}.(points), promote(start, stop)..., elements)
 end
 
 """
