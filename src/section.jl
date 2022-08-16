@@ -537,6 +537,120 @@ function reorder(K)  # reorder to GXBeam format
     return K[idx, idx]
 end
 
+function linearsolve1(A, B1, AF)
+
+    X1 = zeros(size(B1))
+    _, n = size(B1)
+    for j = 1:n
+        X1[:, j] = AF\B1[:, j]
+    end
+
+    return X1
+end
+
+function linearsolve2(AM, B2)
+    AM = factorize(Symmetric(sparse(AM)))
+
+    X2 = zeros(size(B2))
+    _, n = size(B2)
+    for j = 1:n
+        X2[:, j] = AM\B2[:, j]
+    end
+
+    return AM, X2
+end
+
+function linearsolve1(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B1, AF) where {T}
+
+     # extract primal values
+    #  Av = ForwardDiff.value.(A)
+     B1v = ForwardDiff.value.(B1)
+ 
+     # linear solve
+    #  Av = factorize(Av)
+     x1v = zeros(size(B1v))
+     _, n = size(B1v)
+     for j = 1:n
+         x1v[:, j] = AF\B1v[:, j]
+     end
+ 
+     # extract dual values
+     ap = ForwardDiff.partials.(A)
+     m, n = size(A)
+     d = length(ap[1, 1])
+     Adot = zeros(m, n, d)  # TODO: remove these allocations
+     for i = 1:m
+         for j = 1:n
+             Adot[i, j, :] .= ap[i, j].values
+         end
+     end    
+     
+     bp = ForwardDiff.partials.(B1)
+     m, n = size(B1v)
+     B1dot = zeros(m, n, d)  # TODO: and these
+     for i = 1:m
+         for j = 1:n
+             B1dot[i, j, :] .= bp[i, j].values
+         end
+     end
+ 
+     # analytic derivative of linear solve
+     x1dot = zeros(m, n, d)  # TODO: and these
+     for i = 1:d
+         for j = 1:n
+             x1dot[:, j, i] = AF \ (B1dot[:, j, i] - Adot[:, :, i] * x1v[:, j])
+         end
+     end
+ 
+     # repack in dual
+    x1 = ForwardDiff.Dual{T}.(x1v, ForwardDiff.Partials.(Tuple.(view(x1dot, i, j, :) for i = 1:m, j = 1:n)))
+    
+    return x1
+
+end
+
+function linearsolve2(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B2) where {T}
+
+    # extract primal values
+    Av = ForwardDiff.value.(A)
+    B2v = B2  # no partials
+
+    # linear solve
+    AF = factorize(Symmetric(sparse(Av)))
+    x2v = zeros(size(B2v))
+    _, n = size(B2v)
+    for j = 1:n
+        x2v[:, j] = AF\B2v[:, j]
+    end
+
+    # extract dual values
+    ap = ForwardDiff.partials.(A)
+    m, n = size(Av)
+    d = length(ap[1, 1])
+    Adot = zeros(m, n, d)  # TODO: eliminate these allocations
+    for i = 1:m
+        for j = 1:n
+            Adot[i, j, :] .= ap[i, j].values
+        end
+    end    
+
+    m, n = size(B2v)
+    
+    # analytic derivative of linear solve
+    x2dot = zeros(m, n, d)
+    for i = 1:d
+        for j = 1:n
+            x2dot[:, j, i] = AF \ (-Adot[:, :, i] * x2v[:, j])
+        end
+    end
+
+    # repack in dual
+   x2 = ForwardDiff.Dual{T}.(x2v, ForwardDiff.Partials.(Tuple.(view(x2dot, i, j, :) for i = 1:m, j = 1:n)))
+
+   return AF, x2
+
+end
+
 
 """
     compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements), gxbeam_order=true)
@@ -557,7 +671,9 @@ Compute compliance matrix given the finite element mesh described by nodes and e
 - `tc::Vector{float}`: x, y location of tension center, aka elastic center, aka centroid 
     (location where an axial force will not produce any bending, i.e., beam will remain straight)
 """
-function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements), gxbeam_order=true)
+function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements, promote_type(eltype(eltype(nodes)), eltype(eltype(elements)))), gxbeam_order=true)
+
+    TF = promote_type(eltype(eltype(nodes)), eltype(eltype(elements)))
 
     # initialize
     ne = length(elements) # number of elements
@@ -585,7 +701,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     M = cache.M
 
     # assemble displacement constraint matrix
-    DT = spzeros(6, ndof)
+    DT = spzeros(TF, 6, ndof)
     for i = 1:nn
         s = 3*(i-1)
         DT[1, s+1] = 1.0
@@ -607,13 +723,10 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     AM = [E R D;
         R' A zeros(6, 6);
         DT zeros(6, 12)]
-    AM = factorize(Symmetric(sparse(AM)))
+    # AM = factorize(Symmetric(sparse(AM)))
     
     B2 = sparse([zeros(ndof, 6); Tr'; zeros(6, 6)])
-    X2 = zeros(ndof+12, 6)
-    for i = 1:6
-        X2[:, i] = AM\B2[:, i]
-    end
+    AF, X2 = linearsolve2(AM, B2)
     dX = X2[1:ndof, :]
     dY = X2[ndof+1:ndof+6, :]
 
@@ -623,10 +736,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
             zeros(6, ndof+6)]
     Bsub2 = [zeros(ndof, 6); I; zeros(6, 6)]
     B1 = sparse(Bsub1*X2[1:end-6, :] + Bsub2)
-    X1 = zeros(ndof+12, 6)
-    for i = 1:6
-        X1[:, i] = AM\B1[:, i]
-    end
+    X1 = linearsolve1(AM, B1, AF)
     X = X1[1:ndof, :]
     Y = X1[ndof+1:ndof+6, :]
 

@@ -1,9 +1,7 @@
 using FLOWMath: linear
 
 # conveneince methods for initializing vectors and matrices
-vector(n) = Vector{Float64}(undef, n)
 vector_ints(n) = Vector{Int64}(undef, n)
-matrix(m, n) = Matrix{Float64}(undef, m, n)
 
 """
     Layer(material, t, theta)
@@ -114,7 +112,7 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
     t = Vector{Vector{TF}}(undef, ns)
     for i = 1:ns
         nl[i] = length(segments[i])
-        t[i] = vector(nl[i])
+        t[i] = Vector{TF}(undef, nl[i])
         for j = 1:nl[i]
             t[i][j] = segments[i][j].t
         end
@@ -337,10 +335,12 @@ keyword signifies whether this is the upper or lower surface
 """
 function tangential(x, y; upper=true)
 
+    TF = promote_type(eltype(x), eltype(y))
+
     # initialize
     nx = length(x)
-    tx = zeros(nx)
-    ty = zeros(nx)
+    tx = zeros(TF, nx)
+    ty = zeros(TF, nx)
 
     # iterate through airfoil (except end points)
     for i = 2:nx-1
@@ -387,12 +387,14 @@ end
 determine curve for inner surface to find intersections at trailing edge and with webs
 """
 function find_inner_surface(x, y, tx, ty, segments, xbreak)
+
+    TF = promote_type(eltype(x), eltype(y), eltype(tx), eltype(ty))
     
     # initialize
     nx = length(x)
 
-    xinner = vector(nx)
-    yinner = vector(nx)
+    xinner = Vector{TF}(undef, nx)
+    yinner = Vector{TF}(undef, nx)
     for i = 1:nx
         # find corresponding segment
         idx = find_segment_idx(x[i], xbreak)
@@ -424,6 +426,8 @@ also returns the x vector index where the web mesh should start
 """
 function web_intersections(xiu, yiu, xu, yu, txu, tyu, chord, webloc_i, web)
 
+    TF = promote_type(eltype(xiu), eltype(yiu), eltype(xu), eltype(yu), eltype(txu), eltype(tyu))
+
     # compute total thickness of web
     webT = 0.0
     nl = length(web)
@@ -435,16 +439,16 @@ function web_intersections(xiu, yiu, xu, yu, txu, tyu, chord, webloc_i, web)
     xstart = webloc_i*chord - webT/2.0  # TODO: what if this is now out of the sector?  leave that up to user.
 
     # find x locations for the mesh discretizations through this web
-    xiu_web = vector(nl+1)
+    xiu_web = Vector{TF}(undef, nl+1)
     xiu_web[1] = xstart
     for j = 1:nl
         xiu_web[j+1] = xiu_web[j] + web[j].t
     end
 
     # compute corresponding points on airfoil surface
-    yiu_web = vector(nl+1)
-    xu_web = vector(nl+1)
-    yu_web = vector(nl+1)
+    yiu_web = Vector{TF}(undef, nl+1)
+    xu_web = Vector{TF}(undef, nl+1)
+    yu_web = Vector{TF}(undef, nl+1)
     for j = 1:nl+1
         # interpolate to find nondimensional distance
         idx = searchsortedlast(xiu, xiu_web[j])
@@ -530,7 +534,6 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
     nl = length(segments[1])  # number of layers (same for all segments)
     
     TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(eltype(eltype(segments))), eltype(chord), eltype(x_te))
-    
     # initialize
     nxu = length(xu)
     if x_te != 0.0
@@ -585,11 +588,11 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
         norm_t = cumsum(last_t)
         norm_t /= norm_t[end]
         # distribute points according to that normalization starting at (chord, 0) ending at (x_te, 0)
-        nodesu[n] = Node(chord, 0.0)
+        nodesu[n] = Node(chord, zero(TF))
         n += 1
         for i = 1:length(norm_t)
             next_x = chord - (chord - x_te)*norm_t[i]
-            nodesu[n] = Node(next_x, 0.0)
+            nodesu[n] = Node(next_x, zero(TF))
             n += 1
         end
     else
