@@ -1,6 +1,7 @@
 # Unit Tests for section.jl and afmesh.jl
 
 using GXBeam, LinearAlgebra, Random, Test
+using ForwardDiff, FiniteDiff
 
 @testset "section properties: material stiffness matrix" begin
     
@@ -738,9 +739,6 @@ end
     @test checkstability()
 
 end
-
-using ForwardDiff
-using FiniteDiff
 
 @testset "Jacobian" begin
 
