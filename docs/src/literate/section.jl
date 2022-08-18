@@ -104,8 +104,8 @@ iso = Material(100.0, 100.0, 100.0, 41.667, 41.667, 41.667, 0.2, 0.2, 0.2, 1000.
 x = range(-0.05, 0.05, length=11)
 y = range(-0.05, 0.05, length=11)
 
-nodes = Vector{Node}(undef, 11*11)
-elements = Vector{MeshElement}(undef, 10*10)
+nodes = Vector{Node{Float64}}(undef, 11*11)
+elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, 10*10)
 
 let 
     m = 1

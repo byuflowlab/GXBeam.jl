@@ -921,7 +921,7 @@ resulting system and a flag indicating whether the iteration procedure converged
         each point relative to the body frame
 
 # Control Flag Keyword Arguments
- - `structural_damping = false`: Indicates whether to enable structural damping
+ - `structural_damping = true`: Indicates whether to enable structural damping
  - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
