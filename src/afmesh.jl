@@ -848,7 +848,9 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     nlayer = length(segments[1])
     nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer, x_te)
 
-    nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, wns)
+    if nw > 0 # only add webs if there are webs defined
+        nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, wns)
+    end
     # -----------------------------------
     
     # ------ rotate with twist -------
