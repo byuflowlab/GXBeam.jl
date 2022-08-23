@@ -20,6 +20,9 @@ end
 Base.eltype(::Layer{TF}) where {TF} = TF
 Base.eltype(::Type{Layer{TF}}) where {TF} = TF
 
+Layer{TF}(l::Layer) where {TF} = Layer{TF}(l.material, l.t, l.theta)
+Base.convert(::Type{Layer{TF}}, l::Layer) where {TF} = Layer{TF}(l)
+
 # from https://discourse.julialang.org/t/findnearest-function/4143/4
 function searchsortednearest(a, x)
     idx = searchsortedfirst(a, x)
@@ -848,7 +851,9 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     nlayer = length(segments[1])
     nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer, x_te)
 
-    nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, wns)
+    if nw > 0 # only add webs if there are webs defined
+        nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, wns)
+    end
     # -----------------------------------
     
     # ------ rotate with twist -------
