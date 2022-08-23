@@ -27,6 +27,10 @@ end
 Base.eltype(::Material{TF}) where TF = TF
 Base.eltype(::Type{Material{TF}}) where TF = TF
 
+Material{TF}(m::Material) where {TF} = Material{TF}(m.E1, m.E2, m.E3, m.G12, m.G13, m.G23, 
+    m.nu12, m.nu13, m.nu23, m.rho)
+Base.convert(::Type{Material{TF}}, m::Material) where {TF} = Material{TF}(m)
+
 """
     Node(x, y)
 
@@ -43,6 +47,9 @@ end
 
 Base.eltype(::Node{TF}) where TF = TF
 Base.eltype(::Type{Node{TF}}) where TF = TF
+
+Node{TF}(n::Node) where {TF} = Node{TF}(n.x, n.y)
+Base.convert(::Type{Node{TF}}, n::Node) where {TF} = Node{TF}(n)
 
 """
     MeshElement(nodenum, material, theta)
@@ -63,6 +70,9 @@ end
 
 Base.eltype(::MeshElement{VI, TF}) where {VI, TF} = TF
 Base.eltype(::Type{MeshElement{VI, TF}}) where {VI, TF} = TF
+
+MeshElement{VI,TF}(e::MeshElement) where {VI,TF} = MeshElement{VI,TF}(e.nodenum, e.material, e.theta)
+Base.convert(::Type{MeshElement{VI,TF}}, e::MeshElement) where {VI,TF} = MeshElement{VI,TF}(e)
 
 """
 internal cache so allocations happen only once upfront

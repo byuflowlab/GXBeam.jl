@@ -20,6 +20,9 @@ end
 Base.eltype(::Layer{TF}) where {TF} = TF
 Base.eltype(::Type{Layer{TF}}) where {TF} = TF
 
+Layer{TF}(l::Layer) where {TF} = Layer{TF}(l.material, l.t, l.theta)
+Base.convert(::Type{Layer{TF}}, l::Layer) where {TF} = Layer{TF}(l)
+
 # from https://discourse.julialang.org/t/findnearest-function/4143/4
 function searchsortednearest(a, x)
     idx = searchsortedfirst(a, x)
