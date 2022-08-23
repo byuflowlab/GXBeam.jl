@@ -713,43 +713,12 @@ function sectionwrapper(x)
     
     webs = [web, web]
 
-
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs)
     
     S, sc, tc = compliance_matrix(nodes, elements)
     M, mc = mass_matrix(nodes, elements)
 
     return vcat([S; M]...)
-end
-
-
-@testset "type stability" begin
-
-    function checkstability()
-        xvec = [0.5014995, 0.07571157, 10.30e9, 1.9, 0.0*pi/180, 17*0.00053, 20.0, 38*0.00053, 0.0]
-        try
-            @inferred Vector{Float64} sectionwrapper(xvec)
-            return true
-        catch err
-            println(err)
-            return false
-        end
-    end
-
-    @test checkstability()
-
-end
-
-@testset "Jacobian" begin
-
-    # should use graph coloring b.c. plenty of sparsity, but dense is fine for purpose of this test.
-    xvec = [0.5014995, 0.07571157, 10.30e9, 1.9, 0.0*pi/180, 17*0.00053, 20.0, 38*0.00053, 0.0]
-    
-    J1 = ForwardDiff.jacobian(sectionwrapper, xvec)
-    J2 = FiniteDiff.finite_difference_jacobian(sectionwrapper, xvec, Val{:central})
-
-    @test maximum(abs.(J1 .- J2)) < 1e-6
-
 end
 
 function sectionwrapper_nowebs(x)
@@ -804,13 +773,42 @@ function sectionwrapper_nowebs(x)
     return vcat([S; M]...)
 end
 
-@testset "No webs" begin
+@testset "type stability" begin
+
+    function checkstability()
+        xvec = [0.5014995, 0.07571157, 10.30e9, 1.9, 0.0*pi/180, 17*0.00053, 20.0, 38*0.00053, 0.0]
+        try
+            @inferred Vector{Float64} sectionwrapper(xvec)
+            return true
+        catch err
+            println(err)
+            return false
+        end
+    end
+
+    @test checkstability()
+
+end
+
+@testset "Jacobian with Webs" begin
+
+    # should use graph coloring b.c. plenty of sparsity, but dense is fine for purpose of this test.
+    xvec = [0.5014995, 0.07571157, 10.30e9, 1.9, 0.0*pi/180, 17*0.00053, 20.0, 38*0.00053, 0.0]
+    
+    J1 = ForwardDiff.jacobian(sectionwrapper, xvec)
+    J2 = FiniteDiff.finite_difference_jacobian(sectionwrapper, xvec, Val{:central})
+
+    @test maximum(abs.(J1 .- J2)) < 1e-6
+
+end
+
+@testset "Jacobian without Webs" begin
 
     xvec = [0.5014995, 0.07571157, 10.30e9, 1.9, 0.0*pi/180, 17*0.00053, 20.0, 38*0.00053, 0.0]
     
     J1 = ForwardDiff.jacobian(sectionwrapper_nowebs, xvec)
     J2 = FiniteDiff.finite_difference_jacobian(sectionwrapper_nowebs, xvec, Val{:central})
 
-    @test maximum(abs.(J1 .- J2)) < 1e-6 #ensures it runs without error and derivatives can still pass through
+    @test maximum(abs.(J1 .- J2)) < 1e-6
 
 end
