@@ -490,13 +490,25 @@ returns index of upper and lower surface where the trailing-edge-mesh should sta
 also returns the x, y location of intersection.
 """
 function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
-    # indices before and after zero crossing
-    iu = findfirst(yiu .< 0.0)  # TODO: very unlikely, but what if they intersection exactly at zero?  would need to go back one step to keep quadrilateral shape
-    il = findfirst(yil .> 0.0)
 
-    if isnothing(iu) && isnothing(il)  # TODO: could have an odd case where only one is nothing
-        return 0.0, xu, yu, xl, yl
+    # --- find crossing point -----
+    # interpolate onto common x-grid
+    yil2 = FLOWMath.linear(xil, yil, xiu)
+
+    # subtract two curves
+    ydiff = yiu - yil2
+
+    # find first crossing on aft half of airfoil
+    n = length(ydiff) ÷ 2  # integer division
+    iu = findfirst(ydiff[n+1:end] .< 0.0)
+    if isnothing(iu)  # no crossing
+        return 0.0, 0.0, xu, yu, xl, yl
     end
+    iu += n  # add back on number of points from fore half
+
+    # find corresponding point on lower surface
+    il = searchsortedfirst(xil, xiu[iu-1])
+    # ----------------------------
 
     # 1 and 2 are endpoints of one line
     x1 = xiu[iu-1]; y1 = yiu[iu-1]
@@ -509,32 +521,33 @@ function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     # compute point of intersection between the two lines (https://dirask.com/posts/JavaScript-calculate-intersection-point-of-two-lines-for-given-4-points-VjvnAj)
     den = (x1 - x2)*(y3 - y4) - (y1 - y2)*(x3 - x4)
     px = (x1*y2 - y1*x2)*(x3 - x4) - (x1 - x2)*(x3*y4 - y3*x4)
-    # py = (x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4)    
-    # ignore py, should be close to zero and we will force it to be exactly zero so the nodes align
+    py = (x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4)    
 
     # return point of intersection
     if den != 0
         px /= den
-        # py /= den
+        py /= den
 
         # modify trailing edge mesh
         xu = xu[1:iu-1]; yu = yu[1:iu-1]
         xl = xl[1:il-1]; yl = yl[1:il-1]
 
-        return px, xu, yu, xl, yl
+        return px, py, xu, yu, xl, yl
     else  # no intersection
-        return 0.0, xu, yu, xl, yl
+        return 0.0, 0.0, xu, yu, xl, yl
     end
+
+    
 
 end
 
 """
 create nodes and elements for half (upper or lower) portion of airfoil
 """
-function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
+function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
     nl = length(segments[1])  # number of layers (same for all segments)
     
-    TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(eltype(eltype(segments))), eltype(chord), eltype(x_te))
+    TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(eltype(eltype(segments))), eltype(chord), eltype(x_te), eltype(y_te))
     # initialize
     nxu = length(xu)
     if x_te != 0.0
@@ -588,12 +601,13 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
         last_t = [layer.t for layer in segments[end]]
         norm_t = cumsum(last_t)
         norm_t /= norm_t[end]
-        # distribute points according to that normalization starting at (chord, 0) ending at (x_te, 0)
+        # distribute points according to that normalization starting at (chord, 0) ending at (x_te, y_te)
         nodesu[n] = Node(chord, zero(TF))
         n += 1
         for i = 1:length(norm_t)
             next_x = chord - (chord - x_te)*norm_t[i]
-            nodesu[n] = Node(next_x, zero(TF))
+            next_y =  y_te*norm_t[i]
+            nodesu[n] = Node(next_x, next_y)
             n += 1
         end
     else
@@ -841,12 +855,12 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     end
 
     # determine intersection point for trailing edge.  (note must be done at end)
-    x_te, xu, yu, xl, yl = te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
+    x_te, y_te, xu, yu, xl, yl = te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     # -----------------------------------------------------------------
 
     # ------------------ build mesh --------------------    
-    nodesu, elementsu = nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te)
-    nodesl, elementsl = nodes_half(xl, yl, txl, tyl, xbreak, segments, chord, x_te)
+    nodesu, elementsu = nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
+    nodesl, elementsl = nodes_half(xl, yl, txl, tyl, xbreak, segments, chord, x_te, y_te)
 
     nlayer = length(segments[1])
     nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer, x_te)
