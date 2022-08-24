@@ -578,7 +578,7 @@ end
     K = inv(S)
 
     @test isapprox(log10(K[1, 1]), log10(abs(2.389e9)), rtol=0.006)
-    @test isapprox(log10(K[1, 2]), log10(abs(1.524e6)), rtol=0.03)
+    @test isapprox(log10(K[1, 2]), log10(abs(1.524e6)), rtol=0.05)
     @test isapprox(log10(K[2, 2]), log10(abs(4.334e8)), rtol=0.03)
     @test isapprox(log10(K[1, 3]), log10(abs(6.734e6)), rtol=0.09)
     @test isapprox(log10(-K[2, 3]), log10(abs(-3.741e6)), rtol=0.07)
@@ -660,7 +660,7 @@ end
     Iyy = M[6, 6]
     Ixy = -M[5, 6]
     theta = 0.5 * atan(2*Ixy / (Iyy - Ixx))
-    @test isapprox(theta*180/pi, -1.244, rtol=0.09)
+    @test isapprox(theta*180/pi, -1.244, rtol=0.1)
     
 end
 
