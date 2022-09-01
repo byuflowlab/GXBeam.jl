@@ -11,13 +11,14 @@ may be used with the DifferentialEquations package.
     nonlinear beam elements.
  - `tspan`: Time span over which to solve the ODE problem
  - `p`: Parameters, as defined in conjunction with the keyword argument `pfunc`.
-    Defaults to an empty named tuple.  
+        Defaults to an empty named tuple.  
 
 # Keyword Arguments
  - `pfunc = (p, t) -> p`: Function which returns a named tuple with parameters as 
     described in [`ODEFunction`](@ref).
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.
+ - `sparse = false`: Flag indicating whether to use a sparse jacobian.
 
 Additional keyword arguments are passed forward to ODEProblem.
 """
@@ -25,6 +26,7 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan, p=(;);
     pfunc = (p, t) -> p,
     structural_damping = true,
     constant_mass_matrix = typeof(system) <: ExpandedSystem,
+    sparse = false,
     kwargs...)
 
     # extract parameters from the parameter vector using `pfunc`
@@ -42,14 +44,12 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan, p=(;);
     u0 = copy(system.x)
 
     # construct ODEFunction
-    func = SciMLBase.ODEFunction(system, assembly, pfunc; 
-        structural_damping = structural_damping,
-        constant_mass_matrix = constant_mass_matrix,
-        prescribed_conditions = pcond,
-        point_masses = pmass)
+    func = SciMLBase.ODEFunction(system, assembly, pfunc, p; 
+        structural_damping, constant_mass_matrix, sparse)
 
     return SciMLBase.ODEProblem{true}(func, u0, tspan, p; kwargs...)
 end
+
 
 """
     ODEFunction(system::GXBeam.AbstractSystem, assembly, pfunc = (p, t) -> p; kwargs...)
@@ -78,23 +78,17 @@ which may be used with the DifferentialEquations package.
    - `gravity`: Gravity vector.
    - `linear_velocity = zeros(3)`: Global frame linear velocity vector.
    - `angular_velocity = zeros(3)`: Global frame angular velocity vector.
+ - `p`: Parameters, as defined in conjunction with the keyword argument `pfunc`.
+    Defaults to an empty named tuple.  
 
 # Keyword Arguments
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.  
- - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`: Initial prescribed 
-    conditions (only used for constant mass matrix systems).  Note that the type of 
-    prescribed condition for each point must remain constant for a constant mass matrix 
-    system, though the magnitude of prescribed displacements and/or loads may change. 
- - `point_masses = Dict{Int,PointMass{Float64}}()`: Point masses (only used for constant 
-    mass matrix systems).  Point mass properties cannot be changed when using a constant 
-    mass matrix system.     
+ - `sparse = false`: Flag indicating whether to use a sparse jacobian.
 """
-function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) -> p; 
-    structural_damping = true,
-    constant_mass_matrix = typeof(system) <: ExpandedSystem,
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(),
-    point_masses = Dict{Int,PointMass{Float64}}())
+function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) -> p, p0=(;); 
+    structural_damping = true, constant_mass_matrix = typeof(system) <: ExpandedSystem, 
+    sparse=false)
 
     for ielem = 1:length(assembly.elements)
         @assert !iszero(assembly.elements[ielem].L) "Zero length elements cannot be used "*
@@ -115,36 +109,23 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             "be invertible when using ODEFunction."
     end
 
+    # get parameters at time t=0.0
+    pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p0, 0.0)
+
+    # extract force scaling
     force_scaling = system.force_scaling
 
     if constant_mass_matrix
 
         indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=true)
-
         du = zeros(indices.nstates)
 
         # residual function (constant mass matrix system)
         f = function(resid, u, p, t)
 
             # extract parameters from the parameter vector using `pfunc`
-            parameters = pfunc(p, t)
+            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
-            # unpack parameters
-            pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-            dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
-            pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-            gvec = get(parameters, :gravity, (@SVector zeros(3)))
-            vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
-            ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
-
-            # get parameters for this time step
-            pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-            dload = typeof(dload) <: AbstractDict ? dload : dload(t)
-            pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-            gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))        
-            vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
-            ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
-    
             # calculate residual
             expanded_dynamic_system_residual!(resid, du, u, indices, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
@@ -155,70 +136,45 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
         # mass matrix (constant mass matrix system)
         TF = eltype(system)
         nx = indices.nstates
-        mass_matrix = spzeros(TF, nx, nx)
-        pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(0)
-        pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(0)
-        expanded_system_mass_matrix!(mass_matrix, -1, indices, force_scaling, assembly, pcond, pmass) 
+        mass_matrix = zeros(TF, nx, nx)
+        expanded_system_mass_matrix!(mass_matrix, -1, indices, force_scaling, assembly, pcond, pmass)
     
         # jacobian
         update_jacobian! = function(J, u, p, t)
 
-            # extract parameters from the parameter vector using `pfunc`
-            parameters = pfunc(p, t)
-
-            # unpack parameters
-            pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-            dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
-            pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-            gvec = get(parameters, :gravity, (@SVector zeros(3)))
-            vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
-            ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
-
-            # get parameters for this time step
-            pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-            dload = typeof(dload) <: AbstractDict ? dload : dload(t)
-            pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-            gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))        
-            vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
-            ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
-    
             # zero out all jacobian entries
             J .= 0.0
+
+            # extract parameters from the parameter vector using `pfunc`
+            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
             # calculate jacobian
             expanded_dynamic_system_jacobian!(J, du, u, indices, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
-
+        
             return J
+        end
+
+        # jacobian prototype
+        if sparse
+            jac_prototype = spzeros(TF, nx, nx)
+            expanded_dynamic_system_jacobian!(jac_prototype, rand(nx), rand(nx), indices, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, rand(3), rand(3), rand(3))
+        else
+            jac_prototype = nothing
         end
 
     else
 
         indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=false)
-
         du = zeros(indices.nstates)
+        u = rand(indices.nstates)
 
         # residual function
         f = function(resid, u, p, t)
 
             # extract parameters from the parameter vector using `pfunc`
-            parameters = pfunc(p, t)
-
-            # unpack parameters
-            pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-            dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
-            pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-            gvec = get(parameters, :gravity, (@SVector zeros(3)))
-            vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
-            ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
-
-            # get parameters for this time step
-            pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-            dload = typeof(dload) <: AbstractDict ? dload : dload(t)
-            pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-            gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))        
-            vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
-            ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
+            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
     
             # calculate residual
             dynamic_system_residual!(resid, du, u, indices, force_scaling, 
@@ -230,23 +186,16 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
         # mass matrix
         update_mass_matrix! = function(M, u, p, t)
 
-            # extract parameters from the parameter vector using `pfunc`
-            parameters = pfunc(p, t)
-
-            # unpack parameters
-            pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-            pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-
-            # get parameters for this time step
-            pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-            pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-
             # zero out all mass matrix entries
             M .= 0.0
+
+            # extract parameters from the parameter vector using `pfunc`
+            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
     
             # calculate mass matrix
             system_mass_matrix!(M, u, indices, force_scaling, assembly, pcond, pmass)
     
+            # change sign of mass matrix
             M .*= -1
     
             return M
@@ -257,27 +206,11 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
         # jacobian
         update_jacobian! = function(J, u, p, t)
 
-            # extract parameters from the parameter vector using `pfunc`
-            parameters = pfunc(p, t)
-
-            # unpack parameters
-            pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-            dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
-            pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-            gvec = get(parameters, :gravity, (@SVector zeros(3)))
-            vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
-            ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
-
-            # get parameters for this time step
-            pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-            dload = typeof(dload) <: AbstractDict ? dload : dload(t)
-            pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-            gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))        
-            vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
-            ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
-    
             # zero out all jacobian entries
             J .= 0.0
+
+            # extract parameters from the parameter vector using `pfunc`
+            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
             # calculate jacobian
             dynamic_system_jacobian!(J, du, u, indices, force_scaling, 
@@ -286,9 +219,19 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc = (p, t) 
             return J
         end
 
+        # jacobian prototype
+        if sparse 
+            jac_prototype = spzeros(TF, nx, nx)
+            dynamic_system_jacobian!(jac_prototype, du, u, indices, force_scaling, 
+                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+        else
+            jac_prototype = nothing
+        end
+
     end
 
-    return SciMLBase.ODEFunction{true,true}(f; mass_matrix = mass_matrix, jac = update_jacobian!)
+    return SciMLBase.ODEFunction{true,true}(f; mass_matrix = mass_matrix, 
+        jac = update_jacobian!, jac_prototype = jac_prototype)
 end
 
 """
@@ -387,23 +330,7 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
     f = function(resid, du, u, p, t)
 
         # extract parameters from the parameter vector using `pfunc`
-        parameters = pfunc(p, t)
-
-        # unpack parameters
-        pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-        dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
-        pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-        gvec = get(parameters, :gravity, (@SVector zeros(3)))
-        vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
-        ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
-
-        # get parameters for this time step
-        pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-        dload = typeof(dload) <: AbstractDict ? dload : dload(t)
-        pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-        gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))        
-        vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
-        ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
+        pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
         # calculate residual
         dynamic_system_residual!(resid, du, u, indices, force_scaling, 
@@ -419,23 +346,7 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
         J .= 0.0
 
         # extract parameters from the parameter vector using `pfunc`
-        parameters = pfunc(p, t)
-
-        # unpack parameters
-        pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-        dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
-        pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-        gvec = get(parameters, :gravity, (@SVector zeros(3)))
-        vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
-        ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
-
-        # get parameters for this time step
-        pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-        dload = typeof(dload) <: AbstractDict ? dload : dload(t)
-        pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-        gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))        
-        vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
-        ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
+        pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
         # calculate jacobian
         dynamic_system_jacobian!(J, du, u, indices, force_scaling, 
@@ -449,6 +360,30 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
     end
 
     return SciMLBase.DAEFunction{true,true}(f) # TODO: re-add jacobian here once supported
+end
+
+function extract_parameters(pfunc, p, t)
+
+    # extract parameters from the parameter vector using `pfunc`
+    parameters = pfunc(p, t)
+
+    # unpack parameters
+    pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
+    dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
+    pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
+    gvec = get(parameters, :gravity, (@SVector zeros(3)))
+    vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
+    ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
+
+    # get parameters for this time step
+    pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
+    dload = typeof(dload) <: AbstractDict ? dload : dload(t)
+    pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
+    gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))        
+    vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
+    ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
+
+    return (; pcond, dload, pmass, gvec, vb_p, ωb_p)
 end
 
 function get_differential_vars(system::DynamicSystem, assembly, prescribed_conditions, point_masses)
