@@ -572,7 +572,7 @@ end
 
 """
 pull out linear solve so can overload it with analytic derivatives
-solves A\B but takes in factorization of A (AF).  Only needs A for the 
+solves Ax = b but takes in factorization of A (AF).  Only needs A for the 
 overloaded portion but must keep it here to maintain function signature. 
 uses cache to avoid allocations
 """
@@ -588,7 +588,7 @@ end
 
 """
 pull out linear solve so can overload it with analytic derivatives
-solves AM\B (after factorizing it).  uses cache to avoid allocations
+solves AM x = B (after factorizing it).  uses cache to avoid allocations
 Return matrix factorization (for later reuse) in addition to solution
 """
 function linearsolve2(AM, B2, cache)
