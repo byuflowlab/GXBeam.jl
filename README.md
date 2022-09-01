@@ -28,7 +28,11 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
     - Captures all geometric nonlinearities due to large deflections and rotations (subject to a small strain assumption)
     - Models angular displacements of any magnitude using only three parameters
     - Uses the full 6x6 Timoshenko beam stiffness matrix
-    - Calculates section compliance and inertia matrices using 2D finite element analysis
+ - Calculate section compliance and inertia matrices 
+    - Uses quadrilateral finite elements rather than classical lamiante theory for much better accuracy and cross coupling
+    - Allows for general geometry with inhomogenous properties and anisotropic behavior (computes full 6x6 matrix)
+    - Ply materials are general orthotropic
+    - Provides convenience method for paramterizing airfoil layups
  - Models time-varying distributed forces/moments including
     - Point and distributed loads which remain fixed in the body-frame
     - Point and distributed loads which rotate with the structure
@@ -38,7 +42,7 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
  - Optional [DifferentialEquations](https://github.com/SciML/DifferentialEquations.jl) interface.
     - Constant mass matrix differential algebraic equation formulation
     - Fully implicit differential algebraic equation formulation
- - Built-in optimization-friendly airfoil cross section mesher
+ - Provides derivatives with ForwardDiff (including overloading internal solvers with implicit analytic methods)
  - Result visualization using [WriteVTK](https://github.com/jipolanco/WriteVTK.jl)
  - Verified and validated against published analytical and computational results.  See the examples in the [documentation](https://flow.byu.edu/GXBeam.jl/dev/).
 
@@ -76,6 +80,8 @@ This package relies on the results of linear cross-sectional analyses.  Most not
 [GEBT](https://cdmhub.org/resources/367): Open source geometrically exact beam theory code developed in Fortran as a companion to the proprietary cross sectional analysis tool [VABS](https://analyswift.com/vabs-cross-sectional-analysis-tool-for-composite-beams/).  The theory for this code is provided in references [1](#1) and [2](#2).  GXBeam was originally developed based on this package and its associated papers, but has since been augmented with additional features.
 
 [BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html): Open source geometrically exact beam theory code developed in Fortran by NREL as part of the OpenFAST project.  This code was also developed based on [GEBT](https://cdmhub.org/resources/367), but uses Legendre spectral finite elements.  This allows for exponential rather than algebraic convergence when the solution is smooth.  This makes this code a good candidate for use when analyzing beams with smoothly varying properties.  Unfortunately, the code is limited to analyzing a single beam, rather than an assembly of beams.
+
+The cross sectional analysis uses the same underlying theory as in [BECAS](https://becas.dtu.dk), but was written to be fast and optimization-friendly.  [VABS](https://analyswift.com/vabs-cross-sectional-analysis-tool-for-composite-beams/) and [PreComp](https://www.nrel.gov/wind/nwtc/precomp.html) are other popular tools for composite cross sectional analysis.  The former is not freely available, whereas the latter is lower fidelity as it is based on classical laminate theory.
 
 ## Contributing
 

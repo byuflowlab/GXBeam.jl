@@ -274,6 +274,8 @@ M, mc = mass_matrix(nodes, elements)
 # The cache does not needed to be re-initialized as long as the matrix sizes stay constant 
 # (the geometry can change sizes, but the overall mesh connectivity remains the same, which should be the case
 # during gradient-based design optimization)
+# If passing derivatives through with ForwardDiff make sure to set the d parameter of initialize_cache, which is
+# the number of design variables.  See the `sectionwrapper` function in the unit tests for section.jl for an example.
 cache = initialize_cache(nodes, elements)
 S, sc, tc = compliance_matrix(nodes, elements, cache=cache)  # these calls are now much faster
 S, sc, tc = compliance_matrix(nodes, elements, cache=cache)

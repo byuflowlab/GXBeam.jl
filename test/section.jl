@@ -715,7 +715,8 @@ function sectionwrapper(x)
 
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs)
     
-    S, sc, tc = compliance_matrix(nodes, elements)
+    cache = initialize_cache(nodes, elements, TF, length(x))
+    S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
     M, mc = mass_matrix(nodes, elements)
 
     return vcat([S; M]...)
@@ -767,7 +768,8 @@ function sectionwrapper_nowebs(x)
 
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs)
     
-    S, sc, tc = compliance_matrix(nodes, elements)
+    cache = initialize_cache(nodes, elements, TF, length(x))
+    S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
     M, mc = mass_matrix(nodes, elements)
 
     return vcat([S; M]...)
@@ -781,7 +783,7 @@ end
             @inferred Vector{Float64} sectionwrapper(xvec)
             return true
         catch err
-            println(err)
+            # println(err)
             return false
         end
     end

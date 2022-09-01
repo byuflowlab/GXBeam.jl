@@ -77,7 +77,7 @@ Base.convert(::Type{MeshElement{VI,TF}}, e::MeshElement) where {VI,TF} = MeshEle
 """
 internal cache so allocations happen only once upfront
 """
-struct SectionCache{TM, TSM, TFM, TV}  # matrix, sparse matrix, float matrix, vector
+struct SectionCache{TM, TSM, TFM, TV, TMF, TAF}  # matrix, sparse matrix, float matrix, vector, matrix floats, array floats
     Q::TM
     Ttheta::TSM
     Tbeta::TSM
@@ -104,14 +104,24 @@ struct SectionCache{TM, TSM, TFM, TV}  # matrix, sparse matrix, float matrix, ve
     C::TSM
     L::TM
     M::TSM
+    X1::TMF
+    X2::TMF
+    X1dot::TAF
+    X2dot::TAF
+    B1dot::TAF
+    Adot::TAF
 end
 
 """
     initialize_cache(nodes, elements, etype=Float64)
 
 create cache.  set sizes of static matrices, and set sparsity patterns for those that are fixed.
+
+**Arguments**
+- `etype::Type`: the element type (typically a float or a dual type)
+- `d::Int`: the number of variables you are taking derivatives w.r.t (i.e., number of design variables)
 """
-function initialize_cache(nodes, elements, etype=Float64)
+function initialize_cache(nodes, elements, etype=Float64, d=0)
 
     # create cache
     Q = zeros(etype, 6, 6)
@@ -251,7 +261,23 @@ function initialize_cache(nodes, elements, etype=Float64)
     C .= 0.0
     M .= 0.0
 
-    cache = SectionCache(Q, Ttheta, Tbeta, Z, S, N, SZ, SN, Bksi, Beta, dNM_dksi, dNM_deta, BN, Ae, Re, Ee, Ce, Le, Me, idx, A, R, E, C, L, M)
+    # ---- used for derivatives ------
+    # all of these are always floats
+    X1 = zeros(ndof+12, 6)
+    X2 = zeros(ndof+12, 6)
+    if d != 0
+        X1dot = zeros(ndof+12, 6, d)
+        X2dot = zeros(ndof+12, 6, d)
+        B1dot = zeros(ndof+12, 6, d)
+        Adot = zeros(ndof+12, ndof+12, d)
+    else
+        X1dot = zeros(1, 1, 1)
+        X2dot = zeros(1, 1, 1)
+        B1dot = zeros(1, 1, 1)
+        Adot = zeros(1, 1, 1)
+    end
+
+    cache = SectionCache(Q, Ttheta, Tbeta, Z, S, N, SZ, SN, Bksi, Beta, dNM_dksi, dNM_deta, BN, Ae, Re, Ee, Ce, Le, Me, idx, A, R, E, C, L, M, X1, X2, X1dot, X2dot, B1dot, Adot)
 
     return cache
 end
@@ -544,79 +570,91 @@ function reorder(K)  # reorder to GXBeam format
     return K[idx, idx]
 end
 
-function linearsolve1(A, B1, AF)
+"""
+pull out linear solve so can overload it with analytic derivatives
+solves A\B but takes in factorization of A (AF).  Only needs A for the 
+overloaded portion but must keep it here to maintain function signature. 
+uses cache to avoid allocations
+"""
+function linearsolve1(A, B1, AF, cache)
 
-    X1 = zeros(size(B1))
     _, n = size(B1)
     for j = 1:n
-        X1[:, j] = AF\B1[:, j]
+        cache.X1[:, j] = AF \ B1[:, j]
     end
 
-    return X1
+    return cache.X1
 end
 
-function linearsolve2(AM, B2)
+"""
+pull out linear solve so can overload it with analytic derivatives
+solves AM\B (after factorizing it).  uses cache to avoid allocations
+Return matrix factorization (for later reuse) in addition to solution
+"""
+function linearsolve2(AM, B2, cache)
     AM = factorize(Symmetric(sparse(AM)))
 
-    X2 = zeros(size(B2))
     _, n = size(B2)
     for j = 1:n
-        X2[:, j] = AM\B2[:, j]
+        cache.X2[:, j] = AM \ B2[:, j]
     end
 
-    return AM, X2
+    return AM, cache.X2
 end
 
-function linearsolve1(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B1, AF) where {T}
+"""
+Overloaded version to propagate analytic derivatives with forwarddiff
+"""
+function linearsolve1(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B1, AF, cache) where {T}
 
      # extract primal values
     #  Av = ForwardDiff.value.(A)
-     B1v = ForwardDiff.value.(B1)
+    B1v = ForwardDiff.value.(B1)
  
      # linear solve
     #  Av = factorize(Av)
-     x1v = zeros(size(B1v))
-     _, n = size(B1v)
-     for j = 1:n
-         x1v[:, j] = AF\B1v[:, j]
-     end
+    #  x1v = zeros(size(B1v))
+    _, n = size(B1v)
+    for j = 1:n
+        cache.X1[:, j] = AF \ B1v[:, j]
+    end
  
      # extract dual values
-     ap = ForwardDiff.partials.(A)
-     m, n = size(A)
-     d = length(ap[1, 1])
-     Adot = zeros(m, n, d)  # TODO: remove these allocations
-     for i = 1:m
-         for j = 1:n
-             Adot[i, j, :] .= ap[i, j].values
-         end
-     end    
+    ap = ForwardDiff.partials.(A)
+    m, n = size(A)
+    d = length(ap[1, 1])
+    @views for i = 1:m
+        for j = 1:n
+            cache.Adot[i, j, :] .= ap[i, j].values
+        end
+    end    
      
-     bp = ForwardDiff.partials.(B1)
-     m, n = size(B1v)
-     B1dot = zeros(m, n, d)  # TODO: and these
-     for i = 1:m
-         for j = 1:n
-             B1dot[i, j, :] .= bp[i, j].values
-         end
-     end
+    bp = ForwardDiff.partials.(B1)
+    m, n = size(B1v)
+    @views for i = 1:m
+        for j = 1:n
+            cache.B1dot[i, j, :] .= bp[i, j].values
+        end
+    end
  
      # analytic derivative of linear solve
-     x1dot = zeros(m, n, d)  # TODO: and these
-     for i = 1:d
-         for j = 1:n
-             x1dot[:, j, i] = AF \ (B1dot[:, j, i] - Adot[:, :, i] * x1v[:, j])
-         end
-     end
+    for i = 1:d
+        for j = 1:n
+            cache.X1dot[:, j, i] = AF \ (view(cache.B1dot, :, j, i) - view(cache.Adot, :, :, i) * view(cache.X1, :, j))
+        end
+    end
  
      # repack in dual
-    x1 = ForwardDiff.Dual{T}.(x1v, ForwardDiff.Partials.(Tuple.(view(x1dot, i, j, :) for i = 1:m, j = 1:n)))
+    X1D = ForwardDiff.Dual{T}.(cache.X1, ForwardDiff.Partials.(Tuple.(view(cache.X1dot, i, j, :) for i = 1:m, j = 1:n)))
     
-    return x1
+    return X1D
 
 end
 
-function linearsolve2(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B2) where {T}
+"""
+Overloaded version to propagate analytic derivatives with forwarddiff
+"""
+function linearsolve2(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B2, cache) where {T}
 
     # extract primal values
     Av = ForwardDiff.value.(A)
@@ -624,37 +662,34 @@ function linearsolve2(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B2) where {T}
 
     # linear solve
     AF = factorize(Symmetric(sparse(Av)))
-    x2v = zeros(size(B2v))
     _, n = size(B2v)
     for j = 1:n
-        x2v[:, j] = AF\B2v[:, j]
+        cache.X2[:, j] = AF \ B2v[:, j]
     end
 
     # extract dual values
     ap = ForwardDiff.partials.(A)
     m, n = size(Av)
     d = length(ap[1, 1])
-    Adot = zeros(m, n, d)  # TODO: eliminate these allocations
-    for i = 1:m
+    @views for i = 1:m
         for j = 1:n
-            Adot[i, j, :] .= ap[i, j].values
+           cache.Adot[i, j, :] .= ap[i, j].values
         end
     end    
 
     m, n = size(B2v)
     
     # analytic derivative of linear solve
-    x2dot = zeros(m, n, d)
     for i = 1:d
         for j = 1:n
-            x2dot[:, j, i] = AF \ (-Adot[:, :, i] * x2v[:, j])
+            cache.X2dot[:, j, i] = AF \ (- view(cache.Adot, :, :, i) * view(cache.X2, :, j))
         end
     end
 
     # repack in dual
-   x2 = ForwardDiff.Dual{T}.(x2v, ForwardDiff.Partials.(Tuple.(view(x2dot, i, j, :) for i = 1:m, j = 1:n)))
+   X2D = ForwardDiff.Dual{T}.(cache.X2, ForwardDiff.Partials.(Tuple.(view(cache.X2dot, i, j, :) for i = 1:m, j = 1:n)))
 
-   return AF, x2
+   return AF, X2D
 
 end
 
@@ -678,7 +713,7 @@ Compute compliance matrix given the finite element mesh described by nodes and e
 - `tc::Vector{float}`: x, y location of tension center, aka elastic center, aka centroid 
     (location where an axial force will not produce any bending, i.e., beam will remain straight)
 """
-function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements, promote_type(eltype(eltype(nodes)), eltype(eltype(elements)))), gxbeam_order=true)
+function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements), gxbeam_order=true)
 
     TF = promote_type(eltype(eltype(nodes)), eltype(eltype(elements)))
 
@@ -733,7 +768,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     # AM = factorize(Symmetric(sparse(AM)))
     
     B2 = sparse([zeros(ndof, 6); Tr'; zeros(6, 6)])
-    AF, X2 = linearsolve2(AM, B2)
+    AF, X2 = linearsolve2(AM, B2, cache)
     dX = X2[1:ndof, :]
     dY = X2[ndof+1:ndof+6, :]
 
@@ -743,7 +778,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
             zeros(6, ndof+6)]
     Bsub2 = [zeros(ndof, 6); I; zeros(6, 6)]
     B1 = sparse(Bsub1*X2[1:end-6, :] + Bsub2)
-    X1 = linearsolve1(AM, B1, AF)
+    X1 = linearsolve1(AM, B1, AF, cache)
     X = X1[1:ndof, :]
     Y = X1[ndof+1:ndof+6, :]
 
