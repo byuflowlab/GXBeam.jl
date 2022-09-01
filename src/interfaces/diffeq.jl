@@ -16,6 +16,7 @@ may be used with the DifferentialEquations package.
 # Keyword Arguments
  - `pfunc = (p, t) -> p`: Function which returns a named tuple with parameters as 
     described in [`ODEFunction`](@ref).
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.
  - `sparse = false`: Flag indicating whether to use a sparse jacobian.
@@ -24,6 +25,7 @@ Additional keyword arguments are passed forward to ODEProblem.
 """
 function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan, p=(;); 
     pfunc = (p, t) -> p,
+    two_dimensional = false,
     structural_damping = true,
     constant_mass_matrix = typeof(system) <: ExpandedSystem,
     sparse = false,
@@ -82,13 +84,14 @@ which may be used with the DifferentialEquations package.
     Defaults to an empty named tuple.  
 
 # Keyword Arguments
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.  
  - `sparse = false`: Flag indicating whether to use a sparse jacobian.
 """
 function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) -> p, p0=(;); 
-    structural_damping = true, constant_mass_matrix = typeof(system) <: ExpandedSystem, 
-    sparse=false)
+    two_dimensional = false, structural_damping = true, sparse=false, 
+    constant_mass_matrix = typeof(system) <: ExpandedSystem)
 
     for ielem = 1:length(assembly.elements)
         @assert !iszero(assembly.elements[ielem].L) "Zero length elements cannot be used "*
@@ -127,7 +130,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
             pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
             # calculate residual
-            expanded_dynamic_system_residual!(resid, du, u, indices, force_scaling, 
+            expanded_dynamic_system_residual!(resid, du, u, indices, two_dimensional, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
 
             return resid
@@ -137,7 +140,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
         TF = eltype(system)
         nx = indices.nstates
         mass_matrix = zeros(TF, nx, nx)
-        expanded_system_mass_matrix!(mass_matrix, -1, indices, force_scaling, assembly, pcond, pmass)
+        expanded_system_mass_matrix!(mass_matrix, -1, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
     
         # jacobian
         update_jacobian! = function(J, u, p, t)
@@ -149,7 +152,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
             pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
             # calculate jacobian
-            expanded_dynamic_system_jacobian!(J, du, u, indices, force_scaling, 
+            expanded_dynamic_system_jacobian!(J, du, u, indices, two_dimensional, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
         
             return J
@@ -158,7 +161,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
         # jacobian prototype
         if sparse
             jac_prototype = spzeros(TF, nx, nx)
-            expanded_dynamic_system_jacobian!(jac_prototype, rand(nx), rand(nx), indices, force_scaling, 
+            expanded_dynamic_system_jacobian!(jac_prototype, rand(nx), rand(nx), indices, two_dimensional, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, rand(3), rand(3), rand(3))
         else
             jac_prototype = nothing
@@ -177,7 +180,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
             pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
     
             # calculate residual
-            dynamic_system_residual!(resid, du, u, indices, force_scaling, 
+            dynamic_system_residual!(resid, du, u, indices, two_dimensional, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
 
             return resid
@@ -193,7 +196,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
             pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
     
             # calculate mass matrix
-            system_mass_matrix!(M, u, indices, force_scaling, assembly, pcond, pmass)
+            system_mass_matrix!(M, u, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
     
             # change sign of mass matrix
             M .*= -1
@@ -213,7 +216,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
             pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
             # calculate jacobian
-            dynamic_system_jacobian!(J, du, u, indices, force_scaling, 
+            dynamic_system_jacobian!(J, du, u, indices, two_dimensional, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
 
             return J
@@ -222,7 +225,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
         # jacobian prototype
         if sparse 
             jac_prototype = spzeros(TF, nx, nx)
-            dynamic_system_jacobian!(jac_prototype, du, u, indices, force_scaling, 
+            dynamic_system_jacobian!(jac_prototype, du, u, indices, two_dimensional, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
         else
             jac_prototype = nothing
@@ -252,10 +255,11 @@ may be used with the DifferentialEquations package.
 # Keyword Arguments
  - `pfunc = (p, t) -> p`: Function which returns a named tuple with parameters as 
     described in [`DAEFunction`](@ref).
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
 """
 function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan, p=(;); 
-    pfunc = (p, t) -> p, structural_damping = true)
+    pfunc = (p, t) -> p, two_dimensional=false, structural_damping = true)
 
     # extract parameters from the parameter vector using `pfunc`
     parameters = pfunc(p, tspan[1])
@@ -318,10 +322,11 @@ which may be used with the DifferentialEquations package.
    - `angular_velocity = zeros(3)`: Global frame angular velocity vector.
 
 Keyword Arguments:
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = true`: Flag indicating whether structural damping should be enabled
 """
 function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -> p; 
-    structural_damping = true)
+    two_dimensional = false, structural_damping = true)
 
     # unpack system pointers
     @unpack force_scaling, indices = system
@@ -333,7 +338,7 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
         pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
         # calculate residual
-        dynamic_system_residual!(resid, du, u, indices, force_scaling, 
+        dynamic_system_residual!(resid, du, u, indices, two_dimensional, force_scaling, 
             structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
 
         return resid
@@ -349,11 +354,11 @@ function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -
         pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
 
         # calculate jacobian
-        dynamic_system_jacobian!(J, du, u, indices, force_scaling, 
+        dynamic_system_jacobian!(J, du, u, indices, two_dimensional, force_scaling, 
             structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
 
         # add gamma multiplied by the mass matrix
-        system_mass_matrix!(J, gamma, u, indices, force_scaling, 
+        system_mass_matrix!(J, gamma, u, indices, two_dimensional, force_scaling, 
             assembly, pcond, pmass)
 
         return J
@@ -386,7 +391,8 @@ function extract_parameters(pfunc, p, t)
     return (; pcond, dload, pmass, gvec, vb_p, ωb_p)
 end
 
-function get_differential_vars(system::DynamicSystem, assembly, prescribed_conditions, point_masses)
+function get_differential_vars(system::DynamicSystem, assembly, prescribed_conditions, 
+    point_masses, two_dimensional)
 
     # unpack pre-allocated storage and pointers for system
     @unpack x, M, force_scaling, indices, t = system
@@ -396,7 +402,7 @@ function get_differential_vars(system::DynamicSystem, assembly, prescribed_condi
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
 
     # solve for the system mass matrix
-    system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+    system_mass_matrix!(M, x, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
 
     # identify differential variables
     differential_vars = dropdims(.!(iszero.(sum(M, dims=1))), dims=1)

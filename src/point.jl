@@ -2006,13 +2006,13 @@ the system jacobian matrix for a constant mass matrix system.
 end
 
 """
-    insert_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint, 
+    insert_mass_matrix_point_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, ipoint, 
         properties, resultants, velocities)
 
 Insert the mass matrix jacobian entries corresponding to a point into the system jacobian 
 matrix.
 """
-@inline function insert_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
+@inline function insert_mass_matrix_point_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, ipoint,  
     properties, resultants, velocities)
 
     @unpack udot_udot, θdot_θdot = properties
@@ -2022,26 +2022,34 @@ matrix.
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
 
-    @views jacob[irow:irow+2, icol+6:icol+8] .-= F_Vdot .* gamma ./ force_scaling
-    @views jacob[irow:irow+2, icol+9:icol+11] .-= F_Ωdot .* gamma ./ force_scaling
+    if two_dimensional
+        lmask = SVector(1, 1, 0)
+        amask = SVector(0, 0, 1)
+    else
+        lmask = SVector(1, 1, 1)
+        amask = SVector(1, 1, 1)
+    end
 
-    @views jacob[irow+3:irow+5, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
-    @views jacob[irow+3:irow+5, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
+    @views jacob[irow:irow+2, icol+6:icol+8] .-= lmask .* F_Vdot .* gamma ./ force_scaling
+    @views jacob[irow:irow+2, icol+9:icol+11] .-= lmask .* F_Ωdot .* gamma ./ force_scaling
 
-    @views jacob[irow+6:irow+8, icol:icol+2] .+= rV_udot * udot_udot .* gamma
-    @views jacob[irow+9:irow+11, icol+3:icol+5] .+= rΩ_θdot * θdot_θdot .* gamma
+    @views jacob[irow+3:irow+5, icol+6:icol+8] .-= amask .* M_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+3:irow+5, icol+9:icol+11] .-= amask .* M_Ωdot .* gamma ./ force_scaling
+
+    @views jacob[irow+6:irow+8, icol:icol+2] .+= lmask .* rV_udot * udot_udot .* gamma
+    @views jacob[irow+9:irow+11, icol+3:icol+5] .+= amask .* rΩ_θdot * θdot_θdot .* gamma
 
     return jacob
 end
 
 """
-    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint, 
+    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, ipoint, 
         properties, resultants, velocities)
 
 Insert the mass matrix jacobian entries corresponding to a point into the system jacobian 
 matrix.
 """
-@inline function insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
+@inline function insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, ipoint,  
     properties, resultants, velocities)
 
     @unpack udot_udot, θdot_θdot = properties
@@ -2051,18 +2059,26 @@ matrix.
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
 
+    if two_dimensional
+        lmask = SVector(1, 1, 0)
+        amask = SVector(0, 0, 1)
+    else
+        lmask = SVector(1, 1, 1)
+        amask = SVector(1, 1, 1)
+    end
+
     # NOTE: We have to switch the order of the equations here in order to match the indices
     # of the differential variables with their equations.  This is done for compatability
     # with the DiffEqSensitivity package.
 
-    @views jacob[irow:irow+2, icol:icol+2] .+= rV_udot * udot_udot .* gamma
-    @views jacob[irow+3:irow+5, icol+3:icol+5] .+= rΩ_θdot * θdot_θdot .* gamma
+    @views jacob[irow:irow+2, icol:icol+2] .+= lmask .* rV_udot * udot_udot .* gamma
+    @views jacob[irow+3:irow+5, icol+3:icol+5] .+= amask .* rΩ_θdot * θdot_θdot .* gamma
 
-    @views jacob[irow+6:irow+8, icol+6:icol+8] .-= F_Vdot .* gamma ./ force_scaling
-    @views jacob[irow+6:irow+8, icol+9:icol+11] .-= F_Ωdot .* gamma ./ force_scaling
+    @views jacob[irow+6:irow+8, icol+6:icol+8] .-= lmask .* F_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+6:irow+8, icol+9:icol+11] .-= lmask .* F_Ωdot .* gamma ./ force_scaling
 
-    @views jacob[irow+9:irow+11, icol+6:icol+8] .-= M_Vdot .* gamma ./ force_scaling
-    @views jacob[irow+9:irow+11, icol+9:icol+11] .-= M_Ωdot .* gamma ./ force_scaling
+    @views jacob[irow+9:irow+11, icol+6:icol+8] .-= amask .* M_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+9:irow+11, icol+9:icol+11] .-= amask .* M_Ωdot .* gamma ./ force_scaling
 
     return jacob
 end
@@ -2477,13 +2493,13 @@ matrix system into the system jacobian matrix.
 end
 
 """
-    mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
+    mass_matrix_point_jacobian!(jacob, gamma, x, indices, two_dimensional, force_scaling, assembly, 
         ipoint, prescribed_conditions)
 
 Calculate and insert the mass_matrix jacobian entries corresponding to a point into the 
 system jacobian matrix.
 """
-@inline function mass_matrix_point_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
+@inline function mass_matrix_point_jacobian!(jacob, gamma, x, indices, two_dimensional, force_scaling, assembly, 
     ipoint, prescribed_conditions, point_masses)
 
     properties = mass_matrix_point_jacobian_properties(x, indices, force_scaling, assembly, ipoint, prescribed_conditions, point_masses)
@@ -2492,20 +2508,20 @@ system jacobian matrix.
 
     velocities = mass_matrix_point_velocity_jacobians(properties)
     
-    insert_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, ipoint,  
+    insert_mass_matrix_point_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, ipoint,  
         properties, resultants, velocities)
 
     return jacob
 end
 
 """
-    expanded_mass_matrix_point_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+    expanded_mass_matrix_point_jacobian!(jacob, gamma, indices, two_dimensional, force_scaling, assembly, 
         ipoint, prescribed_conditions, point_masses)
 
 Calculate and insert the mass_matrix jacobian entries corresponding to a point into the 
 system jacobian matrix for a constant mass matrix system
 """
-@inline function expanded_mass_matrix_point_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+@inline function expanded_mass_matrix_point_jacobian!(jacob, gamma, indices, two_dimensional, force_scaling, assembly, 
     ipoint, prescribed_conditions, point_masses)
 
     properties = expanded_mass_matrix_point_jacobian_properties(assembly, ipoint, prescribed_conditions, point_masses)
@@ -2514,7 +2530,7 @@ system jacobian matrix for a constant mass matrix system
 
     velocities = mass_matrix_point_velocity_jacobians(properties)
     
-    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, force_scaling, 
+    insert_expanded_mass_matrix_point_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, 
         ipoint, properties, resultants, velocities)
 
     return jacob

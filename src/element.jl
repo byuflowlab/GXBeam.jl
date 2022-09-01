@@ -2877,7 +2877,7 @@ end
     return jacob
 end
 
-@inline function insert_mass_matrix_element_jacobians!(jacob, gamma, indices, force_scaling,
+@inline function insert_mass_matrix_element_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling,
     assembly, ielem, resultants)
 
     @unpack F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot, 
@@ -2888,57 +2888,73 @@ end
     icol1 = indices.icol_point[assembly.start[ielem]]
     icol2 = indices.icol_point[assembly.stop[ielem]]
     
+    if two_dimensional
+        lmask = SVector(1, 1, 0)
+        amask = SVector(0, 0, 1)
+    else
+        lmask = SVector(1, 1, 1)
+        amask = SVector(1, 1, 1)
+    end
+
     # equilibrium equations for the start of the beam element
     irow1 = indices.irow_point[assembly.start[ielem]]
 
-    @views jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_V1dot .* gamma ./ force_scaling
-    @views jacob[irow1:irow1+2, icol1+9:icol1+11] .-= F1_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+6:icol1+8] .-= lmask .* F1_V1dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+9:icol1+11] .-= lmask .* F1_Ω1dot .* gamma ./ force_scaling
 
-    @views jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_V2dot .* gamma ./ force_scaling
-    @views jacob[irow1:irow1+2, icol2+9:icol2+11] .-= F1_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+6:icol2+8] .-= lmask .* F1_V2dot .* gamma ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+9:icol2+11] .-= lmask .* F1_Ω2dot .* gamma ./ force_scaling
 
-    @views jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= M1_V1dot .* gamma ./ force_scaling
-    @views jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= M1_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+6:icol1+8] .-= amask .* M1_V1dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol1+9:icol1+11] .-= amask .* M1_Ω1dot .* gamma ./ force_scaling
 
-    @views jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= M1_V2dot .* gamma ./ force_scaling
-    @views jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= M1_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+6:icol2+8] .-= amask .* M1_V2dot .* gamma ./ force_scaling
+    @views jacob[irow1+3:irow1+5, icol2+9:icol2+11] .-= amask .* M1_Ω2dot .* gamma ./ force_scaling
 
     # equilibrium equations for the end of the beam element
     irow2 = indices.irow_point[assembly.stop[ielem]]
 
-    @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_V1dot .* gamma ./ force_scaling
-    @views jacob[irow2:irow2+2, icol1+9:icol1+11] .+= F2_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= lmask .* F2_V1dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+9:icol1+11] .+= lmask .* F2_Ω1dot .* gamma ./ force_scaling
 
-    @views jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_V2dot .* gamma ./ force_scaling
-    @views jacob[irow2:irow2+2, icol2+9:icol2+11] .+= F2_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+6:icol2+8] .+= lmask .* F2_V2dot .* gamma ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+9:icol2+11] .+= lmask .* F2_Ω2dot .* gamma ./ force_scaling
 
-    @views jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= M2_V1dot .* gamma ./ force_scaling
-    @views jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= M2_Ω1dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+6:icol1+8] .+= amask .* M2_V1dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol1+9:icol1+11] .+= amask .* M2_Ω1dot .* gamma ./ force_scaling
 
-    @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= M2_V2dot .* gamma ./ force_scaling
-    @views jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= M2_Ω2dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+6:icol2+8] .+= amask .* M2_V2dot .* gamma ./ force_scaling
+    @views jacob[irow2+3:irow2+5, icol2+9:icol2+11] .+= amask .* M2_Ω2dot .* gamma ./ force_scaling
 
     return jacob
 end
 
 @inline function insert_expanded_mass_matrix_element_jacobians!(jacob, gamma, indices, 
-    force_scaling, assembly, ielem, equilibrium)
+    two_dimensional, force_scaling, assembly, ielem, equilibrium)
 
     @unpack rF_Vdot, rF_Ωdot, rM_Vdot, rM_Ωdot = equilibrium
 
     irow = indices.irow_elem[ielem] 
     icol = indices.icol_elem[ielem]
 
+    if two_dimensional
+        lmask = SVector(1, 1, 0)
+        amask = SVector(0, 0, 1)
+    else
+        lmask = SVector(1, 1, 1)
+        amask = SVector(1, 1, 1)
+    end
+
     # NOTE: We have to switch the order of the equations here in order to match the indices
     # of the differential variables with their equations.  This is done for compatibility
     # with the DiffEqSensitivity package.
 
     # equilibrium residuals
-    @views jacob[irow+12:irow+14, icol+12:icol+14] .+= rF_Vdot .* gamma ./ force_scaling
-    @views jacob[irow+12:irow+14, icol+15:icol+17] .+= rF_Ωdot .* gamma ./ force_scaling
+    @views jacob[irow+12:irow+14, icol+12:icol+14] .+= lmask .* rF_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+12:irow+14, icol+15:icol+17] .+= lmask .* rF_Ωdot .* gamma ./ force_scaling
 
-    @views jacob[irow+15:irow+17, icol+12:icol+14] .+= rM_Vdot .* gamma ./ force_scaling
-    @views jacob[irow+15:irow+17, icol+15:icol+17] .+= rM_Ωdot .* gamma ./ force_scaling
+    @views jacob[irow+15:irow+17, icol+12:icol+14] .+= amask .* rM_Vdot .* gamma ./ force_scaling
+    @views jacob[irow+15:irow+17, icol+15:icol+17] .+= amask .* rM_Ωdot .* gamma ./ force_scaling
 
     return jacob
 end
@@ -3347,13 +3363,13 @@ analysis into the system jacobian matrix.
 end
 
 """
-    mass_matrix_element_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
+    mass_matrix_element_jacobian!(jacob, gamma, x, indices, two_dimensional, force_scaling, assembly, 
         ielem, prescribed_conditions)
 
 Calculate and insert the mass_matrix jacobian entries corresponding to a beam element into 
 the system jacobian matrix.
 """
-@inline function mass_matrix_element_jacobian!(jacob, gamma, x, indices, force_scaling, assembly, 
+@inline function mass_matrix_element_jacobian!(jacob, gamma, x, indices, two_dimensional, force_scaling, assembly, 
     ielem, prescribed_conditions)
 
     properties = mass_matrix_element_jacobian_properties(x, indices, force_scaling, 
@@ -3361,27 +3377,27 @@ the system jacobian matrix.
 
     resultants = mass_matrix_element_resultant_jacobians(properties)
     
-    insert_mass_matrix_element_jacobians!(jacob, gamma, indices, force_scaling, assembly, ielem, 
+    insert_mass_matrix_element_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, assembly, ielem, 
         resultants)
 
     return jacob
 end
 
 """
-    expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+    expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, two_dimensional, force_scaling, assembly, 
         ielem, prescribed_conditions)
 
 Calculate and insert the mass_matrix jacobian entries corresponding to a beam element into 
 the system jacobian matrix for a constant mass matrix system
 """
-@inline function expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, force_scaling, assembly, 
+@inline function expanded_mass_matrix_element_jacobian!(jacob, gamma, indices, two_dimensional, force_scaling, assembly, 
     ielem, prescribed_conditions)
 
     properties = expanded_mass_matrix_element_jacobian_properties(assembly, ielem, prescribed_conditions)
 
     equilibrium = expanded_mass_matrix_element_equilibrium_jacobians(properties)
     
-    insert_expanded_mass_matrix_element_jacobians!(jacob, gamma, indices, force_scaling, 
+    insert_expanded_mass_matrix_element_jacobians!(jacob, gamma, indices, two_dimensional, force_scaling, 
         assembly, ielem, equilibrium)
 
     return jacob
