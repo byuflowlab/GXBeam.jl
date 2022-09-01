@@ -100,7 +100,7 @@ using GXBeam, LinearAlgebra, Random, Test
 
     # --- State Variables --- #
 
-    # define linear and angular displacement
+    # define point linear and angular displacement
     u = [rand(RNG, 3) for i = 1:nelem+1]
     theta = [rand(RNG, 3) for i = 1:nelem+1]
 
@@ -191,7 +191,7 @@ using GXBeam, LinearAlgebra, Random, Test
     expanded_system = ExpandedSystem(assembly)
 
     set_state!(expanded_system, prescribed_conditions; 
-        u, theta, F, M, F1, M1, F2, M2, V_p, Omega_p, V_e, Omega_e)    
+        u, theta, V=V_p, Omega=Omega_p, F, M, F1, M1, F2, M2, V_e, Omega_e)    
 
     expanded_states = AssemblyState(expanded_system, assembly; prescribed_conditions)
 

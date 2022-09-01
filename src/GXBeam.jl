@@ -2,6 +2,7 @@ module GXBeam
 
 using ArnoldiMethod
 using ForwardDiff
+using ChainRulesCore
 using FillArrays
 using FLOWMath
 using LinearAlgebra

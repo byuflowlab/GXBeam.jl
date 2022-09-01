@@ -60,40 +60,35 @@ function SystemIndices(start, stop; static=false, expanded=false)
 
             assigned[ipt] = true
 
-            # add point state variables
+            # add point state variables: u/F, θ/M
             icol_point[ipt] = icol
             icol += 6
 
-            # add equilibrium equations
+            # add equilibrium equations: ∑F=0, ∑M=0
             irow_point[ipt] = irow
             irow += 6
 
             if !static
-                # additional states and equations for dynamic simulations
+                # add velocity states and residuals: V, Ω
                 icol += 6
                 irow += 6
             end
 
         end
 
-        # add beam state variables
-        icol_elem[ielem] = icol
-        icol += 6
-
-        # add compatability equations
+        # add element state variables
         irow_elem[ielem] = irow
-        irow += 6
-
+        icol_elem[ielem] = icol
         if expanded
-            # add equilibrium equations
-            icol += 6
+            # states: F1, F2, M1, M2, V, Ω  
+            # residuals: compatability (x1), velocity (x1), equilibrium (x1)  
+            irow += 18
+            icol += 18
+        else
+            # states: F, M
+            # residuals: compatability (x1)
             irow += 6
-
-            if !static
-                # additional states and equations for dynamic simulations
-                icol += 6
-                irow += 6
-            end
+            icol += 6
         end
 
         # add state variables and equations for the end of the beam element
@@ -103,16 +98,16 @@ function SystemIndices(start, stop; static=false, expanded=false)
 
             assigned[ipt] = true
 
-            # add point state variables
+            # add point state variables: u/F, θ/M
             icol_point[ipt] = icol
             icol += 6
 
-            # add equilibrium equations
+            # add equilibrium equations: ∑F=0, ∑M=0
             irow_point[ipt] = irow
             irow += 6
 
             if !static
-                # additional states and equations for dynamic simulations
+                # add velocity states and residuals: V, Ω
                 icol += 6
                 irow += 6
             end
@@ -644,7 +639,6 @@ function copy_state!(system1, system2, assembly;
         # copy over new state variables
         icol = icol_elem1[ielem]
 
-        # set internal load state variables
         if typeof(system1) <: StaticSystem || typeof(system1) <: DynamicSystem
 
             # copy over internal forces and moments
@@ -657,6 +651,7 @@ function copy_state!(system1, system2, assembly;
 
         elseif typeof(system1) <: ExpandedSystem
 
+            # copy over internal forces and moments
             x1[icol] = F1[1] / force_scaling1
             x1[icol+1] = F1[2] / force_scaling1
             x1[icol+2] = F1[3] / force_scaling1
@@ -669,11 +664,6 @@ function copy_state!(system1, system2, assembly;
             x1[icol+9] = M2[1] / force_scaling1
             x1[icol+10] = M2[2] / force_scaling1
             x1[icol+11] = M2[3] / force_scaling1
-
-        end
-
-        # set element velocities
-        if typeof(system1) <: ExpandedSystem
 
             # linear and angular velocity
             if typeof(system2) <: StaticSystem
@@ -694,7 +684,6 @@ function copy_state!(system1, system2, assembly;
             x1[icol+17] = Ω[3]
 
         end
-
     end
 
     return system1
