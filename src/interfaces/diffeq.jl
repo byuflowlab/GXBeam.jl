@@ -224,6 +224,8 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
 
         # jacobian prototype
         if sparse 
+            TF = eltype(system)
+            nx = indices.nstates
             jac_prototype = spzeros(TF, nx, nx)
             dynamic_system_jacobian!(jac_prototype, du, u, indices, two_dimensional, force_scaling, 
                 structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
@@ -285,7 +287,7 @@ function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan, p=(;);
     end
 
     # get differential variables
-    differential_vars = get_differential_vars(system, assembly, pcond, pmass)
+    differential_vars = get_differential_vars(system, assembly, pcond, pmass, two_dimensional)
 
     # create SciMLBase.DAEFunction
     func = SciMLBase.DAEFunction(system, assembly, pfunc; structural_damping)
