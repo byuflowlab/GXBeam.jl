@@ -108,14 +108,14 @@ end
 
 """
     steady_element_properties(x, indices, force_scaling, structural_damping, 
-        assembly, ielem, prescribed_conditions, gravity, linear_velocity, angular_velocity,
+        assembly, ielem, prescribed_conditions, gravity, linear_velocity, angular_velocity, 
         linear_acceleration=(@SVector zeros(3)), angular_acceleration=(@SVector zeros(3)))
 
 Calculate/extract the element properties needed to construct the residual for a steady 
 state analysis
 """
 @inline function steady_element_properties(x, indices, force_scaling, structural_damping, 
-    assembly, ielem, prescribed_conditions, gravity, linear_velocity, angular_velocity,
+    assembly, ielem, prescribed_conditions, gravity, linear_velocity, angular_velocity, 
     linear_acceleration=(@SVector zeros(3)), angular_acceleration=(@SVector zeros(3)))
 
     properties = static_element_properties(x, indices, force_scaling, assembly, ielem, 
@@ -130,13 +130,11 @@ state analysis
     # distance from the rotation center
     Δx = assembly.elements[ielem].x
 
-    # body frame linear velocity
-    vb = linear_velocity
-    ωb = angular_velocity
+    # body frame velocity (use prescribed values)
+    vb, ωb = SVector{3}(linear_velocity), SVector{3}(angular_velocity)
 
-    # body frame angular acceleration
-    ab = linear_acceleration
-    αb = angular_acceleration
+    # body frame acceleration (use prescribed values)
+    ab, αb = SVector{3}(linear_acceleration), SVector{3}(angular_acceleration)
 
     # linear and angular velocity
     V1, Ω1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
@@ -148,18 +146,24 @@ state analysis
     P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
     H = CtCab*mass21*CtCab'*V + CtCab*mass22*CtCab'*Ω
 
+    # linear and angular displacement rates
+    udot = @SVector zeros(3)
+    θdot = @SVector zeros(3)
+
     # linear and angular acceleration
-    Vdot = ab + cross(αb, Δx) + cross(αb, u)
+    Vdot = ab + cross(αb, Δx + u) + cross(ωb, udot)
     Ωdot = αb
    
     # linear and angular momentum rates
     Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot
     Hdot = CtCab*mass21*CtCab'*Vdot + CtCab*mass22*CtCab'*Ωdot
 
+    # save properties
     properties = (; properties..., Q, Δx, vb, ωb, ab, αb, V1, V2, Ω1, Ω2, V, Ω, P, H, 
-        Vdot, Ωdot, Pdot, Hdot) 
+        udot, θdot, Vdot, Ωdot, Pdot, Hdot) 
 
     if structural_damping
+
         # damping coefficients
         μ = assembly.elements[ielem].mu
 
@@ -178,8 +182,8 @@ state analysis
         Δx2 = assembly.points[assembly.stop[ielem]]
 
         # linear displacement rates 
-        udot1 = V1 - vb - cross(ωb, Δx1) - cross(ωb, u1)
-        udot2 = V2 - vb - cross(ωb, Δx2) - cross(ωb, u2)
+        udot1 = V1 - vb - cross(ωb, Δx1 + u1)
+        udot2 = V2 - vb - cross(ωb, Δx2 + u2)
         uedot = (udot1 + udot2)/2
 
         # angular displacement rates
@@ -218,16 +222,14 @@ end
 """
     initial_element_properties(x, indices, rate_vars, force_scaling, 
         structural_damping, assembly, ielem, prescribed_conditions, gravity, 
-        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration, 
-        u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
 Calculate/extract the element properties needed to construct the residual for a time-domain
 analysis initialization
 """
 @inline function initial_element_properties(x, indices, rate_vars, 
     force_scaling, structural_damping, assembly, ielem, prescribed_conditions, gravity, 
-    linear_velocity, angular_velocity, linear_acceleration, angular_acceleration, 
-    u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+    linear_velocity, angular_velocity, linear_acceleration, angular_acceleration, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
     # unpack element parameters
     @unpack L, Cab, compliance, mass = assembly.elements[ielem]
@@ -269,38 +271,42 @@ analysis initialization
     γ = S11*F + S12*M
     κ = S21*F + S22*M
 
-    # gravitational loads
-    gvec = SVector{3}(gravity)
-
     # distance from the rotation center
     Δx = assembly.elements[ielem].x
     
-    # body frame linear velocity
-    vb = linear_velocity
-    ωb = angular_velocity
+    # body frame velocity (use prescribed values)
+    vb, ωb = SVector{3}(linear_velocity), SVector{3}(angular_velocity)
 
-    # body frame angular acceleration
-    ab = linear_acceleration
-    αb = angular_acceleration
-    
-    # linear and angular velocity **relative to the body frame**
-    V1 = V0[assembly.start[ielem]]
-    V2 = V0[assembly.stop[ielem]]
+    # body frame acceleration (use prescribed values)
+    ab, αb = SVector{3}(linear_acceleration), SVector{3}(angular_acceleration)
+
+    # gravitational loads
+    gvec = SVector{3}(gravity)
+
+    # relative velocity
+    V1 = SVector{3}(V0[assembly.start[ielem]])
+    V2 = SVector{3}(V0[assembly.stop[ielem]])
     V = (V1 + V2)/2
 
-    Ω1 = Ω0[assembly.start[ielem]]
-    Ω2 = Ω0[assembly.stop[ielem]]
+    Ω1 = SVector{3}(Ω0[assembly.start[ielem]])
+    Ω2 = SVector{3}(Ω0[assembly.stop[ielem]])
     Ω = (Ω1 + Ω2)/2
 
-    # linear and angular velocity (including body frame motion)
-    V += vb + cross(ωb, Δx) + cross(ωb, u)
+    # inertial velocity
+    V += vb + cross(ωb, Δx + u)
     Ω += ωb
 
     # linear and angular momentum
     P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
     H = CtCab*mass21*CtCab'*V + CtCab*mass22*CtCab'*Ω
 
-    # linear and angular acceleration **relative to the body frame**
+    # linear and angular displacement rates
+    u1dot, θ1dot = initial_point_displacement_rates(x, assembly.start[ielem], indices.icol_point)
+    u2dot, θ2dot = initial_point_displacement_rates(x, assembly.stop[ielem], indices.icol_point)
+    udot = (u1dot + u2dot)/2
+    θdot = (θ1dot + θ2dot)/2
+
+    # relative acceleration
     V1dot, Ω1dot = initial_point_velocity_rates(x, assembly.start[ielem], indices.icol_point, 
         prescribed_conditions, Vdot0, Ωdot0, rate_vars)
     V2dot, Ω2dot = initial_point_velocity_rates(x, assembly.stop[ielem], indices.icol_point, 
@@ -308,8 +314,8 @@ analysis initialization
     Vdot = (V1dot + V2dot)/2
     Ωdot = (Ω1dot + Ω2dot)/2
 
-    # linear and angular acceleration (including body frame motion)
-    Vdot += ab + cross(αb, Δx) + cross(αb, u)
+    # inertial acceleration (except frame-rotation term)
+    Vdot += ab + cross(αb, Δx) + cross(αb, u) + cross(ωb, udot)
     Ωdot += αb
 
     # linear and angular momentum rates
@@ -326,7 +332,7 @@ analysis initialization
     # save properties
     properties = (; L, C, Cab, CtCab, Q, Qinv, S11, S12, S21, S22, mass11, mass12, mass21, mass22, 
         u1, u2, θ1, θ2, u, θ, F, M, γ, κ, gvec, Δx, vb, ωb, ab, αb, V1, V2, Ω1, Ω2, V, Ω, P, H, 
-        CtCabdot, Vdot, Ωdot, Pdot, Hdot) 
+        u1dot, u2dot, θ1dot, θ2dot, udot, θdot, CtCabdot, Vdot, Ωdot, Pdot, Hdot) 
 
     if structural_damping 
         
@@ -337,19 +343,13 @@ analysis initialization
         μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
         μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
     
-        # linear and angular displacement rates
-        udot1, θdot1 = point_velocities(x, assembly.start[ielem], indices.icol_point)
-        udot2, θdot2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
-        udot = (udot1 + udot2)/2
-        θdot = (θdot1 + θdot2)/2
-
         # change in linear and angular displacement
         Δu = u2 - u1
         Δθ = θ2 - θ1
 
         # change in linear and angular displacement rates
-        Δudot = udot2 - udot1
-        Δθdot = θdot2 - θdot1
+        Δudot = u2dot - u1dot
+        Δθdot = θ2dot - θ1dot
 
         # ΔQ matrix (see structural damping theory)
         ΔQ = get_ΔQ(θ, Δθ, Q)
@@ -364,7 +364,7 @@ analysis initialization
 
         # add structural damping properties
         properties = (; properties..., γ, κ, γdot, κdot,
-            μ11, μ22, udot1, udot2, udot, θdot1, θdot2, θdot, Δu, Δθ, Δudot, Δθdot, ΔQ)
+            μ11, μ22, Δu, Δθ, Δudot, Δθdot, ΔQ)
     end
 
     return properties
@@ -426,13 +426,13 @@ analysis
 
     @unpack ωb, C, Cab, CtCab, mass11, mass12, mass21, mass22, V1, V2, Ω1, Ω2, V, Ω = properties
 
-    # linear and angular acceleration (including body frame motion)
+    # velocity rates
     V1dot, Ω1dot = point_velocities(dx, assembly.start[ielem], indices.icol_point)
     V2dot, Ω2dot = point_velocities(dx, assembly.stop[ielem], indices.icol_point)
     Vdot = (V1dot + V2dot)/2
     Ωdot = (Ω1dot + Ω2dot)/2
 
-    # linear and angular momentum rates (including body frame motion)
+    # linear and angular momentum rates
     CtCabdot = tilde(Ω - ωb)*CtCab
     
     Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot +
@@ -523,21 +523,20 @@ mass matrix system
     V2, Ω2 = point_velocities(x, assembly.stop[ielem], indices.icol_point)
     V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
 
-    # linear displacement rates 
-    udot1 = C1'*V1 - vb - cross(ωb, Δx1) - cross(ωb, u1)
-    udot2 = C2'*V2 - vb - cross(ωb, Δx2) - cross(ωb, u2)
-    udot = (udot1 + udot2)/2
-
-    # angular displacement rates
-    θdot1 = Qinv1*(Ω1 - C1*ωb)
-    θdot2 = Qinv2*(Ω2 - C2*ωb)
-    θdot = (θdot1 + θdot2)/2
-
     # linear and angular momentum
     P = mass11*V + mass12*Ω
     H = mass21*V + mass22*Ω
 
-    # linear and angular acceleration
+    # linear and angular displacement rates
+    udot1 = C1'*V1 - vb - cross(ωb, Δx1 + u1)
+    udot2 = C2'*V2 - vb - cross(ωb, Δx2 + u2)
+    udot = (udot1 + udot2)/2
+
+    θdot1 = Qinv1*(Ω1 - C1*ωb)
+    θdot2 = Qinv2*(Ω2 - C2*ωb)
+    θdot = (θdot1 + θdot2)/2
+
+    # linear and angular velocity rates
     Vdot = CtCab'*(ab + cross(αb, Δx) + cross(αb, u))
     Ωdot = CtCab'*αb
    
@@ -545,6 +544,7 @@ mass matrix system
     Pdot = mass11*Vdot + mass12*Ωdot
     Hdot = mass21*Vdot + mass22*Ωdot
 
+    # save properties
     properties = (; L, C, C1, C2, Cab, CtCab, Q, Qinv, Qinv1, Qinv2, S11, S12, S21, S22, 
         mass11, mass12, mass21, mass22, u1, u2, θ1, θ2, u, θ, F1, F2, M1, M2, F, M, γ, κ, gvec, 
         Δx, Δx1, Δx2, vb, ωb, ab, αb, V1, V2, Ω1, Ω2, V, Ω, P, H, udot1, udot2, θdot1, θdot2, 
