@@ -894,6 +894,7 @@ corresponding to a element for a Newmark scheme time marching analysis
     Vdot_ab = I3
     Vdot_αb = -tilde(Δx + u)
     Vdot_u = tilde(αb)
+    Vdot_udot = tilde(ωb)
 
     Ωdot_αb = I3
 
@@ -917,6 +918,7 @@ corresponding to a element for a Newmark scheme time marching analysis
         mul3(C_θ1', C_θ2', C_θ3', Cab*mass12*CtCabdot'*Ω) +
         -CtCab*mass11*Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*V) + 
         -CtCab*mass12*Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*Ω)
+    Pdot_udot = Pdot_Vdot*Vdot_udot
 
     Hdot_V = CtCab*mass21*CtCabdot' + CtCabdot*mass21*CtCab'
     Hdot_Ω = CtCab*mass22*CtCabdot' + CtCabdot*mass22*CtCab'
@@ -937,6 +939,7 @@ corresponding to a element for a Newmark scheme time marching analysis
         mul3(C_θ1', C_θ2', C_θ3', Cab*mass22*CtCabdot'*Ω) +
         -CtCab*mass21*Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*V) + 
         -CtCab*mass22*Cab'*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*Ω)
+    Hdot_udot = Hdot_Vdot*Vdot_udot
 
     if structural_damping
 
@@ -1031,8 +1034,8 @@ corresponding to a element for a Newmark scheme time marching analysis
         Ω1dot_Ω1dot, Ω2dot_Ω2dot, C_θ1, C_θ2, C_θ3, Qinv_θ1, Qinv_θ2, Qinv_θ3, 
         γ_u1, γ_u2, γ_θ1, γ_θ2, γ_u1dot, γ_u2dot, γ_F, γ_M, κ_θ1, κ_θ2, κ_θ1dot, κ_θ2dot, 
         κ_F, κ_M, V_u, P_u, P_θ, H_u, H_θ, 
-        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_Vdot, Pdot_Ωdot,
-        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_Vdot, Hdot_Ωdot)
+        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_udot, Pdot_Vdot, Pdot_Ωdot,
+        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_udot, Hdot_Vdot, Hdot_Ωdot)
 end
 
 """
@@ -2072,8 +2075,8 @@ for the initialization of a time domain analysis.
 
     @unpack ωb, L, CtCab, mass11, mass12, mass21, mass22, F, V, Ω, P, H,  
         γ_u1, γ_u2, γ_θ1, γ_θ2, γ_u1dot, γ_u2dot, V_u, P_u, P_θ, H_u, H_θ,  
-        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_Vdot, Pdot_Ωdot,
-        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_Vdot, Hdot_Ωdot = properties
+        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_udot, Pdot_Vdot, Pdot_Ωdot,
+        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_udot, Hdot_Vdot, Hdot_Ωdot = properties
 
     @unpack F1_θ1, F1_θ2, F2_θ1, F2_θ2, M1_θ1, M1_θ2, M2_θ1, M2_θ2 = jacobians
 
@@ -2126,6 +2129,14 @@ for the initialization of a time domain analysis.
     F1_θ2 -= 1/2*tmp
     F2_θ2 += 1/2*tmp
 
+    tmp = 1/2*Pdot_udot
+
+    F1_u1dot =  -1/2*tmp
+    F2_u1dot =  1/2*tmp
+
+    F1_u2dot = -1/2*tmp
+    F2_u2dot =  1/2*tmp
+
     tmp = 1/2*Pdot_Vdot
 
     F1_V1dot =  -1/2*tmp
@@ -2168,6 +2179,14 @@ for the initialization of a time domain analysis.
     M1_θ2 -= 1/2*tmp
     M2_θ2 += 1/2*tmp
 
+    tmp = 1/2*Hdot_udot
+
+    M1_u1dot -= 1/2*tmp
+    M2_u1dot += 1/2*tmp
+
+    M1_u2dot -= 1/2*tmp
+    M2_u2dot += 1/2*tmp
+
     tmp = 1/2*Hdot_Vdot
 
     M1_V1dot = -1/2*tmp
@@ -2185,8 +2204,8 @@ for the initialization of a time domain analysis.
     M2_Ω2dot =  1/2*tmp
 
     return (; jacobians..., 
-        F1_ab, F1_αb, F1_u1, F1_u2, F1_θ1, F1_θ2, F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot, 
-        F2_ab, F2_αb, F2_u1, F2_u2, F2_θ1, F2_θ2, F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot, 
+        F1_ab, F1_αb, F1_u1, F1_u2, F1_θ1, F1_θ2, F1_u1dot, F1_u2dot, F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot, 
+        F2_ab, F2_αb, F2_u1, F2_u2, F2_θ1, F2_θ2, F2_u1dot, F2_u2dot, F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot, 
         M1_ab, M1_αb, M1_u1, M1_u2, M1_θ1, M1_θ2, M1_u1dot, M1_u2dot, M1_V1dot, M1_V2dot, M1_Ω1dot, M1_Ω2dot, 
         M2_ab, M2_αb, M2_u1, M2_u2, M2_θ1, M2_θ2, M2_u1dot, M2_u2dot, M2_V1dot, M2_V2dot, M2_Ω1dot, M2_Ω2dot)
 end
@@ -2577,8 +2596,8 @@ end
 
     @unpack ru_u1dot, ru_u2dot, rθ_θ1dot, rθ_θ2dot = compatibility
 
-    @unpack F1_ab, F1_αb, F1_u1, F1_u2, F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot,
-            F2_ab, F2_αb, F2_u1, F2_u2, F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot,
+    @unpack F1_ab, F1_αb, F1_u1, F1_u2, F1_u1dot, F1_u2dot, F1_V1dot, F1_V2dot, F1_Ω1dot, F1_Ω2dot,
+            F2_ab, F2_αb, F2_u1, F2_u2, F2_u1dot, F2_u2dot, F2_V1dot, F2_V2dot, F2_Ω1dot, F2_Ω2dot,
             M1_ab, M1_αb, M1_u1, M1_u2, M1_θ1, M1_θ2, M1_u1dot, M1_u2dot, M1_V1dot, M1_V2dot, M1_Ω1dot, M1_Ω2dot, 
             M2_ab, M2_αb, M2_u1, M2_u2, M2_θ1, M2_θ2, M2_u1dot, M2_u2dot, M2_V1dot, M2_V2dot, M2_Ω1dot, M2_Ω2dot = resultants
 
@@ -2600,10 +2619,12 @@ end
     @views jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_u1*u1_u1 ./ force_scaling
     @views jacob[irow1:irow1+2, icol1:icol1+2] .-= F1_V1dot*V1dot_V1dot ./ force_scaling
     @views jacob[irow1:irow1+2, icol1+3:icol1+5] .-= F1_Ω1dot*Ω1dot_Ω1dot ./ force_scaling
+    @views jacob[irow1:irow1+2, icol1+6:icol1+8] .-= F1_u1dot ./ force_scaling
 
     @views jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_u2*u2_u2 ./ force_scaling
     @views jacob[irow1:irow1+2, icol2:icol2+2] .-= F1_V2dot*V2dot_V2dot ./ force_scaling
     @views jacob[irow1:irow1+2, icol2+3:icol2+5] .-= F1_Ω2dot*Ω2dot_Ω2dot ./ force_scaling
+    @views jacob[irow1:irow1+2, icol2+6:icol2+8] .-= F1_u2dot ./ force_scaling
 
     @views jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_u1*u1_u1 ./ force_scaling
     @views jacob[irow1+3:irow1+5, icol1:icol1+2] .-= M1_V1dot*V1dot_V1dot ./ force_scaling
@@ -2621,10 +2642,12 @@ end
     @views jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_u1*u1_u1 ./ force_scaling
     @views jacob[irow2:irow2+2, icol1:icol1+2] .+= F2_V1dot*V1dot_V1dot ./ force_scaling
     @views jacob[irow2:irow2+2, icol1+3:icol1+5] .+= F2_Ω1dot*Ω1dot_Ω1dot ./ force_scaling
+    @views jacob[irow2:irow2+2, icol1+6:icol1+8] .+= F2_u1dot ./ force_scaling
 
     @views jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_u2*u2_u2 ./ force_scaling
     @views jacob[irow2:irow2+2, icol2:icol2+2] .+= F2_V2dot*V2dot_V2dot ./ force_scaling
     @views jacob[irow2:irow2+2, icol2+3:icol2+5] .+= F2_Ω2dot*Ω2dot_Ω2dot ./ force_scaling
+    @views jacob[irow2:irow2+2, icol2+6:icol2+8] .+= F2_u2dot ./ force_scaling
 
     @views jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_u1*u1_u1 ./ force_scaling
     @views jacob[irow2+3:irow2+5, icol1:icol1+2] .+= M2_V1dot*V1dot_V1dot ./ force_scaling

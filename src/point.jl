@@ -1039,6 +1039,7 @@ corresponding to a point for a Newmark scheme time marching analysis
     Vdot_ab = I3
     Vdot_αb = -tilde(Δx + u)
     Vdot_u = tilde(αb)
+    Vdot_udot = tilde(ωb)
 
     Ωdot_αb = I3
 
@@ -1062,6 +1063,7 @@ corresponding to a point for a Newmark scheme time marching analysis
         mul3(C_θ1', C_θ2', C_θ3', mass12*Cdot*Ω) +
         -C'*mass11*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*V) + 
         -C'*mass12*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*Ω)
+    Pdot_udot = Pdot_Vdot*Vdot_udot
 
     Hdot_V = C'*mass21*Cdot + Cdot'*mass21*C
     Hdot_Ω = C'*mass22*Cdot + Cdot'*mass22*C
@@ -1082,12 +1084,13 @@ corresponding to a point for a Newmark scheme time marching analysis
         mul3(C_θ1', C_θ2', C_θ3', mass22*Cdot*Ω) +
         -C'*mass21*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*V) + 
         -C'*mass22*mul3(C_θ1, C_θ2, C_θ3, tilde(Ω - ωb)*Ω)
+    Hdot_udot = Hdot_Vdot*Vdot_udot
 
     return (; properties..., u_u, θ_θ, F_F, M_M, 
         C_θ1, C_θ2, C_θ3, Qinv_θ1, Qinv_θ2, Qinv_θ3, F_θ, M_θ, 
         V_u, P_u, P_θ, H_u, H_θ, Vdot_Vdot, Ωdot_Ωdot, 
-        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_Vdot, Pdot_Ωdot, 
-        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_Vdot, Hdot_Ωdot) 
+        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_udot, Pdot_Vdot, Pdot_Ωdot, 
+        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_udot, Hdot_Vdot, Hdot_Ωdot) 
 end
 
 """
@@ -1518,8 +1521,8 @@ of a time domain analysis.
 
     @unpack ωb, C, mass11, mass12, mass21, mass22, V, Ω, P, H, Vdot_Vdot, Ωdot_Ωdot,
         V_u, P_u, P_θ, H_u, H_θ, 
-        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_Vdot, Pdot_Ωdot,
-        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_Vdot, Hdot_Ωdot = properties
+        Pdot_ab, Pdot_αb, Pdot_u, Pdot_θ, Pdot_udot, Pdot_Vdot, Pdot_Ωdot,
+        Hdot_ab, Hdot_αb, Hdot_u, Hdot_θ, Hdot_udot, Hdot_Vdot, Hdot_Ωdot = properties
 
     @unpack F_θ, M_θ = jacobians
 
@@ -1528,6 +1531,7 @@ of a time domain analysis.
     F_αb = -Pdot_αb
     F_u = -tilde(ωb)*P_u - Pdot_u
     F_θ -= tilde(ωb)*P_θ + Pdot_θ
+    F_udot = -Pdot_udot
     F_Vdot = -Pdot_Vdot
     F_Ωdot = -Pdot_Ωdot
 
@@ -1535,11 +1539,12 @@ of a time domain analysis.
     M_αb = -Hdot_αb
     M_u = -tilde(ωb)*H_u - tilde(V)*P_u + tilde(P)*V_u - Hdot_u
     M_θ -= tilde(ωb)*H_θ + tilde(V)*P_θ + Hdot_θ
+    M_udot = -Hdot_udot
     M_Vdot = -Hdot_Vdot
     M_Ωdot = -Hdot_Ωdot
 
-    return (; jacobians..., F_ab, F_αb, F_u, F_θ, F_Vdot, F_Ωdot, 
-        M_ab, M_αb, M_u, M_θ, M_Vdot, M_Ωdot)
+    return (; jacobians..., F_ab, F_αb, F_u, F_θ, F_udot, F_Vdot, F_Ωdot, 
+                            M_ab, M_αb, M_u, M_θ, M_udot, M_Vdot, M_Ωdot)
 end
 
 """
@@ -1819,8 +1824,8 @@ time domain analysis into the system jacobian matrix.
 
     @unpack u_u, θ_θ, F_F, M_M, Vdot_Vdot, Ωdot_Ωdot = properties
     
-    @unpack F_ab, F_αb, F_u, F_θ, F_Vdot, F_Ωdot, 
-            M_ab, M_αb, M_u, M_θ, M_Vdot, M_Ωdot = resultants
+    @unpack F_ab, F_αb, F_u, F_θ, F_udot, F_Vdot, F_Ωdot, 
+            M_ab, M_αb, M_u, M_θ, M_udot, M_Vdot, M_Ωdot = resultants
     
     @unpack rV_udot, rΩ_θ, rΩ_θdot = velocities
 
@@ -1829,11 +1834,14 @@ time domain analysis into the system jacobian matrix.
 
     jacob[irow:irow+2, icol:icol+2] .= -F_F .- F_u*u_u ./ force_scaling .- F_Vdot*Vdot_Vdot ./ force_scaling
     jacob[irow:irow+2, icol+3:icol+5] .= -F_θ*θ_θ ./ force_scaling .- F_Ωdot*Ωdot_Ωdot ./ force_scaling
+    jacob[irow:irow+2, icol+6:icol+8] .= -F_udot ./ force_scaling
 
     jacob[irow+3:irow+5, icol:icol+2] .= -M_u*u_u ./ force_scaling .- M_Vdot*Vdot_Vdot ./ force_scaling 
     jacob[irow+3:irow+5, icol+3:icol+5] .= -M_M .- M_θ*θ_θ ./ force_scaling .- M_Ωdot*Ωdot_Ωdot ./ force_scaling
+    jacob[irow+3:irow+5, icol+6:icol+8] .= -M_udot ./ force_scaling
 
     jacob[irow+6:irow+8, icol+6:icol+8] .= rV_udot
+
     jacob[irow+9:irow+11, icol+3:icol+5] .= rΩ_θ*θ_θ
     jacob[irow+9:irow+11, icol+9:icol+11] .= rΩ_θdot
 
