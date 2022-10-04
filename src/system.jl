@@ -709,7 +709,7 @@ function static_system_residual!(resid, x, indices, two_dimensional, force_scali
     end
 
     if two_dimensional
-        two_dimensional_residual!(resid, x, indices)
+        two_dimensional_residual!(resid, x)
     end
 
     return resid
@@ -744,8 +744,9 @@ function steady_system_residual!(resid, x, indices, two_dimensional, force_scali
             linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
     end
 
+    # restrict the analysis to the x-y plane (if requested)
     if two_dimensional
-        two_dimensional_residual!(resid, x, indices)
+        two_dimensional_residual!(resid, x)
     end
 
     return resid
@@ -809,8 +810,9 @@ function initial_system_residual!(resid, x, indices, rate_vars1, rate_vars2,
         end
     end
 
+    # restrict the analysis to the x-y plane (if requested)
     if two_dimensional
-        two_dimensional_residual!(resid, x, indices)
+        two_dimensional_residual!(resid, x)
     end
 
     return resid
@@ -841,8 +843,9 @@ function newmark_system_residual!(resid, x, indices, two_dimensional, force_scal
             linear_velocity, angular_velocity, Vdot_init, Ωdot_init, dt)
     end
     
+    # restrict the analysis to the x-y plane (if requested)
     if two_dimensional
-        two_dimensional_residual!(resid, x, indices)
+        two_dimensional_residual!(resid, x)
     end
 
     return resid
@@ -872,8 +875,9 @@ function dynamic_system_residual!(resid, dx, x, indices, two_dimensional, force_
             linear_velocity, angular_velocity)
     end
 
+    # restrict the analysis to the x-y plane (if requested)
     if two_dimensional
-        two_dimensional_residual!(resid, x, indices)
+        two_dimensional_residual!(resid, x)
     end
     
     return resid
@@ -908,8 +912,9 @@ function expanded_steady_system_residual!(resid, x, indices, two_dimensional, fo
             linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
     end
 
+    # restrict the analysis to the x-y plane (if requested)
     if two_dimensional
-        two_dimensional_residual!(resid, x, indices)
+        two_dimensional_residual!(resid, x)
     end
     
     return resid
@@ -939,8 +944,9 @@ function expanded_dynamic_system_residual!(resid, dx, x, indices, two_dimensiona
             linear_velocity, angular_velocity)
     end
     
+    # restrict the analysis to the x-y plane (if requested)
     if two_dimensional
-        two_dimensional_residual!(resid, x, indices)
+        two_dimensional_residual!(resid, x)
     end
 
     return resid
@@ -968,7 +974,7 @@ function static_system_jacobian!(jacob, x, indices, two_dimensional, force_scali
     end
 
     if two_dimensional
-        two_dimensional_jacobian!(jacob, x, indices)
+        two_dimensional_jacobian!(jacob, x)
     end
     
     return jacob
@@ -1005,7 +1011,7 @@ function steady_system_jacobian!(jacob, x, indices, two_dimensional, force_scali
     end
 
     if two_dimensional
-        two_dimensional_jacobian!(jacob, x, indices)
+        two_dimensional_jacobian!(jacob, x)
     end
     
     return jacob
@@ -1105,7 +1111,7 @@ function initial_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2, two
     end
 
     if two_dimensional
-        two_dimensional_jacobian!(jacob, x, indices)
+        two_dimensional_jacobian!(jacob, x)
     end
 
     return jacob
@@ -1137,7 +1143,7 @@ function newmark_system_jacobian!(jacob, x, indices, two_dimensional, force_scal
     end
 
     if two_dimensional
-        two_dimensional_jacobian!(jacob, x, indices)
+        two_dimensional_jacobian!(jacob, x)
     end
     
     return jacob
@@ -1169,7 +1175,7 @@ function dynamic_system_jacobian!(jacob, dx, x, indices, two_dimensional, force_
     end
     
     if two_dimensional
-        two_dimensional_jacobian!(jacob, x, indices)
+        two_dimensional_jacobian!(jacob, x)
     end
 
     return jacob
@@ -1206,7 +1212,7 @@ function expanded_steady_system_jacobian!(jacob, x, indices, two_dimensional, fo
     end
    
     if two_dimensional
-        two_dimensional_jacobian!(jacob, x, indices)
+        two_dimensional_jacobian!(jacob, x)
     end
 
     return jacob
@@ -1238,7 +1244,7 @@ function expanded_dynamic_system_jacobian!(jacob, dx, x, indices, two_dimensiona
     end
     
     if two_dimensional
-        two_dimensional_jacobian!(jacob, x, indices)
+        two_dimensional_jacobian!(jacob, x)
     end
 
     return jacob
@@ -1356,7 +1362,7 @@ function expanded_system_mass_matrix!(jacob, gamma, indices, two_dimensional, fo
     return jacob
 end
 
-function two_dimensional_residual!(resid, x, indices)
+function two_dimensional_residual!(resid, x)
 
     for (irow, icol) in zip(1:6:length(x), 1:6:length(x))
         resid[irow+2] = x[icol+2] # constrain linear component in z-direction to be zero
@@ -1367,7 +1373,7 @@ function two_dimensional_residual!(resid, x, indices)
     return resid
 end
 
-function two_dimensional_jacobian!(jacob, x, indices)
+function two_dimensional_jacobian!(jacob, x)
 
     for (irow, icol) in zip(1:6:length(x), 1:6:length(x))
         # constrain linear component in z-direction to be zero
