@@ -43,7 +43,7 @@ iteration procedure converged.
 
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
- - `update_linearization`: Flag indicating whether to update the linearization state 
+ - `update_linearization = false`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
 """
 function static_analysis(assembly; kwargs...)
@@ -258,7 +258,11 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     )
 
     # check if provided system is consistent with provided keyword arguments
-    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
 
     # reset state, if specified
     if reset_state
@@ -362,8 +366,6 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         end
     end
 
-    @assert system.x == x
-
     return system, converged
 end
 
@@ -408,7 +410,6 @@ with variables in `system` so a copy should be made prior to modifying them.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = false`: Indicates whether to enable structural damping
  - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
- - `show_trace = false`: Flag indicating whether to display the solution progress.
 
 """
 function linearize!(system, assembly;
@@ -426,7 +427,6 @@ function linearize!(system, assembly;
     two_dimensional=false,
     structural_damping=false,
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
-    show_trace=false,
     )
 
     # check if provided system is consistent with provided keyword arguments
@@ -436,14 +436,17 @@ function linearize!(system, assembly;
     @unpack x, K, M, force_scaling, indices = system
 
     # current parameters
-    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(time)
-    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(time)
-    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(time)
-    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(time))
-    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(time))
-    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(time))
-    ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(time))
-    αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(time))
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(first(time))
+    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(first(time))
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(first(time))
+    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(first(time)))
+    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(first(time)))
+    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(first(time)))
+    ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(first(time)))
+    αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(first(time)))
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(system, pcond)
 
     if constant_mass_matrix
 
@@ -728,7 +731,7 @@ converged.
 
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
- - `update_linearization`: Flag indicating whether to update the linearization state 
+ - `update_linearization = false`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
 
 # Eigenvalue Solution Keyword Arguments
@@ -860,7 +863,6 @@ function eigenvalue_analysis!(system, assembly;
         two_dimensional=two_dimensional,
         structural_damping=structural_damping,
         constant_mass_matrix=constant_mass_matrix,
-        show_trace=show_trace,
         )
 
     # solve the eigensystem
@@ -950,7 +952,7 @@ resulting system and a flag indicating whether the iteration procedure converged
 
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
- - `update_linearization`: Flag indicating whether to update the linearization state 
+ - `update_linearization = false`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
 """
 function initial_condition_analysis(assembly, t0; constant_mass_matrix=false, kwargs...)
@@ -1036,7 +1038,11 @@ function initial_condition_analysis!(system, assembly, t0;
     end
 
     # check if provided system is consistent with provided keyword arguments
-    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
 
     # reset state, if specified
     if reset_state
@@ -1178,24 +1184,20 @@ function initial_condition_analysis!(system, assembly, t0;
     # --- Save state and rate variables associated with each point --- #
 
     for ipoint in eachindex(assembly.points)
-        # external loads
+        # point state variables 
         Fe, Me = point_loads(x, ipoint, indices.icol_point, force_scaling, pcond)
-        # linear and angular displacement
-        u, θ = initial_point_displacement(x, ipoint, indices.icol_point, pcond, u0, theta0, 
-            rate_vars2)
-        # linear and angular velocity
+        u, θ = initial_point_displacement(x, ipoint, indices.icol_point, pcond, u0, theta0, rate_vars2)
         V, Ω = V0[ipoint], Omega0[ipoint]
-        # linear and angular displacement rates
+        # point rate variables
         udot[ipoint], θdot[ipoint] = point_velocities(x, ipoint, indices.icol_point)
-        # linear and angular velocity rates
         Vdot[ipoint], Ωdot[ipoint] = initial_point_velocity_rates(x, ipoint, 
             indices.icol_point, pcond, Vdot0, Omegadot0, rate_vars2)
-        # add rigid body accelerations to node accelerations
+        # modify accelerations to account for rigid body motion
         Δx = assembly.points[ipoint]
         ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
-        Vdot[ipoint] += ab + cross(αb, Δx) + cross(αb, u)
+        Vdot[ipoint] += ab + cross(αb, Δx + u) + cross(ωb, udot[ipoint])
         Ωdot[ipoint] += αb
-        # set new state variables
+        # save state variables
         set_external_forces!(system, prescribed_conditions, Fe, ipoint)
         set_external_moments!(system, prescribed_conditions, Me, ipoint)
         set_linear_displacement!(system, prescribed_conditions, u, ipoint)
