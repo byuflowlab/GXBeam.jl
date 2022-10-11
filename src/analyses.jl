@@ -1194,6 +1194,7 @@ function initial_condition_analysis!(system, assembly, t0;
             indices.icol_point, pcond, Vdot0, Omegadot0, rate_vars2)
         # modify accelerations to account for rigid body motion
         Δx = assembly.points[ipoint]
+        vb, ωb = vb_p, ωb_p
         ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
         Vdot[ipoint] += ab + cross(αb, Δx + u) + cross(ωb, udot[ipoint])
         Ωdot[ipoint] += αb
