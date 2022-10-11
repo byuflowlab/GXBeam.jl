@@ -160,7 +160,6 @@ GXBeam.point_displacement
 GXBeam.point_displacement_jacobians
 GXBeam.point_displacement_rates
 GXBeam.point_velocities
-GXBeam.point_velocity_rates
 GXBeam.initial_point_displacement
 GXBeam.initial_point_velocity_rates
 GXBeam.initial_point_displacement_jacobian

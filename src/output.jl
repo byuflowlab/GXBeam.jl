@@ -184,9 +184,8 @@ to be displacements/rotations, rather than their actual identities as used in th
 analysis.
 """
 function extract_point_states(system, assembly, x = system.x; kwargs...)
-    TF = promote_type(eltype(system), eltype(x))
-    points = Vector{PointState{TF}}(undef, length(assembly.points))
-    return extract_point_states!(points, system, assembly, x; kwargs...)
+    
+    return [extract_point_state(system, assembly, ipoint, x; kwargs...) for ipoint in eachindex(assembly.points)]
 end
 
 """
@@ -195,11 +194,10 @@ end
 
 Pre-allocated version of [`extract_point_states`](@ref)
 """
-function extract_point_states!(points, system, assembly, x = system.x;
-    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+function extract_point_states!(points, system, assembly, x = system.x; kwargs...)
 
     for ipoint in eachindex(points)
-        points[ipoint] = extract_point_state(system, assembly, ipoint, x; prescribed_conditions)
+        points[ipoint] = extract_point_state(system, assembly, ipoint, x; kwargs...)
     end
 
     return points
@@ -337,9 +335,8 @@ Return the state variables corresponding to each element (see [`ElementState`](@
 given the solution vector `x`.
 """
 function extract_element_states(system, assembly, x = system.x; kwargs...)
-    TF = promote_type(eltype(system), eltype(x))
-    elements = Vector{ElementState{TF}}(undef, length(assembly.elements))
-    return extract_element_states!(elements, system, assembly, x; kwargs...)
+
+    return [extract_element_state(system, assembly, ielem, x; kwargs...) for ielem in eachindex(assembly.elements)]
 end
 
 """
@@ -349,8 +346,10 @@ end
 Pre-allocated version of [`extract_element_states`](@ref)
 """
 function extract_element_states!(elements, system, assembly, x = system.x; kwargs...)
+
     for ielem in eachindex(elements)
         elements[ielem] = extract_element_state(system, assembly, ielem, x; kwargs...)
     end
+
     return elements
 end

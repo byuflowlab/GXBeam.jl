@@ -1,3 +1,5 @@
+*.vtu
+*.pvd
 *.bak
 *.tmp
 Manifest.toml

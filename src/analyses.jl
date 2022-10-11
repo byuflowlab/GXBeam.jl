@@ -28,6 +28,7 @@ iteration procedure converged.
         body frame motion to gradually increase displacements and loads.     
 
 # Control Flag Keyword Arguments
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
@@ -42,7 +43,7 @@ iteration procedure converged.
 
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
- - `update_linearization`: Flag indicating whether to update the linearization state 
+ - `update_linearization = false`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
 """
 function static_analysis(assembly; kwargs...)
@@ -65,6 +66,7 @@ function static_analysis!(system::StaticSystem, assembly;
     gravity=(@SVector zeros(3)),
     time=0.0,
     # control flag keyword arguments
+    two_dimensional=false,
     reset_state=true,
     linear=false,
     show_trace=false,
@@ -107,10 +109,10 @@ function static_analysis!(system::StaticSystem, assembly;
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
 
         # define the residual and jacobian functions
-        f! = (resid, x) -> static_system_residual!(resid, x, indices, force_scaling, 
+        f! = (resid, x) -> static_system_residual!(resid, x, indices, two_dimensional, force_scaling, 
             assembly, pcond, dload, pmass, gvec)
 
-        j! = (jacob, x) -> static_system_jacobian!(jacob, x, indices, force_scaling, 
+        j! = (jacob, x) -> static_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling, 
             assembly, pcond, dload, pmass, gvec)
 
         # solve for the new set of state variables
@@ -191,6 +193,7 @@ iteration procedure converged.
         body frame motion to gradually increase displacements and loads.     
             
 # Control Flag Keyword Arguments
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = false`: Indicates whether to enable structural damping
  - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be 
@@ -238,6 +241,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     gravity=(@SVector zeros(3)),
     time=0.0,
     # control flag keyword arguments
+    two_dimensional=false,
     structural_damping=false,
     constant_mass_matrix=typeof(system)<:ExpandedSystem,
     reset_state=true,
@@ -254,7 +258,11 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     )
 
     # check if provided system is consistent with provided keyword arguments
-    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
 
     # reset state, if specified
     if reset_state
@@ -293,17 +301,17 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
 
         # define the residual and jacobian functions
         if constant_mass_matrix
-            f! = (resid, x) -> expanded_steady_system_residual!(resid, x, indices, 
+            f! = (resid, x) -> expanded_steady_system_residual!(resid, x, indices, two_dimensional,
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
                 vb_p, ωb_p, ab_p, αb_p)
-            j! = (jacob, x) -> expanded_steady_system_jacobian!(jacob, x, indices, 
+            j! = (jacob, x) -> expanded_steady_system_jacobian!(jacob, x, indices, two_dimensional,
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
                 vb_p, ωb_p, ab_p, αb_p)
         else
-            f! = (resid, x) -> steady_system_residual!(resid, x, indices, 
+            f! = (resid, x) -> steady_system_residual!(resid, x, indices, two_dimensional,
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
                 vb_p, ωb_p, ab_p, αb_p)
-            j! = (jacob, x) -> steady_system_jacobian!(jacob, x, indices, 
+            j! = (jacob, x) -> steady_system_jacobian!(jacob, x, indices, two_dimensional,
                 force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
                 vb_p, ωb_p, ab_p, αb_p)
         end
@@ -358,8 +366,6 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         end
     end
 
-    @assert system.x == x
-
     return system, converged
 end
 
@@ -401,9 +407,9 @@ with variables in `system` so a copy should be made prior to modifying them.
         body frame motion to gradually increase displacements and loads.     
             
 # Control Flag Keyword Arguments
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = false`: Indicates whether to enable structural damping
  - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
- - `show_trace = false`: Flag indicating whether to display the solution progress.
 
 """
 function linearize!(system, assembly;
@@ -418,9 +424,9 @@ function linearize!(system, assembly;
     gravity=(@SVector zeros(3)),
     time=0.0,
     # control flag keyword arguments
+    two_dimensional=false,
     structural_damping=false,
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
-    show_trace=false,
     )
 
     # check if provided system is consistent with provided keyword arguments
@@ -430,33 +436,36 @@ function linearize!(system, assembly;
     @unpack x, K, M, force_scaling, indices = system
 
     # current parameters
-    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(time)
-    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(time)
-    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(time)
-    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(time))
-    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(time))
-    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(time))
-    ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(time))
-    αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(time))
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(first(time))
+    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(first(time))
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(first(time))
+    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(first(time)))
+    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(first(time)))
+    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(first(time)))
+    ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(first(time)))
+    αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(first(time)))
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(system, pcond)
 
     if constant_mass_matrix
 
         # solve for the system stiffness matrix
-        expanded_steady_system_jacobian!(K, x, indices, force_scaling, 
+        expanded_steady_system_jacobian!(K, x, indices, two_dimensional, force_scaling, 
             structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p)
 
         # solve for the system mass matrix
-        expanded_system_mass_matrix!(M, indices, force_scaling, assembly, 
+        expanded_system_mass_matrix!(M, indices, two_dimensional, force_scaling, assembly, 
             pcond, pmass)
 
     else
 
         # solve for the system stiffness matrix
-        steady_system_jacobian!(K, x, indices, force_scaling, 
+        steady_system_jacobian!(K, x, indices, two_dimensional, force_scaling, 
             structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p)
 
         # solve for the system mass matrix
-        system_mass_matrix!(M, x, indices, force_scaling, assembly, pcond, pmass)
+        system_mass_matrix!(M, x, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
 
     end
 
@@ -705,12 +714,13 @@ converged.
         body frame motion to gradually increase displacements and loads.     
                     
 # Control Flag Keyword Arguments
-- `structural_damping = false`: Indicates whether to enable structural damping
-- `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
-- `reset_state = true`: Flag indicating whether the system state variables should be 
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
+ - `structural_damping = false`: Indicates whether to enable structural damping
+ - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
+ - `reset_state = true`: Flag indicating whether the system state variables should be 
        set to zero prior to performing this analysis.
-- `linear = false`: Flag indicating whether a linear analysis should be performed.
-- `show_trace = false`: Flag indicating whether to display the solution progress.
+ - `linear = false`: Flag indicating whether a linear analysis should be performed.
+ - `show_trace = false`: Flag indicating whether to display the solution progress.
 
 # Nonlinear Solver Keyword Arguments
  - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
@@ -721,7 +731,7 @@ converged.
 
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
- - `update_linearization`: Flag indicating whether to update the linearization state 
+ - `update_linearization = false`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
 
 # Eigenvalue Solution Keyword Arguments
@@ -761,6 +771,7 @@ function eigenvalue_analysis!(system, assembly;
     gravity=(@SVector zeros(3)),
     time=0.0,
     # control flag keyword arguments
+    two_dimensional=false,
     structural_damping=false,
     constant_mass_matrix=false,
     reset_state=true,
@@ -809,6 +820,7 @@ function eigenvalue_analysis!(system, assembly;
             gravity=gravity,
             time=time,
             # control flag keyword arguments
+            two_dimensional=two_dimensional,
             structural_damping=structural_damping,
             constant_mass_matrix=constant_mass_matrix,
             reset_state=reset_state,
@@ -848,9 +860,9 @@ function eigenvalue_analysis!(system, assembly;
         angular_acceleration=angular_acceleration,
         gravity=gravity,
         time=time,
+        two_dimensional=two_dimensional,
         structural_damping=structural_damping,
         constant_mass_matrix=constant_mass_matrix,
-        show_trace=show_trace,
         )
 
     # solve the eigensystem
@@ -921,6 +933,7 @@ resulting system and a flag indicating whether the iteration procedure converged
         each point relative to the body frame
 
 # Control Flag Keyword Arguments
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = true`: Indicates whether to enable structural damping
  - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be 
@@ -939,7 +952,7 @@ resulting system and a flag indicating whether the iteration procedure converged
 
 # Linear Solver Keyword Arguments
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
- - `update_linearization`: Flag indicating whether to update the linearization state 
+ - `update_linearization = false`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
 """
 function initial_condition_analysis(assembly, t0; constant_mass_matrix=false, kwargs...)
@@ -976,6 +989,7 @@ function initial_condition_analysis!(system, assembly, t0;
     Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
     Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
+    two_dimensional=false,
     structural_damping=true,
     constant_mass_matrix=typeof(system)<:ExpandedSystem,
     reset_state=true,
@@ -1006,6 +1020,7 @@ function initial_condition_analysis!(system, assembly, t0;
             gravity=gravity,
             time=t0,
             # control flag keyword arguments
+            two_dimensional=two_dimensional,
             structural_damping=structural_damping,
             constant_mass_matrix=constant_mass_matrix,
             reset_state=reset_state,
@@ -1023,7 +1038,11 @@ function initial_condition_analysis!(system, assembly, t0;
     end
 
     # check if provided system is consistent with provided keyword arguments
-    constant_mass_matrix && @assert typeof(system) <: ExpandedSystem
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
 
     # reset state, if specified
     if reset_state
@@ -1085,7 +1104,7 @@ function initial_condition_analysis!(system, assembly, t0;
     # Fortunately, though we cannot solve for these variables, their values are not used.
 
     # construct `rate_vars` vector
-    system_mass_matrix!(system.M, x, indices, force_scaling, assembly, pcond, pmass)
+    system_mass_matrix!(system.M, x, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
     rate_vars1 = .!(iszero.(sum(system.M, dims=1)))
 
     # --- Determine whether Fi and Mi may be found using the compatability equations --- #
@@ -1107,7 +1126,7 @@ function initial_condition_analysis!(system, assembly, t0;
     pmass2 = Dict{Int,PointMass{Float64}}()
 
     # construct `rate_vars2` vector to test if the second case applies
-    system_mass_matrix!(system.M, x, indices, force_scaling, assembly, pcond, pmass2)
+    system_mass_matrix!(system.M, x, indices, two_dimensional, force_scaling, assembly, pcond, pmass2)
     rate_vars2 = .!(iszero.(sum(system.M, dims=1)))
 
     # restore original element mass matrices
@@ -1117,11 +1136,11 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # --- Define the residual and jacobian functions --- #
 
-    f! = (resid, x) -> initial_system_residual!(resid, x, indices, rate_vars1, rate_vars2, 
+    f! = (resid, x) -> initial_system_residual!(resid, x, indices, rate_vars1, rate_vars2, two_dimensional,
         force_scaling, structural_damping, assembly, pcond, dload, pmass, 
         gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
-    j! = (jacob, x) -> initial_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2,
+    j! = (jacob, x) -> initial_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2, two_dimensional,
         force_scaling, structural_damping, assembly, pcond, dload, pmass, 
         gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
@@ -1165,24 +1184,21 @@ function initial_condition_analysis!(system, assembly, t0;
     # --- Save state and rate variables associated with each point --- #
 
     for ipoint in eachindex(assembly.points)
-        # external loads
+        # point state variables 
         Fe, Me = point_loads(x, ipoint, indices.icol_point, force_scaling, pcond)
-        # linear and angular displacement
-        u, θ = initial_point_displacement(x, ipoint, indices.icol_point, pcond, u0, theta0, 
-            rate_vars2)
-        # linear and angular velocity
+        u, θ = initial_point_displacement(x, ipoint, indices.icol_point, pcond, u0, theta0, rate_vars2)
         V, Ω = V0[ipoint], Omega0[ipoint]
-        # linear and angular displacement rates
+        # point rate variables
         udot[ipoint], θdot[ipoint] = point_velocities(x, ipoint, indices.icol_point)
-        # linear and angular velocity rates
         Vdot[ipoint], Ωdot[ipoint] = initial_point_velocity_rates(x, ipoint, 
             indices.icol_point, pcond, Vdot0, Omegadot0, rate_vars2)
-        # add rigid body accelerations to node accelerations
+        # modify accelerations to account for rigid body motion
         Δx = assembly.points[ipoint]
+        vb, ωb = vb_p, ωb_p
         ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
-        Vdot[ipoint] += ab + cross(αb, Δx) + cross(αb, u)
+        Vdot[ipoint] += ab + cross(αb, Δx + u) + cross(ωb, udot[ipoint])
         Ωdot[ipoint] += αb
-        # set new state variables
+        # save state variables
         set_external_forces!(system, prescribed_conditions, Fe, ipoint)
         set_external_moments!(system, prescribed_conditions, Me, ipoint)
         set_linear_displacement!(system, prescribed_conditions, u, ipoint)
@@ -1256,6 +1272,7 @@ converged for every time step.
         each point in the body frame **excluding contributions from body frame motion**
 
 # Control Flag Keyword Arguments
+ - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = true`: Indicates whether to enable structural damping
  - `reset_state = true`: Flag indicating whether the system state variables should be 
         set to zero prior to performing this analysis.
@@ -1309,6 +1326,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
     Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
     # control flag keyword arguments
+    two_dimensional=false,
     structural_damping=true,
     reset_state=true,
     initialize=true,
@@ -1348,6 +1366,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             Omega0=Omega0,
             Vdot0=Vdot0,
             Omegadot0=Omegadot0,
+            two_dimensional=two_dimensional,
             structural_damping=structural_damping,
             reset_state=reset_state,
             linear=linear,
@@ -1414,11 +1433,11 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         end
 
         # define the residual and jacobian functions
-        f! = (r, x) -> newmark_system_residual!(r, x, indices, force_scaling, 
+        f! = (r, x) -> newmark_system_residual!(r, x, indices, two_dimensional, force_scaling,
             structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p,
             udot, θdot, Vdot, Ωdot, dt)
 
-        j! = (K, x) -> newmark_system_jacobian!(K, x, indices, force_scaling, 
+        j! = (K, x) -> newmark_system_jacobian!(K, x, indices, two_dimensional, force_scaling, 
             structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p,
             udot, θdot, Vdot, Ωdot, dt)
 
