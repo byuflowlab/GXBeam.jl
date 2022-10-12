@@ -47,7 +47,7 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan, p=(;);
 
     # construct ODEFunction
     func = SciMLBase.ODEFunction(system, assembly, pfunc, p; 
-        structural_damping, constant_mass_matrix, sparse)
+        two_dimensional, structural_damping, constant_mass_matrix, sparse)
 
     return SciMLBase.ODEProblem{true}(func, u0, tspan, p; kwargs...)
 end
@@ -290,7 +290,7 @@ function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan, p=(;);
     differential_vars = get_differential_vars(system, assembly, pcond, pmass, two_dimensional)
 
     # create SciMLBase.DAEFunction
-    func = SciMLBase.DAEFunction(system, assembly, pfunc; structural_damping)
+    func = SciMLBase.DAEFunction(system, assembly, pfunc; two_dimensional, structural_damping)
 
     return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars)
 end
