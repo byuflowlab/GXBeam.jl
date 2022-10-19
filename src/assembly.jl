@@ -20,6 +20,12 @@ struct Element{TF}
     mu::SVector{6,TF}
 end
 
+Base.eltype(::Element{TF}) where TF = TF
+Base.eltype(::Type{Element{TF}}) where TF = TF
+
+Element{TF}(e::Element) where {TF} = Element{TF}(e.L, e.x, e.compliance, e.mass, e.Cab, e.mu)
+Base.convert(::Type{Element{TF}}, e::Element) where {TF} = Element{TF}(e)
+
 """
     Element(L, x, compliance, mass, Cab, mu)
 
@@ -56,7 +62,12 @@ struct Assembly{TF, TP<:AbstractVector{<:AbstractVector{TF}}, TC<:AbstractVector
     stop::TC
     elements::TE
 end
+
 Base.eltype(::Assembly{TF, TP, TC, TE}) where {TF, TP, TC, TE} = TF
+Base.eltype(::Type{Assembly{TF, TP, TC, TE}}) where {TF, TP, TC, TE} = TF
+
+Assembly{TF, TP, TC, TE}(a::Assembly) where {TF, TP, TC, TE} = Assembly{TF, TP, TC, TE}(a.points, a.start, a.stop, a.elements)
+Base.convert(::Type{Assembly{TF, TP, TC, TE}}, a::Assembly) where {TF, TP, TC, TE} = Assembly{TF, TP, TC, TE}(a)
 
 """
     Assembly(points, start, stop; kwargs...)
