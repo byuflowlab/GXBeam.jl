@@ -29,7 +29,7 @@ Base.convert(::Type{Element{TF}}, e::Element) where {TF} = Element{TF}(e)
 """
     Element(L, x, compliance, mass, Cab, mu)
 
-Construct a beam element
+Construct a beam element.
 
 # Arguments
 - `L`: Length of the beam element
@@ -42,6 +42,75 @@ Construct a beam element
 function Element(L, x, compliance, mass, Cab, mu)
     TF = promote_type(typeof(L), eltype(x), eltype(compliance), eltype(mass), eltype(Cab), eltype(mu))
     return Element{TF}(L, x, compliance, mass, Cab, mu)
+end
+
+"""
+    Element(points, start, stop; kwargs...)
+
+Construct a beam element.  Beam lengths and midpoints may be manually specified in case 
+the beam element is curved rather than straight.
+
+# Arguments
+ - `points`: Array of all beam element endpoints in the assembly
+ - `start`: Point index where this beam element starts
+ - `stop`: Point index where this beam element stops
+
+# Keyword Arguments
+ - `frame`: 3 x 3 tranformation matrix for this beam element.  Transforms from the local 
+        undeformed beam frame to the global frame. Defaults to the identity matrix.
+ - `compliance`: 6 x 6 compliance matrix for this beam element. Defaults to `zeros(6,6)`. 
+ - `mass`: 6 x 6 mass matrix for this beam element. Defaults to `zeros(6,6)`
+ - `damping`: structural damping coefficients for this beam element.
+        Defaults to `fill(0.01, 6)`.
+ - `length`: Beam length, defaults to the distance between beam endpoints
+ - `midpoint`: Beam midpoint, defaults to the average of the beam element endpoints
+"""
+function Element(points, start, stop;
+    frame = nothing,
+    stiffness = nothing,
+    compliance = nothing,
+    mass = nothing,
+    damping = nothing,
+    length = nothing,
+    midpoint = nothing)
+
+    if isnothing(length)
+        length = norm(points[stop] - points[start])
+    end
+
+    if isnothing(midpoint)
+        midpoint = (points[stop] + points[start])/2
+    end
+
+    if isnothing(compliance)
+        if isnothing(stiffness)
+            compliance = @SMatrix zeros(6,6)
+        else
+            compliance = @MMatrix zeros(eltype(eltype(stiffness)), 6, 6)
+            filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), stiffness, dims = 1)))
+            compliance[filled_cols,filled_cols] .= inv(Matrix(stiffness[filled_cols, filled_cols]))
+            compliance = SMatrix(compliance)
+        end
+    end
+
+    if isnothing(mass)
+        mass = @SMatrix zeros(6,6)
+    end
+
+    if isnothing(frame)
+        frame = I3
+    end
+
+    if isnothing(damping)
+        damping = 0.01*(@SVector ones(6))
+    end
+
+    return Element(length, midpoint, compliance, mass, frame, damping)
+end
+
+# this definition is for broadcasting
+function Element(points, start, stop, frame, stiffness, compliance, mass, damping, length, midpoint)
+    return Element(points, start, stop; frame, stiffness, compliance, mass, damping, length, midpoint)
 end
 
 """
@@ -70,6 +139,22 @@ Assembly{TF, TP, TC, TE}(a::Assembly) where {TF, TP, TC, TE} = Assembly{TF, TP, 
 Base.convert(::Type{Assembly{TF, TP, TC, TE}}, a::Assembly) where {TF, TP, TC, TE} = Assembly{TF, TP, TC, TE}(a)
 
 """
+    Assembly{TF}(points, start, stop, elements)
+
+Construct an assembly of connected nonlinear beam elements.  
+
+# Arguments
+ - `points`: Array of all beam element endpoints
+ - `start`: Array containing point indices where each beam element starts
+ - `stop`: Array containing point indices where each beam element stops
+ - `elements`: Array containing beam element definitions (see [`Element`](@ref))
+"""
+function Assembly(points, start, stop, elements)
+    TF = promote_type(eltype(eltype(points)), eltype(eltype(elements)))
+    return Assembly(SVector{3,TF}.(points), promote(start, stop)..., Element{TF}.(elements))
+end
+
+"""
     Assembly(points, start, stop; kwargs...)
 
 Construct an assembly of connected nonlinear beam elements.  Beam lengths and midpoints 
@@ -81,57 +166,30 @@ may be manually specified in case beam elements are curved rather than straight.
  - `stop`: Array containing point indices where each beam element stops
 
 # Keyword Arguments
- - `stiffness`: Array of (6 x 6) stiffness matrices for each beam element, 
-        acts as an alternative to providing `compliance`
- - `compliance`: Array of (6 x 6) compliance matrices for each beam element, 
-        defaults to `zeros(6,6)` for each beam element
- - `mass`: Array of (6 x 6) mass matrices for each beam element, 
-        defaults to `zeros(6,6)` for each beam element
  - `frames`: Array of (3 x 3) tranformation matrices for each beam element.
-        Transforms from the local undeformed beam frame to the global frame) and defaults
-        to the identity matrix for each beam element
- - `lengths`: Array containing the length of each beam, defaults to the distance between 
-        beam endpoints
- - `midpoints`: Array containing the midpoint of each beam element, defaults to the average 
-        of the beam element endpoints
+        Transforms from the local undeformed beam frame to the global frame. 
+        Defaults to the identity matrix.
+ - `compliance`: Array of (6 x 6) compliance matrices for each beam element.
+        Defaults to `zeros(6,6)` for each beam element.
+ - `mass`: Array of (6 x 6) mass matrices for each beam element. 
+        Defaults to `zeros(6,6)` for each beam element.
+ - `damping`: Array of (6) structural damping coefficients for each beam element. 
+        Defaults to `fill(0.01, 6)` for each beam element.
+ - `lengths`: Array containing the length of each beam element.
+        Defaults to the distance between beam endpoints.
+ - `midpoints`: Array containing the midpoint of each beam element.
+        Defaults to the average of the beam element endpoints.
 """
 function Assembly(points, start, stop;
+    frames = nothing,
     stiffness = nothing,
     compliance = nothing,
     mass = nothing,
-    frames = nothing,
     damping = nothing,
-    lengths = norm.(points[stop] - points[start]),
-    midpoints = (points[stop] + points[start])/2)
+    lengths = nothing,
+    midpoints = nothing)
 
-    nelem = length(start)
-
-    if isnothing(compliance)
-        if isnothing(stiffness)
-            compliance = fill((@SMatrix zeros(6,6)), nelem)
-        else
-            compliance = [(@MMatrix zeros(eltype(eltype(stiffness)), 6,6)) for i=1:nelem] #can't use fill because it copies the reference. Need a different value for every i.
-            for i = 1:nelem
-                filled_cols = findall(vec(mapslices(col -> any(row -> !isapprox(row, 0), col), stiffness[i], dims = 1)))
-                compliance[i][filled_cols,filled_cols] .= inv(Matrix(stiffness[i][filled_cols, filled_cols]))
-            end
-            compliance = SMatrix.(compliance)
-        end
-    end
-
-    if isnothing(mass)
-        mass = fill((@SMatrix zeros(6,6)), nelem)
-    end
-
-    if isnothing(frames)
-        frames = fill(I3, nelem)
-    end
-
-    if isnothing(damping)
-        damping = fill(0.01*(@SVector ones(6)), nelem)
-    end
-
-    elements = Element.(lengths, midpoints, compliance, mass, frames, damping)
+    elements = Element.(Ref(points), start, stop, frames, stiffness, compliance, mass, damping, lengths, midpoints)
 
     return Assembly(SVector{3}.(points), promote(start, stop)..., elements)
 end

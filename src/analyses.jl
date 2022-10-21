@@ -45,6 +45,15 @@ iteration procedure converged.
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
  - `update_linearization = false`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
+
+# Sensitivity Analysis Keyword Arguments
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+        to updated versions of the arguments `assembly`, `prescribed_conditions`, 
+        `distributed_loads`, `point_masses`, and `gravity`. Only fields contained in the 
+        resulting named tuple will be overwritten.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.  
+        While not necessary, using `pfunc` and `p` to define the arguments to this function
+        allows automatic differentiation sensitivities to be computed more efficiently
 """
 function static_analysis(assembly; kwargs...)
 
@@ -78,6 +87,9 @@ function static_analysis!(system::StaticSystem, assembly;
     # linear solver keyword arguments
     linearization_state=nothing,
     update_linearization=false,
+    # sensitivity analysis keyword arguments
+    pfunc = (p, t) -> (;),
+    p = nothing,
     )
 
     # reset state, if specified
@@ -102,22 +114,28 @@ function static_analysis!(system::StaticSystem, assembly;
         # update the stored time
         system.t = t
 
-        # current parameters
+        # get (default) parameters for this time step
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
 
-        # define the residual and jacobian functions
-        f! = (resid, x) -> static_system_residual!(resid, x, indices, two_dimensional, force_scaling, 
-            assembly, pcond, dload, pmass, gvec)
-
-        j! = (jacob, x) -> static_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling, 
-            assembly, pcond, dload, pmass, gvec)
-
+        # store (constant) parameters for computing residuals and jacobians
+        constants = (; 
+            # store indices, control flags, and parameter function
+            indices, two_dimensional, force_scaling, pfunc, 
+            # also store (default) parameters and current time
+            assembly, pcond, dload, pmass, gvec, t,
+            # also store the initial guess, residual, jacobian, and flag for convergence
+            x0=x, resid=r, jacob=K, converged=Ref(converged),
+            # also store keyword arguments for the nonlinear solver
+            show_trace, method, linesearch, ftol, iterations
+        ) 
+        
         # solve for the new set of state variables
         if linear
-            # perform a linear analysis
+
+            # update the linearization state
             if !update_linearization
                 if isnothing(linearization_state)
                     x .= 0
@@ -125,35 +143,120 @@ function static_analysis!(system::StaticSystem, assembly;
                     x .= linearization_state
                 end
             end
-            f!(r, x)
-            j!(K, x)
 
-            # update the solution vector
-            x .-= safe_lu(K) \ r
-        else
-            # perform a nonlinear analysis
-            df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
+            # update the residual
+            resid = static_residual!(r, x, p, constants)
 
-            result = NLsolve.nlsolve(df, x,
-                show_trace=show_trace,
-                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
-                method=method,
-                linesearch=linesearch,
-                ftol=ftol,
-                iterations=iterations)
+            # update the jacobian
+            jacob = static_jacobian!(static_residual!, x, p, constants)
 
-            # update the solution vector and jacobian
-            x .= result.zero
-            K .= df.DF
+            # update the solution
+            x .-= ImplicitAD.implicit_linear(jacob, resid)
 
             # update the convergence flag
-            converged = result.f_converged
+            converged = true
+
+        else
+
+            # update the solution
+            x .= ImplicitAD.implicit(static_nlsolve!, static_residual!, p, constants; drdy=static_jacobian!)
+
+            # update the jacobian
+            K .= constants.jacob
+
+            # update the convergence flag
+            converged = constants.converged[]
+
         end
     end
 
     return system, converged
 end
 
+# defines the static residual (for use with ImplicitAD)
+function static_residual!(resid, x, p, constants)
+    
+    # unpack indices, control flags, and parameter function
+    @unpack indices, two_dimensional, force_scaling, pfunc = constants
+    
+    # also unpack (default) parameters and current time
+    @unpack assembly, pcond, dload, pmass, gvec, t = constants
+
+    # get new assembly and parameters
+    parameters = pfunc(p, t)
+
+    # overwrite default assembly and parameters (if applicable)
+    assembly = get(parameters, :assembly, assembly)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+    dload = get(parameters, :distributed_loads, dload)
+    pmass = get(parameters, :point_masses, pmass)
+    gvec = SVector{3}(get(parameters, :gravity, gvec))
+
+    # compute and return the residual
+    return static_system_residual!(resid, x, indices, two_dimensional, force_scaling, 
+        assembly, pcond, dload, pmass, gvec)
+end
+
+# defines the static jacobian (for use with ImplicitAD)
+function static_jacobian!(static_residual!, x, p, constants)
+
+    # unpack temporary storage for the jacobian
+    @unpack jacob = constants
+
+    # unpack indices, control flags, and parameter function
+    @unpack indices, two_dimensional, force_scaling, pfunc = constants
+    
+    # also unpack (default) parameters and current time
+    @unpack assembly, pcond, dload, pmass, gvec, t = constants
+
+    # get new assembly and parameters
+    parameters = pfunc(p, t)
+
+    # overwrite default assembly and parameters (if applicable)
+    assembly = get(parameters, :assembly, assembly)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+    dload = get(parameters, :distributed_loads, dload)
+    pmass = get(parameters, :point_masses, pmass)
+    gvec = SVector{3}(get(parameters, :gravity, gvec))
+
+    # compute and return the jacobian
+    return static_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling, 
+        assembly, pcond, dload, pmass, gvec)
+end
+
+# defines the (nonlinear) solver (for use with ImplicitAD)
+function static_nlsolve!(p, constants)
+
+    # unpack pre-allocated storage and the convergence flag
+    @unpack x0, resid, jacob, converged = constants
+
+    # wrap the residual
+    f!(resid, x) = static_residual!(resid, x, p, constants)
+
+    # wrap the jacobian
+    j!(jacob, x) = static_jacobian!(static_residual!, x, p, (; constants..., jacob))
+
+    # construct temporary storage
+    df = NLsolve.OnceDifferentiable(f!, j!, x0, resid, jacob)
+
+    # unpack nonlinear solver parameters
+    @unpack show_trace, method, linesearch, ftol, iterations = constants
+
+    # solve the system
+    result = NLsolve.nlsolve(df, x0,
+        show_trace=show_trace,
+        linsolve=(x, A, b) -> x .= ImplicitAD.implicit_linear(A, b),
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations)
+
+    # update the convergence flag
+    converged[] = result.f_converged
+
+    # return the result
+    return result.zero
+end
 
 """
     steady_state_analysis(assembly; kwargs...)
@@ -212,6 +315,16 @@ iteration procedure converged.
  - `linearization_state`: Linearization state variables.  Defaults to zeros.
  - `update_linearization`: Flag indicating whether to update the linearization state 
         variables for a linear analysis with the instantaneous state variables.
+
+# Sensitivity Analysis Keyword Arguments
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+        to updated versions of the arguments `assembly`, `prescribed_conditions`, 
+        `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, 
+        `linear_acceleration`, `angular_acceleration`, and `gravity`. Only fields contained 
+        in the resulting named tuple will be overwritten.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.  
+        While not necessary, using `pfunc` and `p` to define the arguments to this function
+        allows automatic differentiation sensitivities to be computed more efficiently
 """
 function steady_state_analysis(assembly; constant_mass_matrix=false, kwargs...)
 
@@ -255,6 +368,9 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     # linear solver keyword arguments
     linearization_state=nothing,
     update_linearization=false,
+    # sensitivity analysis keyword arguments
+    pfunc = (p, t) -> (;),
+    p = nothing,
     )
 
     # check if provided system is consistent with provided keyword arguments
@@ -286,7 +402,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         # update stored time
         system.t = t
 
-        # current parameters
+        # get (default) parameters for this time step
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
@@ -299,26 +415,22 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         # update acceleration state variable indices
         update_body_acceleration_indices!(system, pcond)
 
-        # define the residual and jacobian functions
-        if constant_mass_matrix
-            f! = (resid, x) -> expanded_steady_system_residual!(resid, x, indices, two_dimensional,
-                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                vb_p, ωb_p, ab_p, αb_p)
-            j! = (jacob, x) -> expanded_steady_system_jacobian!(jacob, x, indices, two_dimensional,
-                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                vb_p, ωb_p, ab_p, αb_p)
-        else
-            f! = (resid, x) -> steady_system_residual!(resid, x, indices, two_dimensional,
-                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                vb_p, ωb_p, ab_p, αb_p)
-            j! = (jacob, x) -> steady_system_jacobian!(jacob, x, indices, two_dimensional,
-                force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
-                vb_p, ωb_p, ab_p, αb_p)
-        end
+        # store (constant) parameters for computing residuals and jacobians
+        constants = (; 
+            # store indices, control flags, and parameter function
+            indices, two_dimensional, force_scaling, pfunc, 
+            # also store (default) parameters and current time
+            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, t,
+            # also store the initial guess, residual, jacobian, and flag for convergence
+            x0=x, resid=r, jacob=K, converged=Ref(converged),
+            # also store keyword arguments for the nonlinear solver
+            show_trace, method, linesearch, ftol, iterations
+        ) 
 
         # solve for the new set of state variables
         if linear
-            # perform a linear analysis
+
+            # update the linearization state
             if !update_linearization
                 if isnothing(linearization_state)
                     x .= 0
@@ -326,29 +438,35 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
                     x .= linearization_state
                 end
             end
-            f!(r, x)
-            j!(K, x)
+
+            if constant_mass_matrix
+                # update the residual
+                resid = expanded_steady_residual!(r, x, p, constants)
+
+                # update the jacobian
+                jacob = expanded_steady_jacobian!(expanded_steady_residual!, x, p, constants)
+            else
+                # update the residual
+                resid = steady_residual!(r, x, p, constants)
+
+                # update the jacobian
+                jacob = steady_jacobian!(steady_residual!, x, p, constants)
+            end
 
             # update the solution vector
-            x .-= safe_lu(K) \ r
-        else
-            # perform a nonlinear analysis
-            df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
-
-            result = NLsolve.nlsolve(df, x,
-                show_trace=show_trace,
-                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
-                method=method,
-                linesearch=linesearch,
-                ftol=ftol,
-                iterations=iterations)
-
-            # update the solution vector and jacobian
-            x .= result.zero
-            K .= df.DF
+            x .-= ImplicitAD.implicit_linear(jacob, resid)
 
             # update the convergence flag
-            converged = result.f_converged
+            converged = true
+
+        else
+
+            # update the solution
+            x .= ImplicitAD.implicit(steady_nlsolve!, steady_residual!, p, constants; drdy=steady_jacobian!)
+
+            # update the convergence flag
+            converged = constants.converged[]
+
         end
 
         # update state variable rates
@@ -367,6 +485,201 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     end
 
     return system, converged
+end
+
+# defines the steady residual (for use with ImplicitAD)
+function steady_residual!(resid, x, p, constants)
+    
+    # unpack indices, control flags, and parameter function
+    @unpack indices, two_dimensional, force_scaling, pfunc = constants
+    
+    # also unpack (default) parameters and current time
+    @unpack assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, t = constants
+
+    # get new assembly and parameters
+    parameters = pfunc(p, t)
+
+    # overwrite default assembly and parameters (if applicable)
+    assembly = get(parameters, :assembly, assembly)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+    dload = get(parameters, :distributed_loads, dload)
+    pmass = get(parameters, :point_masses, pmass)
+    gvec = SVector{3}(get(parameters, :gravity, gvec))
+    vb_p = SVector{3}(get(parameters, :linear_velocity, vb_p))
+    ωb_p = SVector{3}(get(parameters, :angular_velocity, ωb_p))
+    ab_p = SVector{3}(get(parameters, :linear_acceleration, ab_p))
+    αb_p = SVector{3}(get(parameters, :angular_acceleration, αb_p))
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the residual
+    return steady_system_residual!(resid, x, indices, two_dimensional, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gravity, vb_p, ωb_p, ab_p, αb_p)
+end
+
+function expanded_steady_residual!(resid, x, p, constants)
+    
+    # unpack indices, control flags, and parameter function
+    @unpack indices, two_dimensional, force_scaling, pfunc = constants
+    
+    # also unpack (default) parameters and current time
+    @unpack assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, t = constants
+
+    # get new assembly and parameters
+    parameters = pfunc(p, t)
+
+    # overwrite default assembly and parameters (if applicable)
+    assembly = get(parameters, :assembly, assembly)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+    dload = get(parameters, :distributed_loads, dload)
+    pmass = get(parameters, :point_masses, pmass)
+    gvec = SVector{3}(get(parameters, :gravity, gvec))
+    vb_p = SVector{3}(get(parameters, :linear_velocity, vb_p))
+    ωb_p = SVector{3}(get(parameters, :angular_velocity, ωb_p))
+    ab_p = SVector{3}(get(parameters, :linear_acceleration, ab_p))
+    αb_p = SVector{3}(get(parameters, :angular_acceleration, αb_p))
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the residual
+    return expanded_steady_system_residual!(resid, x, indices, two_dimensional, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gravity, vb_p, ωb_p, ab_p, αb_p)
+end
+
+# defines the steady jacobian (for use with ImplicitAD)
+function steady_jacobian!(steady_residual!, x, p, constants)
+
+    # unpack temporary storage for the jacobian
+    @unpack jacob = constants
+
+    # unpack indices, control flags, and parameter function
+    @unpack indices, two_dimensional, force_scaling, pfunc = constants
+    
+    # also unpack (default) parameters and current time
+    @unpack assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, t = constants
+
+    # get new assembly and parameters
+    parameters = pfunc(p, t)
+
+    # overwrite default assembly and parameters (if applicable)
+    assembly = get(parameters, :assembly, assembly)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+    dload = get(parameters, :distributed_loads, dload)
+    pmass = get(parameters, :point_masses, pmass)
+    gvec = SVector{3}(get(parameters, :gravity, gvec))
+    vb_p = SVector{3}(get(parameters, :linear_velocity, vb_p))
+    ωb_p = SVector{3}(get(parameters, :angular_velocity, ωb_p))
+    ab_p = SVector{3}(get(parameters, :linear_acceleration, ab_p))
+    αb_p = SVector{3}(get(parameters, :angular_acceleration, αb_p))
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the jacobian
+    return steady_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gravity, vb_p, ωb_p, ab_p, αb_p)
+end
+
+function expanded_steady_jacobian!(expanded_steady_residual!, x, p, constants)
+
+    # unpack temporary storage for the jacobian
+    @unpack jacob = constants
+
+    # unpack indices, control flags, and parameter function
+    @unpack indices, two_dimensional, force_scaling, pfunc = constants
+    
+    # also unpack (default) parameters and current time
+    @unpack assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, t = constants
+
+    # get new assembly and parameters
+    parameters = pfunc(p, t)
+
+    # overwrite default assembly and parameters (if applicable)
+    assembly = get(parameters, :assembly, assembly)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+    dload = get(parameters, :distributed_loads, dload)
+    pmass = get(parameters, :point_masses, pmass)
+    gvec = SVector{3}(get(parameters, :gravity, gvec))
+    vb_p = SVector{3}(get(parameters, :linear_velocity, vb_p))
+    ωb_p = SVector{3}(get(parameters, :angular_velocity, ωb_p))
+    ab_p = SVector{3}(get(parameters, :linear_acceleration, ab_p))
+    αb_p = SVector{3}(get(parameters, :angular_acceleration, αb_p))
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the jacobian
+    return expanded_steady_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling, 
+        structural_damping, assembly, pcond, dload, pmass, gravity, vb_p, ωb_p, ab_p, αb_p)
+end
+
+# defines the (nonlinear) solver (for use with ImplicitAD)
+function steady_nlsolve!(p, constants)
+
+    # unpack pre-allocated storage and the convergence flag
+    @unpack x0, resid, jacob, converged = constants
+
+    # wrap the residual
+    f!(resid, x) = steady_residual!(resid, x, p, constants)
+
+    # wrap the jacobian
+    j!(jacob, x) = steady_jacobian!(steady_residual!, x, p, (; constants..., jacob))
+
+    # construct temporary storage
+    df = NLsolve.OnceDifferentiable(f!, j!, x0, resid, jacob)
+
+    # unpack nonlinear solver parameters
+    @unpack show_trace, method, linesearch, ftol, iterations = constants
+
+    # solve the system
+    result = NLsolve.nlsolve(df, x0,
+        show_trace=show_trace,
+        linsolve=(x, A, b) -> x .= ImplicitAD.implicit_linear(A, b),
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations)
+
+    # update the convergence flag
+    converged[] = result.f_converged
+
+    # return the result
+    return result.zero
+end
+
+function expanded_steady_nlsolve!(p, constants)
+
+    # unpack pre-allocated storage and the convergence flag
+    @unpack x0, resid, jacob, converged = constants
+
+    # wrap the residual
+    f!(resid, x) = expanded_steady_residual!(resid, x, p, constants)
+
+    # wrap the jacobian
+    j!(jacob, x) = expanded_steady_jacobian!(expanded_steady_residual!, x, p, (; constants..., jacob))
+
+    # construct temporary storage
+    df = NLsolve.OnceDifferentiable(f!, j!, x0, resid, jacob)
+
+    # unpack nonlinear solver parameters
+    @unpack show_trace, method, linesearch, ftol, iterations = constants
+
+    # solve the system
+    result = NLsolve.nlsolve(df, x0,
+        show_trace=show_trace,
+        linsolve=(x, A, b) -> x .= ImplicitAD.implicit_linear(A, b),
+        method=method,
+        linesearch=linesearch,
+        ftol=ftol,
+        iterations=iterations)
+
+    # update the convergence flag
+    converged[] = result.f_converged
+
+    # return the result
+    return result.zero
 end
 
 """
@@ -411,6 +724,15 @@ with variables in `system` so a copy should be made prior to modifying them.
  - `structural_damping = false`: Indicates whether to enable structural damping
  - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
 
+ # Sensitivity Analysis Keyword Arguments
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+        to updated versions of the arguments `assembly`, `prescribed_conditions`, 
+        `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, 
+        `linear_acceleration`, `angular_acceleration`, and `gravity`. Only fields contained 
+        in the resulting named tuple will be overwritten.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.  
+        While not necessary, using `pfunc` and `p` to define the arguments to this function
+        allows automatic differentiation sensitivities to be computed more efficiently
 """
 function linearize!(system, assembly;
     # general keyword arguments
@@ -427,6 +749,9 @@ function linearize!(system, assembly;
     two_dimensional=false,
     structural_damping=false,
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
+    # sensitivity analysis keyword arguments
+    pfunc = (p, t) -> (;),
+    p = nothing,
     )
 
     # check if provided system is consistent with provided keyword arguments
@@ -435,7 +760,7 @@ function linearize!(system, assembly;
     # unpack state vector, stiffness, and mass matrices
     @unpack x, K, M, force_scaling, indices = system
 
-    # current parameters
+    # default parameters
     pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(first(time))
     dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(first(time))
     pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(first(time))
@@ -444,6 +769,20 @@ function linearize!(system, assembly;
     ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(first(time)))
     ab_p = typeof(linear_acceleration) <: AbstractVector ? SVector{3}(linear_acceleration) : SVector{3}(linear_acceleration(first(time)))
     αb_p = typeof(angular_acceleration) <: AbstractVector ? SVector{3}(angular_acceleration) : SVector{3}(angular_acceleration(first(time)))
+
+    # get new assembly and parameters
+    parameters = pfunc(p, t)
+
+    # overwrite default assembly and parameters (if applicable)
+    assembly = get(parameters, :assembly, assembly)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+    dload = get(parameters, :distributed_loads, dload)
+    pmass = get(parameters, :point_masses, pmass)
+    gvec = SVector{3}(get(parameters, :gravity, gvec))
+    vb_p = SVector{3}(get(parameters, :linear_velocity, vb_p))
+    ωb_p = SVector{3}(get(parameters, :angular_velocity, ωb_p))
+    ab_p = SVector{3}(get(parameters, :linear_acceleration, ab_p))
+    αb_p = SVector{3}(get(parameters, :angular_acceleration, αb_p))
 
     # update acceleration state variable indices
     update_body_acceleration_indices!(system, pcond)
@@ -482,9 +821,9 @@ function solve_eigensystem(x, K, M, nev)
     # construct linear map
     T = eltype(x)
     nx = length(x)
-    Kfact = safe_lu(K)
-    f! = (b, x) -> ldiv!(b, Kfact, M * x)
-    fc! = (b, x) -> mul!(b, M', Kfact' \ x)
+    Kfact = lu(K)
+    f! = (b, x) -> b .= implicit_linear(K, M * x; fact=Kfact)
+    fc! = (b, x) -> mul!(b, M', implicit_linear(K', x; fact=Kfact')
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
 
     # compute eigenvalues and eigenvectors
@@ -1075,6 +1414,9 @@ function initial_condition_analysis!(system, assembly, t0;
     # get the current time
     t0 = first(t0)
 
+    # assume converged until proven otherwise
+    converged = true
+
     # print the current time
     if show_trace
         println("Solving for t=$(t0)")
@@ -1156,29 +1498,35 @@ function initial_condition_analysis!(system, assembly, t0;
         f!(r, x)
         j!(K, x)
 
-        # update the solution vector            
-        x .-= safe_lu(K) \ r
-    
+        # update the solution vector
+        x .-= ImplicitAD.implicit_linear(K, r)
+
         # set the convergence flag
         converged = true
     else
-        # perform a nonlinear analysis
-        df = OnceDifferentiable(f!, j!, x, r, K)
+ 
+        # nonlinear solve
+        solve = x -> begin 
 
-        result = NLsolve.nlsolve(df, x,
-            show_trace=show_trace,
-            linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
-            method=method,
-            linesearch=linesearch,
-            ftol=ftol,
-            iterations=iterations)
+            # solve the nonlinear function
+            df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
 
-        # update the solution vector and jacobian
-        x .= result.zero
-        K .= df.DF
+            result = NLsolve.nlsolve(df, x,
+                show_trace=show_trace,
+                method=method,
+                linesearch=linesearch,
+                ftol=ftol,
+                iterations=iterations)
 
-        # set the convergence flag
-        converged = result.f_converged
+            # update the convergence flag
+            converged = result.f_converged
+
+            return result.zero
+        end
+
+        # update the solution vector
+        x .= ImplicitAD.implicit(solve, f!, x)
+
     end
 
     # --- Save state and rate variables associated with each point --- #
@@ -1454,26 +1802,33 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             f!(r, x)
             j!(K, x)
 
-            # update the solution vector            
-            x .-= safe_lu(K) \ r
+            # update the solution vector
+            x .-= ImplicitAD.implicit_linear(K, r)
+
         else
-            # perform a nonlinear analysis
-            df = OnceDifferentiable(f!, j!, x, r, K)
 
-            result = NLsolve.nlsolve(df, x,
-                show_trace=show_trace,
-                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
-                method=method,
-                linesearch=linesearch,
-                ftol=ftol,
-                iterations=iterations)
+            # nonlinear solve
+            solve = x -> begin 
 
-            # update the solution vector and jacobian
-            x .= result.zero
-            K .= df.DF
+                # solve the nonlinear function
+                df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
 
-            # update the convergence flag
-            converged = result.f_converged
+                result = NLsolve.nlsolve(df, x,
+                    show_trace=show_trace,
+                    method=method,
+                    linesearch=linesearch,
+                    ftol=ftol,
+                    iterations=iterations)
+
+                # update the convergence flag
+                converged = result.f_converged
+
+                return result.zero
+            end
+
+            # update the solution vector
+            x .= ImplicitAD.implicit(solve, f!, x)
+
         end
 
         # set new state rates
