@@ -5,6 +5,7 @@ using ForwardDiff
 using ChainRulesCore
 using FillArrays
 using FLOWMath
+using ImplicitAD
 using LinearAlgebra
 using LinearMaps
 using NLsolve
