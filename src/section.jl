@@ -295,7 +295,7 @@ function stiffness!(material, cache)
     nu32 = nu23*E3/E2
     delta = 1.0 / (1 - nu12*nu21 - nu23*nu32 - nu13*nu31 - 2*nu21*nu32*nu13)
 
-    cache.Q .= 0.0  # reset
+    cache.Q .= 0.0  # reset (needed b/c Q is modifed elsewhere in place so other entires may be nonzero)
     cache.Q[6, 6] = E1*(1 - nu23*nu32)*delta
     cache.Q[1, 1] = E2*(1 - nu13*nu31)*delta
     cache.Q[2, 2] = E3*(1 - nu12*nu21)*delta
@@ -723,6 +723,12 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     ndof = 3 * nn  # 3 displacement dof per node
 
     # place element matrices in global matrices (scatter)
+    cache.A .= 0.0
+    cache.R .= 0.0
+    cache.E .= 0.0
+    cache.C .= 0.0
+    cache.L .= 0.0
+    cache.M .= 0.0
     @views for i = 1:ne
         nodenum = elements[i].nodenum
         submatrix!(elements[i], nodes[nodenum], cache)
