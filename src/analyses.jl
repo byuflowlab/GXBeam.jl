@@ -483,8 +483,8 @@ function solve_eigensystem(x, K, M, nev)
     T = eltype(x)
     nx = length(x)
     Kfact = lu(K)
-    f! = (b, x) -> b .= ImplicitAD.implicit_linear(K,  M * x; Afact=Kfact)
-    fc! = (b, x) -> mul!(b, M', ImplicitAD.implicit_linear(K', x; Afact=Kfact'))
+    f! = (b, x) -> b .= ImplicitAD.implicit_linear(K,  M * x; Af=Kfact)
+    fc! = (b, x) -> mul!(b, M', ImplicitAD.implicit_linear(K', x; Af=Kfact'))
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
 
     # compute eigenvalues and eigenvectors
