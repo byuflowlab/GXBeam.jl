@@ -349,6 +349,8 @@ for ip = 1:length(points)
     sections[3, :, ip] .= chord .* airfoil[:,2]
 end
 
-write_vtk("dynamic-wind-turbine", assembly, gxbeam_history, t; sections = sections)
+mkpath("dynamic-wind-turbine")
+write_vtk("dynamic-wind-turbine/dynamic-wind-turbine", assembly, gxbeam_history, t; sections = sections)
+#md rm("dynamic-wind-turbine"; recursive=true) #hide
 
 # ![](../assets/wind-turbine-blade-simulation.gif)

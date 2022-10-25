@@ -81,6 +81,8 @@ println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
 # We can visualize the deformed geometry and inspect the associated point and element data 
 # using ParaView.
 
-write_vtk("curved-visualization", assembly, state)
+mkpath("curved_visualization")
+write_vtk("curved-visualization/curved-visualization", assembly, state)
+#md rm("curved-visualization"; recursive=true) #hide
 
 # ![](../assets/curved-visualization.png)

@@ -578,7 +578,9 @@ plot!(show=true) #!nb
 # helpful for identifying different eigenmodes.
 
 ## write the response to vtk files for visualization using ParaView
-write_vtk("rotating-eigenmode", assembly, state[end,end],
+mkpath("rotating-eigenmode")
+write_vtk("rotating-eigenmode/rotating-eigenmode", assembly, state[end,end],
     λ[end,end][1], eigenstates[end,end][1]; mode_scaling = 100.0)
-
+#md rm("rotating-eigenmode"; recursive=true) #hide
+    
 # ![](../assets/rotating-eigenmode.gif)

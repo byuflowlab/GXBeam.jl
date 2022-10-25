@@ -343,7 +343,9 @@ for ic = 1:size(airfoil, 1)
     section[3,ic] = airfoil[ic,2]
 end
 
-write_vtk("dynamic-joined-wing-simulation", assembly, history, t, scaling=1e2;
+mkpath("dynamic-joined-wing-simulation")
+write_vtk("dynamic-joined-wing-simulation/dynamic-joined-wing-simulation", assembly, history, t, scaling=1e2;
     sections = section)
- 
+#md rm("dynamic-joined-wing-simulation"; recursive=true) #hide
+
 # ![](../assets/dynamic-joined-wing-simulation.gif)
