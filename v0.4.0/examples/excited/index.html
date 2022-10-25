@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Excited Second Bending Mode · GXBeam.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">GXBeam.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../guide/">Getting Started</a></li><li><a class="tocitem" href="../section/">Computing Stiffness and Mass Matrices</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../cantilever/">Cantilever with a Uniform Load</a></li><li><a class="tocitem" href="../overdetermined/">Overdetermined Beam</a></li><li><a class="tocitem" href="../tipforce/">Cantilever with a Tip Force</a></li><li><a class="tocitem" href="../tipmoment/">Cantilever with a Tip Moment</a></li><li><a class="tocitem" href="../curved/">Bending of an Initially Curved Beam</a></li><li><a class="tocitem" href="../rotating/">Rotating Beam with a Swept Tip</a></li><li class="is-active"><a class="tocitem" href>Excited Second Bending Mode</a></li><li><a class="tocitem" href="../wind-turbine-blade/">Time-Domain Simulation of a Wind Turbine Blade</a></li><li><a class="tocitem" href="../static-joined-wing/">Static Analysis of a Joined-Wing</a></li><li><a class="tocitem" href="../dynamic-joined-wing/">Time-Domain Simulation of a Joined-Wing</a></li><li><a class="tocitem" href="../vertical-axis-wind-turbine/">Sandia 34-Meter Vertical Axis Wind Turbine</a></li></ul></li><li><a class="tocitem" href="../diffeq/">Using GXBeam with DifferentialEquations.jl</a></li><li><a class="tocitem" href="../../reference/reference/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Excited Second Bending Mode</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Excited Second Bending Mode</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/literate/excited.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="excited"><a class="docs-heading-anchor" href="#excited">Excited Second Bending Mode</a><a id="excited-1"></a><a class="docs-heading-anchor-permalink" href="#excited" title="Permalink"></a></h1><p>This example shows how to simulate a simply supported beam with an excited second bending mode</p><p><img src="../../assets/excited-simulation.gif" alt/></p><div class="admonition is-success"><header class="admonition-header">Tip</header><div class="admonition-body"><p>This example is also available as a Jupyter notebook: <a href="https://nbviewer.jupyter.org/github/byuflowlab/GXBeam.jl/blob/gh-pages/v0.4.0/examples/excited.ipynb"><code>excited.ipynb</code></a>.</p></div></div><pre><code class="language-julia hljs">using GXBeam, LinearAlgebra
+
+# simply-supported beam with excited second bending mode
+
+# beam properties
+L = 1
+EA = 1
+EI = 1
+ρA = 1
+
+# generate points
+nelem = 40
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# define connectivity
+start = 1:nelem
+stop = 2:nelem+1
+
+# compliance matrix for each beam element
+compliance = fill(Diagonal([1e-6, 1e-6, 1e-6, 1e-6, 1/EI, 1e-6]), nelem)
+
+# mass matrix for each beam element
+mass = fill(Diagonal([ρA, ρA, ρA, 0.0, 0.0, 0.0]), nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop; compliance=compliance, mass=mass)
+
+# excite the second bending mode
+delta = 1e-3 ## displacement magnitude
+uz = delta*sin.(2*pi*x/L) ## linear displacement
+u0 = [[0, 0, uz[i]] for i in eachindex(uz)]
+
+# prescribe the vertical displacement of each point
+prescribed_conditions = Dict(i =&gt; PrescribedConditions(uz = uz[i]) for i = 1:length(points))
+
+# simply supported left side
+prescribed_conditions[1] = PrescribedConditions(ux=0, uy=0, uz=0)
+
+# simply supported right side
+prescribed_conditions[nelem+1] = PrescribedConditions(uz=0)
+
+# solve for static operating conditions
+system, converged = static_analysis(assembly; prescribed_conditions)
+
+# postprocess results
+state = AssemblyState(system, assembly; prescribed_conditions)
+
+# extract initial conditions from the state vector
+u0 = getproperty.(state.points, :u)
+theta0 = getproperty.(state.points, :theta)
+
+# set new prescribed conditions
+prescribed_conditions = Dict(
+    # simply supported left side
+    1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_z=0),
+    # simply supported right side
+    nelem+1 =&gt; PrescribedConditions(uz=0)
+)
+
+# excited mode natural frequency
+ω = (2*pi/L)^2*sqrt((EI)/(ρA))
+
+# solution time vector
+t = range(0, 2*pi/ω, step=0.001)
+
+# perform time domain analysis
+system, history, converged = time_domain_analysis(assembly, t;
+    prescribed_conditions = prescribed_conditions,
+    initialize = true,
+    structural_damping = false,
+    u0=u0, theta0=theta0)
+
+# write visualization file
+write_vtk(&quot;excited-simulation&quot;, assembly, history, t; scaling = 100)</code></pre><p><img src="../../assets/excited-simulation.gif" alt/></p><p>Plotting the results reveals that the analytical and computational solutions show excellent agreement.</p><pre><code class="language-julia hljs"># Get displacements at 1/4 of the beam&#39;s length
+ipoint = div(nelem, 4) + 1
+
+# calculated deflection
+w14_gxbeam = [state.points[ipoint].u[3]/L for state in history]
+
+# analytic deflection
+w14_analytic = delta/L*cos.(ω*t)*sin(2*pi*x[ipoint]/L)
+
+# Plot
+using Plots
+pyplot()
+plot(
+    title=&quot;Deflection at x/L = $(x[ipoint]/L)&quot;,
+    xlabel = &quot;Time (s)&quot;,
+    ylabel = &quot;\$w/L\$&quot;,
+    grid = false,
+    legend = :bottomleft,
+    overwrite_figure=false
+    )
+plot!(t, w14_analytic, label=&quot;Analytic&quot;)
+plot!(t, w14_gxbeam, label=&quot;GXBeam&quot;)
+plot!(show=true)</code></pre><p><img src="../../assets/excited-deflection.svg" alt/></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../rotating/">« Rotating Beam with a Swept Tip</a><a class="docs-footer-nextpage" href="../wind-turbine-blade/">Time-Domain Simulation of a Wind Turbine Blade »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.22 on <span class="colophon-date" title="Tuesday 23 August 2022 20:37">Tuesday 23 August 2022</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

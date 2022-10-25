@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · GXBeam.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">GXBeam.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../guide/">Getting Started</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Linear-Analysis-of-a-Cantilever-Partially-Under-a-Uniform-Distributed-Load"><span>Linear Analysis of a Cantilever Partially Under a Uniform Distributed Load</span></a></li><li><a class="tocitem" href="#Linear-Analysis-of-a-Beam-Under-a-Linear-Distributed-Load"><span>Linear Analysis of a Beam Under a Linear Distributed Load</span></a></li><li><a class="tocitem" href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Tip-Load"><span>Nonlinear Analysis of a Cantilever Subjected to a Constant Tip Load</span></a></li><li><a class="tocitem" href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment"><span>Nonlinear Analysis of a Cantilever Subjected to a Constant Moment</span></a></li><li><a class="tocitem" href="#Nonlinear-Analysis-of-the-Bending-of-a-Curved-Beam-in-3D-Space"><span>Nonlinear Analysis of the Bending of a Curved Beam in 3D Space</span></a></li><li><a class="tocitem" href="#Rotating-Beam-with-a-Swept-Tip"><span>Rotating Beam with a Swept Tip</span></a></li><li><a class="tocitem" href="#Nonlinear-Dynamic-Analysis-of-a-Wind-Turbine-Blade"><span>Nonlinear Dynamic Analysis of a Wind Turbine Blade</span></a></li><li><a class="tocitem" href="#Nonlinear-Static-Analysis-of-a-Joined-Wing"><span>Nonlinear Static Analysis of a Joined-Wing</span></a></li><li><a class="tocitem" href="#Nonlinear-Dynamic-Analysis-of-a-Joined-Wing"><span>Nonlinear Dynamic Analysis of a Joined-Wing</span></a></li></ul></li><li><a class="tocitem" href="../diffeq/">Using GXBeam with DifferentialEquations.jl</a></li><li><a class="tocitem" href="../library/">Library</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/examples.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><p>These examples show how to use the various analysis capabilities of GXBeam.  Many of these examples also provide a verification/validation for the implementation of geometrically exact beam theory in GXBeam.  </p><ul><li><a href="#Examples">Examples</a></li><ul><li><a href="#Linear-Analysis-of-a-Cantilever-Partially-Under-a-Uniform-Distributed-Load">Linear Analysis of a Cantilever Partially Under a Uniform Distributed Load</a></li><li><a href="#Linear-Analysis-of-a-Beam-Under-a-Linear-Distributed-Load">Linear Analysis of a Beam Under a Linear Distributed Load</a></li><li><a href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Tip-Load">Nonlinear Analysis of a Cantilever Subjected to a Constant Tip Load</a></li><li><a href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment">Nonlinear Analysis of a Cantilever Subjected to a Constant Moment</a></li><li><a href="#Nonlinear-Analysis-of-the-Bending-of-a-Curved-Beam-in-3D-Space">Nonlinear Analysis of the Bending of a Curved Beam in 3D Space</a></li><li><a href="#Rotating-Beam-with-a-Swept-Tip">Rotating Beam with a Swept Tip</a></li><li><a href="#Nonlinear-Dynamic-Analysis-of-a-Wind-Turbine-Blade">Nonlinear Dynamic Analysis of a Wind Turbine Blade</a></li><li><a href="#Nonlinear-Static-Analysis-of-a-Joined-Wing">Nonlinear Static Analysis of a Joined-Wing</a></li><li><a href="#Nonlinear-Dynamic-Analysis-of-a-Joined-Wing">Nonlinear Dynamic Analysis of a Joined-Wing</a></li></ul></ul><h2 id="Linear-Analysis-of-a-Cantilever-Partially-Under-a-Uniform-Distributed-Load"><a class="docs-heading-anchor" href="#Linear-Analysis-of-a-Cantilever-Partially-Under-a-Uniform-Distributed-Load">Linear Analysis of a Cantilever Partially Under a Uniform Distributed Load</a><a id="Linear-Analysis-of-a-Cantilever-Partially-Under-a-Uniform-Distributed-Load-1"></a><a class="docs-heading-anchor-permalink" href="#Linear-Analysis-of-a-Cantilever-Partially-Under-a-Uniform-Distributed-Load" title="Permalink"></a></h2><p>This example shows how to predict the behavior of a cantilever beam which is partially subjected to a uniform distributed load.</p><p><img src="../linear-cantilever-pudl-drawing.svg" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+nelem = 12
+
+# create points
+a = 0.3
+b = 0.7
+L = 1.0
+n1 = n3 = div(nelem, 3)
+n2 = nelem - n1 - n3
+x1 = range(0, 0.3, length=n1+1)
+x2 = range(0.3, 0.7, length=n2+1)
+x3 = range(0.7, 1.0, length=n3+1)
+x = vcat(x1, x2[2:end], x3[2:end])
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints for each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# create compliance matrix for each beam element
+EI = 1e9
+compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# set prescribed conditions (fixed right endpoint)
+prescribed_conditions = Dict(
+    nelem+1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+)
+
+# create distributed load
+q = 1000
+distributed_loads = Dict(
+    ielem =&gt; DistributedLoads(assembly, ielem; fz = (s) -&gt; q) for ielem in n1+1:n1+n2
+)
+
+system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
+    distributed_loads=distributed_loads, linear=true)
+
+state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)</code></pre><p>We can construct the analytical solution for this problem by integrating from the free end of the beam and applying the appropriate boundary conditions.</p><pre><code class="language-julia"># construct analytical solution
+dx = 1e-6
+x_a = 0.0:dx:L
+q_a = (x) -&gt; a &lt;= x &lt;= b ? -q : 0 # define distributed load
+V_a = cumsum(-q_a.(x_a) .* dx) # integrate to get shear
+M_a = cumsum(V_a .* dx) # integrate to get moment
+slope_a = cumsum(M_a./EI .* dx) # integrate to get slope
+slope_a .-= slope_a[end] # apply boundary condition
+deflection_a = cumsum(slope_a .* dx) # integrate to get deflection
+deflection_a .-= deflection_a[end] # apply boundary condition
+
+# get elastic twist angle
+theta_a = -atan.(slope_a)
+
+# adjust coordinate system of the analytical solution to match the computational solution
+M_a = -M_a</code></pre><p>Plotting the results reveals that the analytical and computational solutions show excellent agreement.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+# deflection plot
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = &quot;x (m)&quot;,
+    ylabel = &quot;Deflection (m)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
+    1:length(assembly.points)]
+deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
+plot!(x_a, deflection_a, label=&quot;Analytical&quot;)
+scatter!(x, deflection, label=&quot;GXBeam&quot;)
+
+
+# elastic twist plot (euler angle)
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = &quot;x (m)&quot;,
+    ylabel = &quot;Rotation Parameter \$\\theta_y\$&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1]
+    for ipoint = 1:length(assembly.points)]
+theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint =
+    1:length(assembly.points)]
+plot!(x_a, theta_a, label=&quot;Analytical&quot;)
+scatter!(x, theta, label=&quot;GXBeam&quot;)
+
+
+# bending moment plot
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = &quot;x (m)&quot;,
+    ylabel = &quot;Bending Moment (\$Nm\$)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for
+    ielem = 1:length(assembly.elements)]
+M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+plot!(x_a, M_a, label=&quot;Analytical&quot;)
+scatter!(x, M, label=&quot;GXBeam&quot;)</code></pre><p><img src="../linear-cantilever-pudl-1.svg" alt/></p><p><img src="../linear-cantilever-pudl-2.svg" alt/></p><p><img src="../linear-cantilever-pudl-3.svg" alt/></p><p>Note that we could have easily performed a nonlinear analysis for this problem by setting <code>linear=false</code>.</p><h2 id="Linear-Analysis-of-a-Beam-Under-a-Linear-Distributed-Load"><a class="docs-heading-anchor" href="#Linear-Analysis-of-a-Beam-Under-a-Linear-Distributed-Load">Linear Analysis of a Beam Under a Linear Distributed Load</a><a id="Linear-Analysis-of-a-Beam-Under-a-Linear-Distributed-Load-1"></a><a class="docs-heading-anchor-permalink" href="#Linear-Analysis-of-a-Beam-Under-a-Linear-Distributed-Load" title="Permalink"></a></h2><p>This example shows how to predict the behavior of a beam which is clamped at one end and simply supported at the other end when subjected to a linear distributed load.</p><p><img src="../linear-overdetermined-ldl-drawing.svg" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+nelem = 16
+
+# create points
+L = 1
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints for each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# create compliance matrix for each beam element
+EI = 1e7
+compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# set prescribed conditions
+prescribed_conditions = Dict(
+    # simply supported left endpoint
+    1 =&gt; PrescribedConditions(uz=0),
+    # clamped right endpoint
+    nelem+1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+)
+
+# create distributed load
+qmax = 1000
+distributed_loads = Dict()
+for i = 1:nelem
+    distributed_loads[i] = DistributedLoads(assembly, i; s1=x[i],
+        s2=x[i+1], fz = (s) -&gt; qmax*s)
+end
+
+# perform a static analysis
+system, converged = static_analysis(assembly;
+    prescribed_conditions = prescribed_conditions,
+    distributed_loads = distributed_loads,
+    linear = true)
+
+# post-process the results
+state = AssemblyState(system, assembly;
+    prescribed_conditions = prescribed_conditions)</code></pre><p>An analytical solution to this over-determined problem can be found using the method of superposition using the analytical solutions to a cantilever with a linearly distributed load and a cantilever with an end load.</p><pre><code class="language-julia"># construct analytical solution
+x_a = range(0.0, L, length=1000)
+w_a = @. qmax*(1-x_a)^2/(120*EI)*(4 - 8*(1-x_a) + 5*(1-x_a)^2 - (1-x_a)^3)
+slope_a = @. -qmax*(1-x_a)/(120*EI)*(8 - 24*(1-x_a) + 20*(1-x_a)^2 - 5*(1-x_a)^3)
+M_a = @. qmax/120*(8 - 48*(1-x_a) + 60*(1-x_a)^2 - 20*(1-x_a)^3)
+
+theta_a = -atan.(slope_a)
+
+# adjust coordinate system of analytical solution
+M_a = -M_a</code></pre><p>Plotting the results reveals that the analytical and computational solutions show excellent agreement.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+# set up the plot
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = &quot;x (m)&quot;,
+    ylabel = &quot;Deflection (m)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
+    1:length(assembly.points)]
+deflection = [state.points[ipoint].u[3] for ipoint = 1:length(assembly.points)]
+plot!(x_a, w_a, label=&quot;Analytical&quot;)
+scatter!(x, deflection, label=&quot;GXBeam&quot;)
+
+
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = &quot;x (m)&quot;,
+    ylabel = &quot;Rotation Parameter \$\\theta_y\$&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.points[ipoint][1] + state.points[ipoint].u[1] for ipoint =
+    1:length(assembly.points)]
+theta = [4*atan.(state.points[ipoint].theta[2]/4) for ipoint = 1:length(assembly.points)]
+plot!(x_a, theta_a, label=&quot;Analytical&quot;)
+scatter!(x, theta, label=&quot;GXBeam&quot;)
+
+
+plot(
+    xlim = (0.0, 1.0),
+    xticks = 0.0:0.2:1.0,
+    xlabel = &quot;x (m)&quot;,
+    ylabel = &quot;Bending Moment (\$Nm\$)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+
+x = [assembly.elements[ielem].x[1] + state.elements[ielem].u[1] for ielem =
+    1:length(assembly.elements)]
+M = [state.elements[ielem].M[2] for ielem = 1:length(assembly.elements)]
+plot!(x_a, M_a, label=&quot;Analytical&quot;)
+scatter!(x, M, label=&quot;GXBeam&quot;)</code></pre><p><img src="../linear-overdetermined-ldl-1.svg" alt/></p><p><img src="../linear-overdetermined-ldl-2.svg" alt/></p><p><img src="../linear-overdetermined-ldl-3.svg" alt/></p><p>Note that we could have easily performed a nonlinear analysis for this problem by setting <code>linear=false</code>.</p><h2 id="Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Tip-Load"><a class="docs-heading-anchor" href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Tip-Load">Nonlinear Analysis of a Cantilever Subjected to a Constant Tip Load</a><a id="Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Tip-Load-1"></a><a class="docs-heading-anchor-permalink" href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Tip-Load" title="Permalink"></a></h2><p>This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip load.</p><p><img src="../cantilever-tipforce-drawing.svg" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+L = 1
+EI = 1e6
+
+# shear force (applied at end)
+λ = 0:0.5:16
+p = EI/L^2
+P = λ*p
+
+# create points
+nelem = 16
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# compliance matrix for each beam element
+compliance = fill(Diagonal([0, 0, 0, 0, 1/EI, 0]), nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# pre-initialize system storage
+static = true
+keep_points = [1, nelem+1] # points that should be included in the system of equations
+system = System(assembly, keep_points, static)
+
+# run an analysis for each prescribed tip load
+states = Vector{AssemblyState{Float64}}(undef, length(P))
+for i = 1:length(P)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # shear force on right tip
+        nelem+1 =&gt; PrescribedConditions(Fz = P[i])
+    )
+
+    # perform a static analysis
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions)
+
+    # post-process the results
+    states[i] = AssemblyState(system, assembly;
+        prescribed_conditions=prescribed_conditions)
+
+end</code></pre><p>The analytical solution to this problem has been presented by several authors.  Here we follow the solution by H. J. Barten in &quot;On the Deflection of a Cantilever Beam&quot;, after incorporating the corrections they submitted for finding the tip angle.</p><pre><code class="language-julia">import Elliptic
+
+δ = range(pi/4, pi/2, length=10^5)[2:end-1]
+
+k = @. cos(pi/4)/sin(δ)
+λ_a = @. (Elliptic.F(pi/2, k^2) - Elliptic.F(δ,  k^2))^2
+
+θ_a = @. 2*(pi/4 - acos(k))
+
+ξ_a = @. sqrt(2*sin(θ_a)/λ_a) .- 1
+
+η_a = @. 1-2/sqrt(λ_a)*(Elliptic.E(pi/2, k^2) - Elliptic.E(δ, k^2))</code></pre><p>Plotting the results reveals that the analytical and computational solutions show excellent agreement.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+u = [states[i].points[end].u[1] for i = 1:length(P)]
+θ = [states[i].points[end].theta[2] for i = 1:length(P)]
+w = [states[i].points[end].u[3] for i = 1:length(P)]
+
+# set up the plot
+plot(
+    xlim = (0, 16),
+    xticks = 0:1:16,
+    xlabel = &quot;Nondimensional Force \$\\left(\\frac{PL^2}{EI}\\right)\$&quot;,
+    ylim = (0, 1.2),
+    yticks = 0.0:0.2:1.2,
+    ylabel = &quot;Nondimensional Tip Displacements&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+
+plot!([0], [0], color=:black, label=&quot;Analytical&quot;)
+scatter!([0], [0], color=:black, label=&quot;GXBeam&quot;)
+plot!([0], [0], color=1, label=&quot;Vertical \$\\left(w/L\\right)\$&quot;)
+plot!([0], [0], color=2, label=&quot;Horizontal \$\\left(-u/L\\right)\$&quot;)
+plot!([0], [0], color=3, label=&quot;\$ \\theta/(\\pi/2) \$&quot;)
+
+plot!(λ_a, η_a, color=1, label=&quot;&quot;)
+scatter!(λ, w/L, color=1, label=&quot;&quot;)
+
+plot!(λ_a, -ξ_a, color=2, label=&quot;&quot;)
+scatter!(λ, -u/L, color=2, label=&quot;&quot;)
+
+plot!(λ_a, θ_a*2/pi, color=3, label=&quot;&quot;)
+scatter!(λ, -4*atan.(θ/4)*2/pi, color=3, label=&quot;&quot;)</code></pre><p><img src="../cantilever-tipforce.svg" alt/></p><h2 id="Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment"><a class="docs-heading-anchor" href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment">Nonlinear Analysis of a Cantilever Subjected to a Constant Moment</a><a id="Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment-1"></a><a class="docs-heading-anchor-permalink" href="#Nonlinear-Analysis-of-a-Cantilever-Subjected-to-a-Constant-Moment" title="Permalink"></a></h2><p>This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip moment.  This is a common benchmark problem for the geometrically nonlinear analysis of beams.</p><p><img src="../cantilever-tipmoment-drawing.svg" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+L = 12 # inches
+h = w = 1 # inches
+E = 30e6 # lb/in^4 Young&#39;s Modulus
+
+A = h*w
+Iyy = w*h^3/12
+Izz = w^3*h/12
+
+# bending moment (applied at end)
+λ = [0.0, 0.4, 0.8, 1.2, 1.6, 1.8, 2.0]
+m = pi*E*Iyy/L
+M = λ*m
+
+# create points
+nelem = 16
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# compliance matrix for each beam element
+compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# pre-initialize system storage
+static = true
+keep_points = [1, nelem+1] # points that should be included in the system of equations
+system = System(assembly, keep_points, static)
+
+# run an analysis for each prescribed bending moment
+states = Vector{AssemblyState{Float64}}(undef, length(M))
+for i = 1:length(M)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # moment on right side
+        nelem+1 =&gt; PrescribedConditions(Mz = M[i])
+    )
+
+    # perform a static analysis
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions)
+
+    # post-process the results
+    states[i] = AssemblyState(system, assembly;
+        prescribed_conditions=prescribed_conditions)
+
+end</code></pre><p>This problem has a simple analytical solution, which we obtained from &quot;Study of the Geometric Stiffening Effect: Comparison of Different Formulations&quot; by Juana M. Mayo, Daniel Garcia-Vallejo, and Jaime Dominguez.</p><pre><code class="language-julia"># analytical solution (ρ = E*I/M)
+analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])</code></pre><p>Plotting the results reveals that the analytical and computational results show excellent agreement.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+# set up the plot
+plot(
+    xlim = (-0.25, 1.1),
+    xticks = -0.25:0.25:1.0,
+    xlabel = &quot;x/L&quot;,
+    ylim = (-0.05, 0.8),
+    yticks = 0.0:0.2:0.8,
+    ylabel = &quot;y/L&quot;,
+    aspect_ratio = 1.0,
+    grid = false,
+    overwrite_figure=false
+    )
+
+# create dummy legend entries for GXBeam and Analytical
+scatter!([], [], color=:black, label=&quot;GXBeam&quot;)
+plot!([], [], color=:black, label=&quot;Analytical&quot;)
+
+# plot the data
+for i = 1:length(M)
+    # GXBeam
+    x = [assembly.points[ipoint][1] + states[i].points[ipoint].u[1] for ipoint =
+        1:length(assembly.points)]
+    y = [assembly.points[ipoint][2] + states[i].points[ipoint].u[2] for ipoint =
+        1:length(assembly.points)]
+    scatter!(x/L, y/L, label=&quot;&quot;, color = i)
+
+    # Analytical
+    x0 = range(0, L, length=100)
+    deflection = analytical.(x0, E*Iyy/M[i])
+    x = (x0 + getindex.(deflection, 1))
+    y = getindex.(deflection, 2)
+    plot!(x/L, y/L, label=&quot;λ=$(λ[i])&quot;, color=i)
+end</code></pre><p><img src="../cantilever-tipmoment.svg" alt/></p><h2 id="Nonlinear-Analysis-of-the-Bending-of-a-Curved-Beam-in-3D-Space"><a class="docs-heading-anchor" href="#Nonlinear-Analysis-of-the-Bending-of-a-Curved-Beam-in-3D-Space">Nonlinear Analysis of the Bending of a Curved Beam in 3D Space</a><a id="Nonlinear-Analysis-of-the-Bending-of-a-Curved-Beam-in-3D-Space-1"></a><a class="docs-heading-anchor-permalink" href="#Nonlinear-Analysis-of-the-Bending-of-a-Curved-Beam-in-3D-Space" title="Permalink"></a></h2><p>This example is also a common benchmark problem for the geometrically exact bending of nonlinear beams.</p><p><img src="../cantilever-curved-drawing.svg" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+# problem constants
+R = 100
+L = R*pi/4 # inches
+h = w = 1 # inches
+E = 1e7 # psi Young&#39;s Modulus
+ν = 0.0
+G = E/(2*(1+ν))
+
+# beam starting point, frame, and curvature
+start = [0, 0, 0]
+frame = [0 -1 0; 1 0 0; 0 0 1]
+curvature = [0, 0, -1/R]
+
+# cross section properties
+A = h*w
+Ay = A
+Az = A
+Iyy = w*h^3/12
+Izz = w^3*h/12
+J = Iyy + Izz
+
+# discretize the beam
+nelem = 16
+ΔL, xp, xm, Cab = discretize_beam(L, start, nelem;
+    frame = frame,
+    curvature = curvature)
+
+# force
+P = 600 # lbs
+
+# index of left and right endpoints of each beam element
+pt1 = 1:nelem
+pt2 = 2:nelem+1
+
+# compliance matrix for each beam element
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*J), 1/(E*Iyy),
+    1/(E*Izz)]), nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(xp, pt1, pt2, compliance=compliance, frames=Cab,
+    lengths=ΔL, midpoints=xm)
+
+# create dictionary of prescribed conditions
+prescribed_conditions = Dict(
+    # fixed left endpoint
+    1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    # force on right endpoint
+    nelem+1 =&gt; PrescribedConditions(Fz = P)
+)
+
+# perform static analysis
+system, converged = static_analysis(assembly;
+    prescribed_conditions = prescribed_conditions)
+
+# post-process results
+state = AssemblyState(system, assembly;
+    prescribed_conditions = prescribed_conditions)
+
+println(&quot;Tip Displacement: &quot;, state.points[end].u)
+println(&quot;Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]&quot;)</code></pre><pre class="documenter-example-output">Tip Displacement: [-13.57738372680527, -23.545303337056442, 53.45800757556377]
+Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]</pre><p>The calculated tip displacements match those reported by Bathe and Bolourch in &quot;Large Displacement Analysis of Three-Dimensional Beam Structures&quot; closely, thus verifying our implementation of geometrically exact beam theory.</p><p>We can visualize the deformed geometry and inspect the associated point and element data using ParaView.</p><pre><code class="language-julia">write_vtk(&quot;cantilever-curved&quot;, assembly, state)</code></pre><p><img src="../cantilever-curved.png" alt/></p><h2 id="Rotating-Beam-with-a-Swept-Tip"><a class="docs-heading-anchor" href="#Rotating-Beam-with-a-Swept-Tip">Rotating Beam with a Swept Tip</a><a id="Rotating-Beam-with-a-Swept-Tip-1"></a><a class="docs-heading-anchor-permalink" href="#Rotating-Beam-with-a-Swept-Tip" title="Permalink"></a></h2><p>In this example we analyze a rotating beam with a swept tip.  The parameters for this example come from &quot;Finite element solution of nonlinear intrinsic equations for curved composite beams&quot; by Hodges, Shang, and Cesnik.</p><p><img src="../rotating-beam-drawing.svg" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+sweep = 45 * pi/180
+rpm = 0:25:750
+
+# straight section of the beam
+L_b1 = 31.5 # inch
+r_b1 = [2.5, 0, 0]
+nelem_b1 = 13
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
+
+# swept section of the beam
+L_b2 = 6 # inch
+r_b2 = [34, 0, 0]
+nelem_b2 = 3
+cs, ss = cos(sweep), sin(sweep)
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+    frame = frame_b2)
+
+# combine elements and points into one array
+nelem = nelem_b1 + nelem_b2
+points = vcat(xp_b1, xp_b2[2:end])
+start = 1:nelem_b1 + nelem_b2
+stop = 2:nelem_b1 + nelem_b2 + 1
+lengths = vcat(lengths_b1, lengths_b2)
+midpoints = vcat(xm_b1, xm_b2)
+Cab = vcat(Cab_b1, Cab_b2)
+
+# cross section
+w = 1 # inch
+h = 0.063 # inch
+
+# material properties
+E = 1.06e7 # lb/in^2
+ν = 0.325
+ρ = 2.51e-4 # lb sec^2/in^4
+
+# shear and torsion correction factors
+ky = 1.2000001839588001
+kz = 14.625127919304001
+kt = 65.85255016982444
+
+A = h*w
+Iyy = w*h^3/12
+Izz = w^3*h/12
+J = Iyy + Izz
+
+# apply corrections
+Ay = A/ky
+Az = A/kz
+Jx = J/kt
+
+G = E/(2*(1+ν))
+
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
+    1/(E*Izz)]), nelem)
+
+mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab,
+    lengths = lengths,
+    midpoints = midpoints)
+
+# create dictionary of prescribed conditions
+prescribed_conditions = Dict(
+    # root section is fixed
+    1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+    )
+
+nonlinear_states = Vector{AssemblyState{Float64}}(undef, length(rpm))
+linear_states = Vector{AssemblyState{Float64}}(undef, length(rpm))
+for i = 1:length(rpm)
+    # global frame rotation
+    w0 = [0, 0, rpm[i]*(2*pi)/60]
+
+    # perform nonlinear steady state analysis
+    system, converged = steady_state_analysis(assembly,
+        angular_velocity = w0,
+        prescribed_conditions = prescribed_conditions)
+
+    nonlinear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+    # perform linear steady state analysis
+    system, converged = steady_state_analysis(assembly,
+        angular_velocity = w0,
+        prescribed_conditions = prescribed_conditions,
+        linear = true)
+
+    linear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+end</code></pre><p>To visualize the solutions we will plot the root moment and tip deflections against the angular speed.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+# root moment
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    yticks = 0.0:2:12,
+    ylabel = &quot;\$M_z\$ at the root (lb-in)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+Mz_nl = [-nonlinear_states[i].points[1].M[3] for i = 1:length(rpm)]
+Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
+plot!(rpm, Mz_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, Mz_l, label=&quot;Linear&quot;)
+
+
+# x tip deflection
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    ylim = (-0.002, 0.074),
+    yticks = 0.0:0.01:0.07,
+    ylabel = &quot;\$u_x\$ at the tip (in)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+ux_nl = [nonlinear_states[i].points[end].u[1] for i = 1:length(rpm)]
+ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
+plot!(rpm, ux_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, ux_l, label=&quot;Linear&quot;)
+
+
+# y tip deflection
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    ylim = (-0.01, 0.27),
+    yticks = 0.0:0.05:0.25,
+    ylabel = &quot;\$u_y\$ at the tip (in)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+uy_nl = [nonlinear_states[i].points[end].u[2] for i = 1:length(rpm)]
+uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
+plot!(rpm, uy_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, uy_l, label=&quot;Linear&quot;)
+
+
+# rotation of the tip
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    ylabel = &quot;\$θ_z\$ at the tip&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+theta_z_nl = [4*atan(nonlinear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
+theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
+
+plot!(rpm, theta_z_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, theta_z_l, label=&quot;Linear&quot;)</code></pre><p><img src="../rotating-beam-Mz.svg" alt/> <img src="../rotating-beam-ux.svg" alt/> <img src="../rotating-beam-uy.svg" alt/> <img src="../rotating-beam-theta_z.svg" alt/></p><p>We will now compute the eigenvalues of this system for a range of sweep angles and and angular speeds.</p><pre><code class="language-julia">sweep = (0:2.5:45) * pi/180
+rpm = [0, 500, 750]
+nev = 30
+
+λ = Matrix{Vector{ComplexF64}}(undef, length(sweep), length(rpm))
+U = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
+MV = Matrix{Matrix{ComplexF64}}(undef, length(sweep), length(rpm))
+state = Matrix{AssemblyState{Float64}}(undef, length(sweep), length(rpm))
+eigenstates = Matrix{Vector{AssemblyState{ComplexF64}}}(undef, length(sweep), length(rpm))
+for i = 1:length(sweep)
+
+    # straight section of the beam
+    L_b1 = 31.5 # inch
+    r_b1 = [2.5, 0, 0]
+    nelem_b1 = 20
+    lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
+
+    # swept section of the beam
+    L_b2 = 6 # inch
+    r_b2 = [34, 0, 0]
+    nelem_b2 = 20
+    cs, ss = cos(sweep[i]), sin(sweep[i])
+    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+        frame = frame_b2)
+
+    # combine elements and points into one array
+    nelem = nelem_b1 + nelem_b2
+    points = vcat(xp_b1, xp_b2[2:end])
+    start = 1:nelem_b1 + nelem_b2
+    stop = 2:nelem_b1 + nelem_b2 + 1
+    lengths = vcat(lengths_b1, lengths_b2)
+    midpoints = vcat(xm_b1, xm_b2)
+    Cab = vcat(Cab_b1, Cab_b2)
+
+    compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx),
+        1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+    mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+    # create assembly
+    assembly = Assembly(points, start, stop;
+        compliance = compliance,
+        mass = mass,
+        frames = Cab,
+        lengths = lengths,
+        midpoints = midpoints)
+
+    # create system
+    keep_points = [1, nelem_b1+1, nelem+1]
+    system = System(assembly, keep_points, false)
+
+    for j = 1:length(rpm)
+        # global frame rotation
+        w0 = [0, 0, rpm[j]*(2*pi)/60]
+
+        # eigenvalues and (right) eigenvectors
+        system, λ[i,j], V, converged = eigenvalue_analysis!(system, assembly;
+            angular_velocity = w0,
+            prescribed_conditions = prescribed_conditions,
+            nev = nev)
+
+        # corresponding left eigenvectors
+        U[i,j] = left_eigenvectors(system, λ[i,j], V)
+
+        # post-multiply mass matrix with right eigenvector matrix
+        # (we use this later for correlating eigenvalues)
+        MV[i,j] = system.M * V
+
+        # process state and eigenstates
+        state[i,j] = AssemblyState(system, assembly;
+            prescribed_conditions = prescribed_conditions)
+        eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
+            prescribed_conditions = prescribed_conditions) for k = 1:nev]
+    end
+end</code></pre><p>We can correlate each eigenmode by taking advantage of the fact that left and right eigenvectors satisfy the following relationships:</p><p class="math-container">\[\begin{aligned}
+u^H M v &amp;= 1 &amp;\text{if \(u\) and \(v\) correspond to the same eigenmode} \\
+u^H M v &amp;= 0 &amp;\text{if \(u\) and \(v\) correspond to different eigenmodes}
+\end{aligned}\]</p><pre><code class="language-julia"># set previous left eigenvector matrix
+U_p = copy(U[1,1])
+
+for j = 1:length(rpm)
+    for i = 1:length(sweep)
+        # construct correlation matrix
+        C = U_p*MV[i,j]
+
+        # correlate eigenmodes
+        perm, corruption = correlate_eigenmodes(C)
+
+        # re-arrange eigenvalues and eigenvectors
+        λ[i,j] = λ[i,j][perm]
+        U[i,j] = U[i,j][perm,:]
+        MV[i,j] = MV[i,j][:,perm]
+        eigenstates[i,j] = eigenstates[i,j][perm]
+
+        # update previous eigenvector matrix
+        U_p .= U[i,j]
+    end
+    # update previous eigenvector matrix
+    U_p .= U[1,j]
+end
+
+frequency = [[imag(λ[i,j][k])/(2*pi) for i = 1:length(sweep), j=1:length(rpm)]
+    for k = 1:2:nev]</code></pre><p>In this case these eigenmode correlations work, but remember that large changes in the underlying parameters (or just drastic changes in the eigenvectors themselves due to a small perturbation) can cause these automatic eigenmode correlations to fail.</p><p>We&#39;ll now plot the frequency of the different eigenmodes against those found by Epps and Chandra in &quot;The Natural Frequencies of Rotating Composite Beams With Tip Sweep&quot;.</p><pre><code class="language-julia">names = [&quot;First Bending Mode&quot;, &quot;Second Bending Mode&quot;, &quot;Third Bending Mode&quot;]
+indices = [1, 2, 4]
+
+experiment_rpm = [0, 500, 750]
+experiment_sweep = [0, 15, 30, 45]
+experiment_frequencies = [
+    [1.4 1.8 1.7 1.6;
+     10.2 10.1 10.2 10.2;
+     14.8 14.4 14.9 14.7],
+    [10.3 10.2 10.4 10.4;
+     25.2 25.2 23.7 21.6;
+     36.1 34.8 30.7 26.1],
+    [27.7 27.2 26.6 24.8;
+     47.0 44.4 39.3 35.1;
+     62.9 55.9 48.6 44.8]
+]
+
+plot!([], [], color=:black, label=&quot;GXBeam&quot;)
+scatter!([], [], color=:black, label = &quot;Experiment (Epps and Chandra)&quot;)
+
+for k = 1:length(indices)
+    plot(
+        title = names[k],
+        xticks = 0:15:45,
+        xlabel = &quot;Sweep Angle (degrees)&quot;,
+        ylim = (0, Inf),
+        ylabel = &quot;Frequency (Hz)&quot;,
+        grid = false,
+        overwrite_figure=false
+        )
+
+    for j = length(rpm):-1:1
+        plot!(sweep*180/pi, frequency[indices[k]][:,j],
+            label=&quot;$(rpm[j]) RPM&quot;, color=j)
+        scatter!(experiment_sweep, experiment_frequencies[k][j,:],
+            label=&quot;&quot;, color=j)
+    end
+
+    plot!(show=true)
+end
+
+names = [&quot;1T/5B&quot;, &quot;5B/1T&quot;, &quot;4B/1T&quot;]
+indices = [5, 7, 6]
+
+experiment_frequencies = [
+    132.7 147.3 166.2 162.0
+    106.6 120.1 122.6 117.7;
+    95.4 87.5 83.7 78.8;
+]
+
+plot(
+    title = &quot;Coupled Torsion-Bending Modes at 750 RPM&quot;,
+    xticks = 0:15:45,
+    xlabel = &quot;Sweep Angle (degrees)&quot;,
+    ylim = (0, Inf),
+    ylabel = &quot;Frequency (Hz)&quot;,
+    legend = :bottomleft,
+    grid = false,
+    overwrite_figure=false
+    )
+
+plot!([], [], color=:black, label=&quot;GXBeam&quot;)
+scatter!([], [], color=:black,
+    label=&quot;Experiment (Epps and Chandra)&quot;)
+
+for k = 1:length(indices)
+    plot!(sweep*180/pi, frequency[indices[k]][:,end], label=names[k], color=k)
+    scatter!(experiment_sweep, experiment_frequencies[k,:],
+        label=&quot;&quot;, color=k)
+end
+
+plot!(show=true)</code></pre><p><img src="../rotating-beam-frequencies-1.svg" alt/> <img src="../rotating-beam-frequencies-2.svg" alt/> <img src="../rotating-beam-frequencies-3.svg" alt/> <img src="../rotating-beam-frequencies-4.svg" alt/></p><p>As you can see, the frequency results from the eigenmode analysis in this package compare well with experimental results.</p><p>We can also visualize eigenmodes using ParaView.  Here we will visualize the first bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be helpful for identifying different eigenmodes.</p><pre><code class="language-julia">write_vtk(&quot;rotating-beam-45d-750rpm-bending-mode-1&quot;, assembly, state[end,end], λ[end,end][1],
+    eigenstates[end,end][1], mode_scaling=100.0)</code></pre><p><img src="../rotating-beam.gif" alt/></p><h2 id="Nonlinear-Dynamic-Analysis-of-a-Wind-Turbine-Blade"><a class="docs-heading-anchor" href="#Nonlinear-Dynamic-Analysis-of-a-Wind-Turbine-Blade">Nonlinear Dynamic Analysis of a Wind Turbine Blade</a><a id="Nonlinear-Dynamic-Analysis-of-a-Wind-Turbine-Blade-1"></a><a class="docs-heading-anchor-permalink" href="#Nonlinear-Dynamic-Analysis-of-a-Wind-Turbine-Blade" title="Permalink"></a></h2><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+L = 60 # m
+
+# create points
+nelem = 10
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# stiffness matrix for each beam element
+stiffness = fill(
+    [2.389e9  1.524e6  6.734e6 -3.382e7 -2.627e7 -4.736e8
+     1.524e6  4.334e8 -3.741e6 -2.935e5  1.527e7  3.835e5
+     6.734e6 -3.741e6  2.743e7 -4.592e5 -6.869e5 -4.742e6
+    -3.382e7 -2.935e5 -4.592e5  2.167e7 -6.279e5  1.430e6
+    -2.627e7  1.527e7 -6.869e5 -6.279e5  1.970e7  1.209e7
+    -4.736e8  3.835e5 -4.742e6  1.430e6  1.209e7  4.406e8],
+    nelem)
+
+# mass matrix for each beam element
+mass = fill(
+    [258.053      0.0        0.0      0.0      7.07839  -71.6871
+       0.0      258.053      0.0     -7.07839  0.0        0.0
+       0.0        0.0      258.053   71.6871   0.0        0.0
+       0.0       -7.07839   71.6871  48.59     0.0        0.0
+       7.07839    0.0        0.0      0.0      2.172      0.0
+     -71.6871     0.0        0.0      0.0      0.0       46.418],
+     nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
+
+# prescribed conditions
+prescribed_conditions = (t) -&gt; begin
+    Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force on right side
+        nelem+1 =&gt; PrescribedConditions(Fz = 1e5*sin(20*t))
+    )
+end
+
+# simulation time
+t = 0:0.001:2.0
+
+system, history, converged = time_domain_analysis(assembly, t;
+    prescribed_conditions = prescribed_conditions)</code></pre><p>We can visualize tip displacements and the resultant forces in the root by accessing the post-processed results for each time step contained in the variable <code>history</code>.  Note that  the root resultant forces for this case are equal to the external forces/moments, but with opposite sign.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+point = vcat(fill(nelem+1, 6), fill(1, 6))
+field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
+direction = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]
+ylabel = [&quot;\$u_x\$ (\$m\$)&quot;, &quot;\$u_y\$ (\$m\$)&quot;, &quot;\$u_z\$ (\$m\$)&quot;,
+    &quot;Rodriguez Parameter \$\\theta_x\$ (degree)&quot;,
+    &quot;Rodriguez Parameter \$\\theta_y\$ (degree)&quot;,
+    &quot;Rodriguez Parameter \$\\theta_z\$ (degree)&quot;,
+    &quot;\$F_x\$ (\$N\$)&quot;, &quot;\$F_y\$ (\$N\$)&quot;, &quot;\$F_z\$ (\$N\$)&quot;,
+    &quot;\$M_x\$ (\$Nm\$)&quot;, &quot;\$M_y\$ (\$Nm\$)&quot;, &quot;\$M_z\$ (\$N\$)&quot;]
+
+for i = 1:12
+    plot(
+        xlim = (0, 2.0),
+        xticks = 0:0.5:2.0,
+        xlabel = &quot;Time (s)&quot;,
+        ylabel = ylabel[i],
+        grid = false,
+        overwrite_figure=false
+        )
+    y = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in history]
+
+    if field[i] == :theta
+        # convert to Rodriguez parameter
+        @. y = 4*atan(y/4)
+        # convert to degrees
+        @. y = rad2deg(y)
+    end
+
+    if field[i] == :F || field[i] == :M
+        y = -y
+    end
+
+    plot!(t, y, label=&quot;&quot;)
+    plot!(show=true)
+end</code></pre><p><img src="../dynamic-wind-turbine-u1.svg" alt/> <img src="../dynamic-wind-turbine-u2.svg" alt/> <img src="../dynamic-wind-turbine-u3.svg" alt/> <img src="../dynamic-wind-turbine-theta1.svg" alt/> <img src="../dynamic-wind-turbine-theta2.svg" alt/> <img src="../dynamic-wind-turbine-theta3.svg" alt/> <img src="../dynamic-wind-turbine-F1.svg" alt/> <img src="../dynamic-wind-turbine-F2.svg" alt/> <img src="../dynamic-wind-turbine-F3.svg" alt/> <img src="../dynamic-wind-turbine-M1.svg" alt/> <img src="../dynamic-wind-turbine-M2.svg" alt/> <img src="../dynamic-wind-turbine-M3.svg" alt/></p><p>These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A. Sprague in &quot;Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic Parameters&quot;.</p><p>We can also visualize the time history of the system using ParaView.</p><pre><code class="language-julia">write_vtk(&quot;dynamic-wind-turbine&quot;, assembly, history, t)</code></pre><p><img src="../dynamic-wind-turbine.gif" alt/></p><h2 id="Nonlinear-Static-Analysis-of-a-Joined-Wing"><a class="docs-heading-anchor" href="#Nonlinear-Static-Analysis-of-a-Joined-Wing">Nonlinear Static Analysis of a Joined-Wing</a><a id="Nonlinear-Static-Analysis-of-a-Joined-Wing-1"></a><a class="docs-heading-anchor-permalink" href="#Nonlinear-Static-Analysis-of-a-Joined-Wing" title="Permalink"></a></h2><p>In this example we analyze joined-wing model proposed by Blair in &quot;An Equivalent Beam Formulation for Joined-Wings in a Post-Buckled State&quot; and optimized by Green et al. in &quot;Structural Optimization of Joined-Wing Beam Model with Bend-Twist Coupling using Equivalent Static Loads&quot;.</p><p><img src="../static-joined-wing-drawing.png" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+# Set endpoints of each beam
+p1 = [-7.1726, -12, -3.21539]
+p2 = [-5.37945, -9, -2.41154]
+p3 = [-3.5863, -6, -1.6077]
+p4 = [-1.79315, -3, -0.803848]
+p5 = [0, 0, 0]
+p6 = [7.1726, -12, 3.21539]
+
+# get transformation matrix for left beams
+
+# transformation from intermediate frame to global frame
+tmp1 = sqrt(p1[1]^2 + p1[2]^2)
+c1, s1 = -p1[1]/tmp1, -p1[2]/tmp1
+rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
+
+# transformation from local beam frame to intermediate frame
+tmp2 = sqrt(p1[1]^2 + p1[2]^2 + p1[3]^2)
+c2, s2 = tmp1/tmp2, -p1[3]/tmp2
+rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
+
+Cab_1 = rot1*rot2
+
+# get transformation matrix for right beam
+
+# transformation from intermediate frame to global frame
+tmp1 = sqrt(p6[1]^2 + p6[2]^2)
+c1, s1 = p6[1]/tmp1, p6[2]/tmp1
+rot1 = [c1 -s1 0; s1 c1 0; 0 0 1]
+
+# transformation from local beam frame to intermediate frame
+tmp2 = sqrt(p6[1]^2 + p6[2]^2 + p6[3]^2)
+c2, s2 = tmp1/tmp2, p6[3]/tmp2
+rot2 = [c2 0 -s2; 0 1 0; s2 0 c2]
+
+Cab_2 = rot1*rot2
+
+# beam 1
+L_b1 = norm(p2-p1)
+r_b1 = p1
+nelem_b1 = 5
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1;
+    frame = Cab_1)
+compliance_b1 = fill(Diagonal([1.05204e-9, 3.19659e-9, 2.13106e-8, 1.15475e-7,
+    1.52885e-7, 7.1672e-9]), nelem_b1)
+
+# beam 2
+L_b2 = norm(p3-p2)
+r_b2 = p2
+nelem_b2 = 5
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+    frame = Cab_1)
+compliance_b2 = fill(Diagonal([1.24467e-9, 3.77682e-9, 2.51788e-8, 1.90461e-7,
+    2.55034e-7, 1.18646e-8]), nelem_b2)
+
+# beam 3
+L_b3 = norm(p4-p3)
+r_b3 = p3
+nelem_b3 = 5
+lengths_b3, xp_b3, xm_b3, Cab_b3 = discretize_beam(L_b3, r_b3, nelem_b3;
+    frame = Cab_1)
+compliance_b3 = fill(Diagonal([1.60806e-9, 4.86724e-9, 3.24482e-8, 4.07637e-7,
+    5.57611e-7, 2.55684e-8]), nelem_b3)
+
+# beam 4
+L_b4 = norm(p5-p4)
+r_b4 = p4
+nelem_b4 = 5
+lengths_b4, xp_b4, xm_b4, Cab_b4 = discretize_beam(L_b4, r_b4, nelem_b4;
+    frame = Cab_1)
+compliance_b4 = fill(Diagonal([2.56482e-9, 7.60456e-9, 5.67609e-8, 1.92171e-6,
+    2.8757e-6, 1.02718e-7]), nelem_b4)
+
+# beam 5
+L_b5 = norm(p6-p5)
+r_b5 = p5
+nelem_b5 = 20
+lengths_b5, xp_b5, xm_b5, Cab_b5 = discretize_beam(L_b5, r_b5, nelem_b5;
+    frame = Cab_2)
+compliance_b5 = fill(Diagonal([2.77393e-9, 7.60456e-9, 1.52091e-7, 1.27757e-5,
+    2.7835e-5, 1.26026e-7]), nelem_b5)
+
+# combine elements and points into one array
+nelem = nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + nelem_b5
+points = vcat(xp_b1, xp_b2[2:end], xp_b3[2:end], xp_b4[2:end], xp_b5[2:end])
+start = 1:nelem
+stop = 2:nelem + 1
+lengths = vcat(lengths_b1, lengths_b2, lengths_b3, lengths_b4, lengths_b5)
+midpoints = vcat(xm_b1, xm_b2, xm_b3, xm_b4, xm_b5)
+Cab = vcat(Cab_b1, Cab_b2, Cab_b3, Cab_b4, Cab_b5)
+compliance = vcat(compliance_b1, compliance_b2, compliance_b3, compliance_b4,
+    compliance_b5)
+
+# create assembly
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    frames = Cab,
+    lengths = lengths,
+    midpoints = midpoints)
+
+Fz = range(0, 70e3, length=141)
+
+# pre-allocate memory to reduce run-time
+ijoint = nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1
+points_to_keep = [1, ijoint, nelem+1]
+static = true
+system = System(assembly, points_to_keep, static)
+
+linear_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
+for i = 1:length(Fz)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed endpoint on beam 1
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force applied on point 4
+        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 =&gt; PrescribedConditions(Fz = Fz[i]),
+        # fixed endpoint on last beam
+        nelem+1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    )
+
+    static_analysis!(system, assembly;
+        prescribed_conditions = prescribed_conditions,
+        linear = true)
+
+    linear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+end
+
+reset_state!(system)
+nonlinear_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
+for i = 1:length(Fz)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed endpoint on beam 1
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force applied on point 4
+        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 =&gt; PrescribedConditions(Fz = Fz[i]),
+        # fixed endpoint on last beam
+        nelem+1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    )
+
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions, reset_state=false)
+
+    nonlinear_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+end
+
+reset_state!(system)
+nonlinear_follower_states = Vector{AssemblyState{Float64}}(undef, length(Fz))
+for i = 1:length(Fz)
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed endpoint on beam 1
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force applied on point 4
+        nelem_b1 + nelem_b2 + nelem_b3 + nelem_b4 + 1 =&gt;
+            PrescribedConditions(Fz_follower = Fz[i]),
+        # fixed endpoint on last beam
+        nelem+1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    )
+
+    static_analysis!(system, assembly;
+        prescribed_conditions=prescribed_conditions, reset_state=false)
+
+    nonlinear_follower_states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+end</code></pre><p>Note that we incrementally increased the load from 0 to 70 kN in order to ensure that we obtained converged solutions.</p><p>To visualize the differences between the different types of analyses we can plot the load deflection curve.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+plot(
+    xlim = (0, 7),
+    xticks = 0:1:7,
+    xlabel = &quot;Vertical Displacement at the Joint (m)&quot;,
+    yticks = 0:10:70,
+    ylim = (0, 70),
+    ylabel = &quot;Load (kN)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+uz_l = [linear_states[i].points[ijoint].u[3] for i = 1:length(Fz)]
+uz_nl = [nonlinear_states[i].points[ijoint].u[3] for i = 1:length(Fz)]
+uz_fnl = [nonlinear_follower_states[i].points[ijoint].u[3] for i = 1:length(Fz)]
+
+plot!(uz_l, Fz./1e3, label=&quot;Linear&quot;)
+plot!(uz_nl, Fz./1e3, label=&quot;Nonlinear with Dead Force&quot;)
+plot!(uz_fnl, Fz./1e3, label=&quot;Nonlinear with Follower Force&quot;)</code></pre><p>This plot matches the plot provided by Wenbin Yu in &quot;GEBT: A general-purpose nonlinear analysis tool for composite beams&quot;.</p><p><img src="../static-joined-wing.svg" alt/></p><p>We can also visualize the deformed geometry and inspect the associated point and element data for any of these operating conditions conditions using ParaView.  To demonstrate we will visualize the 70kN follower force condition and set the color gradient to match the magnitude of the deflections.</p><pre><code class="language-julia">write_vtk(&quot;static-joined-wing&quot;, assembly, nonlinear_follower_states[end])</code></pre><p><img src="../static-joined-wing.png" alt/></p><h2 id="Nonlinear-Dynamic-Analysis-of-a-Joined-Wing"><a class="docs-heading-anchor" href="#Nonlinear-Dynamic-Analysis-of-a-Joined-Wing">Nonlinear Dynamic Analysis of a Joined-Wing</a><a id="Nonlinear-Dynamic-Analysis-of-a-Joined-Wing-1"></a><a class="docs-heading-anchor-permalink" href="#Nonlinear-Dynamic-Analysis-of-a-Joined-Wing" title="Permalink"></a></h2><p>In this example we use the same joined-wing model as used in the previous example, but with the following time varying loads applied at the wingtip:</p><ul><li>A piecewise-linear load <span>$F_L$</span> in the x and y-directions defined as follows:</li></ul><p class="math-container">\[F_L(t) = \begin{cases}
+    t10^6 \text{ N} &amp; 0 \leq t \leq 0.01 \\
+    (0.02-t)10^6 &amp; 0.01 \leq t \leq 0.02 \\
+    0 &amp; \text{otherwise}
+\end{cases}\]</p><ul><li>A sinusoidal load <span>$F_S$</span> applied in the z-direction defined as follows:</li></ul><p class="math-container">\[F_S(t) = \begin{cases}
+    0 &amp; t \lt 0 \\
+    5 \times 10^3 (1-\cos(\pi t /0.02)) \text{ N} &amp; 0 \leq t \lt 0.02 \\
+    10^4 \text{ N} &amp; 0.02 \leq t
+\end{cases}\]</p><p>We will also use the same compliance and mass matrix for all beams, in order to simplify the problem definition.</p><p><img src="../static-joined-wing-drawing.png" alt/></p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+# Set endpoints of each beam
+p1 = [0, 0, 0]
+p2 = [-7.1726, -12, -3.21539]
+p3 = [7.1726, -12,  3.21539]
+
+Cab_1 = [
+0.5         0.866025  0.0
+0.836516    -0.482963  0.258819
+0.224144     -0.12941   -0.965926
+]
+
+Cab_2 = [
+0.5         0.866025  0.0
+-0.836516    0.482963 0.258819
+0.224144    -0.12941   0.965926
+]
+
+# beam 1
+L_b1 = norm(p1-p2)
+r_b1 = p2
+nelem_b1 = 8
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1, frame=Cab_1)
+
+# beam 2
+L_b2 = norm(p3-p1)
+r_b2 = p1
+nelem_b2 = 8
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=Cab_2)
+
+# combine elements and points into one array
+nelem = nelem_b1 + nelem_b2
+points = vcat(xp_b1, xp_b2[2:end])
+start = 1:nelem
+stop = 2:nelem + 1
+lengths = vcat(lengths_b1, lengths_b2)
+midpoints = vcat(xm_b1, xm_b2)
+Cab = vcat(Cab_b1, Cab_b2)
+
+# assign all beams the same compliance and mass matrix
+compliance = fill(Diagonal([2.93944738387698e-10, 8.42991725049126e-10,
+    3.38313996669689e-08, 4.69246721094557e-08, 6.79584100559513e-08,
+    1.37068861370898e-09]), nelem)
+mass = fill(Diagonal([4.86e-2, 4.86e-2, 4.86e-2, 1.0632465e-2, 2.10195e-4,
+    1.042227e-2]), nelem)
+
+# create assembly
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab,
+    lengths = lengths,
+    midpoints = midpoints)
+
+F_L = (t) -&gt; begin
+    if 0.0 &lt;= t &lt; 0.01
+        1e6*t
+    elseif 0.01 &lt;= t &lt; 0.02
+        -1e6*(t-0.02)
+    else
+        zero(t)
+    end
+end
+
+F_S = (t) -&gt; begin
+    if t &lt; 0.0
+        zero(t)
+    elseif 0.0 &lt;= t &lt; 0.02
+        5e3*(1-cos(pi*t/0.02))
+    else
+        1e4
+    end
+end
+
+# assign boundary conditions and point load
+prescribed_conditions = (t) -&gt; begin
+    Dict(
+        # fixed endpoint on beam 1
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force applied on point 4
+        nelem_b1 + 1 =&gt; PrescribedConditions(Fx=F_L(t), Fy=F_L(t), Fz=F_S(t)),
+        # fixed endpoint on last beam
+        nelem+1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    )
+end
+
+# time
+t = range(0, 0.04, length=1001)
+
+system, history, converged = time_domain_analysis(assembly, t;
+    prescribed_conditions=prescribed_conditions)</code></pre><p>We can visualize tip displacements and the resultant forces accessing the post-processed results for each time step contained in the variable <code>history</code>.  Note that the fore-root and rear-root resultant forces for this case are equal to the external forces/moments, but with opposite sign.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+point = vcat(fill(nelem_b1+1, 6), fill(1, 6))
+field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
+direction = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]
+ylabel = [&quot;\$u_x\$ (\$m\$)&quot;, &quot;\$u_y\$ (\$m\$)&quot;, &quot;\$u_z\$ (\$m\$)&quot;,
+    &quot;Rodriguez Parameter \$\\theta_x\$&quot;, &quot;Rodriguez Parameter \$\\theta_y\$&quot;,
+    &quot;Rodriguez Parameter \$\\theta_z\$&quot;, &quot;\$F_x\$ at the forewing root (\$N\$)&quot;,
+    &quot;\$F_y\$ at the forewing root (\$N\$)&quot;, &quot;\$F_z\$ at the forewing root (\$N\$)&quot;,
+    &quot;\$M_x\$ at the forewing root (\$Nm\$)&quot;, &quot;\$M_y\$ at the forewing root (\$Nm\$)&quot;,
+    &quot;\$M_z\$ at the forewing root (\$N\$)&quot;]
+
+for i = 1:12
+    plot(
+        xlim = (0, 0.04),
+        xticks = 0:0.01:0.04,
+        xlabel = &quot;Time (s)&quot;,
+        ylabel = ylabel[i],
+        grid = false,
+        overwrite_figure=false
+        )
+    y = [getproperty(state.points[point[i]], field[i])[direction[i]] for state in history]
+
+    if field[i] == :theta
+        # convert to angle
+        @. y = 4*atan(y/4)
+    end
+
+    if field[i] == :F || field[i] == :M
+        y = -y
+    end
+
+    plot!(t, y, label=&quot;&quot;)
+    plot!(show=true)
+end</code></pre><p><img src="../dynamic-joined-wing-u1.svg" alt/> <img src="../dynamic-joined-wing-u2.svg" alt/> <img src="../dynamic-joined-wing-u3.svg" alt/> <img src="../dynamic-joined-wing-theta1.svg" alt/> <img src="../dynamic-joined-wing-theta2.svg" alt/> <img src="../dynamic-joined-wing-theta3.svg" alt/> <img src="../dynamic-joined-wing-F1.svg" alt/> <img src="../dynamic-joined-wing-F2.svg" alt/> <img src="../dynamic-joined-wing-F3.svg" alt/> <img src="../dynamic-joined-wing-M1.svg" alt/> <img src="../dynamic-joined-wing-M2.svg" alt/> <img src="../dynamic-joined-wing-M3.svg" alt/></p><p>These graphs are identical to those presented in &quot;GEBT: A general-purpose nonlinear analysis tool for composite beams&quot; by Wenbin Yu and Maxwell Blair.</p><p>We can also visualize the time history of the system using ParaView.  In order to view the small deflections we&#39;ll scale all the deflections up by a couple orders of magnitude.  We&#39;ll also set the color gradient to match the magnitude of the deflections at each point.</p><pre><code class="language-julia">write_vtk(&quot;dynamic-joined-wing&quot;, assembly, history, t, scaling=1e2)</code></pre><p><img src="../dynamic-joined-wing.gif" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../guide/">« Getting Started</a><a class="docs-footer-nextpage" href="../diffeq/">Using GXBeam with DifferentialEquations.jl »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 8 June 2021 21:25">Tuesday 8 June 2021</span>. Using Julia version 1.6.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

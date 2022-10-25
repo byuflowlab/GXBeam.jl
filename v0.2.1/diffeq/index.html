@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Using GXBeam with DifferentialEquations.jl · GXBeam.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">GXBeam.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../guide/">Getting Started</a></li><li><a class="tocitem" href="../examples/">Examples</a></li><li class="is-active"><a class="tocitem" href>Using GXBeam with DifferentialEquations.jl</a><ul class="internal"><li><a class="tocitem" href="#Interface-Functions"><span>Interface Functions</span></a></li><li><a class="tocitem" href="#Example-Usage"><span>Example Usage</span></a></li></ul></li><li><a class="tocitem" href="../library/">Library</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Using GXBeam with DifferentialEquations.jl</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Using GXBeam with DifferentialEquations.jl</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/diffeq.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Using-GXBeam-with-DifferentialEquations.jl"><a class="docs-heading-anchor" href="#Using-GXBeam-with-DifferentialEquations.jl">Using GXBeam with DifferentialEquations.jl</a><a id="Using-GXBeam-with-DifferentialEquations.jl-1"></a><a class="docs-heading-anchor-permalink" href="#Using-GXBeam-with-DifferentialEquations.jl" title="Permalink"></a></h1><p>While the capabilities provided by GXBeam are probably sufficient for most users, advanced users may wish to make use of some of the features of the <a href="https://github.com/SciML/DifferentialEquations.jl"><code>DifferentialEquations</code></a> package.  For this reason, we have created an interface in GXBeam to allow users to model the differential algebraic equations encountered in GXBeam in DifferentialEquations.</p><ul><li><a href="#Using-GXBeam-with-DifferentialEquations.jl">Using GXBeam with DifferentialEquations.jl</a></li><ul><li><a href="#Interface-Functions">Interface Functions</a></li><li><a href="#Example-Usage">Example Usage</a></li></ul></ul><h2 id="Interface-Functions"><a class="docs-heading-anchor" href="#Interface-Functions">Interface Functions</a><a id="Interface-Functions-1"></a><a class="docs-heading-anchor-permalink" href="#Interface-Functions" title="Permalink"></a></h2><p>The following constructors are available for modeling the differential algebraic equations from GXBeam in DifferentialEquations.</p><article class="docstring"><header><a class="docstring-binding" id="SciMLBase.ODEFunction-Tuple{System, Any}" href="#SciMLBase.ODEFunction-Tuple{System, Any}"><code>SciMLBase.ODEFunction</code></a> — <span class="docstring-category">Method</span></header><section><div><pre><code class="language-julia">ODEFunction(system::GXBeam.System, assembly)</code></pre><p>Construct a <code>ODEFunction</code> for the system of nonlinear beams contained in <code>assembly</code> which may be used with the DifferentialEquations package.</p><p>The parameters associated with the resulting ODEFunction are defined by the tuple <code>(prescribed_conditions, distributed_loads, origin, linear_velocity, angular_velocity)</code> where each parameter is defined as follows:</p><ul><li><code>prescribed_conditions</code>: A dictionary with keys corresponding to the points at      which prescribed conditions are applied and elements of type      <a href="../library/#GXBeam.PrescribedConditions"><code>PrescribedConditions</code></a> which describe the prescribed conditions      at those points.  If time varying, this input may be provided as a      function of time.</li><li><code>distributed_loads</code>: A dictionary with keys corresponding to the elements to      which distributed loads are applied and elements of type      <a href="../library/#GXBeam.DistributedLoads"><code>DistributedLoads</code></a> which describe the distributed loads at those      points.  If time varying, this input may be provided as a function of      time.</li><li><code>origin</code>: Global frame origin vector. If time varying, this input      may be provided as a function of time.</li><li><code>linear_velocity</code>: Global frame linear velocity vector. If time      varying, this vector may be provided as a function of time.</li><li><code>angular_velocity</code>: Global frame angular velocity vector. If time      varying, this vector may be provided as a function of time.</li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/byuflowlab/GXBeam.jl/blob/5a2dbe55d921124d4cb6a95fcb82de15441f1e7b/src/interfaces/differentialequations.jl#L46-L71">source</a></section></article><div class="admonition is-warning"><header class="admonition-header">Missing docstring.</header><div class="admonition-body"><p>Missing docstring for <code>GXBeam.ODEProblem(system::System, assembly; kwargs...)</code>. Check Documenter&#39;s build log for details.</p></div></div><article class="docstring"><header><a class="docstring-binding" id="SciMLBase.DAEFunction-Tuple{System, Any}" href="#SciMLBase.DAEFunction-Tuple{System, Any}"><code>SciMLBase.DAEFunction</code></a> — <span class="docstring-category">Method</span></header><section><div><pre><code class="language-julia">DAEFunction(system::GXBeam.System, assembly)</code></pre><p>Construct a <code>DAEFunction</code> for the system of nonlinear beams contained in <code>assembly</code> which may be used with the DifferentialEquations package.</p><p>The parameters associated with the resulting DAEFunction are defined by the tuple <code>(prescribed_conditions, distributed_loads, origin, linear_velocity, angular_velocity)</code> where each parameter is defined as follows:</p><ul><li><code>prescribed_conditions</code>: A dictionary with keys corresponding to the points at      which prescribed conditions are applied and elements of type      <a href="../library/#GXBeam.PrescribedConditions"><code>PrescribedConditions</code></a> which describe the prescribed conditions      at those points.  If time varying, this input may be provided as a      function of time.</li><li><code>distributed_loads</code>: A dictionary with keys corresponding to the elements to      which distributed loads are applied and elements of type      <a href="../library/#GXBeam.DistributedLoads"><code>DistributedLoads</code></a> which describe the distributed loads at those      points.  If time varying, this input may be provided as a function of      time.</li><li><code>origin</code>: Global frame origin vector. If time varying, this input      may be provided as a function of time.</li><li><code>linear_velocity</code>: Global frame linear velocity vector. If time      varying, this vector may be provided as a function of time.</li><li><code>angular_velocity</code>: Global frame angular velocity vector. If time      varying, this vector may be provided as a function of time.</li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/byuflowlab/GXBeam.jl/blob/5a2dbe55d921124d4cb6a95fcb82de15441f1e7b/src/interfaces/differentialequations.jl#L222-L247">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="SciMLBase.DAEProblem-Tuple{System, Any, Any}" href="#SciMLBase.DAEProblem-Tuple{System, Any, Any}"><code>SciMLBase.DAEProblem</code></a> — <span class="docstring-category">Method</span></header><section><div><pre><code class="language-julia">DAEProblem(system::GXBeam.System, assembly, tspan; kwargs...)</code></pre><p>Construct a <code>DAEProblem</code> for the system of nonlinear beams contained in <code>assembly</code> which may be used with the DifferentialEquations package.</p><p>A consistent set of initial conditions may be obtained prior to constructing the DAEProblem using <a href="../library/#GXBeam.initial_condition_analysis!"><code>initial_condition_analysis!</code></a> or by constructing a DAEProblem after a time domain analysis.</p><p>Keyword Arguments:</p><ul><li><code>prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()</code>:      A dictionary with keys corresponding to the points at      which prescribed conditions are applied and elements of type      <a href="../library/#GXBeam.PrescribedConditions"><code>PrescribedConditions</code></a> which describe the prescribed conditions      at those points.  If time varying, this input may be provided as a      function of time.</li><li><code>distributed_loads = Dict{Int,DistributedLoads{Float64}}()</code>: A dictionary      with keys corresponding to the elements to which distributed loads are      applied and elements of type <a href="../library/#GXBeam.DistributedLoads"><code>DistributedLoads</code></a> which describe      the distributed loads at those points.  If time varying, this input may      be provided as a function of time.</li><li><code>origin = zeros(3)</code>: Global frame origin vector. If time varying, this input      may be provided as a function of time.</li><li><code>linear_velocity = zeros(3)</code>: Global frame linear velocity vector. If time      varying, this vector may be provided as a function of time.</li><li><code>angular_velocity = zeros(3)</code>: Global frame angular velocity vector. If time      varying, this vector may be provided as a function of time.</li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/byuflowlab/GXBeam.jl/blob/5a2dbe55d921124d4cb6a95fcb82de15441f1e7b/src/interfaces/differentialequations.jl#L161-L189">source</a></section></article><h2 id="Example-Usage"><a class="docs-heading-anchor" href="#Example-Usage">Example Usage</a><a id="Example-Usage-1"></a><a class="docs-heading-anchor-permalink" href="#Example-Usage" title="Permalink"></a></h2><p>For this example we demonstrate how to solve the <a href="../examples/#Nonlinear-Dynamic-Analysis-of-a-Wind-Turbine-Blade">Nonlinear Dynamic Analysis of a Wind Turbine Blade</a> problem using DifferentialEquations.</p><p>We start by setting up the problem as if we were solving the problem using GXBeam&#39;s internal solver.</p><pre><code class="language-julia">using GXBeam, LinearAlgebra
+
+L = 60 # m
+
+# create points
+nelem = 10
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# stiffness matrix for each beam element
+stiffness = fill(
+    [2.389e9  1.524e6  6.734e6 -3.382e7 -2.627e7 -4.736e8
+     1.524e6  4.334e8 -3.741e6 -2.935e5  1.527e7  3.835e5
+     6.734e6 -3.741e6  2.743e7 -4.592e5 -6.869e5 -4.742e6
+    -3.382e7 -2.935e5 -4.592e5  2.167e7 -6.279e5  1.430e6
+    -2.627e7  1.527e7 -6.869e5 -6.279e5  1.970e7  1.209e7
+    -4.736e8  3.835e5 -4.742e6  1.430e6  1.209e7  4.406e8],
+    nelem)
+
+# mass matrix for each beam element
+mass = fill(
+    [258.053      0.0        0.0      0.0      7.07839  -71.6871
+       0.0      258.053      0.0     -7.07839  0.0        0.0
+       0.0        0.0      258.053   71.6871   0.0        0.0
+       0.0       -7.07839   71.6871  48.59     0.0        0.0
+       7.07839    0.0        0.0      0.0      2.172      0.0
+     -71.6871     0.0        0.0      0.0      0.0       46.418],
+     nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass)
+
+# prescribed conditions
+prescribed_conditions = (t) -&gt; begin
+    Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force on right side
+        nelem+1 =&gt; PrescribedConditions(Fz = 1e5*sin(20*t))
+    )
+end</code></pre><p>At this point if we wanted to use GXBeam&#39;s internal solver, we would choose a time discretization and call the <code>time_domain_analysis</code> function.</p><pre><code class="language-julia"># simulation time
+t = 0:0.001:2.0
+
+system, gxbeam_history, converged = time_domain_analysis(assembly, t;
+    prescribed_conditions = prescribed_conditions)</code></pre><p>To instead use the capabilities of the DifferentialEquations package we can do the following.</p><pre><code class="language-julia">using DifferentialEquations
+
+# define simulation time
+tspan = (0.0, 2.0)
+
+# run initial condition analysis to get consistent set of initial conditions
+system, converged = initial_condition_analysis(assembly, tspan[1]; prescribed_conditions)
+
+# construct DAE as ODEProblem with non-constant mass matrix
+prob = ODEProblem(system, assembly, tspan; prescribed_conditions)
+
+# solve ODEProblem
+sol = solve(prob, Rodas4())</code></pre><p>We can extract the outputs from the solution in a easy to understand format using the <a href="../library/#GXBeam.AssemblyState"><code>AssemblyState</code></a> constructor.</p><pre><code class="language-julia">diffeq_history = [AssemblyState(system, assembly, sol[it]; prescribed_conditions)
+    for it in eachindex(sol)]</code></pre><p>Let&#39;s now compare the solutions from GXBeam&#39;s internal solver and the <code>Rodas4</code> solver from DifferentialEquations.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+point = vcat(fill(nelem+1, 6), fill(1, 6))
+field = [:u, :u, :u, :theta, :theta, :theta, :F, :F, :F, :M, :M, :M]
+direction = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]
+ylabel = [&quot;\$u_x\$ (\$m\$)&quot;, &quot;\$u_y\$ (\$m\$)&quot;, &quot;\$u_z\$ (\$m\$)&quot;,
+    &quot;Rodriguez Parameter \$\\theta_x\$ (degree)&quot;,
+    &quot;Rodriguez Parameter \$\\theta_y\$ (degree)&quot;,
+    &quot;Rodriguez Parameter \$\\theta_z\$ (degree)&quot;,
+    &quot;\$F_x\$ (\$N\$)&quot;, &quot;\$F_y\$ (\$N\$)&quot;, &quot;\$F_z\$ (\$N\$)&quot;,
+    &quot;\$M_x\$ (\$Nm\$)&quot;, &quot;\$M_y\$ (\$Nm\$)&quot;, &quot;\$M_z\$ (\$N\$)&quot;]
+
+for i = 1:12
+    plot(
+        xlim = (0, 2.0),
+        xticks = 0:0.5:2.0,
+        xlabel = &quot;Time (s)&quot;,
+        ylabel = ylabel[i],
+        grid = false,
+        overwrite_figure=false
+        )
+    y_gxbeam = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in gxbeam_history]
+
+    y_diffeq = [getproperty(state.points[point[i]], field[i])[direction[i]]
+        for state in diffeq_history]
+
+    if field[i] == :theta
+        # convert to Rodriguez parameter
+        @. y_gxbeam = 4*atan(y_gxbeam/4)
+        @. y_diffeq = 4*atan(y_diffeq/4)
+        # convert to degrees
+        @. y_gxbeam = rad2deg(y_gxbeam)
+        @. y_diffeq = rad2deg(y_diffeq)
+    end
+
+    if field[i] == :F || field[i] == :M
+        y_gxbeam = -y_gxbeam
+        y_diffeq = -y_diffeq
+    end
+
+    plot!(t, y_gxbeam, label=&quot;GXBeam&quot;)
+    plot!(sol.t, y_diffeq, label=&quot;DifferentialEquations&quot;)
+    plot!(show=true)
+end</code></pre><p><img src="../dynamic-wind-turbine-diffeq-u1.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-u2.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-u3.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-theta1.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-theta2.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-theta3.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-F1.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-F2.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-F3.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-M1.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-M2.svg" alt/> <img src="../dynamic-wind-turbine-diffeq-M3.svg" alt/></p><p>As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely with each other.</p><pre><code class="language-julia">write_vtk(&quot;dynamic-wind-turbine&quot;, assembly, gxbeam_history, sol.t)</code></pre><p><img src="../dynamic-wind-turbine.gif" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../examples/">« Examples</a><a class="docs-footer-nextpage" href="../library/">Library »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 8 June 2021 21:25">Tuesday 8 June 2021</span>. Using Julia version 1.6.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Cantilever with a Tip Moment · GXBeam.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.044/juliamono.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.11/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">GXBeam.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../guide/">Getting Started</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../cantilever/">Cantilever with a Uniform Load</a></li><li><a class="tocitem" href="../overdetermined/">Overdetermined Beam</a></li><li><a class="tocitem" href="../tipforce/">Cantilever with a Tip Force</a></li><li class="is-active"><a class="tocitem" href>Cantilever with a Tip Moment</a></li><li><a class="tocitem" href="../curved/">Bending of an Initially Curved Beam</a></li><li><a class="tocitem" href="../rotating/">Rotating Beam with a Swept Tip</a></li><li><a class="tocitem" href="../wind-turbine-blade/">Time-Domain Simulation of a Wind Turbine Blade</a></li><li><a class="tocitem" href="../static-joined-wing/">Static Analysis of a Joined-Wing</a></li><li><a class="tocitem" href="../dynamic-joined-wing/">Time-Domain Simulation of a Joined-Wing</a></li><li><a class="tocitem" href="../vertical-axis-wind-turbine/">Sandia 34-Meter Vertical Axis Wind Turbine</a></li></ul></li><li><a class="tocitem" href="../diffeq/">Using GXBeam with DifferentialEquations.jl</a></li><li><a class="tocitem" href="../../reference/reference/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Cantilever with a Tip Moment</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Cantilever with a Tip Moment</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/literate/tipmoment.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="tipmoment"><a class="docs-heading-anchor" href="#tipmoment">Cantilever with a Tip Moment</a><a id="tipmoment-1"></a><a class="docs-heading-anchor-permalink" href="#tipmoment" title="Permalink"></a></h1><p>This example shows how to predict the behavior of a cantilever beam that is subjected to a constant tip moment.  This is a common benchmark problem for the geometrically nonlinear analysis of beams.</p><p><img src="../../assets/tipmoment-drawing.svg" alt/></p><div class="admonition is-success"><header class="admonition-header">Tip</header><div class="admonition-body"><p>This example is also available as a Jupyter notebook: <a href="https://nbviewer.jupyter.org/github/byuflowlab/GXBeam.jl/blob/gh-pages/v0.3.3/examples/tipmoment.ipynb"><code>tipmoment.ipynb</code></a>.</p></div></div><pre><code class="language-julia hljs">using GXBeam, LinearAlgebra
+
+L = 12 # inches
+h = w = 1 # inches
+E = 30e6 # lb/in^4 Young&#39;s Modulus
+
+A = h*w
+Iyy = w*h^3/12
+Izz = w^3*h/12
+
+# bending moment (applied at end)
+λ = [0.0, 0.4, 0.8, 1.2, 1.6, 1.8, 2.0]
+m = pi*E*Iyy/L
+M = λ*m
+
+# create points
+nelem = 16
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# compliance matrix for each beam element
+compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# pre-initialize system storage
+system = System(assembly, true)
+
+# run an analysis for each prescribed bending moment
+states = Vector{AssemblyState{Float64}}(undef, length(M))
+for i = 1:length(M)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # moment on right side
+        nelem+1 =&gt; PrescribedConditions(Mz = M[i])
+    )
+
+    # perform a static analysis
+    static_analysis!(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+    # post-process the results
+    states[i] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+end</code></pre><p>This problem has a simple analytical solution, which we obtained from &quot;Study of the Geometric Stiffening Effect: Comparison of Different Formulations&quot; by Juana M. Mayo, Daniel Garcia-Vallejo, and Jaime Dominguez.</p><pre><code class="language-julia hljs"># analytical solution (ρ = E*I/M)
+analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)), 0])</code></pre><p>Plotting the results reveals that the analytical and computational results show excellent agreement.</p><pre><code class="language-julia hljs">using Plots
+pyplot()</code></pre><pre><code class="language-julia hljs"># set up the plot
+plot(
+    xlim = (-0.25, 1.1),
+    xticks = -0.25:0.25:1.0,
+    xlabel = &quot;x/L&quot;,
+    ylim = (-0.05, 0.8),
+    yticks = 0.0:0.2:0.8,
+    ylabel = &quot;y/L&quot;,
+    aspect_ratio = 1.0,
+    grid = false,
+    overwrite_figure=false
+    )
+
+# create dummy legend entries for GXBeam and Analytical
+scatter!([], [], color=:black, label=&quot;GXBeam&quot;)
+plot!([], [], color=:black, label=&quot;Analytical&quot;)
+
+# plot the data
+for i = 1:length(M)
+
+    local x, y
+
+    # GXBeam
+    x = [assembly.points[ipoint][1] + states[i].points[ipoint].u[1] for ipoint =
+        1:length(assembly.points)]
+    y = [assembly.points[ipoint][2] + states[i].points[ipoint].u[2] for ipoint =
+        1:length(assembly.points)]
+    scatter!(x/L, y/L, label=&quot;&quot;, color = i)
+
+    # Analytical
+    x0 = range(0, L, length=100)
+    deflection = analytical.(x0, E*Iyy/M[i])
+    x = (x0 + getindex.(deflection, 1))
+    y = getindex.(deflection, 2)
+    plot!(x/L, y/L, label=&quot;\$\\lambda\$=$(λ[i])&quot;, color=i)
+end
+plot!(show=true)</code></pre><p><img src="../../assets/tipmoment-deflection.svg" alt/></p><p>We can use this problem to test the accuracy and convergence of this package.  To do so we set <span>$\lambda = 1$</span> and repeat the analysis for a variety of grid sizes.  We measure the normalized tip displacement error <span>$\varepsilon(u)$</span> using the following expression</p><p class="math-container">\[\varepsilon(u) = \left| \frac{u - u^a}{u^a} \right|\]</p><p>where <span>$u$</span> is the calculated tip displacement (at x=L) and <span>$u^a$</span> is the analytical tip displacement.</p><pre><code class="language-julia hljs">grid_sizes = unique(round.(Int, 10 .^ range(0,3,length=25)))
+
+L = 12 # inches
+h = w = 1 # inches
+E = 30e6 # lb/in^4 Young&#39;s Modulus
+
+A = h*w
+Iyy = w*h^3/12
+Izz = w^3*h/12
+
+# bending moment (applied at end)
+λ = 1.0
+m = pi*E*Iyy/L
+M = λ*m
+
+# run an analysis for each grid size
+states = Vector{AssemblyState{Float64}}(undef, length(grid_sizes))
+for (igrid, nelem) in enumerate(grid_sizes)
+
+    local x, y, z, points, start, stop, compliance, assembly, system
+
+    # create points
+    x = range(0, L, length=nelem+1)
+    y = zero(x)
+    z = zero(x)
+    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+    # index of endpoints of each beam element
+    start = 1:nelem
+    stop = 2:nelem+1
+
+    # compliance matrix for each beam element
+    compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+    # create assembly of interconnected nonlinear beams
+    assembly = Assembly(points, start, stop, compliance=compliance)
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # moment on right side
+        nelem+1 =&gt; PrescribedConditions(Mz = M)
+    )
+
+    # perform a static analysis
+    system, converged = static_analysis(assembly;
+        prescribed_conditions = prescribed_conditions)
+
+    # post-process the results
+    states[igrid] = AssemblyState(system, assembly;
+        prescribed_conditions = prescribed_conditions)
+
+end</code></pre><pre><code class="language-julia hljs"># calculate analytical solution
+dxa, dya = analytical(L, E*Iyy/M)
+
+# extract computational solution
+dx = [states[igrid].points[end].u[1] for igrid = 1:length(grid_sizes)]
+dy = [states[igrid].points[end].u[2] for igrid = 1:length(grid_sizes)]
+
+# compute error
+εx = abs.((dx .- dxa) ./ dxa)
+εy = abs.((dy .- dya) ./ dya)</code></pre><pre><code class="language-julia hljs">using Plots
+pyplot()</code></pre><pre><code class="language-julia hljs"># plot the x-error
+p1 = plot(grid_sizes .+ 1, εx, label=&quot;&quot;,
+    xlabel = &quot;Number of Nodes&quot;,
+    xaxis=:log,
+    xlim = (10^0, 10^3),
+    xtick = 10.0 .^ (0:3),
+    ylabel = &quot;\$\\varepsilon(u_x)\$&quot;,
+    yaxis=:log,
+    ylim = (-Inf, 10^0),
+    ytick = 10.0 .^ -(0:7),
+    overwrite_figure=false,
+    show=true)
+
+plot!(show=true)</code></pre><p><img src="../../assets/tipmoment-x-convergence.svg" alt/></p><pre><code class="language-julia hljs"># plot the y-error
+p2 = plot(grid_sizes .+ 1, εy, label=&quot;&quot;,
+    xlabel = &quot;Number of Nodes&quot;,
+    xaxis=:log,
+    xlim = (10^0, 10^3),
+    xtick = 10.0 .^ (0:3),
+    ylabel = &quot;\$\\varepsilon(u_y)\$&quot;,
+    yaxis=:log,
+    ylim = (-Inf, 10^0),
+    ytick = 10.0 .^ -(0:7),
+    overwrite_figure=false,
+    show=true)
+
+plot!(show=true)</code></pre><p><img src="../../assets/tipmoment-y-convergence.svg" alt/></p><p>We observe second-order algebraic convergence for both x and y tip displacement errors. We can therefore conclude that a large number of elements are likely necessary in order to obtain highly accurate solutions using this package.  For problems where high accuracy solutions are critical, higher order shape functions, such as the Legendre spectral finite elements used by <a href="https://www.nrel.gov/wind/nwtc/beamdyn.html">BeamDyn</a> are likely more computationally efficient.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../tipforce/">« Cantilever with a Tip Force</a><a class="docs-footer-nextpage" href="../curved/">Bending of an Initially Curved Beam »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.17 on <span class="colophon-date" title="Tuesday 17 May 2022 21:40">Tuesday 17 May 2022</span>. Using Julia version 1.6.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

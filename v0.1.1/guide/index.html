@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Getting Started · GXBeam.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">GXBeam.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Getting Started</a><ul class="internal"><li><a class="tocitem" href="#Creating-an-Assembly"><span>Creating an Assembly</span></a></li><li><a class="tocitem" href="#Defining-Distributed-Loads"><span>Defining Distributed Loads</span></a></li><li><a class="tocitem" href="#Defining-Prescribed-Conditions"><span>Defining Prescribed Conditions</span></a></li><li><a class="tocitem" href="#Pre-Initializing-Memory-for-an-Analysis"><span>Pre-Initializing Memory for an Analysis</span></a></li><li><a class="tocitem" href="#Performing-a-Steady-State-Analysis"><span>Performing a Steady State Analysis</span></a></li><li><a class="tocitem" href="#Post-Processing-Results"><span>Post Processing Results</span></a></li><li><a class="tocitem" href="#Other-Capabilities"><span>Other Capabilities</span></a></li></ul></li><li><a class="tocitem" href="../examples/">Examples</a></li><li><a class="tocitem" href="../library/">Library</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Getting Started</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Getting Started</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/guide.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Getting-Started"><a class="docs-heading-anchor" href="#Getting-Started">Getting Started</a><a id="Getting-Started-1"></a><a class="docs-heading-anchor-permalink" href="#Getting-Started" title="Permalink"></a></h1><p>In this guide we introduce you to the basic functionality of this package in a step by step manner.  This is a good starting point for learning about how to use this package.  For more details about how to use a particular function the <a href="../library/#Public-API">Public API</a> is likely a better resource.  For more examples of how to use this package see the <a href="../examples/#Examples">examples</a>.</p><p>If you haven&#39;t yet, now would be a good time to install GXBeam.  GXBeam can be installed from the Julia REPL by typing <code>]</code> (to enter the package manager) and then running the following command.</p><pre><code class="language-julia">pkg&gt; add GXBeam</code></pre><p>Now, that the package is installed we need to load it so that we can use it.  It&#39;s also often helpful to load the LinearAlgebra package.</p><pre><code class="language-julia">using GXBeam, LinearAlgebra</code></pre><p>The geometry we will be working with is a rotating beam with a swept tip as pictured.</p><p><img src="../rotating-beam-drawing.svg" alt/></p><p>This geometry has a fixed boundary condition on the left side of the beam and rotates around a point 2.5 inches to the left of the beam.  We will investigating the steady behavior of this system for a variety of RPM settings at a constant sweep of 45°.</p><h2 id="Creating-an-Assembly"><a class="docs-heading-anchor" href="#Creating-an-Assembly">Creating an Assembly</a><a id="Creating-an-Assembly-1"></a><a class="docs-heading-anchor-permalink" href="#Creating-an-Assembly" title="Permalink"></a></h2><p>The first step for any analysis is to create an object of type <code>Assembly</code>.  This object stores the properties of each of the points and beam elements in our model.  </p><p>To create an object of type Assembly we need the following:</p><ul><li>An array of points</li><li>The starting point for each beam element</li><li>The ending point for each beam element</li><li>The stiffness or compliance matrix for each beam element</li><li>The mass or inverse mass matrix for each beam element (for dynamic simulations)</li><li>Rotation matrices for each beam element which transform from the global frame to the undeformed local beam frame.</li></ul><p>In case the beam elements are curved we can also manually provide the length and midpoint of each beam element.  This is not necessary for straight beam elements.</p><p>We will first focus on the geometry.  We start by defining the straight section of the beam.  This section extends from (2.5, 0, 0) to (34, 0, 0).  Its local undeformed coordinate frame is the same as the global coordinate frame.  We will discretize this section into 10 elements.</p><p>To aid with constructing the geometry we can use the <code>discretize_beam</code> function.  Here we will pass in the length, starting point, and number of elements.  The function returns the lengths, endpoints, midpoints, and frame of each beam element.</p><pre><code class="language-julia"># straight section of the beam
+L_b1 = 31.5 # length of straight section of the beam in inches
+r_b1 = [2.5, 0, 0] # starting point of straight section of the beam
+nelem_b1 = 10 # number of elements in the straight section of the beam
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)</code></pre><p>The lengths of each beam element is equal since we used the number of elements to define the discretization.  Alternatively we can manually specify the discretization of the section. The following is equivalent to the previous function call.</p><pre><code class="language-julia">disc_b1 = range(0, 1, length=nelem_b1+1) # normalized discretization in straight section of the beam
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, disc_b1)</code></pre><p>We will now create the geometry for the swept portion of the wing.  To do so we use the same <code>discretize_beam</code> function, with an additional argument that allows us to specify a rotation matrix which transforms from the global frame to the undeformed frame of the starting point of this beam section.</p><pre><code class="language-julia">sweep = 45 * pi/180
+
+# swept section of the beam
+L_b2 = 6 # length of swept section of the beam
+r_b2 = [34, 0, 0] # starting point of swept section of the beam
+nelem_b2 = 5 # number of elements in swept section of the beam
+cs, ss = cos(sweep), sin(sweep)
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1] # transformation matrix from global to local frame
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)</code></pre><p>If either of these beam sections were curved we would have also had to pass in a curvature vector to <code>discretize_beam</code>.</p><p>We will now manually combine the results of our two calls to <code>discretize_beam</code>.  Since the last endpoint from the straight section is the same as the first endpoint of the swept section we drop one of the endpoints when combining our results.</p><pre><code class="language-julia"># combine elements and points into one array
+nelem = nelem_b1 + nelem_b2 # total number of elements
+points = vcat(xp_b1, xp_b2[2:end]) # all points in our assembly
+start = 1:nelem_b1 + nelem_b2 # starting point of each beam element in our assembly
+stop = 2:nelem_b1 + nelem_b2 + 1 # ending point of each beam element in our assembly
+lengths = vcat(lengths_b1, lengths_b2) # length of each beam element in our assembly
+midpoints = vcat(xm_b1, xm_b2) # midpoint of each beam element in our assembly
+Cab = vcat(Cab_b1, Cab_b2) # transformation matrix from global to local frame for each beam element in our assembly</code></pre><p>Next we need to define the stiffness (or compliance) and mass (or inverse mass) matrices for each beam element.</p><p>The compliance matrix is defined according to the following equation</p><div>\[\begin{bmatrix}
+\gamma_{11} \\
+2\gamma_{12} \\
+2\gamma_{13} \\
+\kappa_{1} \\
+\kappa_{2} \\
+\kappa_{3}
+\end{bmatrix}
+=
+\begin{bmatrix}
+   S_{11} &amp; S_{12} &amp; S_{13} &amp; S_{14} &amp; S_{15} &amp; S_{16} \\
+   S_{12} &amp; S_{22} &amp; S_{23} &amp; S_{24} &amp; S_{25} &amp; S_{26} \\
+   S_{13} &amp; S_{23} &amp; S_{33} &amp; S_{34} &amp; S_{35} &amp; S_{36} \\
+   S_{14} &amp; S_{24} &amp; S_{43} &amp; S_{44} &amp; S_{45} &amp; S_{46} \\
+   S_{15} &amp; S_{25} &amp; S_{35} &amp; S_{45} &amp; S_{55} &amp; S_{56} \\
+   S_{16} &amp; S_{26} &amp; S_{36} &amp; S_{46} &amp; S_{56} &amp; S_{66}
+\end{bmatrix}
+\begin{bmatrix}
+   F_{1} \\
+   F_{2} \\
+   F_{3} \\
+   M_{1} \\
+   M_{2} \\
+   M_{3}
+\end{bmatrix}\]</div><p>with the variables defined as follows:</p><ul><li><span>$\gamma_{11}$</span>: beam axial strain</li><li><span>$2\gamma_{12}$</span> engineering transverse strain along axis 2</li><li><span>$2\gamma_{13}$</span> engineering transverse strain along axis 3</li><li><span>$\kappa_1$</span>: twist</li><li><span>$\kappa_2$</span>: curvature about axis 2</li><li><span>$\kappa_3$</span>: curvature about axis 3</li><li><span>$F_i$</span>: resultant force about axis i</li><li><span>$M_i$</span>: resultant moment about axis i</li></ul><p>The elements of the mass matrix are defined as:</p><div>\[\begin{bmatrix}
+   \mu &amp; 0 &amp; 0 &amp; 0 &amp; \mu x_{m3} &amp; -\mu x_{m2} \\
+   0 &amp; \mu &amp; 0 &amp; -\mu x_{m3} &amp; 0 &amp; 0 \\
+   0 &amp; 0 &amp; \mu &amp; \mu x_{m2} &amp; 0 &amp; 0 \\
+   0 &amp; -\mu x_{m3} &amp; \mu x_{m2} &amp; i_{22} + i_{33} &amp; 0 &amp; 0 \\
+   \mu x_{m3}  &amp; 0 &amp; 0 &amp; 0 &amp; i_{22} &amp; -i_{23} \\
+   -\mu x_{m2} &amp; 0 &amp; 0 &amp; 0 &amp; -i_{23} &amp; i_{33}
+\end{bmatrix}\]</div><p>with the variables defined as follows:</p><ul><li><span>$\mu$</span>: mass per unit length</li><li><span>$(x_{m2}, x_{m3})$</span>: location of mass center</li><li><span>$i_{22}$</span>: mass moment of inertia about axis 2</li><li><span>$i_{33}$</span>: mass moment of inertia about axis 3</li><li><span>$i_{23}$</span>: product of inertia</li></ul><p>We assume that our beam has a constant cross section with the following properties:</p><ul><li>1 inch width</li><li>0.063 inch height</li><li>1.06 x 10^7 lb/in^2 elastic modulus</li><li>0.325 Poisson&#39;s ratio</li><li>2.51 x 10^-4 lb sec^2/in^4 density</li></ul><p>We also assume the following shear and torsion correction factors:</p><ul><li><span>$k_y = 1.2000001839588001$</span></li><li><span>$k_z = 14.625127919304001$</span></li><li><span>$k_t = 65.85255016982444$</span></li></ul><pre><code class="language-julia"># cross section
+w = 1 # inch
+h = 0.063 # inch
+
+# material properties
+E = 1.06e7 # lb/in^2
+ν = 0.325
+ρ = 2.51e-4 # lb sec^2/in^4
+
+# shear and torsion correction factors
+ky = 1.2000001839588001
+kz = 14.625127919304001
+kt = 65.85255016982444
+
+A = h*w
+Iyy = w*h^3/12
+Izz = w^3*h/12
+J = Iyy + Izz
+
+# apply corrections
+Ay = A/ky
+Az = A/kz
+Jx = J/kt
+
+G = E/(2*(1+ν))
+
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)</code></pre><p>Our case is simple enough that we can analytically calculate most values for the compliance and mass matrices, but this is not generally the case.  For more complex geometries/structures it may be necessary to use a cross-sectional property solver such as PreComp or VABS.</p><p>Also note that any row/column of the stiffness and/or compliance matrix which is zero will be interpreted as infinitely stiff in that degree of freedom.  This corresponds to a row/column of zeros in the compliance matrix.</p><p>We are now ready to put together our assembly.</p><pre><code class="language-julia">assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)</code></pre><p>At this point this is probably a good time to check that the geometry of our assembly is correct.  We can do this by visualizing the geometry in ParaView.  We can use the <code>write_vtk</code> function to do this.  Note that in order to visualize the generated file yourself you will need to install ParaView separately.</p><pre><code class="language-julia">write_vtk(&quot;swept-tip&quot;, assembly)</code></pre><p><img src="../swept-tip.png" alt/></p><h2 id="Defining-Distributed-Loads"><a class="docs-heading-anchor" href="#Defining-Distributed-Loads">Defining Distributed Loads</a><a id="Defining-Distributed-Loads-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-Distributed-Loads" title="Permalink"></a></h2><p>We won&#39;t be applying distributed loads to our model, but will demonstrate how to do so.</p><p>Distributed loads are defined by using the constructor <code>DistributedLoads</code>.  One instance of <code>DistributedLoads</code> must be created for every beam element on which the distributed load is applied.  These instances of <code>DistributedLoads</code> are then stored in a dictionary in which they are accessed by their beam element index.  </p><p>To define a <code>DistributedLoad</code> the assembly, element number, and distributed load functions must be passed to <code>distributed_loads</code>.  Possible distributed load functions are:</p><ul><li><code>fx</code>: Distributed non-follower force on beam element in x-direction</li><li><code>fy</code>: Distributed non-follower force on beam element in y-direction</li><li><code>fz</code>: Distributed non-follower force on beam element in z-direction</li><li><code>mx</code>: Distributed non-follower moment on beam element in x-direction</li><li><code>my</code>: Distributed non-follower moment on beam element in y-direction</li><li><code>mz</code>: Distributed non-follower moment on beam element in z-direction</li><li><code>fx_follower</code>: Distributed follower force on beam element in x-direction</li><li><code>fy_follower</code>: Distributed follower force on beam element in y-direction</li><li><code>fz_follower</code>: Distributed follower force on beam element in z-direction</li><li><code>mx_follower</code>: Distributed follower moment on beam element in x-direction</li><li><code>my_follower</code>: Distributed follower moment on beam element in y-direction</li><li><code>mz_follower</code>: Distributed follower moment on beam element in z-direction</li></ul><p>By default these functions are specified as functions of the arbitrary coordinate <code>s</code> (<span>$f(s)$</span>), however, if more than one time step is used in the simulation these functions are specified as a function of the arbitrary coordinate <code>s</code> and time <code>t</code> (<span>$f(s,t)$</span>).</p><p>One can specify the s-coordinate at the start and end of the beam element using the keyword arguments <code>s1</code> and <code>s2</code>.</p><p>For example, the following code applies a uniform 10 pound distributed load in the global z-direction on all beam elements:</p><pre><code class="language-julia">distributed_loads = Dict()
+for ielem in 1:nelem
+    distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz = (s) -&gt; 10)
+end</code></pre><p>To instead make this a follower force (a force that rotates with the structure) we would use the following code:</p><pre><code class="language-julia">distributed_loads = Dict()
+for ielem in 1:nelem
+    distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz_follower = (s) -&gt; 10)
+end</code></pre><p>The units are arbitrary, but must be consistent with the units used when constructing <code>assembly</code>.  Also note that both non-follower and follower forces may exist simultaneously.</p><p>If we wanted to define the same follower force for a simulation with multiple time steps we would also need to provide temporal data.  Assuming a step size of 0.01 seconds and 101 steps in the simulation (including the step to find the solution at time t=0.0) this would be done as follows:</p><pre><code class="language-julia">dt = 0.01
+nstep = 101
+distributed_loads_multistep = Dict()
+for ielem in 1:nelem
+    distributed_loads_multistep[ielem] = DistributedLoads(assembly, ielem, dt; nstep=101, fz = (s,t) -&gt; 10)
+end</code></pre><p>It is worth noting that the distributed loads are integrated over each element when they are created using 4-point Gauss-Legendre quadrature.  If more control over the integration is desired one may specify a custom integration method as described in the documentation for <code>DistributedLoads</code>.</p><h2 id="Defining-Prescribed-Conditions"><a class="docs-heading-anchor" href="#Defining-Prescribed-Conditions">Defining Prescribed Conditions</a><a id="Defining-Prescribed-Conditions-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-Prescribed-Conditions" title="Permalink"></a></h2><p>Whereas distributed loads are applied to beam elements, prescribed conditions are forces and/or displacement boundary conditions applied to points. One instance of <code>PrescribedConditions</code> must be created for every point on which prescribed conditions are applied.  These instances of <code>PrescribedConditions</code> are then stored in a dictionary in which they are accessed by their point index.  </p><p>PrescribedConditions may be either specified as a constant or as a function of time.  Possible prescribed conditions include:</p><ul><li><code>ux</code>: Prescribed x-direction displacement of the point</li><li><code>uy</code>: Prescribed y-direction displacement of the point</li><li><code>uz</code>: Prescribed z-direction displacement of the point</li><li><code>theta_x</code>: Prescribed first Wiener-Milenkovic parameter of the point</li><li><code>theta_y</code>: Prescribed second Wiener-Milenkovic parameter of the point</li><li><code>theta_z</code>: Prescribed third Wiener-Milenkovic parameter of the point</li><li><code>Fx</code>: Prescribed force in x-direction applied on the point</li><li><code>Fy</code>: Prescribed force in y-direction applied on the point</li><li><code>Fz</code>: Prescribed force in z-direction applied on the point</li><li><code>Mx</code>: Prescribed moment about x-axis applied on the point</li><li><code>My</code>: Prescribed moment about y-axis applied on the point</li><li><code>Mz</code>: Prescribed moment about z-axis applied on the point</li><li><code>Fx_follower</code>: Prescribed follower force in x-direction applied on the point</li><li><code>Fy_follower</code>: Prescribed follower force in y-direction applied on the point</li><li><code>Fz_follower</code>: Prescribed follower force in z-direction applied on the point</li><li><code>Mx_follower</code>: Prescribed follower moment about x-axis applied on the point</li><li><code>My_follower</code>: Prescribed follower moment about y-axis applied on the point</li><li><code>Mz_follower</code>: Prescribed follower moment about z-axis applied on the point</li></ul><p>One can apply both force and displacement boundary conditions to the same point, but one cannot specify a force and displacement condition at the same point corresponding to the same degree of freedom.  If this is requested an error will result.</p><p>Here we create a fixed boundary condition on the left side of the beam.</p><pre><code class="language-julia"># create dictionary of prescribed conditions
+prescribed_conditions = Dict(
+    # root section is fixed
+    1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+    )</code></pre><p>To do the same for a simulation with multiple time steps:</p><pre><code class="language-julia"># create dictionary of prescribed conditions
+dt = 0.01
+nstep = 101
+prescribed_conditions_multistep = Dict(
+    # root section is fixed
+    1 =&gt; PrescribedConditions(dt; nstep=nstep, ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
+    )</code></pre><p>We could have also specified <code>ux</code>, <code>uy</code>, <code>uz</code>, <code>theta_x</code>, <code>theta_y</code>, and <code>theta_z</code> as functions of time.</p><h2 id="Pre-Initializing-Memory-for-an-Analysis"><a class="docs-heading-anchor" href="#Pre-Initializing-Memory-for-an-Analysis">Pre-Initializing Memory for an Analysis</a><a id="Pre-Initializing-Memory-for-an-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Pre-Initializing-Memory-for-an-Analysis" title="Permalink"></a></h2><p>At this point we have everything we need to perform an analysis.  However, since we will be performing multiple analyses using the same assembly we can save computational time be preallocating memory for the analysis.  This can be done by constructing an object of type <code>System</code>.  The constructor for this object requires that we provide the assembly, a list of points upon which point conditions are applied, and a flag indicating whether the system is static.</p><pre><code class="language-julia">prescribed_points = [1, nelem+1]
+static = false
+system = System(assembly, prescribed_points, static)</code></pre><h2 id="Performing-a-Steady-State-Analysis"><a class="docs-heading-anchor" href="#Performing-a-Steady-State-Analysis">Performing a Steady State Analysis</a><a id="Performing-a-Steady-State-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Performing-a-Steady-State-Analysis" title="Permalink"></a></h2><p>We&#39;re now ready to perform our steady state analyses.  This can be done by calling <code>steady_state_analysis</code> with the pre-allocated system storage, assembly, angular velocity, and the prescribed point conditions.  We can also perform a linear analysis instead of a nonlinear analysis by using the <code>linear</code> keyword argument.</p><p>After each analysis we&#39;ll also construct an object of type AssemblyState so that we can save the results of each analysis prior to re-using the pre-allocated memory for the next analysis.</p><pre><code class="language-julia">rpm = 0:25:750
+
+linear_states = Vector{AssemblyState{Float64}}(undef, length(rpm))
+for i = 1:length(rpm)
+
+    # global frame rotation
+    w0 = [0, 0, rpm[i]*(2*pi)/60]
+
+    # perform linear steady state analysis
+    _, converged = steady_state_analysis!(system, assembly,
+        angular_velocity = w0,
+        prescribed_conditions = prescribed_conditions,
+        linear = true)
+
+    linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+end
+
+reset_state!(system)
+
+nonlinear_states = Vector{AssemblyState{Float64}}(undef, length(rpm))
+for i = 1:length(rpm)
+
+   # global frame rotation
+   w0 = [0, 0, rpm[i]*(2*pi)/60]
+
+    # perform nonlinear steady state analysis
+    _, converged = steady_state_analysis!(system, assembly,
+        angular_velocity = w0,
+        prescribed_conditions = prescribed_conditions)
+
+     nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+
+end</code></pre><h2 id="Post-Processing-Results"><a class="docs-heading-anchor" href="#Post-Processing-Results">Post Processing Results</a><a id="Post-Processing-Results-1"></a><a class="docs-heading-anchor-permalink" href="#Post-Processing-Results" title="Permalink"></a></h2><p>We can access the fields in each instance of <code>AssemblyState</code> in order to plot various quantities of interest.  This object stores an array of objects of type <code>PointState</code> in the field <code>points</code> and an array of objects of type <code>ElementState</code> in the field <code>elements</code>.  </p><p>The fields of <code>PointState</code> are the following:</p><ul><li><code>u</code>: displacement</li><li><code>theta</code>: angular displacement</li><li><code>F</code>: externally applied forces</li><li><code>M</code>: externally applied moments</li></ul><p>The fields of <code>ElementState</code> are the following:</p><ul><li><code>u</code>: displacement</li><li><code>theta</code>: angular displacement</li><li><code>F</code>: resultant forces</li><li><code>M</code>: resultant moments</li><li><code>P</code>: linear momenta</li><li><code>H</code>: angular momenta</li></ul><p>To demonstrate how these fields can be accessed we will now plot the root moment and tip deflections.</p><pre><code class="language-julia">using Plots
+pyplot()
+
+# root moment
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    yticks = 0.0:2:12,
+    ylabel = &quot;\$M_z\$ at the root (lb-in)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+Mz_nl = [-nonlinear_states[i].points[1].M[3] for i = 1:length(rpm)]
+Mz_l = [-linear_states[i].points[1].M[3] for i = 1:length(rpm)]
+plot!(rpm, Mz_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, Mz_l, label=&quot;Linear&quot;)
+
+
+# x tip deflection
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    ylim = (-0.002, 0.074),
+    yticks = 0.0:0.01:0.07,
+    ylabel = &quot;\$u_x\$ at the tip (in)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+ux_nl = [nonlinear_states[i].points[end].u[1] for i = 1:length(rpm)]
+ux_l = [linear_states[i].points[end].u[1] for i = 1:length(rpm)]
+plot!(rpm, ux_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, ux_l, label=&quot;Linear&quot;)
+
+
+# y tip deflection
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    ylim = (-0.01, 0.27),
+    yticks = 0.0:0.05:0.25,
+    ylabel = &quot;\$u_y\$ at the tip (in)&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+uy_nl = [nonlinear_states[i].points[end].u[2] for i = 1:length(rpm)]
+uy_l = [linear_states[i].points[end].u[2] for i = 1:length(rpm)]
+plot!(rpm, uy_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, uy_l, label=&quot;Linear&quot;)
+
+
+# rotation of the tip
+plot(
+    xlim = (0, 760),
+    xticks = 0:100:750,
+    xlabel = &quot;Angular Speed (RPM)&quot;,
+    ylabel = &quot;\$θ_z\$ at the tip&quot;,
+    grid = false,
+    overwrite_figure=false
+    )
+theta_z_nl = [4*atan(nonlinear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
+theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4) for i = 1:length(rpm)]
+
+plot!(rpm, theta_z_nl, label=&quot;Nonlinear&quot;)
+plot!(rpm, theta_z_l, label=&quot;Linear&quot;)</code></pre><p><img src="../rotating-beam-Mz.svg" alt/> <img src="../rotating-beam-ux.svg" alt/> <img src="../rotating-beam-uy.svg" alt/> <img src="../rotating-beam-theta_z.svg" alt/></p><h2 id="Other-Capabilities"><a class="docs-heading-anchor" href="#Other-Capabilities">Other Capabilities</a><a id="Other-Capabilities-1"></a><a class="docs-heading-anchor-permalink" href="#Other-Capabilities" title="Permalink"></a></h2><p>For information on how to use the other capabilities of this package see the <a href="../examples/#Examples">examples</a> and/or the the <a href="../library/#Public-API">Public API</a>.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../examples/">Examples »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Friday 18 September 2020 16:15">Friday 18 September 2020</span>. Using Julia version 1.5.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
