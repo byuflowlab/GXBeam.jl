@@ -577,6 +577,8 @@ plot!([0], [0], color=:red, label="GXBeam")
 
 state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
-write_vtk("vawt-simulation", assembly, state)
+mkpath("vawt-simulation")
+write_vtk("vawt-simulation/vawt-simulation", assembly, state)
+#md rm("vawt-simulation"; recursive=true) #hide
 
 # ![](../assets/vawt-simulation.gif)

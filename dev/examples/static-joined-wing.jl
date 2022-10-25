@@ -316,7 +316,8 @@ for ic = 1:size(airfoil, 1)
     section[3,ic] = airfoil[ic,2]
 end
 
-write_vtk("static-joined-wing-visualization", assembly, nonlinear_follower_states[end];
+mkpath("static-joined-wing-visualization")
+write_vtk("static-joined-wing-visualization/static-joined-wing-visualization", assembly, nonlinear_follower_states[end];
     sections = section)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl

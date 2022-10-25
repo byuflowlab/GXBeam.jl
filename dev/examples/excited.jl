@@ -74,7 +74,8 @@ system, history, converged = time_domain_analysis(assembly, t;
     u0=u0, theta0=theta0)
 
 # write visualization file
-write_vtk("excited-simulation", assembly, history, t; scaling = 100)
+mkpath("excited-simulation")
+write_vtk("excited-simulation/excited-simulation", assembly, history, t; scaling = 100)
 
 # Get displacements at 1/4 of the beam's length
 ipoint = div(nelem, 4) + 1

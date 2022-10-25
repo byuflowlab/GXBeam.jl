@@ -446,7 +446,8 @@ end
 plot!(show=true)
 
 # write the response to vtk files for visualization using ParaView
-write_vtk("rotating-eigenmode", assembly, state[end,end],
+mkpath("rotating-eigenmode")
+write_vtk("rotating-eigenmode/rotating-eigenmode", assembly, state[end,end],
     λ[end,end][1], eigenstates[end,end][1]; mode_scaling = 100.0)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl

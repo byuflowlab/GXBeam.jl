@@ -236,7 +236,8 @@ for ic = 1:size(airfoil, 1)
     section[3,ic] = airfoil[ic,2]
 end
 
-write_vtk("dynamic-joined-wing-simulation", assembly, history, t, scaling=1e2;
+mkpath("dynamic-joined-wing-simulation")
+write_vtk("dynamic-joined-wing-simulation/dynamic-joined-wing-simulation", assembly, history, t, scaling=1e2;
     sections = section)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl

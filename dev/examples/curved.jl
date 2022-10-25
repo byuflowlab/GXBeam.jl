@@ -61,7 +61,8 @@ state = AssemblyState(system, assembly;
 println("Tip Displacement: ", state.points[end].u)
 println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
 
-write_vtk("curved-visualization", assembly, state)
+mkpath("curved-visualization")
+write_vtk("curved-visualization/curved-visualization", assembly, state)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 

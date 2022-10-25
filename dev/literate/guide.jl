@@ -270,7 +270,9 @@ assembly = Assembly(points, start, stop;
 # do this.  Note that in order to visualize the generated file yourself you will need to 
 # [install ParaView](https://www.paraview.org/download/) separately.
 
-write_vtk("rotating-geometry", assembly)
+mkpath("rotating-geometry")
+write_vtk("rotating-geometry/rotating-geometry", assembly)
+#md rm("rotating-geometry"; recursive=true) #hide
 
 # ![](../assets/rotating-geometry.png)
 

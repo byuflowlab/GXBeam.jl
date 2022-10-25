@@ -540,7 +540,8 @@ plot!(show=true)
 
 state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
-write_vtk("vawt-simulation", assembly, state)
+mkpath("vawt-simulation")
+write_vtk("vawt-simulation/vawt-simulation", assembly, state)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 

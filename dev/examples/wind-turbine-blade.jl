@@ -176,7 +176,8 @@ for ip = 1:length(points)
     sections[3, :, ip] .= chord .* airfoil[:,2]
 end
 
-write_vtk("wind-turbine-blade-simulation", assembly, history, t; sections = sections)
+mkpath("wind-turbine-blade-simulation")
+write_vtk("wind-turbine-blade-simulation/wind-turbine-blade-simulation", assembly, history, t; sections = sections)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 

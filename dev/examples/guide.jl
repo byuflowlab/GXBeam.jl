@@ -73,7 +73,8 @@ assembly = Assembly(points, start, stop;
    lengths = lengths,
    midpoints = midpoints)
 
-write_vtk("rotating-geometry", assembly)
+mkpath("rotating-geometry")
+write_vtk("rotating-geometry/rotating-geometry", assembly)
 
 m = 10 # mass
 p = zeros(3) # relative location
