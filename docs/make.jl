@@ -12,7 +12,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Getting Started" => joinpath("examples", "guide.md"),
-        "Computing Stiffness and Mass Matrices" => joinpath("examples", "section.md"),
+        "Section Properties" => joinpath("examples", "section.md"),
         "Examples" => [
             joinpath("examples", "cantilever.md"),
             joinpath("examples", "overdetermined.md"),
@@ -26,7 +26,8 @@ makedocs(;
             joinpath("examples", "dynamic-joined-wing.md"),
             joinpath("examples", "vertical-axis-wind-turbine.md"),
         ],
-        "Using GXBeam with DifferentialEquations.jl" => joinpath("examples", "diffeq.md"),
+        "DifferentialEquations" => joinpath("examples", "diffeq.md"),
+        "Sensitivity Analysis" => joinpath("examples", "sensitivity.md"), 
         "API Reference" => joinpath("reference", "reference.md"),
     ],
     sitename = "GXBeam.jl",
