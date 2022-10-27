@@ -5,6 +5,7 @@ using ForwardDiff
 using ChainRulesCore
 using FillArrays
 using FLOWMath
+using ImplicitAD
 using LinearAlgebra
 using LinearMaps
 using NLsolve
@@ -97,9 +98,6 @@ include("analyses.jl")
 
 # DifferentialEquations Interface
 include("interfaces/diffeq.jl")
-
-# ForwardDiff Interface
-include("interfaces/forwarddiff.jl")
 
 # WriteVTK Interface
 include("interfaces/writevtk.jl")

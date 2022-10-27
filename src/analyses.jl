@@ -129,14 +129,14 @@ function static_analysis!(system::StaticSystem, assembly;
             j!(K, x)
 
             # update the solution vector
-            x .-= safe_lu(K) \ r
+            x .-= ImplicitAD.implicit_linear(K, r)
         else
             # perform a nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
 
             result = NLsolve.nlsolve(df, x,
                 show_trace=show_trace,
-                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
+                linsolve=(x, A, b) -> x .= ImplicitAD.implicit_linear(A, b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
@@ -330,14 +330,14 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             j!(K, x)
 
             # update the solution vector
-            x .-= safe_lu(K) \ r
+            x .-= ImplicitAD.implicit_linear(K, r)
         else
             # perform a nonlinear analysis
             df = NLsolve.OnceDifferentiable(f!, j!, x, r, K)
 
             result = NLsolve.nlsolve(df, x,
                 show_trace=show_trace,
-                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
+                linsolve=(x, A, b) -> x .= ImplicitAD.implicit_linear(A, b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
@@ -482,9 +482,9 @@ function solve_eigensystem(x, K, M, nev)
     # construct linear map
     T = eltype(x)
     nx = length(x)
-    Kfact = safe_lu(K)
-    f! = (b, x) -> ldiv!(b, Kfact, M * x)
-    fc! = (b, x) -> mul!(b, M', Kfact' \ x)
+    Kfact = lu(K)
+    f! = (b, x) -> b .= ImplicitAD.implicit_linear(K,  M * x; Af=Kfact)
+    fc! = (b, x) -> mul!(b, M', ImplicitAD.implicit_linear(K', x; Af=Kfact'))
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
 
     # compute eigenvalues and eigenvectors
@@ -1157,7 +1157,7 @@ function initial_condition_analysis!(system, assembly, t0;
         j!(K, x)
 
         # update the solution vector            
-        x .-= safe_lu(K) \ r
+        x .-= ImplicitAD.implicit_linear(K, r)
     
         # set the convergence flag
         converged = true
@@ -1167,7 +1167,7 @@ function initial_condition_analysis!(system, assembly, t0;
 
         result = NLsolve.nlsolve(df, x,
             show_trace=show_trace,
-            linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
+            linsolve=(x, A, b) -> x .= ImplicitAD.implicit_linear(A, b),
             method=method,
             linesearch=linesearch,
             ftol=ftol,
@@ -1455,14 +1455,14 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             j!(K, x)
 
             # update the solution vector            
-            x .-= safe_lu(K) \ r
+            x .-= ImplicitAD.implicit_linear(K, r)
         else
             # perform a nonlinear analysis
             df = OnceDifferentiable(f!, j!, x, r, K)
 
             result = NLsolve.nlsolve(df, x,
                 show_trace=show_trace,
-                linsolve=(x, A, b) -> ldiv!(x, safe_lu(A), b),
+                linsolve=(x, A, b) -> x .= ImplicitAD.implicit_linear(A, b),
                 method=method,
                 linesearch=linesearch,
                 ftol=ftol,
