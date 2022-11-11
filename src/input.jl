@@ -64,10 +64,46 @@ function set_state!(system, prescribed_conditions; kwargs...)
     return system
 end
 
+function set_state!(x, system, state, prescribed_conditions)
+
+    for ipoint in eachindex(u)
+        set_linear_displacement!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
+    end
+
+    for ipoint in eachindex(theta)
+        set_angular_displacement!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
+    end
+
+    for ipoint in eachindex(F)
+        set_external_forces!(x, system, prescribed_conditions, state.points[ipoint].F, ipoint)
+    end
+
+    for ipoint in eachindex(M)
+        set_external_moments!(x, system, prescribed_conditions, state.points[ipoint].M, ipoint)
+    end
+
+    for ipoint in eachindex(V)
+        set_linear_velocity!(x, system, state.points[ipoint].V, ipoint)
+    end
+
+    for ipoint in eachindex(Omega)
+        set_angular_velocity!(x, system, state.points[ipoint].Omega, ipoint)
+    end
+
+    for ielem in eachindex(Fi)
+        set_internal_forces!(x, system, state.elements[ielem].Fi, ielem)
+    end
+
+    for ielem in eachindex(Mi)
+        set_internal_moments!(x, system, state.elements[ielem].Mi, ielem)
+    end
+
+    return x
+end
+
 function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing, 
     V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing,
     F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, V_e = nothing, Omega_e = nothing
-
     ) 
 
     if !isnothing(u)
