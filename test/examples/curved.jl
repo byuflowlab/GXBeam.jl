@@ -64,19 +64,19 @@ using GXBeam, LinearAlgebra, Test
     # Structures" by Bathe and Bolourch:
     # - Tip Displacement: [-13.4, -23.5, 53.4]
 
-    # Note that these results are comparing computational solutions, rather than
-    # the computational to the analytical solution, so some variation is expected.
+    # Note that these results are comparing computational solutions, rather
+    # than analytical solutions, so some variation is expected.
 
-    # perform the same analysis for a constant mass matrix system
-    system, converged = steady_state_analysis(assembly, 
-        prescribed_conditions = prescribed_conditions,
-        constant_mass_matrix = true)
+    # # perform the same analysis for a constant mass matrix system
+    # system, converged = steady_state_analysis(assembly, 
+    #     prescribed_conditions = prescribed_conditions,
+    #     constant_mass_matrix = true)
 
-    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    # state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
     
-    # test tip deflections
-    @test isapprox(state.points[end].u[1], -13.4, atol=0.2) # -13.577383726758564
-    @test isapprox(state.points[end].u[2], -23.5, atol=0.1) # -23.545303336988038
-    @test isapprox(state.points[end].u[3],  53.4, atol=0.1) #  53.45800757548929
+    # # test tip deflections
+    # @test isapprox(state.points[end].u[1], -13.4, atol=0.2) # -13.577383726758564
+    # @test isapprox(state.points[end].u[2], -23.5, atol=0.1) # -23.545303336988038
+    # @test isapprox(state.points[end].u[3],  53.4, atol=0.1) #  53.45800757548929
 
 end

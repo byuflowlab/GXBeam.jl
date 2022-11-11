@@ -77,40 +77,39 @@ using GXBeam, LinearAlgebra, Test
         end
     end
 
-    # pre-initialize system storage
-    system = ExpandedSystem(assembly)
+    # # perform the same analysis for a constant mass matrix system
+    # system = ExpandedSystem(assembly)
 
-    # perform the same analysis for a constant mass matrix system
-    states = Vector{AssemblyState{Float64}}(undef, length(M))
-    for i = 1:length(M)
+    # states = Vector{AssemblyState{Float64}}(undef, length(M))
+    # for i = 1:length(M)
 
-        prescribed_conditions = Dict(
-            1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-            nelem+1 => PrescribedConditions(Mz = M[i])
-        )
+    #     prescribed_conditions = Dict(
+    #         1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    #         nelem+1 => PrescribedConditions(Mz = M[i])
+    #     )
 
-        steady_state_analysis!(system, assembly, 
-            prescribed_conditions = prescribed_conditions,
-            constant_mass_matrix = true)
+    #     steady_state_analysis!(system, assembly, 
+    #         prescribed_conditions = prescribed_conditions,
+    #         constant_mass_matrix = true)
 
-        states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-    end
+    #     states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    # end
 
-    for i = 1:length(M)
-        # test element properties
-        for ielem = 1:length(assembly.elements)
-            xi = assembly.elements[ielem].x[1]
-            u_a, v_a, w_a = analytical(xi, E*Iyy/M[i])
-            @test isapprox(states[i].elements[ielem].u[1], u_a, atol=5e-2)
-            @test isapprox(states[i].elements[ielem].u[2], v_a, atol=5e-2)
-        end
+    # for i = 1:length(M)
+    #     # test element properties
+    #     for ielem = 1:length(assembly.elements)
+    #         xi = assembly.elements[ielem].x[1]
+    #         u_a, v_a, w_a = analytical(xi, E*Iyy/M[i])
+    #         @test isapprox(states[i].elements[ielem].u[1], u_a, atol=5e-2)
+    #         @test isapprox(states[i].elements[ielem].u[2], v_a, atol=5e-2)
+    #     end
 
-        # test point properties
-        for ipoint = 1:length(assembly.points)
-            xi = assembly.points[ipoint][1]
-            u_a, v_a, w_a = analytical(xi, E*Iyy/M[i])
-            @test isapprox(states[i].points[ipoint].u[1], u_a, atol=5e-2)
-            @test isapprox(states[i].points[ipoint].u[2], v_a, atol=5e-2)
-        end
-    end
+    #     # test point properties
+    #     for ipoint = 1:length(assembly.points)
+    #         xi = assembly.points[ipoint][1]
+    #         u_a, v_a, w_a = analytical(xi, E*Iyy/M[i])
+    #         @test isapprox(states[i].points[ipoint].u[1], u_a, atol=5e-2)
+    #         @test isapprox(states[i].points[ipoint].u[2], v_a, atol=5e-2)
+    #     end
+    # end
 end
