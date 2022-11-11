@@ -10,8 +10,8 @@ These loads are expressed in the deformed element frame.
 
     icol = icol_elem[ielem]
 
-    F = SVector(x[icol  ], x[icol+1], x[icol+2]) .* force_scaling
-    M = SVector(x[icol+3], x[icol+4], x[icol+5]) .* force_scaling
+    F = SVector(x[icol  ], x[icol+1], x[icol+2]) * force_scaling
+    M = SVector(x[icol+3], x[icol+4], x[icol+5]) * force_scaling
 
     return F, M
 end
@@ -26,10 +26,10 @@ from the state variable vector for a constant mass matrix system.
 
     icol = icol_elem[ielem]
 
-    F1 = SVector(x[icol  ], x[icol+1], x[icol+2]) .* force_scaling
-    M1 = SVector(x[icol+3], x[icol+4], x[icol+5]) .* force_scaling
-    F2 = SVector(x[icol+6], x[icol+7], x[icol+8]) .* force_scaling
-    M2 = SVector(x[icol+9], x[icol+10], x[icol+11]) .* force_scaling
+    F1 = SVector(x[icol  ], x[icol+1], x[icol+2]) * force_scaling
+    M1 = SVector(x[icol+3], x[icol+4], x[icol+5]) * force_scaling
+    F2 = SVector(x[icol+6], x[icol+7], x[icol+8]) * force_scaling
+    M2 = SVector(x[icol+9], x[icol+10], x[icol+11]) * force_scaling
 
     return F1, M1, F2, M2
 end
@@ -314,7 +314,7 @@ analysis initialization
     Vdot = (V1dot + V2dot)/2
     Ωdot = (Ω1dot + Ω2dot)/2
 
-    # inertial acceleration (except frame-rotation term)
+    # inertial acceleration (excluding frame-rotation term)
     Vdot += ab + cross(αb, Δx) + cross(αb, u) + cross(ωb, udot)
     Ωdot += αb
 
