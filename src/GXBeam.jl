@@ -10,6 +10,7 @@ using LinearAlgebra
 using LinearMaps
 using NLsolve
 import Roots
+using ReverseDiff
 using SparseArrays
 using StaticArrays
 using SciMLBase
@@ -98,6 +99,9 @@ include("analyses.jl")
 
 # DifferentialEquations Interface
 include("interfaces/diffeq.jl")
+
+# ReverseDiff Overloads
+include("interfaces/reversediff.jl")
 
 # WriteVTK Interface
 include("interfaces/writevtk.jl")
