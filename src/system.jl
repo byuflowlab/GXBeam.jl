@@ -12,12 +12,12 @@ Structure for holding indices for accessing the state variables and equations as
 with each point and beam element in a system.
 """
 struct SystemIndices
-    nstates::Int
-    irow_point::Vector{Int}
-    irow_elem::Vector{Int}
-    icol_body::Vector{Int}
-    icol_point::Vector{Int}
-    icol_elem::Vector{Int}
+    nstates::Int                 # number of state variables
+    irow_point::Vector{Int}      # pointer to residual equations for each point
+    irow_elem::Vector{Int}       # pointer to residual equations for each element
+    icol_body::Vector{Int}       # pointer to body-frame acceleration state variables
+    icol_point::Vector{Int}      # pointer to point state variables
+    icol_elem::Vector{Int}       # pointer to element state variables
 end
 
 """
@@ -123,23 +123,34 @@ end
 
 """
     update_body_acceleration_indices!(system, prescribed_conditions)
+    update_body_acceleration_indices!(indices, prescribed_conditions)
 
 Updates the state variable indices corresponding to the body frame accelerations to 
 correspond to the provided prescribed conditions.
 """
-function update_body_acceleration_indices!(system, prescribed_conditions)
+function update_body_acceleration_indices!(system::AbstractSystem, prescribed_conditions)
 
-    for i = 1:6
-        ipoint = findfirst(p -> p.pl[i] & p.pd[i], prescribed_conditions)
-        if isnothing(ipoint)
-            system.indices.icol_body[i] = 0
-        else
-            system.indices.icol_body[i] = system.indices.icol_point[ipoint]+i-1
-        end
-    end
+    update_body_acceleration_indices!(system.indices, prescribed_conditions)
 
     return system
 end
+
+function update_body_acceleration_indices!(indices::SystemIndices, prescribed_conditions)
+
+    np = length(indices.icol_point)
+
+    # update indices
+    for i = 1:6
+        ipoint = findfirst(p -> p.pl[i] & p.pd[i], prescribed_conditions)
+        if isnothing(ipoint)
+            indices.icol_body[i] = 0
+        else
+            indices.icol_body[i] = indices.indices.icol_point[ipoint]+i-1
+        end
+    end
+    return indices
+end
+
 
 """
     body_accelerations(system, x=system.x; linear_acceleration=zeros(3), angular_acceleration=zeros(3))
@@ -263,10 +274,6 @@ mutable struct DynamicSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
     M::TM
     indices::SystemIndices
     force_scaling::TF
-    udot::Vector{SVector{3,TF}}
-    θdot::Vector{SVector{3,TF}}
-    Vdot::Vector{SVector{3,TF}}
-    Ωdot::Vector{SVector{3,TF}}
     t::TF
 end
 Base.eltype(::DynamicSystem{TF, TV, TM}) where {TF, TV, TM} = TF
@@ -301,17 +308,11 @@ function DynamicSystem(TF, assembly; force_scaling = default_force_scaling(assem
     K = spzeros(TF, indices.nstates, indices.nstates)
     M = spzeros(TF, indices.nstates, indices.nstates)
 
-    # initialize storage for a Newmark-Scheme time marching analysis
-    udot = [@SVector zeros(TF, 3) for point in assembly.points]
-    θdot = [@SVector zeros(TF, 3) for point in assembly.points]
-    Vdot = [@SVector zeros(TF, 3) for point in assembly.points]
-    Ωdot = [@SVector zeros(TF, 3) for point in assembly.points]
-
     # initialize current body frame states and time
     t = zero(TF)
 
-    return DynamicSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M, indices, 
-        force_scaling, udot, θdot, Vdot, Ωdot, t)
+    return DynamicSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M,
+        indices, force_scaling, t)
 end
 
 """
@@ -364,8 +365,8 @@ function ExpandedSystem(TF, assembly; force_scaling = default_force_scaling(asse
     # initialize current time
     t = zero(TF)
 
-    return ExpandedSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M, indices, 
-        force_scaling, t)
+    return ExpandedSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M,
+        indices, force_scaling, t)
 end
 
 # default system is a DynamicSystem
