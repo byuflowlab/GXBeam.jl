@@ -17,7 +17,7 @@ using SciMLBase
 using UnPack
 using WriteVTK
 
-export AbstractSystem, StaticSystem, DynamicSystem, ExpandedSystem 
+export AbstractSystem, StaticSystem, DynamicSystem, ExpandedSystem
 
 export static_analysis, static_analysis!
 export steady_state_analysis, steady_state_analysis!
@@ -81,7 +81,7 @@ include("assembly.jl")
 # prescribed conditions, distributed loads, and point masses
 include("loads.jl")
 
-# system storage and pointers 
+# system storage and pointers
 include("system.jl")
 
 # state variable input and output methods

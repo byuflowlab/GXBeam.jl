@@ -125,7 +125,7 @@ function extract_point_state(system::StaticSystem, assembly, ipoint, x = system.
     u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
     F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
     V = Ω = @SVector zeros(3)
-    
+
     # extract point rate variables
     udot = θdot = Vdot = Ωdot = @SVector zeros(3)
 
@@ -220,7 +220,7 @@ to be displacements/rotations, rather than their actual identities as used in th
 analysis.
 """
 function extract_point_states(system, assembly, args...; kwargs...)
-    
+
     return [extract_point_state(system, assembly, ipoint, args...; kwargs...) for ipoint in eachindex(assembly.points)]
 end
 
@@ -248,7 +248,7 @@ given the solution vector `x`.
 """
 extract_element_state
 
-function extract_element_state(system::StaticSystem, assembly, ielem, x = system.x; 
+function extract_element_state(system::StaticSystem, assembly, ielem, x = system.x;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
@@ -271,7 +271,7 @@ function extract_element_state(system::StaticSystem, assembly, ielem, x = system
 
     # linear and angular velocity
     V = Ω = @SVector zeros(3)
-    
+
     # extract point rate variables
     udot = θdot = Vdot = Ωdot = @SVector zeros(3)
 
@@ -285,7 +285,7 @@ function extract_element_state(system::StaticSystem, assembly, ielem, x = system
     return ElementState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-function extract_element_state(system::DynamicSystem, assembly, ielem, x = system.x, dx = system.dx; 
+function extract_element_state(system::DynamicSystem, assembly, ielem, x = system.x, dx = system.dx;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
@@ -336,7 +336,7 @@ function extract_element_state(system::DynamicSystem, assembly, ielem, x = syste
     return ElementState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-# function extract_element_state(system::ExpandedSystem, assembly, ielem, x = system.x; 
+# function extract_element_state(system::ExpandedSystem, assembly, ielem, x = system.x;
 #     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
 #     # system variables

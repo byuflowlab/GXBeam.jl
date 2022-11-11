@@ -25,9 +25,9 @@ Set the state variables in `system` (or in the vector `x`) to the provided value
  - `Omega` Vector containing the angular velocity of each point
  - `F`: Vector containing the externally applied forces acting on each point
  - `M`: Vector containing the externally applied moments acting on each point
- - `Fi`: Vector containing internal forces for each beam element (in the deformed 
+ - `Fi`: Vector containing internal forces for each beam element (in the deformed
         element frame)
- - `Mi`: Vector containing internal moments for each beam element (in the deformed 
+ - `Mi`: Vector containing internal moments for each beam element (in the deformed
         element frame)
 """
 set_state!(system::DynamicSystem, prescribed_conditions; kwargs...)
@@ -44,13 +44,13 @@ Set the state variables in `system` (or in the vector `x`) to the provided value
  - `Omega` Vector containing the angular velocity of each point in the deformed point frame
  - `F`: Vector containing the externally applied forces acting on each point
  - `M`: Vector containing the externally applied moments acting on each point
- - `F1`: Vector containing resultant forces at the start of each beam element (in the 
+ - `F1`: Vector containing resultant forces at the start of each beam element (in the
     deformed element frame)
- - `M1`: Vector containing resultant moments at the start of each beam element (in the 
+ - `M1`: Vector containing resultant moments at the start of each beam element (in the
     deformed element frame)
- - `F2`: Vector containing resultant forces at the end of each beam element (in the 
+ - `F2`: Vector containing resultant forces at the end of each beam element (in the
     deformed element frame)
- - `M2`: Vector containing resultant moments at the end of each beam element (in the 
+ - `M2`: Vector containing resultant moments at the end of each beam element (in the
     deformed element frame)
  - `V_e`: Vector containing the linear velocity of each beam element in the deformed
     beam element reference frame.
@@ -101,10 +101,10 @@ function set_state!(x, system, state, prescribed_conditions)
     return x
 end
 
-function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing, 
+function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing,
     V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing,
     F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, V_e = nothing, Omega_e = nothing
-    ) 
+    )
 
     if !isnothing(u)
         for ipoint in eachindex(u)
@@ -205,9 +205,9 @@ function set_linear_displacement!(system, prescribed_conditions, u, ipoint)
 end
 
 function set_linear_displacement!(x, system, prescribed_conditions, u, ipoint)
-    
+
     icol = system.indices.icol_point[ipoint]
-    
+
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
 
     if haskey(prescribed, ipoint)
@@ -237,7 +237,7 @@ end
 function set_angular_displacement!(x, system, prescribed_conditions, theta, ipoint)
 
     icol = system.indices.icol_point[ipoint]
-    
+
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
 
     if haskey(prescribed, ipoint)
@@ -309,11 +309,11 @@ function set_external_forces!(system, prescribed_conditions, F, ipoint)
 end
 
 function set_external_forces!(x, system, prescribed_conditions, F, ipoint)
-    
+
     icol = system.indices.icol_point[ipoint]
 
     force_scaling = system.force_scaling
-    
+
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
 
     if haskey(prescribed, ipoint)
@@ -343,7 +343,7 @@ end
 function set_external_moments!(x, system, prescribed_conditions, M, ipoint)
 
     icol = system.indices.icol_point[ipoint]
-    
+
     force_scaling = system.force_scaling
 
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
@@ -593,5 +593,3 @@ function set_element_angular_velocity!(x, system::ExpandedSystem, Omega, ielem)
 
     return x
 end
-
-

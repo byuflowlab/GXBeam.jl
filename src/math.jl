@@ -67,25 +67,25 @@ parameter allows deflections greater than 360 degrees.
 end
 
 @inline function rotation_parameter_scaling_θ(θ)
-    
+
     return rotation_parameter_scaling_θ(rotation_parameter_scaling(θ), θ)
 end
 
 @inline function rotation_parameter_scaling_θ(scaling, θ)
-    
+
     return ifelse(isone(scaling), zero(θ), (1 - scaling)*θ/(θ'*θ))
 end
 
 @inline function rotation_parameter_scaling_θ_θ(θ)
-    
+
     return rotation_parameter_scaling_θ_θ(rotation_parameter_scaling(θ), θ)
 end
 
 @inline function rotation_parameter_scaling_θ_θ(scaling, θ)
-    
+
     return ifelse(isone(scaling), (@SMatrix zeros(eltype(θ),3,3)), (1 - scaling)/(θ'*θ)*(I - 3*θ*θ'/(θ'*θ)))
 end
-        
+
 """
     get_C(θ)
 
@@ -246,7 +246,7 @@ get_ΔQ_θ(θ, Δθ, Q=get_Q(θ)) = get_ΔQ_θ(θ, Δθ, Q, get_Q_θ(Q, θ)...)
     scaling_θ_θ = GXBeam.rotation_parameter_scaling_θ_θ(scaling, θ)
 
     # scale rotation parameters
-    c = scaling*θ    
+    c = scaling*θ
     c_θ = scaling_θ*θ' + scaling*I3
 
     # calculate c0 constant
@@ -255,7 +255,7 @@ get_ΔQ_θ(θ, Δθ, Q=get_Q(θ)) = get_ΔQ_θ(θ, Δθ, Q, get_Q_θ(Q, θ)...)
     c0_θ_θ = -I/4*c_θ'*c_θ - 1/2*c*scaling_θ' - 1/4*c'*θ*scaling_θ_θ
 
     # calculate tmp1 constant
-    tmp1 = 1/(4-c0)^2    
+    tmp1 = 1/(4-c0)^2
     tmp1_θ = 2/(4-c0)^3*c0_θ
     tmp1_θ_θ = 6/(4-c0)^4*c0_θ'*c0_θ + 2/(4-c0)^3*c0_θ_θ
 
