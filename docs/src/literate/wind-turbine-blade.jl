@@ -59,13 +59,14 @@ t = 0:0.001:2.0
 
 system, history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions,
+    steady_state=true,
     structural_damping = false)
 
 #!jl nothing #hide
 
-# We can visualize tip displacements and the resultant forces in the root by accessing 
-# the post-processed results for each time step contained in the variable `history`.  
-# Note that the root resultant forces for this case are equal to the external 
+# We can visualize tip displacements and the resultant forces in the root by accessing
+# the post-processed results for each time step contained in the variable `history`.
+# Note that the root resultant forces for this case are equal to the external
 # forces/moments, but with opposite sign.
 
 #md using Suppressor #hide
@@ -91,7 +92,7 @@ for i = 1:12
     local y
 
 #nb    ph[i] = plot(
-#!nb    plot(
+    plot( #!nb
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
         xlabel = "Time (s)",
@@ -114,10 +115,10 @@ for i = 1:12
     end
 
     plot!(t, y, label="")
-#!nb     plot!(show=true)
+    plot!(show=true) #!nb
 #md     savefig("../assets/wind-turbine-blade-"*string(field[i])*string(direction[i])*".svg"); #hide
 #md     closeall() #hide
-end 
+end
 
 #md end #hide
 #md nothing #hide
@@ -160,14 +161,14 @@ end
 #md # ![](../assets/wind-turbine-blade-M2.svg)
 #md # ![](../assets/wind-turbine-blade-M3.svg)
 
-# These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A. 
-# Sprague in "Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic 
+# These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A.
+# Sprague in "Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic
 # Parameters".
-# 
+#
 #-
 #
 # We can also visualize the time history of the system using ParaView.
-# 
+#
 root_chord = 1.9000
 tip_chord =  0.4540
 airfoil = [ # MH-104

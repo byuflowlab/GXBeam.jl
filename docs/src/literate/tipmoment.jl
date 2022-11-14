@@ -1,11 +1,11 @@
 # # [Cantilever with a Tip Moment](@id tipmoment)
 #
-# This example shows how to predict the behavior of a cantilever beam that is subjected 
-# to a constant tip moment.  This is a common benchmark problem for the geometrically 
+# This example shows how to predict the behavior of a cantilever beam that is subjected
+# to a constant tip moment.  This is a common benchmark problem for the geometrically
 # nonlinear analysis of beams.
 #
 # ![](../assets/tipmoment-drawing.svg)
-# 
+#
 #-
 #md # !!! tip
 #md #     This example is also available as a Jupyter notebook:
@@ -60,20 +60,16 @@ for i = 1:length(M)
     )
 
     ## perform a static analysis
-    static_analysis!(system, assembly;
-        prescribed_conditions = prescribed_conditions)
-
-    ## post-process the results
-    states[i] = AssemblyState(system, assembly;
+    _, states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions)
 
 end
 
 #!jl nothing #hide
 
-# 
-# This problem has a simple analytical solution, which we obtained from "Study of the 
-# Geometric Stiffening Effect: Comparison of Different Formulations" by Juana M. Mayo, 
+#
+# This problem has a simple analytical solution, which we obtained from "Study of the
+# Geometric Stiffening Effect: Comparison of Different Formulations" by Juana M. Mayo,
 # Daniel Garcia-Vallejo, and Jaime Dominguez.
 #
 
@@ -82,16 +78,16 @@ analytical(x, ρ) = ifelse(ρ == Inf, zeros(3), [ρ*sin(x/ρ)-x, ρ*(1-cos(x/ρ)
 #!jl nothing #hide
 
 #
-# Plotting the results reveals that the analytical and computational results show 
+# Plotting the results reveals that the analytical and computational results show
 # excellent agreement.
-# 
+#
 
 using Plots
 #md using Suppressor #hide
 pyplot()
 #!jl nothing #hide
 
-#- 
+#-
 
 #md @suppress_err begin #hide
 
@@ -114,7 +110,7 @@ plot!([], [], color=:black, label="Analytical")
 
 ## plot the data
 for i = 1:length(M)
-    
+
     local x, y
 
     ## GXBeam
@@ -143,13 +139,13 @@ plot!(show=true) #!nb
 
 #-
 
-# We can use this problem to test the accuracy and convergence of this package.  To do so 
-# we set ``\lambda = 1`` and repeat the analysis for a variety of grid sizes.  We measure 
+# We can use this problem to test the accuracy and convergence of this package.  To do so
+# we set ``\lambda = 1`` and repeat the analysis for a variety of grid sizes.  We measure
 # the normalized tip displacement error ``\varepsilon(u)`` using the following expression
 # ```math
 # \varepsilon(u) = \left| \frac{u - u^a}{u^a} \right|
 # ```
-# where ``u`` is the calculated tip displacement (at x=L) and ``u^a`` is the analytical 
+# where ``u`` is the calculated tip displacement (at x=L) and ``u^a`` is the analytical
 # tip displacement.
 
 grid_sizes = unique(round.(Int, 10 .^ range(0,3,length=25)))
@@ -170,7 +166,7 @@ M = λ*m
 ## run an analysis for each grid size
 states = Vector{AssemblyState{Float64}}(undef, length(grid_sizes))
 for (igrid, nelem) in enumerate(grid_sizes)
-    
+
     local x, y, z, points, start, stop, compliance, assembly, system
 
     ## create points
@@ -198,18 +194,14 @@ for (igrid, nelem) in enumerate(grid_sizes)
     )
 
     ## perform a static analysis
-    system, converged = static_analysis(assembly; 
-        prescribed_conditions = prescribed_conditions)
-
-    ## post-process the results
-    states[igrid] = AssemblyState(system, assembly;
+    system, states[igrid], converged = static_analysis(assembly;
         prescribed_conditions = prescribed_conditions)
 
 end
 
 #!jl nothing #hide
 
-#- 
+#-
 
 ## calculate analytical solution
 dxa, dya = analytical(L, E*Iyy/M)
@@ -238,7 +230,7 @@ pyplot()
 ## plot the x-error
 p1 = plot(grid_sizes .+ 1, εx, label="",
     xlabel = "Number of Nodes",
-    xaxis=:log, 
+    xaxis=:log,
     xlim = (10^0, 10^3),
     xtick = 10.0 .^ (0:3),
     ylabel = "\$\\varepsilon(u_x)\$",
@@ -262,7 +254,7 @@ p1 = plot(grid_sizes .+ 1, εx, label="",
 ## plot the y-error
 p2 = plot(grid_sizes .+ 1, εy, label="",
     xlabel = "Number of Nodes",
-    xaxis=:log, 
+    xaxis=:log,
     xlim = (10^0, 10^3),
     xtick = 10.0 .^ (0:3),
     ylabel = "\$\\varepsilon(u_y)\$",
@@ -281,9 +273,9 @@ p2 = plot(grid_sizes .+ 1, εy, label="",
 
 #-
 
-# We observe second-order algebraic convergence for both x and y tip displacement errors.  
-# We can therefore conclude that a large number of elements are likely necessary in order 
-# to obtain highly accurate solutions using this package.  For problems where high 
-# accuracy solutions are critical, higher order shape functions, such as the Legendre 
-# spectral finite elements used by [BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html) 
-# are likely more computationally efficient.  
+# We observe second-order algebraic convergence for both x and y tip displacement errors.
+# We can therefore conclude that a large number of elements are likely necessary in order
+# to obtain highly accurate solutions using this package.  For problems where high
+# accuracy solutions are critical, higher order shape functions, such as the Legendre
+# spectral finite elements used by [BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html)
+# are likely more computationally efficient.

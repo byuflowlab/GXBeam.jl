@@ -1,10 +1,10 @@
 # # [Cantilever with a Tip Force](@id tipforce)
 #
-# This example shows how to predict the behavior of a cantilever beam that is subjected 
+# This example shows how to predict the behavior of a cantilever beam that is subjected
 # to a constant shear force at the tip.
 #
 # ![](../assets/tipforce-drawing.svg)
-# 
+#
 #-
 #md # !!! tip
 #md #     This example is also available as a Jupyter notebook:
@@ -48,29 +48,25 @@ for i = 1:length(P)
     ## create dictionary of prescribed conditions
     prescribed_conditions = Dict(
         ## fixed left side
-        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, 
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0,
             theta_z=0),
         ## shear force on right tip
         nelem+1 => PrescribedConditions(Fz = P[i])
     )
 
     ## perform a static analysis
-    static_analysis!(system, assembly;
-        prescribed_conditions=prescribed_conditions)
-
-    ## post-process the results
-    states[i] = AssemblyState(system, assembly;
+    _, states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions)
 
 end
 
 #!jl nothing #hide
 
-# 
-# The analytical solution to this problem has been presented by several authors.  Here 
-# we follow the solution by H. J. Barten in "On the Deflection of a Cantilever Beam", 
+#
+# The analytical solution to this problem has been presented by several authors.  Here
+# we follow the solution by H. J. Barten in "On the Deflection of a Cantilever Beam",
 # after incorporating the corrections they submitted for finding the tip angle.
-# 
+#
 
 import Elliptic
 
@@ -88,9 +84,9 @@ k = @. cos(pi/4)/sin(δ)
 #!jl nothing #hide
 
 #
-# Plotting the results reveals that the analytical and computational solutions show 
+# Plotting the results reveals that the analytical and computational solutions show
 # excellent agreement.
-# 
+#
 
 using Plots
 #md using Suppressor #hide

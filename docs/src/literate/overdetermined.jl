@@ -1,10 +1,10 @@
 # # [Overdetermined Beam](@id overdetermined)
-# 
-# This example shows how to predict the behavior of a beam which is clamped at one end and 
+#
+# This example shows how to predict the behavior of a beam which is clamped at one end and
 # simply supported at the other end when subjected to a linear distributed load.
-# 
+#
 # ![](../assets/overdetermined-drawing.svg)
-# 
+#
 #-
 #md # !!! tip
 #md #     This example is also available as a Jupyter notebook:
@@ -51,19 +51,16 @@ for i = 1:nelem
 end
 
 ## perform a static analysis
-system, converged = static_analysis(assembly;
+system, state, converged = static_analysis(assembly;
     prescribed_conditions = prescribed_conditions,
     distributed_loads = distributed_loads,
     linear = true)
 
-## post-process the results
-state = AssemblyState(system, assembly;
-    prescribed_conditions = prescribed_conditions)
 #!jl nothing #hide
 
 
-# An analytical solution to this over-determined problem can be found using the method of 
-# superposition using the analytical solutions to a cantilever with a linearly distributed 
+# An analytical solution to this over-determined problem can be found using the method of
+# superposition using the analytical solutions to a cantilever with a linearly distributed
 # load and a cantilever with an end load.
 
 ## construct analytical solution
@@ -78,7 +75,7 @@ theta_a = -atan.(slope_a)
 M_a = -M_a
 #!jl nothing #hide
 
-# Plotting the results reveals that the analytical and computational solutions show 
+# Plotting the results reveals that the analytical and computational solutions show
 # excellent agreement.
 
 using Plots
@@ -113,7 +110,7 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/overdetermined-linear-deflection.svg)
 
-#- 
+#-
 
 #md @suppress_err begin #hide
 #md local x #hide
@@ -169,5 +166,5 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/overdetermined-bending-moment.svg)
 
-# Note that we could have easily performed a nonlinear analysis for this problem by 
+# Note that we could have easily performed a nonlinear analysis for this problem by
 # setting `linear=false`.
