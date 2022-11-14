@@ -4,10 +4,10 @@
 Holds the state variables for a point
 
 # Fields:
- - `u`: Linear deflection
- - `udot`: Linear deflection rate
- - `theta`: Angular deflection (Wiener-Milenkovic parameters)
- - `thetadot`: Angular deflection rate
+ - `u`: Linear displacement
+ - `udot`: Linear displacement rate
+ - `theta`: Angular displacement (Wiener-Milenkovic parameters)
+ - `thetadot`: Angular displacement rate
  - `V`: Linear velocity
  - `Vdot`: Linear velocity rate
  - `Omega`: Angular velocity
@@ -36,10 +36,10 @@ Base.eltype(::Type{PointState{TF}}) where {TF} = TF
 Holds the state variables for an element
 
 # Fields:
- - `u`: Linear deflection
- - `udot`: Linear deflection rate
- - `theta`: Angular deflection (Wiener-Milenkovic parameters)
- - `thetadot`: Angular deflection rate
+ - `u`: Linear displacement
+ - `udot`: Linear displacement rate
+ - `theta`: Angular displacement (Wiener-Milenkovic parameters)
+ - `thetadot`: Angular displacement rate
  - `V`: Linear velocity
  - `Vdot`: Linear velocity rate
  - `Omega`: Angular velocity
@@ -139,7 +139,7 @@ function extract_point_state(system::StaticSystem, assembly, ipoint, x = system.
     return PointState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-function extract_point_state(system::DynamicSystem, assembly, ipoint, x = system.x, dx=system.dx;
+function extract_point_state(system::DynamicSystem, assembly, ipoint, x = system.x, dx=FillArrays.Fill(NaN, length(x));
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     @unpack force_scaling, indices, t = system
@@ -169,44 +169,49 @@ function extract_point_state(system::DynamicSystem, assembly, ipoint, x = system
     return PointState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-# function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = system.x;
-#     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = system.x, dx=FillArrays.Fill(NaN, length(x));
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-#     @unpack force_scaling, indices, t = system
+    # system variables
+    @unpack force_scaling, indices, t = system
 
-#     # check state variable length
-#     @assert length(x) == length(system.x) "state vector length does not match with the provided system"
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
 
-#     # get current prescribed conditions
-#     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+    # get current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
-#     # extract point state variables
-#     u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
-#     F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
-#     V, Ω = point_velocities(x, ipoint, indices.icol_point)
+    # extract point state variables
+    u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
+    F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
+    V, Ω = point_velocities(x, ipoint, indices.icol_point)
 
-#     # extract point rate variables
-#     udot, θdot = point_displacement_rates(dx, indices.icol_ipoint, icol_point, pc)
-#     Vdot, Ωdot = point_velocities(dx, ipoint, indices.icol_ipoint)
+    # extract point rate variables
+    udot, θdot = point_displacement_rates(dx, ipoint, indices.icol_point, pc)
+    Vdot, Ωdot = point_velocities(dx, ipoint, indices.icol_point)
 
-#     # rotate linear and angular velocities into the body frame
-#     C = get_C(θ)
-#     V = C'*V
-#     Ω = C'*Ω
+    # rotate linear and angular velocities into the body frame
+    C = get_C(θ)
+    V = C'*V
+    Ω = C'*Ω
 
-#     # add velocity from frame motion
-#     V += vb + cross(ωb, Δx + u)
-#     Ω += ωb
+    # rotate linear and angular velocity rates into the body frame
+    Cdot = -C*tilde(C'*get_Q(θ)*θdot)
+    Vdot = Cdot'*V + C'*Vdot
+    Ωdot = Cdot'*Ω + C'*Ωdot
 
-#     # convert rotation parameters to Wiener-Milenkovic parameters
-#     scaling = rotation_parameter_scaling(θ)
-#     θ *= scaling
+    # convert rotation parameters to Wiener-Milenkovic parameters
+    k = rotation_parameter_scaling(θ)
+    kdot = rotation_parameter_scaling_θ(k, θ)'*θdot
 
-#     # promote all variables to the same type
-#     u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M = promote(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
+    θ = k*θ
+    θdot = kdot*θ + k*θdot
 
-#     return PointState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
-# end
+    # promote all variables to the same type
+    u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M = promote(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
+
+    return PointState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
+end
 
 """
     extract_point_states(system, assembly, x = system.x, dx=system.dx;
@@ -285,7 +290,7 @@ function extract_element_state(system::StaticSystem, assembly, ielem, x = system
     return ElementState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-function extract_element_state(system::DynamicSystem, assembly, ielem, x = system.x, dx = system.dx;
+function extract_element_state(system::DynamicSystem, assembly, ielem, x = system.x, dx = FillArrays.Fill(NaN, length(x));
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
@@ -336,48 +341,66 @@ function extract_element_state(system::DynamicSystem, assembly, ielem, x = syste
     return ElementState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-# function extract_element_state(system::ExpandedSystem, assembly, ielem, x = system.x;
-#     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+function extract_element_state(system::ExpandedSystem, assembly, ielem, x = system.x, dx=FillArrays.Fill(NaN, length(x));
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
-#     # system variables
-#     @unpack force_scaling, indices, t = system
+    # system variables
+    @unpack force_scaling, indices, t = system
 
-#     # check state variable length
-#     @assert length(x) == length(system.x) "state vector length does not match with the provided system"
+    # check state variable length
+    @assert length(x) == length(system.x) "state vector length does not match with the provided system"
 
-#     # current prescribed conditions
-#     pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+    # current prescribed conditions
+    pc = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
 
-#     # linear and angular displacement
-#     u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, pc)
-#     u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, pc)
-#     u = (u1 + u2)/2
-#     θ = (θ1 + θ2)/2
+    # linear and angular displacement
+    u1, θ1 = point_displacement(x, assembly.start[ielem], indices.icol_point, pc)
+    u2, θ2 = point_displacement(x, assembly.stop[ielem], indices.icol_point, pc)
+    u = (u1 + u2)/2
+    θ = (θ1 + θ2)/2
 
-#     # element forces and moments
-#     F1, M1, F2, M2 = expanded_element_loads(x, ielem, indices.icol_elem, force_scaling)
-#     F = (F1 + F2)/2
-#     M = (M1 + M2)/2
+    # element forces and moments
+    F1, M1, F2, M2 = expanded_element_loads(x, ielem, indices.icol_elem, force_scaling)
+    F = (F1 + F2)/2
+    M = (M1 + M2)/2
 
-#     # linear and angular velocity
-#     V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
+    # linear and angular velocity
+    V, Ω = expanded_element_velocities(x, ielem, indices.icol_elem)
 
-#     # rotate linear and angular velocites into the body frame
-#     C = get_C(θ)
-#     Cab = assembly.elements[ielem].Cab
-#     CtCab = C'*Cab
-#     V = CtCab*V
-#     Ω = CtCab*Ω
+    # linear and angular displacement rates
+    u1dot, θ1dot = point_displacement_rates(dx, assembly.start[ielem], indices.icol_point, pc)
+    u2dot, θ2dot = point_displacement_rates(dx, assembly.stop[ielem], indices.icol_point, pc)
 
-#     # convert rotation parameter to Wiener-Milenkovic parameters
-#     scaling = rotation_parameter_scaling(θ)
-#     θ *= scaling
+    udot = (u1dot + u2dot)/2
+    θdot = (θ1dot + θ2dot)/2
 
-#     # promote all variables to the same type
-#     u, θ, V, Ω, F, M = promote(u, θ, V, Ω, F, M)
+    # linear and angular velocity rates
+    Vdot, Ωdot = expanded_element_velocities(dx, ielem, indices.icol_elem)
 
-#     return ElementState(u, θ, V, Ω, F, M)
-# end
+    # rotate linear and angular velocities into the body frame
+    C = get_C(θ)
+    Cab = assembly.elements[ielem].Cab
+    CtCab = C'*Cab
+    V = CtCab*V
+    Ω = CtCab*Ω
+
+    # rotate linear and angular veocity rates into the body frame
+    CtCabdot = tilde(C'*get_Q(θ)*θdot)*CtCab
+    Vdot = CtCabdot*V + CtCab*Vdot
+    Ωdot = CtCabdot*Ω + CtCab*Ωdot
+
+    # convert rotation parameters to Wiener-Milenkovic parameters
+    k = rotation_parameter_scaling(θ)
+    kdot = rotation_parameter_scaling_θ(k, θ)'*θdot
+
+    θ = k*θ
+    θdot = kdot*θ + k*θdot
+
+    # promote all variables to the same type
+    u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M = promote(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
+
+    return ElementState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
+end
 
 """
     extract_element_states(system, assembly, x = system.x, dx = system.dx;
