@@ -1,15 +1,19 @@
 """
-    Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
+    Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho, 
+        S1t=1.0, S1c=1.0, S2t=1.0, S2c=1.0, S3t=1.0, S3c=1.0, S12=1.0, S13=1.0, S23=1.0)
 
 General orthotropic material properties. 
 1 is along main ply axis. 2 is transverse. 3 is normal to ply.
 for a fiber orientation of zero, 1 is along the beam axis.
+strength properties are optional
 
 **Arguments**
-- `E::float`: Young's modulus along 1st, 2nd and 3rd axes.
-- `G::float`: shear moduli
-- `nu::float`: Poisson's ratio.  ``nu_ij E_j = nu_ji E_i``
+- `Ei:float`: Young's modulus along 1st, 2nd and 3rd axes.
+- `Gij::float`: shear moduli
+- `nuij::float`: Poisson's ratio.  ``nu_ij E_j = nu_ji E_i``
 - `rho::float`: density
+- `Sit/c::float`: strength in ith direction for tension and compression
+- `Sij::float`: strength in ij direction
 """
 struct Material{TF}
     E1::TF
@@ -22,13 +26,26 @@ struct Material{TF}
     nu13::TF
     nu23::TF
     rho::TF
+    S1t::TF
+    S1c::TF
+    S2t::TF
+    S2c::TF
+    S3t::TF
+    S3c::TF
+    S12::TF
+    S13::TF
+    S23::TF
 end
+
+# strength properties optional
+Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho) = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho, ones(eltype(E1), 9)...)
+Material{TF}(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho) where TF = Material{TF}(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho, ones(TF, 9)...)
 
 Base.eltype(::Material{TF}) where TF = TF
 Base.eltype(::Type{Material{TF}}) where TF = TF
 
 Material{TF}(m::Material) where {TF} = Material{TF}(m.E1, m.E2, m.E3, m.G12, m.G13, m.G23, 
-    m.nu12, m.nu13, m.nu23, m.rho)
+m.nu12, m.nu13, m.nu23, m.rho, m.S1t, m.S1c, m.S2t, m.S2c, m.S3t, m.S3c, m.S12, m.S13, m.S23)
 Base.convert(::Type{Material{TF}}, m::Material) where {TF} = Material{TF}(m)
 
 """
@@ -68,21 +85,27 @@ struct MeshElement{VI, TF}
     theta::TF
 end
 
+# for cases wshere strength is not used
+MeshElement(nodenum, material, theta) = MeshElement(nodenum, material, theta, Strength(ones(9)...))
+
 Base.eltype(::MeshElement{VI, TF}) where {VI, TF} = TF
 Base.eltype(::Type{MeshElement{VI, TF}}) where {VI, TF} = TF
 
 MeshElement{VI,TF}(e::MeshElement) where {VI,TF} = MeshElement{VI,TF}(e.nodenum, e.material, e.theta)
 Base.convert(::Type{MeshElement{VI,TF}}, e::MeshElement) where {VI,TF} = MeshElement{VI,TF}(e)
 
+
+
+
 """
 internal cache so allocations happen only once upfront
 """
-struct SectionCache{TM, TSM, TFM, TV, TMF, TAF}  # matrix, sparse matrix, float matrix, vector, matrix floats, array floats
+struct SectionCache{TM, TSM, TSMF, TV, TMF, TAF}  # matrix dual, sparse matrix dual, sparse matrix of floats, vector ints, matrix floats, array floats
     Q::TM
     Ttheta::TSM
     Tbeta::TSM
     Z::TSM
-    S::TFM
+    S::TSMF
     N::TSM
     SZ::TSM
     SN::TSM
@@ -104,6 +127,10 @@ struct SectionCache{TM, TSM, TFM, TV, TMF, TAF}  # matrix, sparse matrix, float 
     C::TSM
     L::TM
     M::TSM
+    X::TM
+    Y::TM
+    dX::TM
+    XY::TM
     X1::TMF
     X2::TMF
     X1dot::TAF
@@ -261,6 +288,11 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     C .= 0.0
     M .= 0.0
 
+    X = zeros(etype, ndof, 6)
+    Y = zeros(etype, 6, 6)
+    dX = zeros(etype, ndof, 6)
+    XY = zeros(etype, 2*ndof+6, 6)
+    
     # ---- used for derivatives ------
     # all of these are always floats
     X1 = zeros(ndof+12, 6)
@@ -277,7 +309,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
         Adot = zeros(1, 1, 1)
     end
 
-    cache = SectionCache(Q, Ttheta, Tbeta, Z, S, N, SZ, SN, Bksi, Beta, dNM_dksi, dNM_deta, BN, Ae, Re, Ee, Ce, Le, Me, idx, A, R, E, C, L, M, X1, X2, X1dot, X2dot, B1dot, Adot)
+    cache = SectionCache(Q, Ttheta, Tbeta, Z, S, N, SZ, SN, Bksi, Beta, dNM_dksi, dNM_deta, BN, Ae, Re, Ee, Ce, Le, Me, idx, A, R, E, C, L, M, X, Y, dX, XY, X1, X2, X1dot, X2dot, B1dot, Adot)
 
     return cache
 end
@@ -309,15 +341,13 @@ function stiffness!(material, cache)
     cache.Q[5, 5] = G13
     cache.Q[3, 3] = G23
 
-    
-    
     return nothing
 end
 
 """
 Rotate constituitive matrix by ply angle
 """
-function rotate_to_ply!(theta, cache)
+function rotate_ply_to_element!(theta, cache)
     c = cos(theta)
     s = sin(theta)
 
@@ -343,7 +373,7 @@ end
 """
 Rotate constituitive matrix by element orientation where `c = cos(beta)` and `s = sin(beta)`
 """
-function rotate_to_element!(c, s, cache)  # c = cos(beta), s = sin(beta)
+function rotate_element_to_beam!(c, s, cache)  # c = cos(beta), s = sin(beta)
 
     cache.Tbeta[1, 1] = c^2
     cache.Tbeta[1, 2] = s^2
@@ -370,8 +400,8 @@ Get element constituitive matrix accounting for fiber orientation and element or
 """
 function elementQ!(material, theta, cbeta, sbeta, cache)
     stiffness!(material, cache)
-    rotate_to_ply!(theta, cache)
-    rotate_to_element!(cbeta, sbeta, cache)
+    rotate_ply_to_element!(theta, cache)
+    rotate_element_to_beam!(cbeta, sbeta, cache)
 
     return nothing
 end
@@ -513,7 +543,7 @@ function addelementintegrand!(ksi, eta, element, nodes, cache)
     cache.Le .+= cache.SN' * cache.Q * cache.SZ * detJ
     cache.Me .+= cache.SN' * cache.Q * cache.SN * detJ
 
-    return nothing
+    return cbeta, sbeta
 end
 
 """
@@ -700,11 +730,11 @@ end
 Compute compliance matrix given the finite element mesh described by nodes and elements.
 
 **Arguments**
-- `nodes::Vector{Node}`: all the nodes in the mesh
-- `elements::Vector{MeshElement}`: all the elements in the mesh
-- `gxbeam_order::Bool`: true if output compliance matrix should be in GXBeam order or internal ordering
+- `nodes::Vector{Node{TF}}`: all the nodes in the mesh
+- `elements::Vector{MeshElement{VI, TF}}`: all the elements in the mesh
 - `cache::SectionCache`: if number of nodes, number of elements, and connectivity of mesh stays the same (and you will be repeating calls)
     then you can should initialize cache yourself and pass in so you don't have to keep reconstructing it.
+- `gxbeam_order::Bool`: true if output compliance matrix should be in GXBeam order or internal ordering
 
 **Returns**
 - `S::Matrix`: compliance matrix (about the shear center as long as gxbeam_order = true)
@@ -775,8 +805,8 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     
     B2 = sparse([zeros(ndof, 6); Tr'; zeros(6, 6)])
     AF, X2 = linearsolve2(AM, B2, cache)
-    dX = X2[1:ndof, :]
-    dY = X2[ndof+1:ndof+6, :]
+    cache.dX .= view(X2, 1:ndof, :)
+    # dY = X2[ndof+1:ndof+6, :]
 
     # solve second linear system
     Bsub1 = [C'-C  L;  # NOTE: error in manual should be C' - C
@@ -785,12 +815,14 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     Bsub2 = [zeros(ndof, 6); I; zeros(6, 6)]
     B1 = sparse(Bsub1*X2[1:end-6, :] + Bsub2)
     X1 = linearsolve1(AM, B1, AF, cache)
-    X = X1[1:ndof, :]
-    Y = X1[ndof+1:ndof+6, :]
+    cache.X .= view(X1, 1:ndof, :)
+    cache.Y .= view(X1, ndof+1:ndof+6, :)
 
     # compliance matrix
-    XY = [X; dX; Y]
-    S = XY'*[E C R; C' M L; R' L' A]*XY
+    cache.XY[1:ndof, :] .= cache.X
+    cache.XY[ndof+1:2*ndof, :] .= cache.dX
+    cache.XY[2*ndof+1:end, :] .= cache.Y
+    S = cache.XY'*[E C R; C' M L; R' L' A]*cache.XY
 
     xs = -S[6, 2]/S[6, 6]
     ys = S[6, 1]/S[6, 6]
@@ -818,6 +850,9 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     return S, sc, tc
 end
 
+"""
+compute area and centroid of an element specified by its four nodes
+"""
 function area_and_centroid_of_element(node)
 
     # shoelace formula for area
@@ -929,4 +964,210 @@ function plotmesh(nodes, elements, pyplot; plotnumbers=false)
 end
 
 
+"""
+    strain_recovery(F, M, nodes, elements, cache)
 
+Compute stresses and strains at each element in cross section.
+
+# Arguments
+- `F::Vector(3)`: force at this cross section in x, y, z directions
+- `M::Vector(3)`: moment at this cross section in x, y, z directions
+- `nodes::Vector{Node{TF}}`: all the nodes in the mesh
+- `elements::Vector{MeshElement{VI, TF}}`: all the elements in the mesh
+- `cache::SectionCache`: needs to reuse data from the compliance solve 
+    (thus must initialize cache and pass it to both compliance and this function)
+
+# Returns
+- `epsilon_b::Vector(6, ne)`: strains in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
+- `sigma_b::Vector(6, ne)`: stresses in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
+- `epsilon_p::Vector(6, ne)`: strains in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
+- `sigma_p::Vector(6, ne)`: stresses in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
+- `failure::Vector(ne)`: tsai-wu failure criteria for each element.  fails if >= 1
+"""
+function strain_recovery(F, M, nodes, elements, cache)
+    
+    # initialize
+    T = promote_type(eltype(F), eltype(M), eltype(cache.X))
+    ne = length(elements)
+    Xe = Matrix{T}(undef, 12, 6)
+    dXe = Matrix{T}(undef, 12, 6)
+
+    # beam and ply c.s.
+    epsilon_b = Matrix{T}(undef, 6, ne)
+    sigma_b = Matrix{T}(undef, 6, ne)
+    epsilon_p = Matrix{T}(undef, 6, ne)
+    sigma_p = Matrix{T}(undef, 6, ne)
+
+    # concatenate forces/moments
+    theta = [F; M]
+
+    # for tsai-wu
+    s = Vector{T}(undef, 6)
+    failure = Vector{T}(undef, ne)  # fails if > 1
+
+    # save reordering index
+    idx_b = [1, 2, 6, 3, 4, 5]   # xx, yy, zz, xy, xz, yz
+    idx_p = [6, 1, 2, 4, 5, 3]   # 11, 22, 33, 12, 13, 23
+
+    # iterate over elements
+    @views for i = 1:ne
+
+        # analyze this element
+        elem = elements[i]
+
+        # compute submatrices SZ, BN, SN (evaluated at center of element)
+        nodenum = elem.nodenum
+        node = nodes[nodenum]
+        cbeta, sbeta = addelementintegrand!(0.0, 0.0, elem, node, cache)  # this computes extra stuff we don't need so could be factored out if desired
+
+        # extract part of solution corresponding to this element
+        node2idx!(nodenum, cache)
+        Xe .= cache.X[cache.idx, :]
+        dXe .= cache.dX[cache.idx, :]
+
+        # solve for strains in beam c.s.
+        epsilon_b[:, i] .= cache.SZ*cache.Y*theta + cache.BN*Xe*theta + cache.SN*dXe*theta
+
+        # compute corresponding strains
+        elementQ!(elem.material, elem.theta, cbeta, sbeta, cache)
+        sigma_b[:, i] .= cache.Q * epsilon_b[:, i]
+
+        # compute transformation matrices and rotate strains to ply c.s.
+        rotate_ply_to_element!(elem.theta, cache)
+        rotate_element_to_beam!(cbeta, sbeta, cache)
+        epsilon_p[:, i] .= cache.Ttheta' * cache.Tbeta' * epsilon_b[:, i]
+
+        # compute Q matrix for element and corresponding stress
+        stiffness!(elem.material, cache)
+        sigma_p[:, i] .= cache.Q * epsilon_p[:, i]
+
+        # reorder to a more conventional order
+        epsilon_b[:, i] .= epsilon_b[idx_b, i]
+        sigma_b[:, i] .= sigma_b[idx_b, i]
+        epsilon_p[:, i] .= epsilon_p[idx_p, i]
+        sigma_p[:, i] .= sigma_p[idx_p, i]
+
+        # tsai-wu failure
+        m = elem.material
+        s .= sigma_p[:, i]
+        failure[i] = s[1]^2/(m.S1t*m.S1c) + 
+                     s[2]^2/(m.S2t*m.S2c) +
+                     s[3]^2/(m.S3t*m.S3c) +
+                     s[4]^2/m.S12^2 + 
+                     s[5]^2/m.S13^2 + 
+                     s[6]^2/m.S23^2 + 
+                     s[1]*(1/m.S1t - 1/m.S1c) + 
+                     s[2]*(1/m.S2t - 1/m.S2c) + 
+                     s[3]*(1/m.S3t - 1/m.S3c) - 
+                     s[1]*s[2]/sqrt(m.S1t*m.S1c*m.S2t*m.S2c) -
+                     s[1]*s[3]/sqrt(m.S1t*m.S1c*m.S3t*m.S3c) -
+                     s[2]*s[3]/sqrt(m.S2t*m.S2c*m.S3t*m.S3c)
+    end
+
+    return epsilon_b, sigma_b, epsilon_p, sigma_p, failure
+end
+
+
+"""
+    plotsoln(nodes, elements, soln, pyplot)
+
+plot stress/strain on mesh
+soln could be any vector that is of length # of elements, e.g., sigma_b[3, :]
+Need to pass in a PyPlot object as PyPlot is not loaded by this package.
+"""
+function plotsoln(nodes, elements, soln, pyplot)
+    ne = length(elements)
+    nn = length(nodes)
+    
+    # extract node points
+    xpts = zeros(nn)
+    ypts = zeros(nn)
+    for i = 1:nn
+        xpts[i] = nodes[i].x
+        ypts[i] = nodes[i].y
+    end
+    
+    # split quads into trianagles
+    triangles = zeros(Int64, ne*2, 3)
+    trisol = zeros(ne*2)  
+
+    for i = 1:ne
+        nnum = elements[i].nodenum
+
+        triangles[i*2-1, :] = nnum[1:3] .- 1
+        triangles[i*2, :] = [nnum[1], nnum[3], nnum[4]] .- 1
+
+        # same solution on both triangles (same quad element)
+        trisol[2*i-1] = soln[i]
+        trisol[2*i] = soln[i]
+    end
+
+    pyplot.tripcolor(xpts, ypts, trisol, triangles=triangles)
+end
+
+
+# function tsai_hill(sigma, strength)
+    
+#     (; S1t, S1c, S2t, S2c, S3t, S3c, S12, S13, S23) = strength
+    
+#     _, ne = size(sigma)
+#     T = eltype(sigma)
+#     failure = Vector{T}(undef, n)  # fails if > 1
+#     s = Vector{T}(undef, 6)
+
+#     for i = 1:ne
+#         s .= sigma[:, i]
+
+#         if s[1] >= 0.0
+#             S1 = S1t
+#         else
+#             S1 = S1c
+#         end
+#         if s[2] >= 0.0
+#             S2 = S2t
+#         else
+#             S2 = S2c
+#         end
+#         failure[i] = s[1]^2/S1^2 + s[2]^2/S2^2 + s[4]^2/S12^2 - s[1]*s[2]/S1^2
+#     end
+
+#     return failure
+# end
+
+# """
+#     tsai_wu(sigma, strength)
+
+# Tsai Wu failure criteria
+
+# # Arguments
+# - `sigma_p::vector(6, ne)`: stresses in ply coordinate system
+# - `strength::Strength`: material strength
+
+# """
+# function tsai_wu(sigma_p, elements)
+
+#     (; S1t, S1c, S2t, S2c, S3t, S3c, S12, S13, S23) = strength
+
+#     _, ne = size(sigma_p)
+#     T = eltype(sigma_p)
+#     failure = Vector{T}(undef, ne)  # fails if > 1
+#     s = Vector{T}(undef, 6)
+
+#     for i = 1:ne
+#         s .= sigma_p[:, i]
+#         failure[i] = s[1]^2/(S1t*S1c) + 
+#                      s[2]^2/(S2t*S2c) +
+#                      s[3]^2/(S3t*S3c) +
+#                      s[4]^2/S12^2 + 
+#                      s[5]^2/S13^2 + 
+#                      s[6]^2/S23^2 + 
+#                      s[1]*(1/S1t - 1/S1c) + 
+#                      s[2]*(1/S2t - 1/S2c) + 
+#                      s[3]*(1/S3t - 1/S3c) - 
+#                      s[1]*s[2]/sqrt(S1t*S1c*S2t*S2c) -
+#                      s[1]*s[3]/sqrt(S1t*S1c*S3t*S3c) -
+#                      s[2]*s[3]/sqrt(S2t*S2c*S3t*S3c)
+#     end
+        
+#     return failure
+# end
