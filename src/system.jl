@@ -137,9 +137,6 @@ end
 
 function update_body_acceleration_indices!(indices::SystemIndices, prescribed_conditions)
 
-    np = length(indices.icol_point)
-
-    # update indices
     for i = 1:6
         ipoint = findfirst(p -> p.pl[i] & p.pd[i], prescribed_conditions)
         if isnothing(ipoint)
@@ -148,16 +145,16 @@ function update_body_acceleration_indices!(indices::SystemIndices, prescribed_co
             indices.icol_body[i] = indices.icol_point[ipoint]+i-1
         end
     end
+
     return indices
 end
-
 
 """
     body_accelerations(system, x=system.x; linear_acceleration=zeros(3), angular_acceleration=zeros(3))
 
-Extract the linear and angular acceleration of the body frame from the state vector or
-prescribed accelerations.  Valid for the results of steady state and initial condition
-analyses.
+Extract the linear and angular acceleration of the body frame from the state vector, if
+applicable.  Otherwise return the provided linear and angular acceleration.  This function
+is applicable only for steady state and initial condition analyses.
 """
 function body_accelerations(system::AbstractSystem, x=system.x;
     linear_acceleration=(@SVector zeros(3)),
@@ -1363,6 +1360,11 @@ function expanded_system_mass_matrix!(jacob, gamma, indices, two_dimensional, fo
     return jacob
 end
 
+"""
+    two_dimensional_residual!(resid, x)
+
+Modify the residual to constrain the results of an analysis to the x-y plane.
+"""
 function two_dimensional_residual!(resid, x)
 
     for (irow, icol) in zip(1:6:length(x), 1:6:length(x))
@@ -1374,6 +1376,11 @@ function two_dimensional_residual!(resid, x)
     return resid
 end
 
+"""
+    two_dimensional_jacobian!(jacob, x)
+
+Modify the jacobian to constrain the results of an analysis to the x-y plane.
+"""
 function two_dimensional_jacobian!(jacob, x)
 
     for (irow, icol) in zip(1:6:length(x), 1:6:length(x))
