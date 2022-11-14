@@ -64,43 +64,6 @@ function set_state!(system, prescribed_conditions; kwargs...)
     return system
 end
 
-function set_state!(x, system, state, prescribed_conditions)
-
-    for ipoint in eachindex(u)
-        set_linear_displacement!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
-    end
-
-    for ipoint in eachindex(theta)
-        set_angular_displacement!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
-    end
-
-    for ipoint in eachindex(F)
-        set_external_forces!(x, system, prescribed_conditions, state.points[ipoint].F, ipoint)
-    end
-
-    for ipoint in eachindex(M)
-        set_external_moments!(x, system, prescribed_conditions, state.points[ipoint].M, ipoint)
-    end
-
-    for ipoint in eachindex(V)
-        set_linear_velocity!(x, system, state.points[ipoint].V, ipoint)
-    end
-
-    for ipoint in eachindex(Omega)
-        set_angular_velocity!(x, system, state.points[ipoint].Omega, ipoint)
-    end
-
-    for ielem in eachindex(Fi)
-        set_internal_forces!(x, system, state.elements[ielem].Fi, ielem)
-    end
-
-    for ielem in eachindex(Mi)
-        set_internal_moments!(x, system, state.elements[ielem].Mi, ielem)
-    end
-
-    return x
-end
-
 function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing,
     V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing,
     F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, V_e = nothing, Omega_e = nothing
@@ -188,6 +151,63 @@ function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothi
         for ielem in eachindex(Omega_e)
             set_element_angular_velocity!(x, system, Omega_e[ielem], ielem)
         end
+    end
+
+    return x
+end
+
+function set_state!(x, system, state, prescribed_conditions)
+
+    for ipoint in eachindex(state.points)
+        set_linear_displacement!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
+        set_angular_displacement!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
+        set_external_forces!(x, system, prescribed_conditions, state.points[ipoint].F, ipoint)
+        set_external_moments!(x, system, prescribed_conditions, state.points[ipoint].M, ipoint)
+        if typeof(system) <: DynamicSystem
+            set_linear_velocity!(x, system, state.points[ipoint].V, ipoint)
+            set_angular_velocity!(x, system, state.points[ipoint].Omega, ipoint)
+        end
+        if typeof(system) <: ExpandedSystem
+            set_point_linear_velocity!(x, system, state.points[ipoint].V, ipoint)
+            set_point_angular_velocity!(x, system, state.points[ipoint].Omega, ipoint)
+        end
+    end
+
+    for ielem in eachindex(state.elements)
+        if typeof(system) <: ExpandedSystem
+            set_start_forces!(x, system, state.elements[ielem].F1, ielem)
+            set_start_moments!(x, system, state.elements[ielem].M1, ielem)
+            set_end_forces!(x, system, state.elements[ielem].F2, ielem)
+            set_end_moments!(x, system, state.elements[ielem].M2, ielem)
+            set_element_linear_velocity!(x, system, state.elements[ielem].Vdot, ielem)
+            set_element_angular_velocity!(x, system, state.elements[ielem].Omegadot, ielem)
+        else
+            set_internal_forces!(x, system, state.elements[ielem].Fi, ielem)
+            set_internal_moments!(x, system, state.elements[ielem].Mi, ielem)
+        end
+    end
+
+    return x
+end
+
+function set_rate!(dx, system, state, prescribed_conditions)
+
+    dx .= 0
+
+    for ipoint in eachindex(u)
+        set_linear_displacement_rate!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
+    end
+
+    for ipoint in eachindex(theta)
+        set_angular_displacement_rate!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
+    end
+
+    for ipoint in eachindex(V)
+        set_linear_velocity_rate!(x, system, state.points[ipoint].V, ipoint)
+    end
+
+    for ipoint in eachindex(Omega)
+        set_angular_velocity_rate!(x, system, state.points[ipoint].Omega, ipoint)
     end
 
     return x
