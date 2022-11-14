@@ -287,7 +287,7 @@ S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
 
 # ```julia
 # using PyPlot
-# figure(); plotmesh(node, elements, PyPlot)
+# figure(); plotmesh(nodes, elements, PyPlot)
 # ```
 
 # ![](../assets/afmesh.png)
