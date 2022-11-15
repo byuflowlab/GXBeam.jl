@@ -1,22 +1,23 @@
 using GXBeam, LinearAlgebra, UnPack, Test
 
 @testset "Initial Condition Analysis" begin
-    sweep = 45 * pi/180
-    rpm = 750
 
     # straight section of the beam
     L_b1 = 31.5 # inch
-    r_b1 = [2.5, 0, 0]
-    nelem_b1 = 13
+    r_b1 = [0, 0, 0]
+    nelem_b1 = 20
     lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
 
     # swept section of the beam
     L_b2 = 6 # inch
-    r_b2 = [34, 0, 0]
-    nelem_b2 = 3
-    cs, ss = cos(sweep), sin(sweep)
-    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
-    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2, frame=frame_b2)
+    r_b2 = [31.5, 0, 0]
+    nelem_b2 = 4
+    frame_b2 = [
+        0.707106781186548 0.707106781186548 0.0;
+        -0.707106781186548 0.707106781186548 0.0;
+        0.0               0.0               1.0]
+    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
+        frame = frame_b2)
 
     # combine elements and points into one array
     nelem = nelem_b1 + nelem_b2
@@ -27,67 +28,56 @@ using GXBeam, LinearAlgebra, UnPack, Test
     midpoints = vcat(xm_b1, xm_b2)
     Cab = vcat(Cab_b1, Cab_b2)
 
-    # cross section
-    w = 1 # inch
-    h = 0.063 # inch
+    compliance = fill(Diagonal([
+        1.4974543276E-06,
+        4.7619054919E-06,
+        5.8036221902E-05,
+        3.1234387938E-03,
+        4.5274507258E-03,
+        1.7969451932E-05]), nelem)
 
-    # material properties
-    E = 1.06e7 # lb/in^2
-    ν = 0.325
-    ρ = 2.51e-4 # lb sec^2/in^4
-
-    # shear and torsion correction factors
-    ky = 1.2000001839588001
-    kz = 14.625127919304001
-    kt = 65.85255016982444
-
-    A = h*w
-    Iyy = w*h^3/12
-    Izz = w^3*h/12
-    J = Iyy + Izz
-
-    # apply corrections
-    Ay = A/ky
-    Az = A/kz
-    Jx = J/kt
-
-    G = E/(2*(1+ν))
-
-    compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy), 1/(E*Izz)]), nelem)
-
-    mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+    mass = fill(Diagonal([
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.3229801498E-06,
+        5.2301497500E-09,
+        1.3177500000E-06]), nelem)
 
     # create assembly
-    assembly = Assembly(points, start, stop, compliance=compliance, mass=mass, frames=Cab, lengths=lengths, midpoints=midpoints)
+    assembly = Assembly(points, start, stop;
+        compliance = compliance,
+        mass = mass,
+        frames = Cab,
+        lengths = lengths,
+        midpoints = midpoints)
 
-    # create dictionary of prescribed conditions
+    # prescribed condition
     prescribed_conditions = Dict(
-        # root section is fixed
-        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0)
-        )
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        nelem_b1 + 1 => PrescribedConditions(Fx=0, Fy=0, Fz=0, Mx=0, My=0, Mz=0)
+    )
 
-    # global frame rotation
-    angular_velocity = [0, 0, rpm*(2*pi)/60]
+    # set linear and angular velocity
+    linear_velocity = [0, 196.349540849362, 0]
+    angular_velocity = [0, 0, 78.5398163397448]
 
-    # current time
-    t0 = 0.0
-
-    # initialize time domain solution
-    system, state, converged = initial_condition_analysis(assembly, t0;
-        prescribed_conditions = prescribed_conditions,
-        angular_velocity = angular_velocity)
+    # perform time marching analysis
+    system, state, converged = initial_condition_analysis(assembly, tvec;
+        structural_damping = false,
+        linear_velocity = linear_velocity,
+        angular_velocity = angular_velocity,
+        prescribed_conditions = prescribed_conditions)
 
     # unpack system storage
     @unpack x, r, K, M, force_scaling, indices = system
 
     # set default inputs
     two_dimensional=false
-    structural_damping=true
+    structural_damping=false
     distributed_loads=Dict{Int,DistributedLoads{Float64}}()
     point_masses=Dict{Int,PointMass{Float64}}()
     gravity=[0.0, 0.0, 0.0]
-    linear_velocity=[0.0, 0.0, 0.0]
-    angular_velocity=angular_velocity
 
     # construct state vector
     x = set_state!(system.x, system, state, prescribed_conditions)
