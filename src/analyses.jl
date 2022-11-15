@@ -1809,8 +1809,25 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # initialize convergence flag
     converged = Ref(converged)
 
-    # initialize constants
-    constants = (;)
+    # initialize temporary storage for state rate initialization terms
+    udot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+    θdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+    Vdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+    Ωdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+
+    # store (constant) parameters
+    constants = (;
+        # store indices, control flags, and parameter function
+        assembly, indices, two_dimensional, structural_damping, force_scaling, pfunc,
+        # also store the initial guess, residual, jacobian, and flag for convergence
+        x=x, resid=r, jacob=K, converged=converged,
+        # also store temporary storage for state rate initialization terms
+        udot_init, θdot_init, Vdot_init, Ωdot_init,
+        # also store keyword argments corresponding to a linear analysis
+        linearization_state, update_linearization,
+        # also store keyword argments corresponding to a nonlinear analysis
+        show_trace, method, linesearch, ftol, iterations,
+    )
 
     # initialize storage for each time step
     history = Vector{AssemblyState{eltype(p)}}(undef, length(save))
@@ -1822,17 +1839,13 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         isave += 1
     end
 
-    # initialize temporary storage for state rate initialization terms
-    udot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    θdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    Vdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    Ωdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-
     # begin time stepping
     for it in eachindex(tvec)[2:end]
 
         # current time
         t = tvec[it]
+
+        println(t)
 
         # print the current time
         if show_trace
@@ -1854,20 +1867,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
         # store (constant) parameters
-        constants = (;
-            # store indices, control flags, and parameter function
-            indices, two_dimensional, structural_damping, force_scaling, pfunc,
-            # also store (default) parameters, time, and time step
-            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, t, dt,
-            # also store the initial guess, residual, jacobian, and flag for convergence
-            x=x, resid=r, jacob=K, converged=converged,
-            # also store temporary storage for state rate initialization terms
-            udot_init, θdot_init, Vdot_init, Ωdot_init,
-            # also store keyword argments corresponding to a linear analysis
-            linearization_state, update_linearization,
-            # also store keyword argments corresponding to a nonlinear analysis
-            show_trace, method, linesearch, ftol, iterations,
-        )
+        constants = (; constants..., pcond, dload, pmass, gvec, vb_p, ωb_p, t, dt)
 
         # solve for the new set of state variables
         if linear
