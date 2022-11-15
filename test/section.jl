@@ -354,14 +354,8 @@ end
 end
 
 
-@testset "section properties: multi-layer composite pipe" begin
-    
-    #  --- Generalized Timoshenko Theory of the Variational Asymptotic Beam Sectional Analysis ----
-    # multi-layer composite pipe 
-    # note that the previous paper has a composite pipe also, but the numbers are inconsistent.
-    # see also preVABS documentation examples
-
-    # E1 = 141.963e9
+function composite_pipe()
+      # E1 = 141.963e9
     # E2 = 9.79056e9
     # nu12 = 0.42
     # G12 = 59.9844e9
@@ -378,125 +372,134 @@ end
     nodes = Vector{Node{Float64}}(undef, (2*(nx-1) + 2*(nt-1))*nr)
     elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, (2*(nx-1) + 2*(nt-1))*(nr-1))
 
-    let
-        # x1 = -50.8e-3/2
-        # y1 = 7.62e-3
-        # x2 = 50.8e-3/2
-        # y2 = 25.4e-3/2
-        x1 = -1.0
-        y1 = 0.3
-        x2 = 1.0
-        y2 = 0.5
-        
-        x = range(x1, x2, length=nx)
-        y = range(y1, y2, length=nr)
 
-        m = 1
-        for i = 1:nx
-            for j = 1:nr
-                nodes[m] = Node(x[i], y[j])
-                m += 1
-            end
+    # x1 = -50.8e-3/2
+    # y1 = 7.62e-3
+    # x2 = 50.8e-3/2
+    # y2 = 25.4e-3/2
+    x1 = -1.0
+    y1 = 0.3
+    x2 = 1.0
+    y2 = 0.5
+    
+    x = range(x1, x2, length=nx)
+    y = range(y1, y2, length=nr)
+
+    m = 1
+    for i = 1:nx
+        for j = 1:nr
+            nodes[m] = Node(x[i], y[j])
+            m += 1
         end
-
-        n = 1
-        for i = 1:nx-1
-            for j = 1:nr-1
-                if j <= (nr ÷ 2)
-                    theta = 90*pi/180
-                else
-                    theta = 0.0
-                end
-                elements[n] = MeshElement([nr*(i-1)+j, nr*(i)+j, nr*(i)+j+1, nr*(i-1)+j+1], pipemat, theta)
-                n += 1
-            end
-        end
-
-        I = nx-1
-
-        r = y
-        theta = reverse(range(-pi/2, pi/2, length=nt))
-        for i = 2:nt
-            for j = 1:nr
-                nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]))
-                m += 1
-            end
-        end
-
-        for i = 1:nt-1
-            for j = 1:nr-1
-                if j <= (nr ÷ 2)
-                    theta = 45*pi/180
-                else
-                    theta = -45*pi/180
-                end
-                elements[n] = MeshElement([nr*(I+i-1)+j, nr*(I+i)+j, nr*(I+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
-                n += 1
-            end
-        end
-
-        I += nt-1
-
-        # x1 = 50.8e-3/2
-        # y1 = -7.62e-3
-        # x2 = -50.8e-3/2
-        # y2 = -25.4e-3/2
-        x1 = 1.0
-        y1 = -0.3
-        x2 = -1.0
-        y2 = -0.5
-
-        x = reverse(range(x2, x1, length=nx))
-        y = reverse(range(y2, y1, length=nr))
-
-        for i = 2:nx
-            for j = 1:nr
-                nodes[m] = Node(x[i], y[j])
-                m += 1
-            end
-        end
-
-        for i = 1:nx-1
-            for j = 1:nr-1
-                if j <= (nr ÷ 2)
-                    theta = 90*pi/180
-                else
-                    theta = 0.0
-                end
-                elements[n] = MeshElement([nr*(I+i-1)+j, nr*(I+i)+j, nr*(I+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
-                n += 1
-            end
-        end
-
-        I += nx-1
-
-        theta = reverse(range(pi/2, 3*pi/2, length=nt))
-        for i = 2:nt-1
-            for j = 1:nr
-                nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]))
-                m += 1
-            end
-        end
-
-        for i = 1:nt-1
-            for j = 1:nr-1
-                if i == nt-1
-                    Ip = -i
-                else
-                    Ip = I
-                end
-                if j <= (nr ÷ 2)
-                    theta = 45*pi/180
-                else
-                    theta = -45*pi/180
-                end
-                elements[n] = MeshElement([nr*(I+i-1)+j, nr*(Ip+i)+j, nr*(Ip+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
-                n += 1
-            end
-        end
-
     end
 
+    n = 1
+    for i = 1:nx-1
+        for j = 1:nr-1
+            if j <= (nr ÷ 2)
+                theta = 90*pi/180
+            else
+                theta = 0.0
+            end
+            elements[n] = MeshElement([nr*(i-1)+j, nr*(i)+j, nr*(i)+j+1, nr*(i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
+
+    I = nx-1
+
+    r = y
+    theta = reverse(range(-pi/2, pi/2, length=nt))
+    for i = 2:nt
+        for j = 1:nr
+            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]))
+            m += 1
+        end
+    end
+
+    for i = 1:nt-1
+        for j = 1:nr-1
+            if j <= (nr ÷ 2)
+                theta = 45*pi/180
+            else
+                theta = -45*pi/180
+            end
+            elements[n] = MeshElement([nr*(I+i-1)+j, nr*(I+i)+j, nr*(I+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
+
+    I += nt-1
+
+    # x1 = 50.8e-3/2
+    # y1 = -7.62e-3
+    # x2 = -50.8e-3/2
+    # y2 = -25.4e-3/2
+    x1 = 1.0
+    y1 = -0.3
+    x2 = -1.0
+    y2 = -0.5
+
+    x = reverse(range(x2, x1, length=nx))
+    y = reverse(range(y2, y1, length=nr))
+
+    for i = 2:nx
+        for j = 1:nr
+            nodes[m] = Node(x[i], y[j])
+            m += 1
+        end
+    end
+
+    for i = 1:nx-1
+        for j = 1:nr-1
+            if j <= (nr ÷ 2)
+                theta = 90*pi/180
+            else
+                theta = 0.0
+            end
+            elements[n] = MeshElement([nr*(I+i-1)+j, nr*(I+i)+j, nr*(I+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
+
+    I += nx-1
+
+    theta = reverse(range(pi/2, 3*pi/2, length=nt))
+    for i = 2:nt-1
+        for j = 1:nr
+            nodes[m] = Node(x2 + r[j]*cos(theta[i]), r[j]*sin(theta[i]))
+            m += 1
+        end
+    end
+
+    for i = 1:nt-1
+        for j = 1:nr-1
+            if i == nt-1
+                Ip = -i
+            else
+                Ip = I
+            end
+            if j <= (nr ÷ 2)
+                theta = 45*pi/180
+            else
+                theta = -45*pi/180
+            end
+            elements[n] = MeshElement([nr*(I+i-1)+j, nr*(Ip+i)+j, nr*(Ip+i)+j+1, nr*(I+i-1)+j+1], pipemat, theta)
+            n += 1
+        end
+    end
+
+    return nodes, elements
+end
+
+@testset "section properties: multi-layer composite pipe" begin
+    
+    #  --- Generalized Timoshenko Theory of the Variational Asymptotic Beam Sectional Analysis ----
+    # multi-layer composite pipe 
+    # note that the previous paper has a composite pipe also, but the numbers are inconsistent.
+    # see also preVABS documentation examples
+
+    nodes, elements = composite_pipe()
     # plotmesh(nodes, elements)
 
     S, sc, tc = compliance_matrix(nodes, elements)
@@ -523,7 +526,149 @@ end
     # println("K66 = ", round((K2[6, 6]/5.38987e6 - 1)*100, digits=2), "%")
 end
 
+# borrowing from FLOWMath (just to avoid another dependency for this one off)
+function findindex(xvec, x)
 
+    n = length(xvec)
+    i = searchsortedlast(real(xvec), real(x))
+
+    # this version allows extrapolation
+    if i == 0
+        i = 1
+    elseif i == n
+        i = n - 1
+    end
+
+    return i
+end
+
+function linearinterp(xdata, ydata, x::Number)
+
+    i = findindex(xdata, x)
+
+    eta = (x - xdata[i]) / (xdata[i+1] - xdata[i])
+    y = ydata[i] + eta*(ydata[i+1] - ydata[i])
+
+    return y
+end
+
+linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(ydata), x)
+
+@testset "strain recovery: multi-layer composite pipe" begin
+    # Loss of Accuracy Using Smeared Properties in Composite Beam Modeling
+    # Ning Liu, Purdue University
+    # Uses same multi-layer composite pipe example from above (also with FEA comparisons)
+    # also shows smeared properties, which are much less accurate
+
+    nodes, elements = composite_pipe()
+    cache = initialize_cache(nodes, elements)
+    S, sc, tc = compliance_matrix(nodes, elements; cache)
+    K = inv(S)
+
+    F = [0.0; 0; 0]
+    M = [-1000.0; 0; 0]
+    epsilon_b, sigma_b, epsilon_p, sigma_p, failure = strain_recovery(F, M, nodes, elements, cache)
+
+    # using PyPlot
+    # pygui(true); close("all")
+    # figure()
+    # plotsoln(nodes, elements, sigma_b[1, :], PyPlot)
+    # colorbar()
+
+    # figure()
+    # plotsoln(nodes, elements, sigma_b[2, :], PyPlot)
+    # colorbar()
+
+    # figure()
+    # plotsoln(nodes, elements, sigma_b[3, :], PyPlot)
+    # colorbar()
+
+    # grab elements at x = 0 from y = 0.3 -> 0.5
+    idx = 457:475  
+    n = length(idx)
+    yvec = zeros(n)
+    s11 = zeros(n)
+    s22 = zeros(n)
+    for i = 1:n
+        _, _, yvec[i] = GXBeam.area_and_centroid_of_element(nodes[elements[idx[i]].nodenum])
+        s11[i] = sigma_b[3, idx[i]]
+        s22[i] = sigma_b[1, idx[i]]
+    end
+
+    # data from paper
+    data1 = [
+    -1.0408340855860843e-17  -0.2233363719234286
+    0.02504493708807669  -0.24156791248860665
+    0.049970041941282226  -0.25979945305378427
+    0.07501497902935894  -0.2734731084776677
+    0.10005991611743567  -0.29170464904284577
+    0.10005991611743564  -4.416590701914313
+    0.12510485320551235  -4.690063810391979
+    0.15002995805871785  -4.96809480401094
+    0.17507489514679453  -5.241567912488606
+    0.2001198322348712  -5.519598906107569
+    ]
+
+    data1[5, 1] = 0.1 - 1e-6
+
+    # interpolate onto data points
+    ydata1 = data1[:, 1]
+    s11interp = linearinterp(yvec .- 0.3, s11, ydata1) / 1e3
+    # figure()
+    # # plot(yvec .- 0.3, s11/1e3, "x")
+    # plot(ydata, s11interp, "x")
+    # plot(data1[:, 1], data1[:, 2], "o")
+    # xlabel("x3")
+    # ylabel("s11 (ksi)")
+
+
+    data2 = [0.00011487650775416497  0.004832104832104944
+    0.02504307869040781  0.06871416871416883
+    0.04997128087306147  0.13226863226863234
+    0.07501435956346927  0.19582309582309587
+    0.09994256174612295  0.2597051597051597
+    0.10005743825387711  -0.10196560196560189
+    0.12498564043653071  -0.10491400491400493
+    0.1500287191269386  -0.10786240786240764
+    0.17484204480183801  -0.11146601146601148
+    0.19999999999999993  -0.11408681408681415
+    ]
+
+    ydata2 = data2[:, 1]
+    s22interp = linearinterp(yvec .- 0.3, s22, ydata2) / 1e3
+
+    # figure()
+    # # plot(yvec .- 0.3, s22/1e3, "x")
+    # plot(ydata2, s22interp, "x")
+    # plot(data2[:, 1], data2[:, 2], "o")
+    # xlabel("x3")
+    # ylabel("s22 (ksi)")
+
+    s11data = data1[:, 2]
+    @test isapprox(s11interp[1], s11data[1], rtol=0.05)
+    @test isapprox(s11interp[2], s11data[2], rtol=0.05)
+    @test isapprox(s11interp[3], s11data[3], rtol=0.04)
+    @test isapprox(s11interp[4], s11data[4], rtol=0.06)
+    @test isapprox(s11interp[5], s11data[5], rtol=0.05)
+    # @test isapprox(s11interp[6], s11data[6], rtol=0.05)  # correct, just interpolating to other side of discontinuity
+    @test isapprox(s11interp[7], s11data[7], rtol=0.04)
+    @test isapprox(s11interp[8], s11data[8], rtol=0.04)
+    @test isapprox(s11interp[9], s11data[9], rtol=0.04)
+    @test isapprox(s11interp[10], s11data[10], rtol=0.04)
+
+    s22data = data2[:, 2]
+    @test isapprox(s22interp[1], s22data[1], atol=0.02)
+    @test isapprox(s22interp[2], s22data[2], rtol=0.06)
+    @test isapprox(s22interp[3], s22data[3], rtol=0.07)
+    @test isapprox(s22interp[4], s22data[4], rtol=0.11)
+    @test isapprox(s22interp[5], s22data[5], rtol=0.13)
+    # @test isapprox(s22interp[6], s22data[6], rtol=0.05)  # correct, just interpolating to other side of discontinuity
+    @test isapprox(s22interp[7], s22data[7], rtol=0.07)
+    @test isapprox(s22interp[8], s22data[8], rtol=0.08)
+    @test isapprox(s22interp[9], s22data[9], rtol=0.09)
+    @test isapprox(s22interp[10], s22data[10], rtol=0.1)
+
+end
 
 
 @testset "section properties: composite wind turbine airfoil" begin
