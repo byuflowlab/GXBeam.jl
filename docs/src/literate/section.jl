@@ -1,4 +1,4 @@
-# # [Computing Stiffness and Mass Matrices](@id section)
+# # [Computing Stiffness/Mass Matrices and Strain Recovery](@id section)
 
 # Cross section stiffness and inertial properties are provided as direct inputs for most of the 
 # examples in this package.  In general, however, we need to compute these section 
@@ -331,3 +331,255 @@ S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
 # Finally, for discretizing along the webs we can use `wns` and `wnt`.  The parmeter wns is an integer and 
 # specifies the number of elements to use along the height of the web (same definition as ns but a web only 
 # needs one number). The default is four. The parameters wnt has the same definition as nt but applies to the webs.
+
+# ## Strain Recovery
+
+# After the beam solution is complete, we can map the forces and moments back into stresses and strains 
+# in the input mesh.  This allows us to compute strains and stresses within each ply and is much more accurate
+# than smeared approaches that are commonly used with classical laminate theory.
+
+# For this example we will use the same airfoil/layup as the previous section except with different values 
+# so we can compare to the study published in the MS Thesis: "Loss of accuracy using smeared properties 
+# in composite beam modeling" by Ning Liu, Purdue University.
+
+xaf = [1.00000000, 0.99619582, 0.98515158, 0.96764209, 0.94421447, 0.91510964, 0.88074158, 0.84177999, 0.79894110, 0.75297076, 0.70461763, 0.65461515, 0.60366461, 0.55242353, 0.50149950, 0.45144530, 0.40276150, 0.35589801, 0.31131449, 0.26917194, 0.22927064, 0.19167283, 0.15672257, 0.12469599, 0.09585870, 0.07046974, 0.04874337, 0.03081405, 0.01681379, 0.00687971, 0.00143518, 0.00053606, 0.00006572, 0.00001249, 0.00023032, 0.00079945, 0.00170287, 0.00354717, 0.00592084, 0.01810144, 0.03471169, 0.05589286, 0.08132751, 0.11073805, 0.14391397, 0.18067874, 0.22089879, 0.26433734, 0.31062190, 0.35933893, 0.40999990, 0.46204424, 0.51483073, 0.56767889, 0.61998250, 0.67114514, 0.72054815, 0.76758733, 0.81168064, 0.85227225, 0.88883823, 0.92088961, 0.94797259, 0.96977487, 0.98607009, 0.99640466, 1.00000000]
+yaf = [0.00000000, 0.00017047, 0.00100213, 0.00285474, 0.00556001, 0.00906779, 0.01357364, 0.01916802, 0.02580144, 0.03334313, 0.04158593, 0.05026338, 0.05906756, 0.06766426, 0.07571157, 0.08287416, 0.08882939, 0.09329359, 0.09592864, 0.09626763, 0.09424396, 0.09023579, 0.08451656, 0.07727756, 0.06875796, 0.05918984, 0.04880096, 0.03786904, 0.02676332, 0.01592385, 0.00647946, 0.00370956, 0.00112514, -0.00046881, -0.00191488, -0.00329201, -0.00470585, -0.00688469, -0.00912202, -0.01720842, -0.02488211, -0.03226730, -0.03908459, -0.04503763, -0.04986836, -0.05338180, -0.05551392, -0.05636585, -0.05605816, -0.05472399, -0.05254383, -0.04969990, -0.04637175, -0.04264894, -0.03859653, -0.03433153, -0.02996944, -0.02560890, -0.02134397, -0.01726049, -0.01343567, -0.00993849, -0.00679919, -0.00402321, -0.00180118, -0.00044469, 0.00000000]
+
+uni = Material(5.3664e6, 1.3053e6, 1.3053e6, 5.8015e5, 5.8015e5, 5.8015e5, 0.28, 0.28, 0.28, 1.740449e-4)
+double = Material(1.4939e6, 1.4939e6, 1.4939e6, 1.1603e6, 1.1603e6, 1.1603e6, 0.30, 0.30, 0.30, 1.712378e-4)
+gelcoat = Material(1.4504e-3, 1.4504e-3, 1.4504e-3, 1.4504e-4, 1.4504e-4, 1.4504e-4, 0.30, 0.30, 0.30, 1.712378e-4)
+nexus = Material(1.4939e6, 1.4939e6, 1.4939e6, 1.1603e6, 1.1603e6, 1.1603e6, 0.30, 0.30, 0.30, 1.557047e-4)
+balsa = Material(1.4504e3, 1.4504e3, 1.4504e3, 2.9008e1, 2.9008e1, 2.9008e1, 0.30, 0.30, 0.30, 1.197729e-5)
+mat = [uni, double, gelcoat, nexus, balsa]
+
+chord = 74.8031
+twist = 0.0*pi/180
+paxis = 19.72747356 / chord
+xbreak = [0.0, 0.0041, 0.1147, 0.5366, 1.0]
+webloc = [0.15 0.5]
+
+idx = [3, 4, 2]
+t = [0.015, 0.02007874, 18*0.020866142]
+theta = [0, 0, 20]*pi/180
+layup1 = Layer.(mat[idx], t, theta)
+idx = [3, 4, 2]
+t = [0.015, 0.02007874, 33*0.020866142]
+theta = [0, 0, 20]*pi/180
+layup2 = Layer.(mat[idx], t, theta)
+idx = [3, 4, 2, 1, 5, 1, 2]
+t = [0.015, 0.02007874, 17*0.020866142, 38*0.020866142, 1*0.123031496, 37*0.020866142, 16*0.020866142]
+theta = [0, 0, 20, 30, 0, 30, 20]*pi/180
+layup3 = Layer.(mat[idx], t, theta)
+idx = [3, 4, 2, 5, 2]
+t = [0.015, 0.02007874, 17*0.020866142, 0.123031496, 16*0.020866142]
+theta = [0, 0, 20, 0, 0]*pi/180
+layup4 = Layer.(mat[idx], t, theta)
+
+idx = [1, 5, 1]
+t = [38*0.020866142, 2*0.061515748, 38*0.020866142]
+theta = [0, 0, 0]*pi/180
+web = Layer.(mat[idx], t, theta)
+
+segments = [layup1, layup2, layup3, layup4]
+webs = [web, web]
+
+nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, ds=0.01, dt=0.2, wns=20)
+
+# We need to initialize (and save) the cache as we will need to reuse values computed in the solution of the 
+# compliance matrix.
+
+cache = initialize_cache(nodes, elements)
+S, sc, tc = compliance_matrix(nodes, elements; cache)
+
+# After the forces and moments are computed at this section using GXBeam we can input them into the strain
+# recovery function ([`strain_recovery`](@ref)).  These forces/moments are in the beam coordinate system 
+# in the order x, y, z. Note that we have to pass in that cache that corresponds to this section.
+
+F = [0.0; 0; 0]
+M = [0.0; 0; 1e6]
+strain_b, stress_b, strain_p, stress_p = strain_recovery(F, M, nodes, elements, cache)
+
+# The resulting outputs are the strains and the stresses in the beam (_b) and ply (_p)
+# coordinate systems at each element.  
+# The order for beam stresses/strains is: xx, yy, zz, xy, xz, yz.  
+# For ply stresses/strains the order is: 11, 22, 33, 12, 13, 23.
+
+# There is a convenience function for plotting stresses and strains ([`plotsoln`](@ref)).  For example, to plot the stress in 
+# the beam z (axial) direction we do the following:
+
+# ```julia
+# figure()
+# plotsoln(nodes, elements, stress_b[3, :], PyPlot)
+# colorbar()
+# ```
+
+# ![](../assets/stressrecov.png)
+
+# We now compare the stresses at a vertical cut through the upper surface near the center of the airfoil,
+# corresponding to finite element data from the above mentioned thesis.
+
+idx = 585:-1:571
+n = length(idx)
+x3vec = zeros(n)
+s11 = zeros(n)
+s22 = zeros(n)
+s12 = zeros(n)
+for i = 1:n
+    _, _, x3vec[i] = GXBeam.area_and_centroid_of_element(nodes[elements[idx[i]].nodenum])
+    s11[i] = stress_b[3, idx[i]]
+    s22[i] = stress_b[1, idx[i]]
+    s12[i] = stress_b[5, idx[i]]
+end
+
+data11 = [0.0180411653073842  406.5894924309885
+0.12482948694456675  415.13802315227076
+0.22710651266109672  422.61798753339275
+0.33239062250525886  431.166518254675
+0.3319566379808254  -422.6179875333927
+0.3951603224558594  -443.98931433659857
+0.47943100878363254  -471.7720391807662
+0.583264485171124  -505.9661620658952
+0.6886021733516359  -540.1602849510242
+0.7924369891975358  -575.4229741763141
+0.8962718050434362  -610.6856634016029
+1.0001052814309277  -644.8797862867322
+1.1039387578184199  -679.0739091718616
+1.1045910740634781  0.5342831700800161
+1.2264322292981351  0.5342831700800161
+1.2266532399355787  -175.77916295636703
+1.312426798597963  -202.4933214603742
+1.3966988243841445  -231.3446126447019
+1.5200950908313546  -271.9501335707927
+1.6449982479884022  -314.6927871772042
+1.7699000656870412  -356.36687444345546
+1.89480322284409  -399.10952804986675
+2.0197050405427284  -440.78361531611824
+2.021628502817685  424.75512021371304
+2.123904189075806  433.30365093499523
+2.2487417127708254  442.9207479964378
+2.3735805759242536  451.46927871772004
+2.3753741107335635  220.6589492430985
+2.3964317363774406  221.72751558325876
+2.393700580682011  0.5342831700797888
+2.413255333991277  0.5342831700797888
+]
+
+data22 = [0.001481042654028153  127.32714942430584
+0.12885071090047373  118.00254045514711
+0.2325236966824643  109.58167883523336
+0.33323459715639814  101.76177362196324
+0.3347156398104264  -1.2414072840613244
+0.41913507109004733  -11.762058266797624
+0.5242890995260663  -24.987902594537616
+0.6072274881516587  -35.80867597455273
+0.6916469194312798  -46.62962725758939
+0.7938388625592419  -59.85511577928645
+0.8975118483412323  -73.38108250430525
+1.0011848341232228  -86.30644862872356
+1.1063388625592419  -100.73349415766478
+1.1063388625592419  -0.13289355706416472
+1.2277843601895737  0.45311899577302484
+1.2292654028436019  40.99348163329208
+1.3758886255924172  22.056950315244137
+1.5017772511848344  6.125912642500339
+1.6039691943127963  -7.399876179497028
+1.7091232227488151  -20.625720507237133
+1.8142772511848342  -34.15186513527743
+1.916469194312796  -47.97795425757511
+2.021623222748815  -61.80439918591571
+2.0245853080568725  26.18323299602929
+2.0838270142180093  21.371312070364183
+2.166765402843602  14.754742894553374
+2.2719194312796214  6.634003671918379
+2.375592417061612  -1.1862573473947577
+2.375592417061612  230.34527418413685
+2.397808056872038  230.04230533851398
+2.397808056872038  -0.8886255924169859
+2.4170616113744083  -0.2903377310960309
+]
+
+data12 = [
+0.017772511848341277  -577.8947368421051
+0.12440758293838872  -603.157894736842
+0.22956161137440767  -628.4210526315788
+0.33175355450236965  -652.6315789473684
+0.3347156398104265  -733.6842105263157
+0.3969194312796209  -754.7368421052631
+0.47985781990521326  -781.0526315789473
+0.5850118483412324  -816.8421052631579
+0.6886848341232227  -850.5263157894738
+0.7923578199052131  -884.2105263157894
+0.8960308056872036  -918.9473684210525
+1.0011848341232228  -952.6315789473683
+1.1033767772511847  -987.3684210526317
+1.1078199052132702  1.1368683772161603e-13
+1.2263033175355447  1.0526315789474552
+1.2277843601895735  -470.52631578947353
+1.294431279620853  -491.5789473684209
+1.3951421800947865  -525.2631578947368
+1.4988151658767772  -559.9999999999999
+1.6024881516587675  -595.7894736842104
+1.7076421800947865  -630.5263157894736
+1.8127962085308051  -665.2631578947367
+1.914988151658768  -698.9473684210525
+2.018661137440758  -733.6842105263155
+2.021623222748815  -656.8421052631578
+2.1238151658767768  -681.0526315789473
+2.249703791469194  -711.5789473684209
+2.375592417061611  -742.1052631578947
+2.374111374407583  -941.0526315789473
+2.396327014218009  -947.3684210526314
+2.396327014218009  3.157894736842138
+2.4140995260663507  2.1052631578947967
+]
+
+s11smeared = [-0.0010447775588210417  32.59127337488883
+2.379079052692152  -334.9955476402496]
+s22smeared = [-0.0011000343353035347  72.67277506936747
+2.4092723702804526  -72.36150389815401]
+s12smeared = [-0.001173578869337999  -409.47368421052636
+2.395547579103429  -997.8947368421054]
+
+# ```julia
+# figure()
+# plot(x3vec .- 4.77, s11, "x")
+# plot(data11[:, 1], data11[:, 2])
+# plot(s11smeared[:, 1], s11smeared[:, 2], "--")
+# xlabel("y")
+# ylabel(L"\sigma_z")
+# legend(["GXBeam", "3D FEA", "Smeared"])
+
+# figure()
+# plot(x3vec .- 4.77, s22, "x")
+# plot(data22[:, 1], data22[:, 2])
+# plot(s22smeared[:, 1], s22smeared[:, 2], "--")
+# xlabel("y")
+# ylabel(L"\sigma_x")
+# legend(["GXBeam", "3D FEA", "Smeared"])
+
+# figure()
+# plot(x3vec .- 4.77, s12, "x")
+# plot(data12[:, 1], data12[:, 2])
+# plot(s12smeared[:, 1], s12smeared[:, 2], "--")
+# xlabel("y")
+# ylabel(L"\sigma_{xz}")
+# legend(["GXBeam", "3D FEA", "Smeared"])
+# ```
+
+# ![](../assets/srecov1.png)
+# ![](../assets/srecov2.png)
+# ![](../assets/srecov3.png)
+
+# Trends are in good agreement, though there is an offset in some stresses as some of the 
+# stiffnesses are overpredicted (although the geometry/mesh is not quite the same so the 
+# comparison is not exactly 1-to-1).
+
+# Finally, there is a function to compute the Tsai-wu failure criteria.  We pass in the 
+# ply stresses and the elements (where the strength properties are stored).
+
+failure = tsai_wu(stress_p, elements)
+
+# The result is a vector (one for each element) where failure is predicted for values >= 1.
+# These results can be plotted as shown previously, or used as constraints in an optimization 
+# typically with a [smooth max](http://flow.byu.edu/FLOWMath.jl/dev/#Kreisselmeier-Steinhauser-Constraint-Aggregation-Function-1), 
+# an extraction of some subset of elements, or some combination of both.
