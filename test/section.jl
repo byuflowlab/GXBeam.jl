@@ -368,7 +368,7 @@ function composite_pipe()
 
     nx = 50
     nt = 24
-    nr = 20
+    nr = 21
     nodes = Vector{Node{Float64}}(undef, (2*(nx-1) + 2*(nt-1))*nr)
     elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, (2*(nx-1) + 2*(nt-1))*(nr-1))
 
@@ -396,7 +396,7 @@ function composite_pipe()
     n = 1
     for i = 1:nx-1
         for j = 1:nr-1
-            if j <= (nr ÷ 2)
+            if j <= ((nr-1) ÷ 2)
                 theta = 90*pi/180
             else
                 theta = 0.0
@@ -419,7 +419,7 @@ function composite_pipe()
 
     for i = 1:nt-1
         for j = 1:nr-1
-            if j <= (nr ÷ 2)
+            if j <= ((nr-1) ÷ 2)
                 theta = 45*pi/180
             else
                 theta = -45*pi/180
@@ -452,7 +452,7 @@ function composite_pipe()
 
     for i = 1:nx-1
         for j = 1:nr-1
-            if j <= (nr ÷ 2)
+            if j <= ((nr-1) ÷ 2)
                 theta = 90*pi/180
             else
                 theta = 0.0
@@ -479,7 +479,7 @@ function composite_pipe()
             else
                 Ip = I
             end
-            if j <= (nr ÷ 2)
+            if j <= ((nr-1) ÷ 2)
                 theta = 45*pi/180
             else
                 theta = -45*pi/180
@@ -505,25 +505,25 @@ end
     S, sc, tc = compliance_matrix(nodes, elements)
     K = inv(S)
 
-    @test isapprox(K[1, 1], 1.03892e7, rtol=0.04)
-    @test isapprox(K[2, 2], 7.85310e5, rtol=0.01)
-    @test isapprox(K[3, 3], 3.29279e5, rtol=0.02)
-    @test isapprox(K[1, 4], 9.84575e4, rtol=0.12)
-    @test isapprox(K[2, 5], -8.21805e3, rtol=0.11)
-    @test isapprox(K[3, 6], -5.20981e4, rtol=0.21)   
+    @test isapprox(K[1, 1], 1.03892e7, rtol=0.005)
+    @test isapprox(K[2, 2], 7.85310e5, rtol=0.005)
+    @test isapprox(K[3, 3], 3.29279e5, rtol=0.005)
+    @test isapprox(K[1, 4], 9.84575e4, rtol=0.01)
+    @test isapprox(K[2, 5], -8.21805e3, rtol=0.011)
+    @test isapprox(K[3, 6], -5.20981e4, rtol=0.01)   
     @test isapprox(K[4, 4], 6.87275e5, rtol=0.01)
-    @test isapprox(K[5, 5], 1.88238e6, rtol=0.04)
-    @test isapprox(K[6, 6], 5.38987e6, rtol=0.03)
+    @test isapprox(K[5, 5], 1.88238e6, rtol=0.005)
+    @test isapprox(K[6, 6], 5.38987e6, rtol=0.005)
 
-    # println("K11 = ", round((K2[1, 1]/1.03892e7 - 1)*100, digits=2), "%")
-    # println("K22 = ", round((K2[2, 2]/7.85310e5 - 1)*100, digits=2), "%")
-    # println("K33 = ", round((K2[3, 3]/3.29279e5 - 1)*100, digits=2), "%")
-    # println("K14 = ", round((K2[1, 4]/9.84575e4 - 1)*100, digits=2), "%")
-    # println("K25 = ", round((K2[2, 5]/-8.21805e3 - 1)*100, digits=2), "%")
-    # println("K36 = ", round((K2[3, 6]/-5.20981e4 - 1)*100, digits=2), "%")
-    # println("K44 = ", round((K2[4, 4]/6.87275e5 - 1)*100, digits=2), "%")
-    # println("K55 = ", round((K2[5, 5]/1.88238e6 - 1)*100, digits=2), "%")
-    # println("K66 = ", round((K2[6, 6]/5.38987e6 - 1)*100, digits=2), "%")
+    # println("K11 = ", round((K[1, 1]/1.03892e7 - 1)*100, digits=2), "%")
+    # println("K22 = ", round((K[2, 2]/7.85310e5 - 1)*100, digits=2), "%")
+    # println("K33 = ", round((K[3, 3]/3.29279e5 - 1)*100, digits=2), "%")
+    # println("K14 = ", round((K[1, 4]/9.84575e4 - 1)*100, digits=2), "%")
+    # println("K25 = ", round((K[2, 5]/-8.21805e3 - 1)*100, digits=2), "%")
+    # println("K36 = ", round((K[3, 6]/-5.20981e4 - 1)*100, digits=2), "%")
+    # println("K44 = ", round((K[4, 4]/6.87275e5 - 1)*100, digits=2), "%")
+    # println("K55 = ", round((K[5, 5]/1.88238e6 - 1)*100, digits=2), "%")
+    # println("K66 = ", round((K[6, 6]/5.38987e6 - 1)*100, digits=2), "%")
 end
 
 # borrowing from FLOWMath (just to avoid another dependency for this one off)
@@ -583,8 +583,22 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
     # plotsoln(nodes, elements, sigma_b[3, :], PyPlot)
     # colorbar()
 
+    # figure()
+    # ne = length(elements)
+    # for i = 1:ne
+    #     _, xc, yc = GXBeam.area_and_centroid_of_element(nodes[elements[i].nodenum])
+    #     if abs(xc - 0.0) < 0.01 && yc > 0.0
+    #         nn = nodes[elements[i].nodenum]
+    #         for j = 1:4
+    #             plot(nn[j].x, nn[j].y, "x")
+    #             text(xc, yc, string(i))
+    #         end
+    #     end
+    # end
+
+    
     # grab elements at x = 0 from y = 0.3 -> 0.5
-    idx = 457:475  
+    idx = 481:500  # elements at x = 0 from y = 0.3 -> 0.5 
     n = length(idx)
     yvec = zeros(n)
     s11 = zeros(n)
@@ -609,15 +623,14 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
     0.2001198322348712  -5.519598906107569
     ]
 
-    data1[5, 1] = 0.1 - 1e-6
-
-    # interpolate onto data points
-    ydata1 = data1[:, 1]
-    s11interp = linearinterp(yvec .- 0.3, s11, ydata1) / 1e3
+    # interpolate data onto my pts
+    ydata = yvec .- 0.3
+    s11interp = linear(data1[:, 1], data1[:, 2], ydata)
+    
     # figure()
-    # # plot(yvec .- 0.3, s11/1e3, "x")
-    # plot(ydata, s11interp, "x")
-    # plot(data1[:, 1], data1[:, 2], "o")
+    # plot(ydata, s11/1e3, ".")
+    # plot(ydata, s11interp, "kx")
+    # plot(data1[:, 1], data1[:, 2], "k--")
     # xlabel("x3")
     # ylabel("s11 (ksi)")
 
@@ -634,40 +647,35 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
     0.19999999999999993  -0.11408681408681415
     ]
 
-    ydata2 = data2[:, 1]
-    s22interp = linearinterp(yvec .- 0.3, s22, ydata2) / 1e3
+    s22interp = linear(data2[:, 1], data2[:, 2], ydata)
 
     # figure()
-    # # plot(yvec .- 0.3, s22/1e3, "x")
-    # plot(ydata2, s22interp, "x")
-    # plot(data2[:, 1], data2[:, 2], "o")
+    # plot(ydata, s22/1e3, ".")
+    # plot(ydata, s22interp, "kx")
+    # plot(data2[:, 1], data2[:, 2], "k--")
     # xlabel("x3")
     # ylabel("s22 (ksi)")
 
-    s11data = data1[:, 2]
-    @test isapprox(s11interp[1], s11data[1], rtol=0.05)
-    @test isapprox(s11interp[2], s11data[2], rtol=0.05)
-    @test isapprox(s11interp[3], s11data[3], rtol=0.04)
-    @test isapprox(s11interp[4], s11data[4], rtol=0.06)
-    @test isapprox(s11interp[5], s11data[5], rtol=0.05)
-    # @test isapprox(s11interp[6], s11data[6], rtol=0.05)  # correct, just interpolating to other side of discontinuity
-    @test isapprox(s11interp[7], s11data[7], rtol=0.04)
-    @test isapprox(s11interp[8], s11data[8], rtol=0.04)
-    @test isapprox(s11interp[9], s11data[9], rtol=0.04)
-    @test isapprox(s11interp[10], s11data[10], rtol=0.04)
+    s11mine = s11/1e3
+    s11fea = s11interp
 
-    s22data = data2[:, 2]
-    @test isapprox(s22interp[1], s22data[1], atol=0.02)
-    @test isapprox(s22interp[2], s22data[2], rtol=0.06)
-    @test isapprox(s22interp[3], s22data[3], rtol=0.07)
-    @test isapprox(s22interp[4], s22data[4], rtol=0.11)
-    @test isapprox(s22interp[5], s22data[5], rtol=0.13)
-    # @test isapprox(s22interp[6], s22data[6], rtol=0.05)  # correct, just interpolating to other side of discontinuity
-    @test isapprox(s22interp[7], s22data[7], rtol=0.07)
-    @test isapprox(s22interp[8], s22data[8], rtol=0.08)
-    @test isapprox(s22interp[9], s22data[9], rtol=0.09)
-    @test isapprox(s22interp[10], s22data[10], rtol=0.1)
+    n = length(s11mine)
+    for i = 1:n
+        @test isapprox(s11mine[i], s11fea[i], rtol=0.015)
+    end
 
+    s22mine = s22/1e3
+    s22fea = s22interp
+    
+    @test isapprox(s22mine[1], s22fea[1], atol=0.003) # close to zero
+    @test isapprox(s22mine[2], s22fea[2], atol=0.002) # close to zero
+    @test isapprox(s22mine[3], s22fea[3], atol=0.002) # close to zero
+    @test isapprox(s22mine[4], s22fea[4], atol=0.002) # close to zero
+    
+    n = length(s22mine)
+    for i = 5:n
+        @test isapprox(s22mine[i], s22fea[i], rtol=0.01)
+    end
 end
 
 
