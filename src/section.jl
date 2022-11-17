@@ -978,11 +978,10 @@ Compute stresses and strains at each element in cross section.
     (thus must initialize cache and pass it to both compliance and this function)
 
 # Returns
-- `epsilon_b::Vector(6, ne)`: strains in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
-- `sigma_b::Vector(6, ne)`: stresses in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
-- `epsilon_p::Vector(6, ne)`: strains in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
-- `sigma_p::Vector(6, ne)`: stresses in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
-- `failure::Vector(ne)`: tsai-wu failure criteria for each element.  fails if >= 1
+- `strain_b::Vector(6, ne)`: strains in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
+- `stress_b::Vector(6, ne)`: stresses in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
+- `strain_p::Vector(6, ne)`: strains in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
+- `stress_p::Vector(6, ne)`: stresses in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
 """
 function strain_recovery(F, M, nodes, elements, cache)
     
@@ -1046,25 +1045,9 @@ function strain_recovery(F, M, nodes, elements, cache)
         sigma_b[:, i] .= sigma_b[idx_b, i]
         epsilon_p[:, i] .= epsilon_p[idx_p, i]
         sigma_p[:, i] .= sigma_p[idx_p, i]
-
-        # tsai-wu failure
-        m = elem.material
-        s .= sigma_p[:, i]
-        failure[i] = s[1]^2/(m.S1t*m.S1c) + 
-                     s[2]^2/(m.S2t*m.S2c) +
-                     s[3]^2/(m.S3t*m.S3c) +
-                     s[4]^2/m.S12^2 + 
-                     s[5]^2/m.S13^2 + 
-                     s[6]^2/m.S23^2 + 
-                     s[1]*(1/m.S1t - 1/m.S1c) + 
-                     s[2]*(1/m.S2t - 1/m.S2c) + 
-                     s[3]*(1/m.S3t - 1/m.S3c) - 
-                     s[1]*s[2]/sqrt(m.S1t*m.S1c*m.S2t*m.S2c) -
-                     s[1]*s[3]/sqrt(m.S1t*m.S1c*m.S3t*m.S3c) -
-                     s[2]*s[3]/sqrt(m.S2t*m.S2c*m.S3t*m.S3c)
     end
 
-    return epsilon_b, sigma_b, epsilon_p, sigma_p, failure
+    return epsilon_b, sigma_b, epsilon_p, sigma_p
 end
 
 
@@ -1134,40 +1117,41 @@ end
 #     return failure
 # end
 
-# """
-#     tsai_wu(sigma, strength)
+"""
+    tsai_wu(stress_p, elements)
 
-# Tsai Wu failure criteria
+Tsai Wu failure criteria
 
-# # Arguments
-# - `sigma_p::vector(6, ne)`: stresses in ply coordinate system
-# - `strength::Strength`: material strength
+# Arguments
+- `stress_p::vector(6, ne)`: stresses in ply coordinate system
+- `elements::Vector{MeshElement{VI, TF}}`: all the elements in the mesh
 
-# """
-# function tsai_wu(sigma_p, elements)
+# Returns
+- `failure::vector(ne)`: tsai-wu failure criteria for each element.  fails if >= 1
+"""
+function tsai_wu(stress_p, elements)
 
-#     (; S1t, S1c, S2t, S2c, S3t, S3c, S12, S13, S23) = strength
+    ne = length(elements)
+    T = eltype(stress_p)
+    failure = Vector{T}(undef, ne)  # fails if > 1
+    s = Vector{T}(undef, 6)
 
-#     _, ne = size(sigma_p)
-#     T = eltype(sigma_p)
-#     failure = Vector{T}(undef, ne)  # fails if > 1
-#     s = Vector{T}(undef, 6)
-
-#     for i = 1:ne
-#         s .= sigma_p[:, i]
-#         failure[i] = s[1]^2/(S1t*S1c) + 
-#                      s[2]^2/(S2t*S2c) +
-#                      s[3]^2/(S3t*S3c) +
-#                      s[4]^2/S12^2 + 
-#                      s[5]^2/S13^2 + 
-#                      s[6]^2/S23^2 + 
-#                      s[1]*(1/S1t - 1/S1c) + 
-#                      s[2]*(1/S2t - 1/S2c) + 
-#                      s[3]*(1/S3t - 1/S3c) - 
-#                      s[1]*s[2]/sqrt(S1t*S1c*S2t*S2c) -
-#                      s[1]*s[3]/sqrt(S1t*S1c*S3t*S3c) -
-#                      s[2]*s[3]/sqrt(S2t*S2c*S3t*S3c)
-#     end
+    @views for i = 1:ne
+        m = elements[i].material
+        s .= stress_p[:, i]
+        failure[i] = s[1]^2/(m.S1t*m.S1c) + 
+                     s[2]^2/(m.S2t*m.S2c) +
+                     s[3]^2/(m.S3t*m.S3c) +
+                     s[4]^2/m.S12^2 + 
+                     s[5]^2/m.S13^2 + 
+                     s[6]^2/m.S23^2 + 
+                     s[1]*(1/m.S1t - 1/m.S1c) + 
+                     s[2]*(1/m.S2t - 1/m.S2c) + 
+                     s[3]*(1/m.S3t - 1/m.S3c) - 
+                     s[1]*s[2]/sqrt(m.S1t*m.S1c*m.S2t*m.S2c) -
+                     s[1]*s[3]/sqrt(m.S1t*m.S1c*m.S3t*m.S3c) -
+                     s[2]*s[3]/sqrt(m.S2t*m.S2c*m.S3t*m.S3c)
+    end
         
-#     return failure
-# end
+    return failure
+end

@@ -57,7 +57,7 @@ export write_vtk
 # from section
 export Material, Node, MeshElement
 export initialize_cache, compliance_matrix, mass_matrix, plotmesh
-export strain_recovery, plotsoln
+export strain_recovery, plotsoln, tsai_wu
 
 # from afmesh
 export Layer
