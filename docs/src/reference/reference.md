@@ -28,6 +28,9 @@ initialize_cache
 compliance_matrix
 mass_matrix
 plotmesh
+strain_recovery
+plotsoln
+tsai_wu
 ```
 
 ### Defining Point Masses

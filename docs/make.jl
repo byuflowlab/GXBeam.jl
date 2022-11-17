@@ -12,7 +12,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Getting Started" => joinpath("examples", "guide.md"),
-        "Computing Stiffness and Mass Matrices" => joinpath("examples", "section.md"),
+        "Stiffness/Mass Matrices and Strain Recovery" => joinpath("examples", "section.md"),
         "Examples" => [
             joinpath("examples", "cantilever.md"),
             joinpath("examples", "overdetermined.md"),
