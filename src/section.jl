@@ -1000,10 +1000,6 @@ function strain_recovery(F, M, nodes, elements, cache)
     # concatenate forces/moments
     theta = [F; M]
 
-    # for tsai-wu
-    s = Vector{T}(undef, 6)
-    failure = Vector{T}(undef, ne)  # fails if > 1
-
     # save reordering index
     idx_b = [1, 2, 6, 3, 4, 5]   # xx, yy, zz, xy, xz, yz
     idx_p = [6, 1, 2, 4, 5, 3]   # 11, 22, 33, 12, 13, 23
