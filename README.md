@@ -28,11 +28,13 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
     - Captures all geometric nonlinearities due to large deflections and rotations (subject to a small strain assumption)
     - Models angular displacements of any magnitude using only three parameters
     - Uses the full 6x6 Timoshenko beam stiffness matrix
- - Calculate section compliance and inertia matrices 
+ - Calculate section compliance and inertia matrices and compute strain recovery
     - Uses quadrilateral finite elements rather than classical lamiante theory for much better accuracy and cross coupling
     - Allows for general geometry with inhomogenous properties and anisotropic behavior (computes full 6x6 matrix)
     - Ply materials are general orthotropic
     - Provides convenience method for paramterizing airfoil layups
+    - Strain recovery functionality to compute stresses and strains on the mesh using the results of the beam solution
+    - Tsai-wu failure criteria
  - Models time-varying distributed forces/moments including
     - Point and distributed loads which remain fixed in the body-frame
     - Point and distributed loads which rotate with the structure
