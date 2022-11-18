@@ -183,8 +183,8 @@ function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = syste
 
     # extract point state variables
     u, θ = point_displacement(x, ipoint, indices.icol_point, pc)
-    F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
     V, Ω = point_velocities(x, ipoint, indices.icol_point)
+    F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pc)
 
     # extract point rate variables
     udot, θdot = point_displacement_rates(dx, ipoint, indices.icol_point, pc)
@@ -427,4 +427,258 @@ function extract_element_states!(elements, system, assembly, args...; kwargs...)
     end
 
     return elements
+end
+
+"""
+    set_state!([x=system.x,] system, assembly, state::AssemblyState; kwargs...)
+
+Set the state variables in `x` to the values in `state`
+"""
+function set_state!(system::AbstractSystem, assembly::Assembly, state::AssemblyState; kwargs...)
+    return set_state!(system.x, system, assembly, state; kwargs...)
+end
+
+# static system
+function set_state!(x, system::StaticSystem, assembly::Assembly, state::AssemblyState;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(), kwargs...)
+
+    for ipoint in eachindex(state.points)
+        set_linear_displacement!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
+        set_angular_displacement!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
+        set_external_forces!(x, system, prescribed_conditions, state.points[ipoint].F, ipoint)
+        set_external_moments!(x, system, prescribed_conditions, state.points[ipoint].M, ipoint)
+    end
+
+    for ielem in eachindex(state.elements)
+        set_internal_forces!(x, system, state.elements[ielem].Fi, ielem)
+        set_internal_moments!(x, system, state.elements[ielem].Mi, ielem)
+    end
+
+    return x
+end
+
+# dynamic system
+function set_state!(x, system::DynamicSystem, assembly::Assembly, state::AssemblyState;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(), kwargs...)
+
+    for ipoint in eachindex(state.points)
+        set_linear_displacement!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
+        set_angular_displacement!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
+        set_linear_velocity!(x, system, state.points[ipoint].V, ipoint)
+        set_angular_velocity!(x, system, state.points[ipoint].Omega, ipoint)
+        set_external_forces!(x, system, prescribed_conditions, state.points[ipoint].F, ipoint)
+        set_external_moments!(x, system, prescribed_conditions, state.points[ipoint].M, ipoint)
+    end
+
+    for ielem in eachindex(state.elements)
+        set_internal_forces!(x, system, state.elements[ielem].Fi, ielem)
+        set_internal_moments!(x, system, state.elements[ielem].Mi, ielem)
+    end
+
+    return x
+end
+
+# expanded system (need to perform some computations for this one)
+function set_state!(x, system::ExpandedSystem, assembly::Assembly, state::AssemblyState;
+    structural_damping=true,
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
+    )
+
+    for ipoint in eachindex(state.points)
+        # extract states
+        u = state.points[ipoint].u
+        θ = state.points[ipoint].theta
+        V = state.points[ipoint].V
+        Ω = state.points[ipoint].Omega
+        F = state.points[ipoint].F
+        M = state.points[ipoint].M
+        # rotate linear and angular velocities into the local frame
+        C = get_C(θ)
+        V = C*V
+        Ω = C*Ω
+        # set states
+        set_linear_displacement!(x, system, prescribed_conditions, u, ipoint)
+        set_angular_displacement!(x, system, prescribed_conditions, θ, ipoint)
+        set_linear_velocity!(x, system, V, ipoint)
+        set_angular_velocity!(x, system, Ω, ipoint)
+        set_external_forces!(x, system, prescribed_conditions, F, ipoint)
+        set_external_moments!(x, system, prescribed_conditions, M, ipoint)
+    end
+
+    for ielem in eachindex(state.elements)
+        # compute dynamic element properties
+        properties = dynamic_element_properties(assembly, state, ielem, structural_damping,
+            prescribed_conditions, gravity, linear_velocity, angular_velocity)
+        # compute dynamic element resultants
+        F1, F2, M1, M2 = dynamic_element_resultants(properties, distributed_loads, ielem)
+        # unpack element properties
+        CtCab, V, Ω = properties.CtCab
+        # rotate element resultants into the deformed element frame
+        F1 = CtCab'*F1
+        F2 = CtCab'*F2
+        M1 = CtCab'*M1
+        M2 = CtCab'*M2
+        # rotate element velocities into the deformed element frame
+        V = CtCab'*V
+        Ω = CtCab'*Ω
+        # set states
+        set_start_forces!(x, system, F1, ielem)
+        set_start_moments!(x, system, M1, ielem)
+        set_end_forces!(x, system, F2, ielem)
+        set_end_moments!(x, system, M2, ielem)
+        set_element_linear_velocity!(x, system, V, ielem)
+        set_element_angular_velocity!(x, system, Ω, ielem)
+    end
+
+    return x
+end
+
+function dynamic_element_properties(assembly, state, ielem, structural_damping,
+    prescribed_conditions, gravity, linear_velocity, angular_velocity)
+
+    # unpack element parameters
+    @unpack L, Cab, compliance, mass = assembly.elements[ielem]
+
+    # scale compliance and mass matrices by the element length
+    compliance *= L
+    mass *= L
+
+    # compliance submatrices
+    S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
+    S12 = compliance[SVector{3}(1:3), SVector{3}(4:6)]
+    S21 = compliance[SVector{3}(4:6), SVector{3}(1:3)]
+    S22 = compliance[SVector{3}(4:6), SVector{3}(4:6)]
+
+    # mass submatrices
+    mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
+    mass12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
+    mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
+    mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
+
+    # linear and angular displacement
+    u = state.elements[ielem].u
+    θ = state.elements[ielem].θ
+
+    # rotation parameter matrices
+    C = get_C(θ)
+    CtCab = C'*Cab
+    Q = get_Q(θ)
+
+    # forces and moments
+    F = state.elements[ielem].F
+    M = state.elements[ielem].M
+
+    # strain and curvature
+    γ = S11*F + S12*M
+    κ = S21*F + S22*M
+
+    # body frame velocity (use prescribed values)
+    vb, ωb = SVector{3}(linear_velocity), SVector{3}(angular_velocity)
+
+    # gravitational loads
+    gvec = SVector{3}(gravity)
+
+    # linear and angular velocity
+    V = state.elements[ielem].V
+    Ω = state.elements[ielem].Omega
+
+    # linear and angular momentum
+    P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
+    H = CtCab*mass21*CtCab'*V + CtCab*mass22*CtCab'*Ω
+
+    # linear and angular displacement rates
+    udot = state.elements[ielem].udot
+    θdot = state.elements[ielem].θdot
+
+    # linear and angular velocity rates
+    Vdot = state.elements[ielem].Vdot
+    Ωdot = state.elements[ielem].Omegadot
+
+    # linear and angular momentum rates
+    CtCabdot = tilde(Ω - ωb)*CtCab
+
+    Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot +
+        CtCab*mass11*CtCabdot'*V + CtCab*mass12*CtCabdot'*Ω +
+        CtCabdot*mass11*CtCab'*V + CtCabdot*mass12*CtCab'*Ω
+
+    Hdot = CtCab*mass21*CtCab'*Vdot + CtCab*mass22*CtCab'*Ωdot +
+        CtCab*mass21*CtCabdot'*V + CtCab*mass22*CtCabdot'*Ω +
+        CtCabdot*mass21*CtCab'*V + CtCabdot*mass22*CtCab'*Ω
+
+    if structural_damping
+
+        # damping coefficients
+        μ = assembly.elements[ielem].mu
+
+        # damping submatrices
+        μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
+        μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
+
+        # linear displacement
+        u1 = state.points[assembly.start[ielem]].u
+        u2 = state.points[assembly.stop[ielem]].u
+
+        # angular displacement
+        θ1 = state.points[assembly.start[ielem]].theta
+        θ2 = state.points[assembly.stop[ielem]].theta
+
+        # linear displacement rates
+        udot1 = state.points[assembly.start[ielem]].udot
+        udot2 = state.points[assembly.stop[ielem]].udot
+
+        # angular displacement rates
+        θdot1 = state.points[assembly.start[ielem]].thetadot
+        θdot2 = state.points[assembly.stop[ielem]].thetadot
+
+        # change in linear and angular displacement
+        Δu = u2 - u1
+        Δθ = θ2 - θ1
+
+        # change in linear and angular displacement rates
+        Δudot = udot2 - udot1
+        Δθdot = θdot2 - θdot1
+
+        # ΔQ matrix (see structural damping theory)
+        ΔQ = get_ΔQ(θ, Δθ, Q)
+
+        # strain rates
+        γdot = -CtCab'*tilde(Ω - ωb)*Δu + CtCab'*Δudot - L*CtCab'*tilde(Ω - ωb)*Cab*e1
+        κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
+
+        # adjust strains to account for strain rates
+        γ -= μ11*γdot
+        κ -= μ22*κdot
+    end
+
+    # return element properties
+    return (; L, C, Cab, CtCab, mass11, mass12, mass21, mass22, F, M, γ, κ, gvec,
+        ωb, V, Ω, P, H, Pdot, Hdot)
+end
+
+function set_rate!(dx, system::DynamicSystem, state::AssemblyState, prescribed_conditions)
+
+    dx .= 0
+
+    for ipoint in eachindex(state.points)
+        set_linear_displacement_rate!(dx, system, prescribed_conditions, state.points[ipoint].u, ipoint)
+    end
+
+    for ipoint in eachindex(state.points)
+        set_angular_displacement_rate!(dx, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
+    end
+
+    for ipoint in eachindex(state.points)
+        set_linear_velocity_rate!(dx, system, state.points[ipoint].V, ipoint)
+    end
+
+    for ipoint in eachindex(state.points)
+        set_angular_velocity_rate!(dx, system, state.points[ipoint].Omega, ipoint)
+    end
+
+    return x
 end

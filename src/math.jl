@@ -55,9 +55,9 @@ parameter allows deflections greater than 360 degrees.
 
     θnorm = sqrt(θ'*θ)
 
-    scaling = 1
-
     m = div(div(θnorm, 4) + 1, 2) # number of times to add/subtract
+
+    scaling = 1
 
     if θnorm > 4
         scaling -= 8*m/θnorm

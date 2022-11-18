@@ -36,7 +36,7 @@ stop = 2:nelem+1
 compliance = fill(Diagonal([1e-6, 1e-6, 1e-6, 1e-6, 1/EI, 1e-6]), nelem)
 
 ## mass matrix for each beam element
-mass = fill(Diagonal([ρA, ρA, ρA, 0.0, 0.0, 0.0]), nelem)
+mass = fill(Diagonal([ρA, ρA, ρA, 1e-6, 1e-6, 1e-6]), nelem)
 
 ## create assembly
 assembly = Assembly(points, start, stop; compliance=compliance, mass=mass)
@@ -86,7 +86,6 @@ system, history, converged = time_domain_analysis(assembly, t;
 mkpath("excited-simulation")
 write_vtk("excited-simulation/excited-simulation", assembly, history, t; scaling = 100)
 #md rm("excited-simulation"; recursive=true) #hide
-
 
 # ![](../assets/excited-simulation.gif)
 

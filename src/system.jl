@@ -265,6 +265,7 @@ end
 Contains the system state, residual vector, and jacobian matrix for a dynamic system.
 """
 mutable struct DynamicSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}} <: AbstractSystem
+    dx::TV
     x::TV
     r::TV
     K::TM
@@ -300,6 +301,7 @@ function DynamicSystem(TF, assembly; force_scaling = default_force_scaling(assem
     indices = SystemIndices(assembly.start, assembly.stop; static=false, expanded=false)
 
     # initialize system states
+    dx = zeros(TF, indices.nstates)
     x = zeros(TF, indices.nstates)
     r = zeros(TF, indices.nstates)
     K = spzeros(TF, indices.nstates, indices.nstates)
@@ -308,7 +310,7 @@ function DynamicSystem(TF, assembly; force_scaling = default_force_scaling(assem
     # initialize current body frame states and time
     t = zero(TF)
 
-    return DynamicSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M,
+    return DynamicSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(dx, x, r, K, M,
         indices, force_scaling, t)
 end
 
@@ -319,6 +321,7 @@ Contains the system state, residual vector, and jacobian matrix for a constant m
 system.
 """
 mutable struct ExpandedSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}} <: AbstractSystem
+    dx::TV
     x::TV
     r::TV
     K::TM
@@ -354,6 +357,7 @@ function ExpandedSystem(TF, assembly; force_scaling = default_force_scaling(asse
     indices = SystemIndices(assembly.start, assembly.stop; static=false, expanded=true)
 
     # initialize system states
+    dx = zeros(TF, indices.nstates)
     x = zeros(TF, indices.nstates)
     r = zeros(TF, indices.nstates)
     K = spzeros(TF, indices.nstates, indices.nstates)
@@ -362,7 +366,7 @@ function ExpandedSystem(TF, assembly; force_scaling = default_force_scaling(asse
     # initialize current time
     t = zero(TF)
 
-    return ExpandedSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, M,
+    return ExpandedSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(dx, r, K, M,
         indices, force_scaling, t)
 end
 

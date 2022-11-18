@@ -103,7 +103,6 @@ for i = 1:length(rpm)
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions)
 
-
 end
 
 nothing ##hide

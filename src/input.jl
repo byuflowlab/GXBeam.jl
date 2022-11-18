@@ -156,63 +156,6 @@ function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothi
     return x
 end
 
-function set_state!(x, system, state, prescribed_conditions)
-
-    for ipoint in eachindex(state.points)
-        set_linear_displacement!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
-        set_angular_displacement!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
-        set_external_forces!(x, system, prescribed_conditions, state.points[ipoint].F, ipoint)
-        set_external_moments!(x, system, prescribed_conditions, state.points[ipoint].M, ipoint)
-        if typeof(system) <: DynamicSystem
-            set_linear_velocity!(x, system, state.points[ipoint].V, ipoint)
-            set_angular_velocity!(x, system, state.points[ipoint].Omega, ipoint)
-        end
-        if typeof(system) <: ExpandedSystem
-            set_point_linear_velocity!(x, system, state.points[ipoint].V, ipoint)
-            set_point_angular_velocity!(x, system, state.points[ipoint].Omega, ipoint)
-        end
-    end
-
-    for ielem in eachindex(state.elements)
-        if typeof(system) <: ExpandedSystem
-            set_start_forces!(x, system, state.elements[ielem].F1, ielem)
-            set_start_moments!(x, system, state.elements[ielem].M1, ielem)
-            set_end_forces!(x, system, state.elements[ielem].F2, ielem)
-            set_end_moments!(x, system, state.elements[ielem].M2, ielem)
-            set_element_linear_velocity!(x, system, state.elements[ielem].Vdot, ielem)
-            set_element_angular_velocity!(x, system, state.elements[ielem].Omegadot, ielem)
-        else
-            set_internal_forces!(x, system, state.elements[ielem].Fi, ielem)
-            set_internal_moments!(x, system, state.elements[ielem].Mi, ielem)
-        end
-    end
-
-    return x
-end
-
-function set_rate!(dx, system, state, prescribed_conditions)
-
-    dx .= 0
-
-    for ipoint in eachindex(u)
-        set_linear_displacement_rate!(x, system, prescribed_conditions, state.points[ipoint].u, ipoint)
-    end
-
-    for ipoint in eachindex(theta)
-        set_angular_displacement_rate!(x, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
-    end
-
-    for ipoint in eachindex(V)
-        set_linear_velocity_rate!(x, system, state.points[ipoint].V, ipoint)
-    end
-
-    for ipoint in eachindex(Omega)
-        set_angular_velocity_rate!(x, system, state.points[ipoint].Omega, ipoint)
-    end
-
-    return x
-end
-
 """
     set_linear_displacement!([x,] system, prescribed_conditions, u, ipoint)
 
@@ -238,6 +181,30 @@ function set_linear_displacement!(x, system, prescribed_conditions, u, ipoint)
         x[icol  ] = u[1]
         x[icol+1] = u[2]
         x[icol+2] = u[3]
+    end
+
+    return x
+end
+
+function set_linear_displacement_rate!(system, prescribed_conditions, u, ipoint)
+    set_linear_displacement_rate!(system.dx, system, prescribed_conditions, u, ipoint)
+    return system
+end
+
+function set_linear_displacement_rate!(dx, system, prescribed_conditions, u, ipoint)
+
+    icol = system.indices.icol_point[ipoint]
+
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    if haskey(prescribed, ipoint)
+        !prescribed[ipoint].pd[1] && setindex!(dx, udot[1], icol)
+        !prescribed[ipoint].pd[2] && setindex!(dx, udot[2], icol+1)
+        !prescribed[ipoint].pd[3] && setindex!(dx, udot[3], icol+2)
+    else
+        x[icol  ] = 0.0
+        x[icol+1] = 0.0
+        x[icol+2] = 0.0
     end
 
     return x
@@ -340,10 +307,6 @@ function set_external_forces!(x, system, prescribed_conditions, F, ipoint)
         !prescribed[ipoint].pl[1] && setindex!(x, F[1] / force_scaling, icol)
         !prescribed[ipoint].pl[2] && setindex!(x, F[2] / force_scaling, icol+1)
         !prescribed[ipoint].pl[3] && setindex!(x, F[3] / force_scaling, icol+2)
-    else
-        x[icol  ] = F[1] / force_scaling
-        x[icol+1] = F[2] / force_scaling
-        x[icol+2] = F[3] / force_scaling
     end
 
     return x
@@ -372,10 +335,6 @@ function set_external_moments!(x, system, prescribed_conditions, M, ipoint)
         !prescribed[ipoint].pl[4] && setindex!(x, M[1] / force_scaling, icol+3)
         !prescribed[ipoint].pl[5] && setindex!(x, M[2] / force_scaling, icol+4)
         !prescribed[ipoint].pl[6] && setindex!(x, M[3] / force_scaling, icol+5)
-    else
-        x[icol+3] = M[1] / force_scaling
-        x[icol+4] = M[2] / force_scaling
-        x[icol+5] = M[3] / force_scaling
     end
 
     return x

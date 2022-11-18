@@ -27,7 +27,7 @@ makedocs(;
             joinpath("examples", "vertical-axis-wind-turbine.md"),
         ],
         "DifferentialEquations" => joinpath("examples", "diffeq.md"),
-        "Sensitivity Analysis" => joinpath("examples", "sensitivity.md"),
+        "Sensitivity Analysis" => joinpath("examples", "sensitivities.md"),
         "API Reference" => joinpath("reference", "reference.md"),
     ],
     sitename = "GXBeam.jl",

@@ -2,7 +2,7 @@
     static_analysis(assembly; kwargs...)
 
 Perform a static analysis for the system of nonlinear beams contained in `assembly`.
-Return the resulting system, a post-processed solution history, and a convergence flag
+Return the resulting system, the post-processed solution, and a convergence flag
 indicating whether the iteration procedure converged.
 
 # General Keyword Arguments
@@ -79,7 +79,6 @@ function static_analysis!(system::StaticSystem, assembly;
     linear=false,
     two_dimensional=false,
     show_trace=false,
-    save=length(time),
     # linear analysis keyword arguments
     linearization_state=nothing,
     update_linearization=false,
@@ -104,15 +103,15 @@ function static_analysis!(system::StaticSystem, assembly;
     # initialize convergence flag
     converged = Ref(false)
 
-    # initialize constant parameters
+    # package up keyword arguments corresponding to this analysis
     constants = (;
-        # store assembly, indices, control flags, and parameter function
+        # assembly, indices, control flags, and the parameter function
         assembly, indices, two_dimensional, force_scaling, pfunc,
-        # also store the rates, states, residual, jacobian, and flag for convergence
+        # pointers to the pre-allocated storage and the convergence flag
         x=x, resid=r, jacob=K, converged,
-        # also store keyword arguments corresponding to a linear analysis
+        # linear analysis keyword arguments
         linearization_state, update_linearization,
-        # also store keyword arguments corresponding to a nonlinear analysis
+        # nonlinear analysis keyword arguments
         show_trace, method, linesearch, ftol, iterations
     )
 
@@ -127,13 +126,13 @@ function static_analysis!(system::StaticSystem, assembly;
         # update the stored time
         system.t = t
 
-        # get (default) parameters for this time step
+        # define (default) parameters corresponding to this time step
         pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
         dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
         pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
         gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
 
-        # update constant parameters
+        # package up keyword arguments corresponding to this time step
         constants = (; constants..., pcond, dload, pmass, gvec, t)
 
         # solve for the new set of state variables
@@ -143,10 +142,12 @@ function static_analysis!(system::StaticSystem, assembly;
             x = ImplicitAD.implicit(static_nlsolve!, static_residual!, p, constants; drdy=static_drdy)
         end
 
+        # NOTE: `x`, `r`, `K`, and `converged` are updated in `lsolve!`/`nlsolve!`
+
     end
 
-    # post process state
-    state = static_output(system, x, p, constants)
+    # post process state variables (and update `system.x`)
+    state = static_output!(system, x, p, constants)
 
     # return the system, state, and the (de-referenced) convergence flag
     return system, state, converged[]
@@ -210,12 +211,15 @@ static_lsolve!(p, constants) = lsolve!(p, constants, static_residual!, static_ja
 static_nlsolve!(p, constants) = nlsolve!(p, constants, static_residual!, static_jacobian!)
 
 # returns post-processed state and rate variable vectors
-function static_output(system, x, p, constants)
+function static_output!(system, x, p, constants)
 
     # get new assembly and parameters
     assembly, pcond, dload, pmass, gvec = static_parameters(p, constants)
 
-    # return result
+    # update the state variables in `system`
+    dual_safe_copy!(system.x, x)
+
+    # return post-processed state
     return AssemblyState(system, assembly, x; prescribed_conditions=pcond)
 end
 
@@ -261,7 +265,6 @@ iteration procedure converged.
     set to zero prior to performing this analysis.
  - `structural_damping = false`: Indicates whether to enable structural damping
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
- - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
 
@@ -356,7 +359,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     constants = (;
         # store assembly, indices, control flags, and parameter function
         assembly, indices, structural_damping, two_dimensional, force_scaling, pfunc,
-        # also store the rates, states, residual, jacobian, and flag for convergence
+        # also store the states, residual, jacobian, and flag for convergence
         x=x, resid=r, jacob=K, converged,
         # also store keyword arguments corresponding to a linear analysis
         linearization_state, update_linearization,
@@ -403,9 +406,11 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             end
         end
 
+        # NOTE: `x`, `r`, `K`, and `converged` are updated in lsolve!/nlsolve!
+
     end
 
-    # post process state
+    # post process state (and update `system.x` and `system.dx`)
     if constant_mass_matrix
         state = expanded_steady_output(system, x, p, constants)
     else
@@ -491,8 +496,8 @@ function steady_output(system, x, p, constants)
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
 
-    # initialize state rate vector
-    dx = similar(x) .= 0
+    # initialize state rate vector (if necessary)
+    dx = typeof(dx) <: typeof(x) ? system.dx : zero(x)
 
     # populate state rate vector with differentiable variables
     ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
@@ -512,6 +517,10 @@ function steady_output(system, x, p, constants)
         dx[icol+6:icol+8] = Vdot
         dx[icol+9:icol+11] = Ωdot
     end
+
+    # update the state and rate variables in `system`
+    dual_safe_copy!(system.x, x)
+    dual_safe_copy!(system.dx, dx)
 
     # return result
     return AssemblyState(system, assembly, x, dx; prescribed_conditions=pcond)
@@ -560,8 +569,8 @@ function expanded_steady_output(system, x, p, constants)
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
 
-    # initialize state rate vector
-    dx = similar(x) .= 0
+    # initialize state rate vector (if necessary)
+    dx = typeof(dx) <: typeof(x) ? system.dx : zero(x)
 
     # populate state rate vector
     ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
@@ -596,6 +605,10 @@ function expanded_steady_output(system, x, p, constants)
         dx[icol+12:icol+14] = Vdot
         dx[icol+15:icol+17] = Ωdot
     end
+
+    # update the state and rate variables in `system`
+    dual_safe_copy!(system.x, x)
+    dual_safe_copy!(system.dx, dx)
 
     # return result
     return AssemblyState(system, assembly, x, dx; pcond)
@@ -641,7 +654,6 @@ with variables in `system` so a copy should be made prior to modifying them.
 # Control Flag Keyword Arguments
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = false`: Indicates whether to enable structural damping
- - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
 
  # Sensitivity Analysis Keyword Arguments
  - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
@@ -976,7 +988,6 @@ converged.
 # Control Flag Keyword Arguments
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `structural_damping = false`: Indicates whether to enable structural damping
- - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `reset_state = true`: Flag indicating whether the system state variables should be
        set to zero prior to performing this analysis.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
@@ -1043,7 +1054,7 @@ function eigenvalue_analysis!(system, assembly;
     # control flag keyword arguments
     two_dimensional=false,
     structural_damping=false,
-    constant_mass_matrix=false,
+    constant_mass_matrix=typeof(system)<:ExpandedSystem,
     reset_state=true,
     linear=false,
     show_trace=false,
@@ -1209,7 +1220,6 @@ resulting system and a flag indicating whether the iteration procedure converged
         set to zero prior to performing this analysis.
  - `structural_damping = true`: Indicates whether to enable structural damping
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
- - `constant_mass_matrix = false`: Indicates whether to use a constant mass matrix system
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `steady=false`: Flag indicating whether to initialize by performing a steady state analysis.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
@@ -1280,7 +1290,6 @@ function initial_condition_analysis!(system, assembly, t0;
     # control flag keyword arguments
     two_dimensional=false,
     structural_damping=true,
-    constant_mass_matrix=typeof(system)<:ExpandedSystem,
     reset_state=true,
     steady_state=false,
     linear=false,
@@ -1456,7 +1465,9 @@ function initial_condition_analysis!(system, assembly, t0;
         x = ImplicitAD.implicit(initial_nlsolve!, initial_residual!, p, constants; drdy=initial_drdy)
     end
 
-    # post process state
+    # NOTE: `x`, `r`, `K`, and `converged` are updated in lsolve!/nlsolve!
+
+    # postprocess the dual number state
     state = initial_output(system, x, p, constants)
 
     # return the system, state, and the (de-referenced) convergence flag
@@ -1558,8 +1569,8 @@ function initial_output(system, x, p, constants)
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0,
         Vdot0, Omegadot0 = initial_parameters(p, constants)
 
-    # initialize state rate vector
-    dx = similar(x) .= 0
+    # initialize state rate vector (if necessary)
+    dx = typeof(system.dx) <: typeof(x) ? system.dx : zero(x)
 
     # body velocities and accelerations
     vb, ωb = vb_p, ωb_p
@@ -1567,15 +1578,15 @@ function initial_output(system, x, p, constants)
 
     # populate state and state rate vector
     for ipoint in eachindex(assembly.points)
-        # extract state variables
+        # states corresponding to this point
         u, θ = initial_point_displacement(x, ipoint, indices.icol_point, pcond, u0, theta0, rate_vars2)
         V, Ω = V0[ipoint], Omega0[ipoint]
         Fe, Me = point_loads(x, ipoint, indices.icol_point, force_scaling, pcond)
-        # extract state rate variables
+        # rates corresponding to this point
         udot, θdot = point_velocities(x, ipoint, indices.icol_point)
         Vdot, Ωdot = initial_point_velocity_rates(x, ipoint, indices.icol_point, pcond,
             Vdot0, Omegadot0, rate_vars2)
-        # modify velocities and accelerations to account for rigid body motion
+        # adjust velocities and accelerations to account for rigid body motion
         Δx = assembly.points[ipoint]
         V += vb + cross(ωb, Δx + u)
         Ω += ωb
@@ -1597,8 +1608,14 @@ function initial_output(system, x, p, constants)
         dx[icol+9:icol+11] = Ωdot
     end
 
+    # update the state and rate variables in `system`
+    dual_safe_copy!(system.x, x)
+    dual_safe_copy!(system.dx, dx)
+
     # return result
-    return AssemblyState(system, assembly, x, dx; prescribed_conditions=pcond)
+    state = AssemblyState(system, assembly, x, dx; prescribed_conditions=pcond)
+
+    return state
 end
 
 """
@@ -1782,6 +1799,71 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         converged = true
     end
 
+    # --- Process the Initial States and Rates --- #
+
+    # current time
+    t = first(tvec)
+
+    # update the stored time
+    system.t = t
+
+    # unpack pre-allocated storage and pointers
+    @unpack x, r, K, force_scaling, indices = system
+
+    # initialize temporary storage for state rate initialization terms
+    udot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+    θdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+    Vdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+    Ωdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
+
+    # get (default) parameters for this time step
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
+    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
+    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
+
+    # initialize convergence flag
+    converged = Ref(converged)
+
+    # package up keyword arguments corresponding to this analysis
+    constants = (;
+        # assembly, indices, control flags, and the parameter function
+        assembly, indices, two_dimensional, structural_damping, force_scaling, pfunc,
+        # pointers to the pre-allocated storage and the convergence flag
+        x=x, resid=r, jacob=K, converged=converged,
+        # pointers to the pre-allocated storage for state rate initialization terms
+        udot_init, θdot_init, Vdot_init, Ωdot_init,
+        # linear analysis keyword arguments
+        linearization_state, update_linearization,
+        # nonlinear analysis keyword arguments
+        show_trace, method, linesearch, ftol, iterations,
+    )
+
+    # get new parameters
+    parameters = pfunc(p, t)
+
+    # get updated version of prescribed conditions (if applicable)
+    pcond = get(parameters, :prescribed_conditions, pcond)
+
+    # use residual vector as temporary storage for initial states and rates
+    if eltype(system) <: eltype(p)
+        xtmp = system.r
+    else
+        xtmp = similar(system.x, eltype(p))
+    end
+
+    # copy initial state to system.x
+    set_state!(xtmp, system, state, pcond)
+    dual_safe_copy!(system.x, xtmp)
+
+    # copy initial rates to system.dx
+    # set_rate!(xtmp, system, state, pcond)
+    # dual_safe_copy(system.dx, xtmp)
+
+    # --- Perform Time-Domain Simulation --- #
+
     # augment the parameter vector with space for the newmark-scheme initialization terms
     p_i = zeros(eltype(state), 12*length(assembly.points))
     p_p = p
@@ -1801,34 +1883,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         end
     end
 
-    # --- Perform Time-Domain Analysis --- #
-
-    # unpack pre-allocated storage and pointers
-    @unpack x, r, K, force_scaling, indices = system
-
-    # initialize convergence flag
-    converged = Ref(converged)
-
-    # initialize temporary storage for state rate initialization terms
-    udot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    θdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    Vdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    Ωdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-
-    # store (constant) parameters
-    constants = (;
-        # store indices, control flags, and parameter function
-        assembly, indices, two_dimensional, structural_damping, force_scaling, pfunc,
-        # also store the initial guess, residual, jacobian, and flag for convergence
-        x=x, resid=r, jacob=K, converged=converged,
-        # also store temporary storage for state rate initialization terms
-        udot_init, θdot_init, Vdot_init, Ωdot_init,
-        # also store keyword argments corresponding to a linear analysis
-        linearization_state, update_linearization,
-        # also store keyword argments corresponding to a nonlinear analysis
-        show_trace, method, linesearch, ftol, iterations,
-    )
-
     # initialize storage for each time step
     history = Vector{AssemblyState{eltype(p)}}(undef, length(save))
     isave = 1
@@ -1844,8 +1898,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
 
         # current time
         t = tvec[it]
-
-        println(t)
 
         # print the current time
         if show_trace
@@ -2023,8 +2075,8 @@ function newmark_output(system, x, p, constants)
     # update acceleration state variable indices
     update_body_acceleration_indices!(indices, pcond)
 
-    # initialize state rate vector
-    dx = similar(x) .= 0
+    # initialize state rate vector (if necessary)
+    dx = typeof(system.dx) <: typeof(x) ? system.dx : zero(x)
 
     # populate state rate vector with differentiable variables
     for ipoint in eachindex(assembly.points)
@@ -2043,6 +2095,10 @@ function newmark_output(system, x, p, constants)
         dx[icol+6:icol+8] = Vdot
         dx[icol+9:icol+11] = Ωdot
     end
+
+    # update the state and rate variables in `system`
+    dual_safe_copy!(system.x, x)
+    dual_safe_copy!(system.dx, dx)
 
     # return result
     return AssemblyState(system, assembly, x, dx; prescribed_conditions=pcond)
@@ -2161,3 +2217,20 @@ function expanded_mass_matrix!(jacob, x, p, constants)
     return expanded_system_mass_matrix!(jacob, indices, two_dimensional, force_scaling,
         assembly, pcond, pmass)
 end
+
+# copy the entire array
+dual_safe_copy!(dst::AbstractArray{T,N}, src::AbstractArray{T,N}) where {T,N} = copy!(dst, src)
+
+# copy only the primal portion of the original array
+function dual_safe_copy!(dst, src)
+
+    for i in eachindex(dst, src)
+        dst[i] = nondual_value(src[i])
+    end
+
+    return dst
+end
+
+# return the primal value
+nondual_value(x::ForwardDiff.Dual) = ForwardDiff.value(x)
+nondual_value(x::ReverseDiff.TrackedReal) = ReverseDiff.value(x)
