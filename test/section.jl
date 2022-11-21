@@ -625,7 +625,7 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
 
     # interpolate data onto my pts
     ydata = yvec .- 0.3
-    s11interp = linear(data1[:, 1], data1[:, 2], ydata)
+    s11interp = linearinterp(data1[:, 1], data1[:, 2], ydata)
     
     # figure()
     # plot(ydata, s11/1e3, ".")
@@ -647,7 +647,7 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
     0.19999999999999993  -0.11408681408681415
     ]
 
-    s22interp = linear(data2[:, 1], data2[:, 2], ydata)
+    s22interp = linearinterp(data2[:, 1], data2[:, 2], ydata)
 
     # figure()
     # plot(ydata, s22/1e3, ".")
