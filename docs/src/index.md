@@ -3,6 +3,7 @@
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://flow.byu.edu/GXBeam.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://flow.byu.edu/GXBeam.jl/dev)
 ![](https://github.com/byuflowlab/GXBeam.jl/workflows/CI/badge.svg)
+[![DOI](https://zenodo.org/badge/274440380.svg)](https://zenodo.org/badge/latestdoi/274440380)
 [![status](https://joss.theoj.org/papers/13cb0c41e9834510c6acf732bdfa8c05/status.svg)](https://joss.theoj.org/papers/13cb0c41e9834510c6acf732bdfa8c05)
 
 *Pure Julia Implementation of Geometrically Exact Beam Theory*
