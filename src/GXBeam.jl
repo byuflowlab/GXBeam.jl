@@ -26,7 +26,7 @@ export eigenvalue_analysis, eigenvalue_analysis!
 export initial_condition_analysis, initial_condition_analysis!
 export time_domain_analysis, time_domain_analysis!
 
-export reset_state!, copy_state!, set_state!
+export reset_state!, set_state!, set_rate!
 
 export set_linear_displacement!, set_angular_displacement!
 export set_external_forces!, set_external_moments!

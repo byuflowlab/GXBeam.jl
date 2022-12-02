@@ -1,8 +1,8 @@
 """
     ODEProblem(system::GXBeam.AbstractSystem, assembly, tspan; kwargs...)
 
-Construct an `ODEProblem` for the system of nonlinear beams contained in `assembly` which
-may be used with the DifferentialEquations package.
+Construct an `ODEProblem` corresponding to the system of nonlinear beams contained in
+`assembly`.  This problem may be solved using the `DifferentialEquations` package
 
 # General Keyword Arguments
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
@@ -21,7 +21,9 @@ may be used with the DifferentialEquations package.
         of type [`PointMass`](@ref) which contain the properties of the attached
         point masses.  If time varying, this input may be provided as a function of time.
  - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame.
+        If time varying, this input may be provided as a function of time.
  - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame.
+        If time varying, this input may be provided as a function of time.
  - `gravity = [0,0,0]`: Gravity vector in the body frame.  If time varying, this input
         may be provided as a function of time.
 
@@ -43,78 +45,146 @@ may be used with the DifferentialEquations package.
          While not necessary, using `pfunc` and `p` to define the arguments to this function
          allows automatic differentiation sensitivities to be computed more efficiently
 
-Additional keyword arguments are passed forward to ODEProblem.
+Additional keyword arguments are passed on to the ODEProblem constructor.
 """
-function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan, p=(;);
-    pfunc = (p, t) -> p,
-    two_dimensional = false,
-    structural_damping = true,
-    constant_mass_matrix = typeof(system) <: ExpandedSystem,
-    sparse = false,
+function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan;
+    # general keyword arguments
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
+    # control flag keyword arguments
+    initial_state=nothing,
+    structural_damping=true,
+    two_dimensional=false,
+    constant_mass_matrix=typeof(system) <: ExpandedSystem,
+    sparse=false,
+    # sensitivity analysis keyword arguments
+    pfunc = (p, t) -> (;),
+    p = nothing,
+    # additional keyword arguments (passed to ODEProblem constructor)
     kwargs...)
+
+    # check if provided system is consistent with the provided keyword arguments
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
 
     # extract parameters from the parameter vector using `pfunc`
     parameters = pfunc(p, tspan[1])
 
-    # unpack parameters
-    pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-    pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
+    # overwrite default prescribed conditions
+    pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
 
-    # get parameters for the initial time
-    pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(tspan[1])
-    pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(tspan[1])
+    # get prescribed conditions corresponding to the initial time
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? pcond : pcond(tspan[1])
 
-    # set initial state variables
-    u0 = copy(system.x)
+    # set initial state vector
+    if isnothing(initial_state)
+        u0 = system.x
+    else
+        u0 = similar(system.x, promote_type(eltype(system), eltype(initial_state)))
+        set_state!(u0, system, initial_state, pcond)
+    end
 
     # construct ODEFunction
-    func = SciMLBase.ODEFunction(system, assembly, pfunc, p;
-        two_dimensional, structural_damping, constant_mass_matrix, sparse)
+    func = SciMLBase.ODEFunction(system, assembly;
+        # general keyword arguments
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        point_masses=point_masses,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        gravity=gravity,
+        # control flag keyword arguments
+        structural_damping=structural_damping,
+        two_dimensional=two_dimensional,
+        constant_mass_matrix=constant_mass_matrix,
+        sparse=sparse,
+        # sensitivity analysis keyword arguments
+        pfunc=pfunc)
 
+    # return ODEProblem
     return SciMLBase.ODEProblem{true}(func, u0, tspan, p; kwargs...)
 end
 
-
 """
-    ODEFunction(system::GXBeam.AbstractSystem, assembly, pfunc = (p, t) -> p; kwargs...)
+    ODEFunction(system::GXBeam.AbstractSystem, assembly; kwargs...)
 
 Construct a `ODEFunction` for the system of nonlinear beams contained in `assembly`
 which may be used with the DifferentialEquations package.
 
-# Arguments
- - `system`:  Object of type `GXBeam.AbstractSystem` which holds indices for accessing the
-    state variables and equations associated with each point and beam element in a system.
- - `assembly`: Object of type `GXBeam.Assembly` which defines an assembly of connected
-    nonlinear beam elements.
- - `pfunc = (p, t) -> p`: Function which returns a named tuple with the fields
-   - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
-      A dictionary with keys corresponding to the points at which prescribed conditions
-      are applied and elements of type [`PrescribedConditions`](@ref) which describe the
-      prescribed conditions at those points.
-   - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
-      with keys corresponding to the elements to which distributed loads are
-      applied and elements of type [`DistributedLoads`](@ref) which describe
-      the distributed loads on those elements.
-   - `point_masses = Dict{Int,Vector{PointMass{Float64}}}()`: A dictionary with keys
-      corresponding to the points at which point masses are attached and values
-      containing vectors of objects of type [`PointMass`](@ref) which describe
-      the point masses attached at those points.
-   - `gravity`: Gravity vector.
-   - `linear_velocity = zeros(3)`: Global frame linear velocity vector.
-   - `angular_velocity = zeros(3)`: Global frame angular velocity vector.
- - `p`: Parameters, as defined in conjunction with the keyword argument `pfunc`.
-    Defaults to an empty named tuple.
+# General Keyword Arguments
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
+    A dictionary with keys corresponding to the points at
+    which prescribed conditions are applied and values of type
+    [`PrescribedConditions`](@ref) which describe the prescribed conditions
+    at those points.  If time varying, this input may be provided as a
+    function of time.
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
+    with keys corresponding to the elements to which distributed loads are
+    applied and values of type [`DistributedLoads`](@ref) which describe
+    the distributed loads on those elements.  If time varying, this input may
+    be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys
+    corresponding to the points to which point masses are attached and values
+    of type [`PointMass`](@ref) which contain the properties of the attached
+    point masses.  If time varying, this input may be provided as a function of time.
+ - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame.
+ - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame.
+ - `gravity = [0,0,0]`: Gravity vector in the body frame.  If time varying, this input
+    may be provided as a function of time.
 
-# Keyword Arguments
+# Control Flag Keyword Arguments
+ - `structural_damping = true`: Flag indicating whether to enable structural damping
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
- - `structural_damping = true`: Flag indicating whether structural damping should be enabled
  - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.
  - `sparse = false`: Flag indicating whether to use a sparse jacobian.
-"""
-function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) -> p, p0=(;);
-    two_dimensional = false, structural_damping = true, sparse=false,
-    constant_mass_matrix = typeof(system) <: ExpandedSystem)
 
+# Sensitivity Analysis Keyword Arguments
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+        to updated versions of the arguments `assembly`, `prescribed_conditions`,
+        `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, and
+        `gravity`. Only fields contained in the resulting named tuple will be overwritten.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
+        While not necessary, using `pfunc` and `p` to define the arguments to this function
+        allows automatic differentiation sensitivities to be computed more efficiently
+
+Additional keyword arguments are passed on to the ODEFunction constructor.
+"""
+function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
+    # general keyword arguments
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
+    # control flag keyword arguments
+    structural_damping=true,
+    two_dimensional=false,
+    constant_mass_matrix=true,
+    sparse=false,
+    # sensitivity analysis keyword arguments
+    pfunc = (p, t) -> (;),
+    p = nothing,
+    # additional keyword arguments (passed to ODEFunction constructor)
+    kwargs...)
+
+    # --- Input Argument Checks --- #
+
+    # check if provided system is consistent with the provided keyword arguments
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
+
+    # check that compliance and mass matrices are invertible
     for ielem = 1:length(assembly.elements)
         @assert !iszero(assembly.elements[ielem].L) "Zero length elements cannot be used "*
             "with DifferentialEquations"
@@ -134,123 +204,81 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
             "be invertible when using ODEFunction."
     end
 
-    # get parameters at time t=0.0
-    pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p0, 0.0)
-
-    # extract force scaling
+    # unpack force scaling term
     force_scaling = system.force_scaling
+
+    # --- Define mass matrix, residual, and jacobian --- #
 
     if constant_mass_matrix
 
+        # system indices
         indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=true)
+
+        # default keyword arguments
+        constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
+            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            linear_velocity, angular_velocity, gravity, t=0.0)
+
+        # set state rate vector
         du = zeros(indices.nstates)
-
-        # residual function (constant mass matrix system)
-        f = function(resid, u, p, t)
-
-            # extract parameters from the parameter vector using `pfunc`
-            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
-
-            # calculate residual
-            expanded_dynamic_system_residual!(resid, du, u, indices, two_dimensional, force_scaling,
-                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
-
-            return resid
-        end
 
         # mass matrix (constant mass matrix system)
         TF = eltype(system)
         nx = indices.nstates
         mass_matrix = zeros(TF, nx, nx)
-        expanded_system_mass_matrix!(mass_matrix, -1, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
+        expanded_mass_matrix!(mass_matrix, p, constants)
 
-        # jacobian
-        update_jacobian! = function(J, u, p, t)
+        # residual function
+        f = (resid, u, p, t) -> expanded_dynamic_residual!(resid, du, u, p, (; constants..., t))
 
-            # zero out all jacobian entries
-            J .= 0.0
-
-            # extract parameters from the parameter vector using `pfunc`
-            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
-
-            # calculate jacobian
-            expanded_dynamic_system_jacobian!(J, du, u, indices, two_dimensional, force_scaling,
-                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
-
-            return J
-        end
+        # jacobian function
+        update_jacobian! = (jacob, u, p, t) -> expanded_dynamic_jacobian!(jacob, du, u, p, (; constants..., t))
 
         # jacobian prototype
         if sparse
             jac_prototype = spzeros(TF, nx, nx)
-            expanded_dynamic_system_jacobian!(jac_prototype, rand(nx), rand(nx), indices, two_dimensional, force_scaling,
-                structural_damping, assembly, pcond, dload, pmass, rand(3), rand(3), rand(3))
         else
             jac_prototype = nothing
         end
 
     else
 
+        # system indices
         indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=false)
+
+        # default keyword arguments
+        constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
+            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            linear_velocity, angular_velocity, gravity, t=0.0)
+
+        # set state rate vector
         du = zeros(indices.nstates)
-        u = rand(indices.nstates)
-
-        # residual function
-        f = function(resid, u, p, t)
-
-            # extract parameters from the parameter vector using `pfunc`
-            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
-
-            # calculate residual
-            dynamic_system_residual!(resid, du, u, indices, two_dimensional, force_scaling,
-                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
-
-            return resid
-        end
 
         # mass matrix
-        update_mass_matrix! = function(M, u, p, t)
-
+        TF = eltype(system)
+        nx = indices.nstates
+        M = zeros(TF, nx, nx)
+        update_mass_matrix! = (M, u, p, t) -> begin
             # zero out all mass matrix entries
             M .= 0.0
-
-            # extract parameters from the parameter vector using `pfunc`
-            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
-
-            # calculate mass matrix
-            system_mass_matrix!(M, u, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
-
+            # compute mass matrix
+            mass_matrix!(jacob, x, p, (; constants..., t))
             # change sign of mass matrix
             M .*= -1
-
+            # return result
             return M
         end
+        mass_matrix = SciMLBase.DiffEqArrayOperator(M, update_func = update_mass_matrix!)
 
-        mass_matrix = SciMLBase.DiffEqArrayOperator(system.M, update_func = update_mass_matrix!)
+        # residual function
+        f = (resid, u, p, t) -> dynamic_residual!(resid, du, u, p, (; constants..., t))
 
-        # jacobian
-        update_jacobian! = function(J, u, p, t)
-
-            # zero out all jacobian entries
-            J .= 0.0
-
-            # extract parameters from the parameter vector using `pfunc`
-            pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
-
-            # calculate jacobian
-            dynamic_system_jacobian!(J, du, u, indices, two_dimensional, force_scaling,
-                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
-
-            return J
-        end
+        # jacobian function
+        update_jacobian! = (jacob, u, p, t) -> dynamic_jacobian!(jacob, du, u, p, (; constants..., t))
 
         # jacobian prototype
         if sparse
-            TF = eltype(system)
-            nx = indices.nstates
             jac_prototype = spzeros(TF, nx, nx)
-            dynamic_system_jacobian!(jac_prototype, du, u, indices, two_dimensional, force_scaling,
-                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
         else
             jac_prototype = nothing
         end
@@ -262,171 +290,457 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly, pfunc=(p, t) ->
 end
 
 """
-    DAEProblem(system::GXBeam.DynamicSystem, assembly, tspan, p=(;); kwargs...)
+    DAEProblem(system::GXBeam.AbstractSystem, assembly, tspan; kwargs...)
 
-Construct a `DAEProblem` for the system of nonlinear beams contained in `assembly` which
-may be used with the DifferentialEquations package.
+Construct an `DAEProblem` corresponding to the system of nonlinear beams contained in
+`assembly`.  This problem may be solved using the `DifferentialEquations` package
 
-# Arguments
- - `system`:  Object of type `GXBeam.AbstractSystem` which holds indices for accessing the
-    state variables and equations associated with each point and beam element in a system.
- - `assembly`: Object of type `GXBeam.Assembly` which defines an assembly of connected
-    nonlinear beam elements.
- - `tspan`: Time span over which to solve the ODE problem
- - `p`: Parameters, as defined in conjunction with the keyword argument `pfunc`.
-    Defaults to an empty named tuple.
+# General Keyword Arguments
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
+        A dictionary with keys corresponding to the points at
+        which prescribed conditions are applied and values of type
+        [`PrescribedConditions`](@ref) which describe the prescribed conditions
+        at those points.  If time varying, this input may be provided as a
+        function of time.
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
+        with keys corresponding to the elements to which distributed loads are
+        applied and values of type [`DistributedLoads`](@ref) which describe
+        the distributed loads on those elements.  If time varying, this input may
+        be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys
+        corresponding to the points to which point masses are attached and values
+        of type [`PointMass`](@ref) which contain the properties of the attached
+        point masses.  If time varying, this input may be provided as a function of time.
+ - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame.
+        If time varying, this input may be provided as a function of time.
+ - `gravity = [0,0,0]`: Gravity vector in the body frame.  If time varying, this input
+        may be provided as a function of time.
 
-# Keyword Arguments
- - `pfunc = (p, t) -> p`: Function which returns a named tuple with parameters as
-    described in [`DAEFunction`](@ref).
+# Control Flag Keyword Arguments
+ - `initial_state = nothing`: Object of type `AssemblyState`, which defines the initial
+        states and state rates corresponding to the analysis.  By default, this input is
+        calculated using either `steady_state_analysis` or `initial_condition_analysis`.
+ - `structural_damping = true`: Flag indicating whether to enable structural damping
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
- - `structural_damping = true`: Flag indicating whether structural damping should be enabled
+ - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.
+ - `sparse = false`: Flag indicating whether to use a sparse jacobian.
+
+ # Sensitivity Analysis Keyword Arguments
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+         to updated versions of the arguments `assembly`, `prescribed_conditions`,
+         `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, and
+         `gravity`. Only fields contained in the resulting named tuple will be overwritten.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
+         While not necessary, using `pfunc` and `p` to define the arguments to this function
+         allows automatic differentiation sensitivities to be computed more efficiently
+
+Additional keyword arguments are passed on to the DAEProblem constructor.
 """
-function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan, p=(;);
-    pfunc = (p, t) -> p, two_dimensional=false, structural_damping = true)
+function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan;
+    # general keyword arguments
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
+    # control flag keyword arguments
+    initial_state=nothing,
+    structural_damping=true,
+    two_dimensional=false,
+    constant_mass_matrix=false,
+    sparse=false,
+    # sensitivity analysis keyword arguments
+    pfunc = (p, t) -> (;),
+    p = nothing,
+    # additional keyword arguments (passed to ODEProblem constructor)
+    kwargs...)
 
-    # extract parameters from the parameter vector using `pfunc`
+    # overwrite default parameters
     parameters = pfunc(p, tspan[1])
+    pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
+    pmass = get(parameters, :point_masses, point_masses)
 
-    # unpack parameters
-    pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-    pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
+    # get parameters corresponding to the initial time
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? pcond : pcond(tspan[1])
+    pmass = typeof(point_masses) <: AbstractDict ? pmass : pmass(tspan[1])
 
-    # get parameters for the initial time
-    pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(tspan[1])
-    pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(tspan[1])
-
-    # use initial state from `system`
-    u0 = copy(system.x)
-
-    # use initial state rates from `system`
-    du0 = zero(u0)
-    for (ipoint, icol) in enumerate(system.indices.icol_point)
-        du0[icol:icol+2] = system.udot[ipoint]
-        du0[icol+3:icol+5] = system.θdot[ipoint]
-        du0[icol+6:icol+8] = system.Vdot[ipoint]
-        du0[icol+9:icol+11] = system.Ωdot[ipoint]
+    # set initial state and rate vector
+    if isnothing(initial_state)
+        du0 = system.dx
+        u0 = system.x
+    else
+        du0 = similar(system.dx, promote_type(eltype(system), eltype(initial_state)))
+        u0 = similar(system.x, promote_type(eltype(system), eltype(initial_state)))
+        set_state!(u0, system, initial_state, pcond)
+        set_rate!(du0, system, initial_state, pcond)
     end
 
-    # get differential variables
-    differential_vars = get_differential_vars(system, assembly, pcond, pmass, two_dimensional)
+    # define differential variables
+    if constant_mass_matrix
+        indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=true)
+        differential_vars = expanded_differential_vars(indices, two_dimensional, assembly, pcond, pmass)
+    else
+        indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=false)
+        differential_vars = dynamic_differential_vars(u0, indices, two_dimensional, assembly, pcond, pmass)
+    end
 
-    # create SciMLBase.DAEFunction
-    func = SciMLBase.DAEFunction(system, assembly, pfunc; two_dimensional, structural_damping)
+    # construct DAEFunction
+    func = SciMLBase.DAEFunction(system, assembly;
+        # general keyword arguments
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        point_masses=point_masses,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        gravity=gravity,
+        # control flag keyword arguments
+        structural_damping=structural_damping,
+        two_dimensional=two_dimensional,
+        constant_mass_matrix=constant_mass_matrix,
+        sparse=sparse,
+        # sensitivity analysis keyword arguments
+        pfunc=pfunc)
 
-    return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars)
+    # return DAEProblem
+    return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars, kwargs...)
 end
 
 """
-    DAEFunction(system::GXBeam.DynamicSystem, assembly; kwargs...)
+    DAEFunction(system::GXBeam.AbstractSystem, assembly; kwargs...)
 
 Construct a `DAEFunction` for the system of nonlinear beams contained in `assembly`
 which may be used with the DifferentialEquations package.
 
-# Arguments
- - `system`:  Object of type `GXBeam.AbstractSystem` which holds indices for accessing the
-    state variables and equations associated with each point and beam element in a system.
- - `assembly`: Object of type `GXBeam.Assembly` which defines an assembly of connected
-    nonlinear beam elements.
- - `pfunc = (p, t) -> p`: Function which returns a named tuple with the fields
-   - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
-      A dictionary with keys corresponding to the points at which prescribed conditions
-      are applied and elements of type [`PrescribedConditions`](@ref) which describe the
-      prescribed conditions at those points.
-   - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
-      with keys corresponding to the elements to which distributed loads are
-      applied and elements of type [`DistributedLoads`](@ref) which describe
-      the distributed loads on those elements.
-   - `point_masses = Dict{Int,Vector{PointMass{Float64}}}()`: A dictionary with keys
-      corresponding to the points at which point masses are attached and values
-      containing vectors of objects of type [`PointMass`](@ref) which describe
-      the point masses attached at those points.
-   - `gravity`: Gravity vector.
-   - `linear_velocity = zeros(3)`: Global frame linear velocity vector.
-   - `angular_velocity = zeros(3)`: Global frame angular velocity vector.
+# General Keyword Arguments
+ - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
+    A dictionary with keys corresponding to the points at
+    which prescribed conditions are applied and values of type
+    [`PrescribedConditions`](@ref) which describe the prescribed conditions
+    at those points.  If time varying, this input may be provided as a
+    function of time.
+ - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
+    with keys corresponding to the elements to which distributed loads are
+    applied and values of type [`DistributedLoads`](@ref) which describe
+    the distributed loads on those elements.  If time varying, this input may
+    be provided as a function of time.
+ - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys
+    corresponding to the points to which point masses are attached and values
+    of type [`PointMass`](@ref) which contain the properties of the attached
+    point masses.  If time varying, this input may be provided as a function of time.
+ - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame.
+ - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame.
+ - `gravity = [0,0,0]`: Gravity vector in the body frame.  If time varying, this input
+    may be provided as a function of time.
 
-Keyword Arguments:
+# Control Flag Keyword Arguments
+ - `structural_damping = true`: Flag indicating whether to enable structural damping
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
- - `structural_damping = true`: Flag indicating whether structural damping should be enabled
+ - `constant_mass_matrix = true`: Flag indicating whether to use a constant mass matrix.
+ - `sparse = false`: Flag indicating whether to use a sparse jacobian.
+
+# Sensitivity Analysis Keyword Arguments
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+        to updated versions of the arguments `assembly`, `prescribed_conditions`,
+        `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, and
+        `gravity`. Only fields contained in the resulting named tuple will be overwritten.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
+        While not necessary, using `pfunc` and `p` to define the arguments to this function
+        allows automatic differentiation sensitivities to be computed more efficiently
+
+Additional keyword arguments are passed on to the DAEFunction constructor.
 """
-function SciMLBase.DAEFunction(system::DynamicSystem, assembly, pfunc = (p, t) -> p;
-    two_dimensional = false, structural_damping = true)
+function SciMLBase.DAEFunction(system::AbstractSystem, assembly;
+    # general keyword arguments
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
+    # control flag keyword arguments
+    structural_damping=true,
+    two_dimensional=false,
+    constant_mass_matrix=false,
+    sparse=false,
+    # sensitivity analysis keyword arguments
+    pfunc = (p, t) -> (;),
+    p = nothing,
+    # additional keyword arguments (passed to ODEFunction constructor)
+    kwargs...)
 
-    # unpack system pointers
-    @unpack force_scaling, indices = system
+    # --- Input Argument Checks --- #
 
-    # DAE function
-    f = function(resid, du, u, p, t)
-
-        # extract parameters from the parameter vector using `pfunc`
-        pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
-
-        # calculate residual
-        dynamic_system_residual!(resid, du, u, indices, two_dimensional, force_scaling,
-            structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
-
-        return resid
+    for ielem = 1:length(assembly.elements)
+        @assert !iszero(assembly.elements[ielem].L) "Zero length elements cannot be used "*
+            "with DifferentialEquations"
+        @assert !iszero(assembly.elements[ielem].compliance[1,:]) &&
+            !iszero(assembly.elements[ielem].compliance[2,:]) &&
+            !iszero(assembly.elements[ielem].compliance[3,:]) &&
+            !iszero(assembly.elements[ielem].compliance[4,:]) &&
+            !iszero(assembly.elements[ielem].compliance[5,:]) &&
+            !iszero(assembly.elements[ielem].compliance[6,:]) "Compliance matrix must "*
+            "be invertible when using DAEFunction."
+        @assert !iszero(assembly.elements[ielem].mass[1,:]) &&
+            !iszero(assembly.elements[ielem].mass[2,:]) &&
+            !iszero(assembly.elements[ielem].mass[3,:]) &&
+            !iszero(assembly.elements[ielem].mass[4,:]) &&
+            !iszero(assembly.elements[ielem].mass[5,:]) &&
+            !iszero(assembly.elements[ielem].mass[6,:]) "Mass matrix must "*
+            "be invertible when using DAEFunction."
     end
 
-    # jacobian function with respect to states/state rates
-    update_jacobian! = function(J, du, u, p, gamma, t)
+    # check if provided system is consistent with the provided keyword arguments
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
 
-        # zero out all jacobian entries
-        J .= 0.0
+    # unpack force scaling term
+    force_scaling = system.force_scaling
 
-        # extract parameters from the parameter vector using `pfunc`
-        pcond, dload, pmass, gvec, vb_p, ωb_p = extract_parameters(pfunc, p, t)
+    # --- Define mass matrix, residual, and jacobian --- #
 
-        # calculate jacobian
-        dynamic_system_jacobian!(J, du, u, indices, two_dimensional, force_scaling,
-            structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+    if constant_mass_matrix
 
-        # add gamma multiplied by the mass matrix
-        system_mass_matrix!(J, gamma, u, indices, two_dimensional, force_scaling,
-            assembly, pcond, pmass)
+        # system indices
+        indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=true)
 
-        return J
+        # default keyword arguments
+        constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
+            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            linear_velocity, angular_velocity, gravity, t=0.0)
+
+        # residual function
+        f = (resid, du, u, p, t) -> expanded_dynamic_residual!(resid, du, u, p, (; constants..., t))
+
+        # jacobian function
+        update_jacobian! = function(J, du, u, p, gamma, t)
+
+            # zero out all jacobian entries
+            J .= 0.0
+
+            # unpack indices and control flags
+            @unpack indices, structural_damping, two_dimensional, force_scaling = constants
+
+            # combine constants and parameters
+            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+
+            # compute and return the residual
+            expanded_dynamic_system_jacobian!(resid, du, u, indices, two_dimensional, force_scaling,
+                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+
+            # add gamma multiplied by the mass matrix
+            expanded_system_mass_matrix!(J, gamma, indices, two_dimensional, force_scaling,
+                assembly, pcond, pmass)
+
+            return J
+        end
+
+        # jacobian prototype
+        if sparse
+            jac_prototype = spzeros(eltype(system), indices.nstates, indices.nstates)
+        else
+            jac_prototype = nothing
+        end
+
+    else
+
+        # system indices
+        indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=false)
+
+        # default keyword arguments
+        constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
+            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            linear_velocity, angular_velocity, gravity, t=0.0)
+
+        # residual function
+        f = (resid, du, u, p, t) -> dynamic_residual!(resid, du, u, p, (; constants..., t))
+
+        # jacobian function
+        update_jacobian! = function(J, du, u, p, gamma, t)
+
+            # zero out all jacobian entries
+            J .= 0.0
+
+            # unpack indices and control flags
+            @unpack indices, structural_damping, two_dimensional, force_scaling = constants
+
+            # combine constants and parameters
+            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+
+            # update acceleration state variable indices
+            update_body_acceleration_indices!(indices, pcond)
+
+            # compute and return the residual
+            dynamic_system_jacobian!(resid, dx, x, indices, two_dimensional, force_scaling,
+                structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+
+            # add gamma multiplied by the mass matrix
+            system_mass_matrix!(J, gamma, u, indices, two_dimensional, force_scaling,
+                assembly, pcond, pmass)
+
+            return J
+        end
+
+        # jacobian prototype
+        if sparse
+            jac_prototype = spzeros(eltype(system), indices.nstates, indices.nstates)
+        else
+            jac_prototype = nothing
+        end
+
     end
 
     return SciMLBase.DAEFunction{true,true}(f) # TODO: re-add jacobian here once supported
 end
 
-function extract_parameters(pfunc, p, t)
+# combines constant and variable parameters for a dynamic analysis
+function dynamic_parameters(p, constants)
+
+    # unpack default parameters, parameter function, and current time
+    @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
+        linear_velocity, angular_velocity, pfunc, t = constants
 
     # extract parameters from the parameter vector using `pfunc`
     parameters = pfunc(p, t)
 
-    # unpack parameters
-    pcond = get(parameters, :prescribed_conditions, Dict{Int,PrescribedConditions{Float64}}())
-    dload = get(parameters, :distributed_loads, Dict{Int,DistributedLoads{Float64}}())
-    pmass = get(parameters, :point_masses, Dict{Int,PointMass{Float64}}())
-    gvec = get(parameters, :gravity, (@SVector zeros(3)))
-    vb_p = get(parameters, :linear_velocity, (@SVector zeros(3)))
-    ωb_p = get(parameters, :angular_velocity, (@SVector zeros(3)))
+    # overwrite default assembly and parameters (if applicable)
+    parameters = pfunc(p, t)
+    assembly = get(parameters, :assembly, assembly)
+    prescribed_conditions = get(parameters, :prescribed_conditions, prescribed_conditions)
+    distributed_loads = get(parameters, :distributed_loads, distributed_loads)
+    point_masses = get(parameters, :point_masses, point_masses)
+    gravity = get(parameters, :gravity, gravity)
+    linear_velocity = get(parameters, :linear_velocity, linear_velocity)
+    angular_velocity = get(parameters, :angular_velocity, angular_velocity)
 
-    # get parameters for this time step
-    pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
-    dload = typeof(dload) <: AbstractDict ? dload : dload(t)
-    pmass = typeof(pmass) <: AbstractDict ? pmass : pmass(t)
-    gvec = typeof(gvec) <: AbstractVector ? SVector{3}(gvec) : SVector{3}(gvec(t))
-    vb_p = typeof(vb_p) <: AbstractVector ? SVector{3}(vb_p) : SVector{3}(vb_p(t))
-    ωb_p = typeof(ωb_p) <: AbstractVector ? SVector{3}(ωb_p) : SVector{3}(ωb_p(t))
+    # get parameters corresponding to this time step
+    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
+    dload = typeof(distributed_loads) <: AbstractDict ? distributed_loads : distributed_loads(t)
+    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+    gvec = typeof(gravity) <: AbstractVector ? SVector{3}(gravity) : SVector{3}(gravity(t))
+    vb_p = typeof(linear_velocity) <: AbstractVector ? SVector{3}(linear_velocity) : SVector{3}(linear_velocity(t))
+    ωb_p = typeof(angular_velocity) <: AbstractVector ? SVector{3}(angular_velocity) : SVector{3}(angular_velocity(t))
 
-    return (; pcond, dload, pmass, gvec, vb_p, ωb_p)
+    # update body acceleration frame indices
+    update_body_acceleration_indices!(constants.indices, pcond)
+
+    return assembly, pcond, dload, pmass, gvec, vb_p, ωb_p
 end
 
-function get_differential_vars(system::DynamicSystem, assembly, prescribed_conditions,
-    point_masses, two_dimensional)
+# residual function for a dynamic analysis
+function dynamic_residual!(resid, dx, x, p, constants)
 
-    # unpack pre-allocated storage and pointers for system
-    @unpack x, M, force_scaling, indices, t = system
+    # unpack indices and control flags
+    @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
-    # current parameters
-    pcond = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(t)
-    pmass = typeof(point_masses) <: AbstractDict ? point_masses : point_masses(t)
+    # combine constants and parameters
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the residual
+    return dynamic_system_residual!(resid, dx, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+end
+
+# jacobian function for a dynamic analysis
+function dynamic_jacobian!(jacob, dx, x, p, constants)
+
+    # zero out all jacobian entries
+    jacob .= 0.0
+
+    # unpack indices and control flags
+    @unpack indices, structural_damping, two_dimensional, force_scaling = constants
+
+    # combine constants and parameters
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the residual
+    return dynamic_system_jacobian!(jacob, dx, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+end
+
+# differential variables for a constant mass matrix system
+function dynamic_differential_vars(x, indices, two_dimensional, assembly, pcond, pmass)
+
+    # get floating point type
+    TF = eltype(assembly)
+
+    # intialize temporary mass matrix
+    M = spzeros(TF, indices.nstates, indices.nstates)
+
+    # use arbitrary force scaling parameter
+    force_scaling = 1.0
 
     # solve for the system mass matrix
     system_mass_matrix!(M, x, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
+
+    # identify differential variables
+    differential_vars = dropdims(.!(iszero.(sum(M, dims=1))), dims=1)
+
+    return differential_vars
+end
+
+# residual function for a constant mass matrix system
+function expanded_dynamic_residual!(resid, dx, x, p, constants)
+
+    # unpack indices and control flags
+    @unpack indices, structural_damping, two_dimensional, force_scaling = constants
+
+    # combine constants and parameters
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the residual
+    return expanded_dynamic_system_residual!(resid, dx, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+end
+
+# jacobian function for a constant mass matrix system
+function expanded_dynamic_jacobian!(jacob, dx, x, p, constants)
+
+    # zero out all jacobian entries
+    jacob .= 0.0
+
+    # unpack indices and control flags
+    @unpack indices, structural_damping, two_dimensional, force_scaling = constants
+
+    # combine constants and parameters
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+
+    # update acceleration state variable indices
+    update_body_acceleration_indices!(indices, pcond)
+
+    # compute and return the residual
+    return expanded_dynamic_system_jacobian!(jacob, dx, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+end
+
+# differential variables for a constant mass matrix system
+function expanded_differential_vars(indices, two_dimensional, assembly, pcond, pmass)
+
+    # get floating point type
+    TF = eltype(assembly)
+
+    # intialize temporary mass matrix
+    M = spzeros(TF, indices.nstates, indices.nstates)
+
+    # use arbitrary force scaling parameter
+    force_scaling = 1.0
+
+    # solve for the system mass matrix
+    expanded_system_mass_matrix!(M, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
 
     # identify differential variables
     differential_vars = dropdims(.!(iszero.(sum(M, dims=1))), dims=1)

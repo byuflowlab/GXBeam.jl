@@ -62,8 +62,8 @@ DynamicSystem(assembly)
 ExpandedSystem
 ExpandedSystem(assembly)
 reset_state!
-copy_state!
 set_state!
+set_rate!
 set_linear_displacement!
 set_angular_displacement!
 set_external_forces!
@@ -106,10 +106,8 @@ ElementState
 AssemblyState(system, assembly)
 extract_element_state
 extract_element_states
-extract_element_states!
 extract_point_state
 extract_point_states
-extract_point_states!
 linearize!
 solve_eigensystem
 left_eigenvectors

@@ -79,30 +79,31 @@ Base.eltype(::AssemblyState{TF, TP, TE}) where {TF, TP, TE} = TF
 Base.eltype(::Type{AssemblyState{TF, TP, TE}}) where {TF, TP, TE} = TF
 
 """
-    AssemblyState(system, assembly, x = system.x, dx=system.dx; prescribed_conditions = Dict())
+    AssemblyState(system, assembly, x=system.x, dx=system.dx; prescribed_conditions = Dict())
 
-Post-process the system state given the solution vector `x`.  Return an object
-of type `AssemblyState` that defines the state of the assembly for the time step.
+Post-process the system state given the state vector `x` and rate vector `dx`.  Return an
+object of type `AssemblyState` that defines the state of the assembly for the time step.
 
 If `prescribed_conditions` is not provided, all point state variables are assumed
 to be displacements/rotations, rather than their actual identities as used in the
 analysis.
 """
-function AssemblyState(system::AbstractSystem, assembly, args...; prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+function AssemblyState(args...; kwargs...)
 
-    points = extract_point_states(system, assembly, args...; prescribed_conditions)
+    points = extract_point_states(args...; kwargs...)
 
-    elements = extract_element_states(system, assembly, args...; prescribed_conditions)
+    elements = extract_element_states(args...; kwargs...)
 
     return AssemblyState(points, elements)
 end
 
 """
-    extract_point_state(system, assembly, ipoint, x = system.x;
-        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+    extract_point_state(system, assembly, ipoint; prescribed_conditions = Dict())
+    extract_point_state(x, system, assembly, ipoint; prescribed_conditions = Dict())
+    extract_point_state(dx, x, system, assembly, ipoint; prescribed_conditions = Dict())
 
 Return the state variables corresponding to point `ipoint` (see [`PointState`](@ref))
-given the solution vector `x`.
+given the state vector `x` and rate vector `dx`.
 
 If `prescribed_conditions` is not provided, all point state variables are assumed
 to be displacements/rotations, rather than their actual identities as used in the
@@ -110,7 +111,24 @@ analysis.
 """
 extract_point_state
 
-function extract_point_state(system::StaticSystem, assembly, ipoint, x = system.x;
+function extract_point_state(system::StaticSystem, assembly, ipoint; kwargs...)
+
+    return extract_point_state(system.x, system, assembly, ipoint; kwargs...)
+end
+
+function extract_point_state(system::Union{DynamicSystem,ExpandedSystem}, assembly, ipoint; kwargs...)
+
+    return extract_point_state(system.dx, system.x, system, assembly, ipoint; kwargs...)
+end
+
+function extract_point_state(x, system::Union{DynamicSystem,ExpandedSystem}, assembly, ipoint; kwargs...)
+
+    dx = FillArrays.Fill(NaN, length(x))
+
+    return extract_point_state(dx, x, system::DynamicSystem, assembly, ipoint; kwargs...)
+end
+
+function extract_point_state(x, system::StaticSystem, assembly, ipoint;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     @unpack force_scaling, indices, t = system
@@ -139,7 +157,7 @@ function extract_point_state(system::StaticSystem, assembly, ipoint, x = system.
     return PointState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-function extract_point_state(system::DynamicSystem, assembly, ipoint, x = system.x, dx=FillArrays.Fill(NaN, length(x));
+function extract_point_state(dx, x, system::DynamicSystem, assembly, ipoint;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     @unpack force_scaling, indices, t = system
@@ -169,7 +187,7 @@ function extract_point_state(system::DynamicSystem, assembly, ipoint, x = system
     return PointState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = system.x, dx=FillArrays.Fill(NaN, length(x));
+function extract_point_state(dx, x, system::ExpandedSystem, assembly, ipoint;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
@@ -214,46 +232,74 @@ function extract_point_state(system::ExpandedSystem, assembly, ipoint, x = syste
 end
 
 """
-    extract_point_states(system, assembly, x = system.x, dx=system.dx;
-        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+    extract_point_states(system, assembly; prescribed_conditions = Dict())
+    extract_point_states(x, system, assembly; prescribed_conditions = Dict())
+    extract_point_states(dx, x, system, assembly; prescribed_conditions = Dict())
 
 Return the state variables corresponding to each point (see [`PointState`](@ref))
-given the solution vector `x`.
+given the state vector `x` and rate vector `dx`.
 
 If `prescribed_conditions` is not provided, all point state variables are assumed
 to be displacements/rotations, rather than their actual identities as used in the
 analysis.
 """
-function extract_point_states(system, assembly, args...; kwargs...)
+extract_point_states
 
-    return [extract_point_state(system, assembly, ipoint, args...; kwargs...) for ipoint in eachindex(assembly.points)]
+function extract_point_states(system::StaticSystem, assembly; kwargs...)
+
+    return extract_point_states(system.x, system, assembly; kwargs...)
+end
+
+function extract_point_states(system::Union{DynamicSystem,ExpandedSystem}, assembly; kwargs...)
+
+    return extract_point_states(system.dx, system.x, system, assembly; kwargs...)
+end
+
+function extract_point_states(x, system::Union{DynamicSystem,ExpandedSystem}, assembly; kwargs...)
+
+    dx = FillArrays.Fill(NaN, length(x))
+
+    return extract_point_states(dx, x, system, assembly; kwargs...)
+end
+
+function extract_point_states(x, system::StaticSystem, assembly; kwargs...)
+
+    return [extract_point_state(x, system, assembly, ipoint; kwargs...) for ipoint in eachindex(assembly.points)]
+end
+
+function extract_point_states(dx, x, system::Union{DynamicSystem,ExpandedSystem}, assembly; kwargs...)
+
+    return [extract_point_state(dx, x, system, assembly, ipoint; kwargs...) for ipoint in eachindex(assembly.points)]
 end
 
 """
-    extract_point_states!(points, system, assembly, x = system.x;
-        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
-
-Pre-allocated version of [`extract_point_states`](@ref)
-"""
-function extract_point_states!(points, system, assembly, args...; kwargs...)
-
-    for ipoint in eachindex(points)
-        points[ipoint] = extract_point_state(system, assembly, ipoint, args...; kwargs...)
-    end
-
-    return points
-end
-
-"""
-    extract_element_state(system, assembly, ielem, x = system.x;
-        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
+    extract_element_state(system, assembly, ielem; prescribed_conditions = Dict())
+    extract_element_state(x, system, assembly, ielem; prescribed_conditions = Dict())
+    extract_element_state(dx, x, system, assembly, ielem; prescribed_conditions = Dict())
 
 Return the state variables corresponding to element `ielem` (see [`ElementState`](@ref))
-given the solution vector `x`.
+given the state vector `x` and rate vector `dx`.
 """
 extract_element_state
 
-function extract_element_state(system::StaticSystem, assembly, ielem, x = system.x;
+function extract_element_state(system::StaticSystem, assembly, ielem; kwargs...)
+
+    return extract_element_state(system.x, system, assembly, ielem; kwargs...)
+end
+
+function extract_element_state(system::Union{DynamicSystem,ExpandedSystem}, assembly, ielem; kwargs...)
+
+    return extract_element_state(system.dx, system.x, system, assembly, ielem; kwargs...)
+end
+
+function extract_element_state(x, system::Union{DynamicSystem,ExpandedSystem}, assembly, ielem; kwargs...)
+
+    dx = FillArrays.Fill(NaN, length(x))
+
+    return extract_element_state(dx, x, system::DynamicSystem, assembly, ielem; kwargs...)
+end
+
+function extract_element_state(x, system::StaticSystem, assembly, ielem;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
@@ -290,7 +336,7 @@ function extract_element_state(system::StaticSystem, assembly, ielem, x = system
     return ElementState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-function extract_element_state(system::DynamicSystem, assembly, ielem, x = system.x, dx = FillArrays.Fill(NaN, length(x));
+function extract_element_state(dx, x, system::DynamicSystem, assembly, ielem;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
@@ -341,7 +387,7 @@ function extract_element_state(system::DynamicSystem, assembly, ielem, x = syste
     return ElementState(u, udot, θ, θdot, V, Vdot, Ω, Ωdot, F, M)
 end
 
-function extract_element_state(system::ExpandedSystem, assembly, ielem, x = system.x, dx=FillArrays.Fill(NaN, length(x));
+function extract_element_state(dx, x, system::ExpandedSystem, assembly, ielem;
     prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
 
     # system variables
@@ -409,28 +455,37 @@ end
 Return the state variables corresponding to each element (see [`ElementState`](@ref))
 given the solution vector `x`.
 """
-function extract_element_states(system, assembly, args...; kwargs...)
+extract_element_states
 
-    return [extract_element_state(system, assembly, ielem, args...; kwargs...) for ielem in eachindex(assembly.elements)]
+function extract_element_states(system::StaticSystem, assembly; kwargs...)
+
+    return extract_element_states(system.x, system, assembly; kwargs...)
+end
+
+function extract_element_states(system::Union{DynamicSystem,ExpandedSystem}, assembly; kwargs...)
+
+    return extract_element_states(system.dx, system.x, system, assembly; kwargs...)
+end
+
+function extract_element_states(x, system::Union{DynamicSystem,ExpandedSystem}, assembly; kwargs...)
+
+    dx = FillArrays.Fill(NaN, length(x))
+
+    return extract_element_states(dx, x, system, assembly; kwargs...)
+end
+
+function extract_element_states(x, system::StaticSystem, assembly; kwargs...)
+
+    return [extract_element_state(x, system, assembly, ielem; kwargs...) for ielem in eachindex(assembly.elements)]
+end
+
+function extract_element_states(dx, x, system::Union{DynamicSystem,ExpandedSystem}, assembly; kwargs...)
+
+    return [extract_element_state(dx, x, system, assembly, ielem; kwargs...) for ielem in eachindex(assembly.elements)]
 end
 
 """
-    extract_element_states!(elements, system, assembly, x = system.x, dx=system.dx;
-        prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}())
-
-Pre-allocated version of [`extract_element_states`](@ref)
-"""
-function extract_element_states!(elements, system, assembly, args...; kwargs...)
-
-    for ielem in eachindex(elements)
-        elements[ielem] = extract_element_state(system, assembly, ielem, args...; kwargs...)
-    end
-
-    return elements
-end
-
-"""
-    set_state!([x=system.x,] system, assembly, state::AssemblyState; kwargs...)
+    set_state!([x=system.x,] system, assembly, state; kwargs...)
 
 Set the state variables in `x` to the values in `state`
 """
@@ -480,15 +535,16 @@ end
 
 # expanded system (need to perform some computations for this one)
 function set_state!(x, system::ExpandedSystem, assembly::Assembly, state::AssemblyState;
-    structural_damping=true,
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
     linear_velocity=(@SVector zeros(3)),
     angular_velocity=(@SVector zeros(3)),
     gravity=(@SVector zeros(3)),
+    structural_damping=true,
     )
 
+    # update point state variables
     for ipoint in eachindex(state.points)
         # extract states
         u = state.points[ipoint].u
@@ -510,174 +566,164 @@ function set_state!(x, system::ExpandedSystem, assembly::Assembly, state::Assemb
         set_external_moments!(x, system, prescribed_conditions, M, ipoint)
     end
 
+    # update element state variables
     for ielem in eachindex(state.elements)
-        # compute dynamic element properties
-        properties = dynamic_element_properties(assembly, state, ielem, structural_damping,
-            prescribed_conditions, gravity, linear_velocity, angular_velocity)
-        # compute dynamic element resultants
-        F1, F2, M1, M2 = dynamic_element_resultants(properties, distributed_loads, ielem)
-        # unpack element properties
-        CtCab, V, Ω = properties.CtCab
-        # rotate element resultants into the deformed element frame
-        F1 = CtCab'*F1
-        F2 = CtCab'*F2
-        M1 = CtCab'*M1
-        M2 = CtCab'*M2
-        # rotate element velocities into the deformed element frame
+        # extract states
+        u = state.elements[ielem].u
+        θ = state.elements[ielem].theta
+        Fi = state.elements[ielem].Fi
+        Mi = state.elements[ielem].Mi
+        V = state.elements[ielem].V
+        Ω = state.elements[ielem].Omega
+        # rotate linear and angular velocities into the local frame
+        CtCab = get_C(θ)'*assembly.elements[ielem].Cab
         V = CtCab'*V
         Ω = CtCab'*Ω
         # set states
+        set_start_forces!(x, system, Fi, ielem)
+        set_start_moments!(x, system, Mi, ielem)
+        set_end_forces!(x, system, Fi, ielem)
+        set_end_moments!(x, system, Mi, ielem)
+        set_element_linear_velocity!(x, system, V, ielem)
+        set_element_angular_velocity!(x, system, Ω, ielem)
+    end
+
+    # correct element state variables
+    for ielem in eachindex(state.elements)
+        # compute steady state element properties
+        properties = expanded_steady_element_properties(x, system.indices, system.force_scaling,
+            structural_damping, assembly, ielem, prescribed_conditions, gravity,
+            linear_velocity, angular_velocity)
+        # compute dynamic properties
+        @unpack mass11, mass12, mass21, mass22 = properties
+        Vdot = state.elements[ielem].Vdot
+        Ωdot = state.elements[ielem].Omegadot
+        Pdot = mass11*Vdot + mass12*Ωdot
+        Hdot = mass21*Vdot + mass22*Ωdot
+        # augment steady properties with dynamic properties
+        properties = (; properties..., Vdot, Ωdot, Pdot, Hdot)
+        # compute equilibrium residuals (internal force gradient)
+        rF, rM = expanded_element_equilibrium_residuals(properties, distributed_loads, ielem)
+        # apply gradient to internal forces
+        F1 = state.elements[ielem].Fi + rF/2
+        M1 = state.elements[ielem].Mi + rM/2
+        F2 = state.elements[ielem].Fi - rF/2
+        M2 = state.elements[ielem].Mi - rM/2
+        # correct internal forces
         set_start_forces!(x, system, F1, ielem)
         set_start_moments!(x, system, M1, ielem)
         set_end_forces!(x, system, F2, ielem)
         set_end_moments!(x, system, M2, ielem)
-        set_element_linear_velocity!(x, system, V, ielem)
-        set_element_angular_velocity!(x, system, Ω, ielem)
     end
 
     return x
 end
 
-function dynamic_element_properties(assembly, state, ielem, structural_damping,
-    prescribed_conditions, gravity, linear_velocity, angular_velocity)
+"""
+    set_rate!([x=system.dx,] system, assembly, state::AssemblyState; kwargs...)
 
-    # unpack element parameters
-    @unpack L, Cab, compliance, mass = assembly.elements[ielem]
-
-    # scale compliance and mass matrices by the element length
-    compliance *= L
-    mass *= L
-
-    # compliance submatrices
-    S11 = compliance[SVector{3}(1:3), SVector{3}(1:3)]
-    S12 = compliance[SVector{3}(1:3), SVector{3}(4:6)]
-    S21 = compliance[SVector{3}(4:6), SVector{3}(1:3)]
-    S22 = compliance[SVector{3}(4:6), SVector{3}(4:6)]
-
-    # mass submatrices
-    mass11 = mass[SVector{3}(1:3), SVector{3}(1:3)]
-    mass12 = mass[SVector{3}(1:3), SVector{3}(4:6)]
-    mass21 = mass[SVector{3}(4:6), SVector{3}(1:3)]
-    mass22 = mass[SVector{3}(4:6), SVector{3}(4:6)]
-
-    # linear and angular displacement
-    u = state.elements[ielem].u
-    θ = state.elements[ielem].θ
-
-    # rotation parameter matrices
-    C = get_C(θ)
-    CtCab = C'*Cab
-    Q = get_Q(θ)
-
-    # forces and moments
-    F = state.elements[ielem].F
-    M = state.elements[ielem].M
-
-    # strain and curvature
-    γ = S11*F + S12*M
-    κ = S21*F + S22*M
-
-    # body frame velocity (use prescribed values)
-    vb, ωb = SVector{3}(linear_velocity), SVector{3}(angular_velocity)
-
-    # gravitational loads
-    gvec = SVector{3}(gravity)
-
-    # linear and angular velocity
-    V = state.elements[ielem].V
-    Ω = state.elements[ielem].Omega
-
-    # linear and angular momentum
-    P = CtCab*mass11*CtCab'*V + CtCab*mass12*CtCab'*Ω
-    H = CtCab*mass21*CtCab'*V + CtCab*mass22*CtCab'*Ω
-
-    # linear and angular displacement rates
-    udot = state.elements[ielem].udot
-    θdot = state.elements[ielem].θdot
-
-    # linear and angular velocity rates
-    Vdot = state.elements[ielem].Vdot
-    Ωdot = state.elements[ielem].Omegadot
-
-    # linear and angular momentum rates
-    CtCabdot = tilde(Ω - ωb)*CtCab
-
-    Pdot = CtCab*mass11*CtCab'*Vdot + CtCab*mass12*CtCab'*Ωdot +
-        CtCab*mass11*CtCabdot'*V + CtCab*mass12*CtCabdot'*Ω +
-        CtCabdot*mass11*CtCab'*V + CtCabdot*mass12*CtCab'*Ω
-
-    Hdot = CtCab*mass21*CtCab'*Vdot + CtCab*mass22*CtCab'*Ωdot +
-        CtCab*mass21*CtCabdot'*V + CtCab*mass22*CtCabdot'*Ω +
-        CtCabdot*mass21*CtCab'*V + CtCabdot*mass22*CtCab'*Ω
-
-    if structural_damping
-
-        # damping coefficients
-        μ = assembly.elements[ielem].mu
-
-        # damping submatrices
-        μ11 = @SMatrix [μ[1] 0 0; 0 μ[2] 0; 0 0 μ[3]]
-        μ22 = @SMatrix [μ[4] 0 0; 0 μ[5] 0; 0 0 μ[6]]
-
-        # linear displacement
-        u1 = state.points[assembly.start[ielem]].u
-        u2 = state.points[assembly.stop[ielem]].u
-
-        # angular displacement
-        θ1 = state.points[assembly.start[ielem]].theta
-        θ2 = state.points[assembly.stop[ielem]].theta
-
-        # linear displacement rates
-        udot1 = state.points[assembly.start[ielem]].udot
-        udot2 = state.points[assembly.stop[ielem]].udot
-
-        # angular displacement rates
-        θdot1 = state.points[assembly.start[ielem]].thetadot
-        θdot2 = state.points[assembly.stop[ielem]].thetadot
-
-        # change in linear and angular displacement
-        Δu = u2 - u1
-        Δθ = θ2 - θ1
-
-        # change in linear and angular displacement rates
-        Δudot = udot2 - udot1
-        Δθdot = θdot2 - θdot1
-
-        # ΔQ matrix (see structural damping theory)
-        ΔQ = get_ΔQ(θ, Δθ, Q)
-
-        # strain rates
-        γdot = -CtCab'*tilde(Ω - ωb)*Δu + CtCab'*Δudot - L*CtCab'*tilde(Ω - ωb)*Cab*e1
-        κdot = Cab'*Q*Δθdot + Cab'*ΔQ*θdot
-
-        # adjust strains to account for strain rates
-        γ -= μ11*γdot
-        κ -= μ22*κdot
-    end
-
-    # return element properties
-    return (; L, C, Cab, CtCab, mass11, mass12, mass21, mass22, F, M, γ, κ, gvec,
-        ωb, V, Ω, P, H, Pdot, Hdot)
+Set the state variable rates in `dx` to the values in `state`
+"""
+function set_rate!(system::AbstractSystem, assembly::Assembly, state::AssemblyState; kwargs...)
+    return set_rate!(system.x, system, assembly, state; kwargs...)
 end
 
-function set_rate!(dx, system::DynamicSystem, state::AssemblyState, prescribed_conditions)
+# dynamic system
+function set_rate!(dx, system::DynamicSystem, assembly::Assembly, state::AssemblyState;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(), kwargs...)
 
     dx .= 0
 
     for ipoint in eachindex(state.points)
-        set_linear_displacement_rate!(dx, system, prescribed_conditions, state.points[ipoint].u, ipoint)
+        set_linear_displacement_rate!(dx, system, prescribed_conditions, state.points[ipoint].udot, ipoint)
+        set_angular_displacement_rate!(dx, system, prescribed_conditions, state.points[ipoint].thetadot, ipoint)
+        set_linear_velocity_rate!(dx, system, state.points[ipoint].Vdot, ipoint)
+        set_angular_velocity_rate!(dx, system, state.points[ipoint].Omegadot, ipoint)
     end
 
-    for ipoint in eachindex(state.points)
-        set_angular_displacement_rate!(dx, system, prescribed_conditions, state.points[ipoint].theta, ipoint)
-    end
+    return dx
+end
+
+# expanded system
+function set_rate!(dx, system::ExpandedSystem, assembly::Assembly, state::AssemblyState;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(), kwargs...)
+
+    dx .= 0
 
     for ipoint in eachindex(state.points)
-        set_linear_velocity_rate!(dx, system, state.points[ipoint].V, ipoint)
+        # extract states
+        u = state.points[ipoint].u
+        θ = state.points[ipoint].theta
+        V = state.points[ipoint].V
+        Ω = state.points[ipoint].Omega
+        # extract rates
+        udot = state.points[ipoint].udot
+        θdot = state.points[ipoint].thetadot
+        Vdot = state.points[ipoint].Vdot
+        Ωdot = state.points[ipoint].Omegadot
+        # rotate linear and angular velocity rates into the local frame
+        C = get_C(θ)
+        Q = get_Q(θ)
+        Cdot = -C*tilde(C'*Q*θdot)
+        Vdot = Cdot*V + C*Vdot
+        Ωdot = Cdot*Ω + C*Ωdot
+        # set rates
+        set_linear_displacement_rate!(dx, system, prescribed_conditions, udot, ipoint)
+        set_angular_displacement_rate!(dx, system, prescribed_conditions, θdot, ipoint)
+        set_linear_velocity_rate!(dx, system, Vdot, ipoint)
+        set_angular_velocity_rate!(dx, system, Ωdot, ipoint)
     end
 
+    for ielem in eachindex(state.elements)
+        # extract states
+        θ = state.elements[ielem].theta
+        V = state.elements[ielem].V
+        Ω = state.elements[ielem].Omega
+        # extract rates
+        θdot = state.points[ielem].thetadot
+        Vdot = state.elements[ielem].Vdot
+        Ωdot = state.elements[ielem].Omegadot
+        # rotate linear and angular velocity rates into the local frame
+        C = get_C(θ)
+        Cab = assembly.elements[ielem].Cab
+        CtCab = C'*Cab
+        CtCabdot = tilde(C'*get_Q(θ)*θdot)*CtCab
+        Vdot = CtCabdot'*V + CtCab'*Vdot
+        Ωdot = CtCabdot'*Ω + CtCab'*Ωdot
+        # set rates
+        set_element_linear_velocity_rate!(dx, system, Vdot, ielem)
+        set_element_angular_velocity_rate!(dx, system, Ωdot, ielem)
+    end
+
+    return dx
+end
+
+"""
+    set_initial_state!([x=system.x,] system, rate_vars, assembly, state; kwargs...)
+
+Set the state variables in `x` for an initial condition analysis to the values in `state`
+"""
+function set_initial_state!(system::AbstractSystem, rate_vars, assembly::Assembly, state::AssemblyState; kwargs...)
+    return set_initial_state!(system.x, system, rate_vars, assembly, state; kwargs...)
+end
+
+function set_initial_state!(x, system::DynamicSystem, rate_vars, assembly::Assembly, state::AssemblyState;
+    prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}(), kwargs...)
+
     for ipoint in eachindex(state.points)
-        set_angular_velocity_rate!(dx, system, state.points[ipoint].Omega, ipoint)
+        set_external_forces!(x, system, prescribed_conditions, state.points[ipoint].F, ipoint)
+        set_external_moments!(x, system, prescribed_conditions, state.points[ipoint].M, ipoint)
+        set_initial_linear_displacement!(x, system, rate_vars, prescribed_conditions, state.points[ipoint].u, ipoint)
+        set_initial_angular_displacement!(x, system, rate_vars, prescribed_conditions, state.points[ipoint].theta, ipoint)
+        set_initial_linear_displacement_rate!(x, system, state.points[ipoint].udot, ipoint)
+        set_initial_angular_displacement_rate!(x, system, state.points[ipoint].θdot, ipoint)
+        set_initial_linear_velocity_rates!(x, system, rate_vars, prescribed_conditions, state.points[ipoint].Vdot)
+        set_initial_angular_velocity_rates!(x, system, rate_vars, prescribed_conditions, state.points[ipoint].Omegadot)
+    end
+
+    for ielem in eachindex(state.elements)
+        set_internal_forces!(x, system, state.elements[ielem].Fi, ielem)
+        set_internal_moments!(x, system, state.elements[ielem].Mi, ielem)
     end
 
     return x

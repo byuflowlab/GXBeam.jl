@@ -319,7 +319,7 @@ for i = 1:length(sweep)
 
         ## post-process eigenvector state variables
         eigenstates[i,j] = [
-            AssemblyState(system, assembly, V[i,j][:,k]; prescribed_conditions)
+            AssemblyState(V[i,j][:,k], system, assembly; prescribed_conditions)
             for k = 1:nev
         ]
     end

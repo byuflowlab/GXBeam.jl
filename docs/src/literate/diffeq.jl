@@ -103,7 +103,7 @@ system, gxbeam_history, converged = time_domain_analysis(assembly, t;
 
 #!jl nothing #hide
 
-# To instead use the capabilities of the DifferentialEquations package we first initialize
+# To instead use the capabilities of the DifferentialEquations package, we first initialize
 # our system using the `initial_condition_analysis` function and then construct and solve
 # a `DAEProblem`.
 
@@ -112,16 +112,14 @@ using DifferentialEquations
 ## define simulation time
 tspan = (0.0, 2.0)
 
-## define named tuple with parameters
-p = (; prescribed_conditions=prescribed_conditions)
-
 ## run initial condition analysis to get consistent set of initial conditions
 dae_system, converged = initial_condition_analysis(assembly, tspan[1];
     prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-dae_prob = DAEProblem(dae_system, assembly, tspan, p;
+dae_prob = DAEProblem(dae_system, assembly, tspan;
+    prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
 ## solve the problem
@@ -129,8 +127,7 @@ dae_sol = solve(dae_prob, DABDF2())
 
 #!jl nothing #hide
 
-# Alternatively, we can construct and solve a constant mass matrix formulation of our
-# differential algebraic equations.
+# Alternatively, we can use a mass matrix formulation of our differential algebraic equations.
 
 ## run initial condition analysis to get consistent set of initial conditions
 ode_system, converged = initial_condition_analysis(assembly, tspan[1];
@@ -139,7 +136,8 @@ ode_system, converged = initial_condition_analysis(assembly, tspan[1];
     structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-ode_prob = ODEProblem(ode_system, assembly, tspan, p;
+ode_prob = ODEProblem(ode_system, assembly, tspan;
+    prescribed_conditions = prescribed_conditions,
     constant_mass_matrix = true,
     structural_damping = false)
 
@@ -151,10 +149,10 @@ ode_sol = solve(ode_prob, Rodas4())
 # We can then extract the outputs from the solution in a easy to understand format using the
 # [`AssemblyState`](@ref) constructor.
 
-ode_history = [AssemblyState(ode_system, assembly, ode_sol[it]; prescribed_conditions)
+ode_history = [AssemblyState(ode_sol[it], ode_system, assembly; prescribed_conditions)
     for it in eachindex(ode_sol)]
 
-dae_history = [AssemblyState(dae_system, assembly, dae_sol[it]; prescribed_conditions)
+dae_history = [AssemblyState(dae_sol[it], dae_system, assembly; prescribed_conditions)
     for it in eachindex(dae_sol)]
 
 #!jl nothing #hide
