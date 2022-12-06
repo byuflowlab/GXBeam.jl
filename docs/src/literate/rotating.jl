@@ -12,6 +12,8 @@
 #md #     [`rotating.ipynb`](@__NBVIEWER_ROOT_URL__/examples/rotating.ipynb).
 #-
 
+# ## Steady State Analysis
+
 using GXBeam, LinearAlgebra
 
 sweep = 45 * pi/180
@@ -229,6 +231,8 @@ plot!(show=true) #!nb
 
 #-
 
+# ## Eigenvalue Analysis
+
 # We will now compute the eigenvalues of this system for a range of sweep angles and and
 # angular speeds.
 
@@ -345,6 +349,8 @@ frequency = [
 # In this case these eigenmode correlations work, but remember that large changes in the
 # underlying parameters (or just drastic changes in the eigenvectors themselves due to a
 # small perturbation) can cause these correlations to fail.
+
+# ## Comparison with Experimental Results
 
 # We'll now plot the frequency of the different eigenmodes against those found by Epps and
 # Chandra in "The Natural Frequencies of Rotating Composite Beams With Tip Sweep".
@@ -568,6 +574,8 @@ plot!(show=true) #!nb
 # As you can see, the frequency results from the eigenmode analysis in this package
 # compare well with experimental results.
 #
+# ## Eigenmode Visualization
+#
 # We can also visualize eigenmodes using ParaView.  Here we will visualize the first
 # bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be
 # helpful for identifying different eigenmodes.
@@ -579,3 +587,96 @@ write_vtk("rotating-eigenmode/rotating-eigenmode", assembly, state[end,end],
 #md rm("rotating-eigenmode"; recursive=true) #hide
 
 # ![](../assets/rotating-eigenmode.gif)
+
+# ## Sensitivity Analysis
+
+# Suppose we are interested in computing the sensitivity of the mode frequencies to sweep
+# angle when rotating at 750 RPM with a \SI{45}{\deg} sweep angle.  We can compute these
+# sensitivities as follows:
+
+using ForwardDiff
+
+## define sweep angle
+sweep = 45 * pi/180
+
+## define RPM
+rpm = 750
+
+## define parameter vector
+p = [sweep]
+
+## straight section of the beam
+L_b1 = 31.5 ## inch
+r_b1 = [2.5, 0, 0]
+nelem_b1 = 13
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
+
+## swept section of the beam
+L_b2 = 6 ## inch
+r_b2 = [34, 0, 0]
+nelem_b2 = 3
+cs, ss = cos(sweep), sin(sweep)
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+## combine elements and points into one array
+nelem = nelem_b1 + nelem_b2
+points = vcat(xp_b1, xp_b2[2:end])
+start = 1:nelem_b1 + nelem_b2
+stop = 2:nelem_b1 + nelem_b2 + 1
+Cab = vcat(Cab_b1, Cab_b2)
+
+## define compliance
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
+1/(E*Izz)]), nelem)
+
+## define mass
+mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+## create (default) assembly
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab)
+
+## construct parameter function which overwrites the default assembly
+pfunc = (p, t) -> begin
+
+    sweep = p[1] # sweep angle
+
+    # redefine swept section of the beam
+    cs, ss = cos(sweep), sin(sweep)
+    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+    ## redefine points and reference frame
+    points = vcat(xp_b1, xp_b2[2:end])
+    Cab = vcat(Cab_b1, Cab_b2)
+
+    ## create new assembly
+    assembly = Assembly(points, start, stop;
+        compliance = compliance,
+        mass = mass,
+        frames = Cab)
+
+    ## return named tuple with new arguments
+    return (; assembly=assembly)
+end
+
+## construct objective function
+objfun = (p) -> begin
+
+    ## perform eigenvalue analysis
+    system, λ, V, converged = eigenvalue_analysis(assembly; pfunc, p,
+        angular_velocity = [0, 0, rpm*(2*pi)/60],
+        prescribed_conditions = prescribed_conditions,
+        nev = nev)
+
+    ## return frequencies
+    return [imag(λ[k])/(2*pi) for k = 1:2:nev]
+end
+
+# this doesn't work!!!
+
+## compute sensitivities using ForwardDiff with λ = 1.0
+# ForwardDiff.jacobian(objfun, p)

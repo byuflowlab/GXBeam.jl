@@ -67,6 +67,8 @@ end
 
 #!jl nothing #hide
 
+# ## Comparison with Analytical Results
+
 #
 # This problem has a simple analytical solution, which we obtained from "Study of the
 # Geometric Stiffening Effect: Comparison of Different Formulations" by Juana M. Mayo,
@@ -138,6 +140,8 @@ plot!(show=true) #!nb
 #md # ![](../assets/tipmoment-deflection.svg)
 
 #-
+
+# ## Grid Convergence Study
 
 # We can use this problem to test the accuracy and convergence of this package.  To do so
 # we set ``\lambda = 1`` and repeat the analysis for a variety of grid sizes.  We measure
@@ -279,3 +283,58 @@ p2 = plot(grid_sizes .+ 1, εy, label="",
 # accuracy solutions are critical, higher order shape functions, such as the Legendre
 # spectral finite elements used by [BeamDyn](https://www.nrel.gov/wind/nwtc/beamdyn.html)
 # are likely more computationally efficient.
+
+# ## Sensitivity Analysis
+
+# Suppose we are interested in the sensitivity of tip x and y-displacement with respect to
+# the nondimensional tip moment ``\lambda`` when ``\lambda=1``.  As described in the
+# [`sensitivity analysis documentation`](@ref sensitivities), these sensitivities may be
+# computed using the following code:
+
+using ForwardDiff
+
+## construct pfunc to overwrite prescribed conditions
+pfunc = (p, t) -> begin
+
+    ## non-dimensional tip moment
+    λ = p[1]
+
+    ## dimensionalized tip moment
+    m = pi*E*Iyy/L
+    M = λ*m
+
+    ## create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        ## fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        ## moment on right side
+        nelem+1 => PrescribedConditions(Mz = M)
+    )
+
+    ## return named tuple with new arguments
+    return (; prescribed_conditions=prescribed_conditions)
+end
+
+## construct objective function
+objfun = (p) -> begin
+
+    ## perform static analysis
+    system, state, converged = static_analysis(assembly; pfunc, p)
+
+    ## return the desired outputs
+    return [state.points[end].u[1], state.points[end].u[2]]
+end
+
+## compute sensitivities using ForwardDiff with λ = 1.0
+ForwardDiff.jacobian(objfun, [1.0])
+
+# Note that these sensitivities are the exact sensitivities of the numerical (discretized)
+# solution rather than the exact sensitivities of the analytic (continuous) solution.  The
+# former is more appropriate for gradient-based optimization (which operates on the
+# discretized solution) while the latter better describes the system's actual sensitivities.
+
+# For this problem, continuous sensitivities may be derived from the analytic solution as
+# ``\frac{d y}{d \lambda} = -L = -12`` and ``\frac{d y}{d \lambda} = \frac{-2 L}{\pi} = \frac{-24}{\pi}``
+# To obtain continuous sensitivities using GXBeam, a sufficiently fine grid discretization
+# must be used.  If analytic results are not available, a grid convergence study must be
+# performed in order to find a sufficiently fine grid discretization.

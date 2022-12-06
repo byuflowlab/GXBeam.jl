@@ -712,8 +712,7 @@ end
     linearize!(system, assembly; kwargs...)
 
 Return the state variables, jacobian matrix, and mass matrix of a linearized system using
-the current system state vector.  Note that the returned vectors and matrices are aliased
-with variables in `system` so a copy should be made prior to modifying them.
+the current system state vector.
 
 # General Keyword Arguments
  - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
@@ -836,6 +835,10 @@ function linearize!(system, assembly;
 
     # update the stored time
     constants = (; constants..., t)
+
+    # initialize storage for jacobian and mass matrices
+    K = similar(system.K, eltype(x))
+    M = similar(system.M, eltype(x))
 
     # solve for the system stiffness and mass matrices
     if constant_mass_matrix

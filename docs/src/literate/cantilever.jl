@@ -62,6 +62,8 @@ system, state, converged = static_analysis(assembly;
 #nb nothing
 #md nothing #hide
 
+# ## Comparison with Analytical Results
+
 #
 # We can construct the analytical solution for this problem by integrating from the free
 # end of the beam and applying the appropriate boundary conditions.

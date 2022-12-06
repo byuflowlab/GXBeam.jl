@@ -62,6 +62,8 @@ end
 
 #!jl nothing #hide
 
+# ## Comparison with Analytical Results
+
 #
 # The analytical solution to this problem has been presented by several authors.  Here
 # we follow the solution by H. J. Barten in "On the Deflection of a Cantilever Beam",

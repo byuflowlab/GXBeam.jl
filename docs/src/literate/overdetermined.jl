@@ -58,6 +58,7 @@ system, state, converged = static_analysis(assembly;
 
 #!jl nothing #hide
 
+# ## Comparison with Analytical Results
 
 # An analytical solution to this over-determined problem can be found using the method of
 # superposition using the analytical solutions to a cantilever with a linearly distributed
