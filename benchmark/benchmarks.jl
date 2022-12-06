@@ -197,20 +197,14 @@ function unsteady_benchmark()
     # time function
     tf1 = (t) -> t < 0.2 ? 0.1*(1 - sin(2*pi*(t/0.4 + 0.25))) : zero(t)
 
-    # # prescribed condition
-    # prescribed_conditions = (t) -> Dict(
-    #     1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-    #     nelem_b1 + 1 => PrescribedConditions(Fx=0, Fy=100*tf1(t), Fz=0, Mx=0, My=0, Mz=0)
-    # )
-
     # prescribed condition
-    prescribed_conditions = Dict(
+    prescribed_conditions = (t) -> Dict(
         1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-        nelem_b1 + 1 => PrescribedConditions(Fx=0, Fy=0, Fz=0, Mx=0, My=0, Mz=0)
+        nelem_b1 + 1 => PrescribedConditions(Fx=0, Fy=100*tf1(t), Fz=0, Mx=0, My=0, Mz=0)
     )
 
     # perform time marching analysis
-    system, history, converged = time_domain_analysis(assembly, tvec; show_trace=true,
+    system, history, converged = time_domain_analysis(assembly, tvec;
         linear_velocity = [0, 196.349540849362, 0],
         angular_velocity = [0, 0, 78.5398163397448],
         prescribed_conditions = prescribed_conditions)
