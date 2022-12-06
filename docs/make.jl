@@ -13,6 +13,8 @@ makedocs(;
         "Home" => "index.md",
         "Getting Started" => joinpath("examples", "guide.md"),
         "Section Properties" => joinpath("examples", "section.md"),
+        "Sensitivity Analysis" => joinpath("examples", "sensitivities.md"),
+        "DifferentialEquations" => joinpath("examples", "diffeq.md"),
         "Examples" => [
             joinpath("examples", "cantilever.md"),
             joinpath("examples", "overdetermined.md"),
@@ -26,8 +28,6 @@ makedocs(;
             joinpath("examples", "dynamic-joined-wing.md"),
             joinpath("examples", "vertical-axis-wind-turbine.md"),
         ],
-        "DifferentialEquations" => joinpath("examples", "diffeq.md"),
-        "Sensitivity Analysis" => joinpath("examples", "sensitivities.md"),
         "API Reference" => joinpath("reference", "reference.md"),
     ],
     sitename = "GXBeam.jl",
