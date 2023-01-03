@@ -30,6 +30,10 @@ end
 Base.eltype(::PointState{TF}) where {TF} = TF
 Base.eltype(::Type{PointState{TF}}) where {TF} = TF
 
+PointState{TF}(p::PointState) where {TF} = PointState{TF}(p.u, p.udot, p.theta, p.thetadot,
+    p.V, p.Vdot, p.Omega, p.Omegadot, p.F, p.M)
+Base.convert(::Type{PointState{TF}}, p::PointState) where {TF} = PointState{TF}(p)
+
 """
     ElementState
 
@@ -62,6 +66,10 @@ end
 Base.eltype(::ElementState{TF}) where {TF} = TF
 Base.eltype(::Type{ElementState{TF}}) where {TF} = TF
 
+ElementState{TF}(p::ElementState) where {TF} = ElementState{TF}(p.u, p.udot, p.theta, p.thetadot,
+    p.V, p.Vdot, p.Omega, p.Omegadot, p.Fi, p.Mi)
+Base.convert(::Type{ElementState{TF}}, p::ElementState) where {TF} = ElementState{TF}(p)
+
 """
     AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{ElementState{TF}}}
 
@@ -77,6 +85,11 @@ struct AssemblyState{TF, TP<:AbstractVector{PointState{TF}}, TE<:AbstractVector{
 end
 Base.eltype(::AssemblyState{TF, TP, TE}) where {TF, TP, TE} = TF
 Base.eltype(::Type{AssemblyState{TF, TP, TE}}) where {TF, TP, TE} = TF
+
+function AssemblyState{TF, TP, TE}(a::AssemblyState) where {TF, TP, TE}
+    return AssemblyState{TF, TP, TE}(a.points, a.elements)
+end
+Base.convert(::Type{AssemblyState{TF, TP, TE}}, p::AssemblyState) where {TF, TP, TE} = AssemblyState{TF, TP, TE}(p)
 
 """
     AssemblyState(system, assembly, x=system.x, dx=system.dx; prescribed_conditions = Dict())

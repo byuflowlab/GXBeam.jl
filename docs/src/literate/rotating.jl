@@ -596,6 +596,9 @@ write_vtk("rotating-eigenmode/rotating-eigenmode", assembly, state[end,end],
 
 using ForwardDiff
 
+## number of eigenvalues
+nev = 30
+
 ## define sweep angle
 sweep = 45 * pi/180
 
@@ -608,13 +611,13 @@ p = [sweep]
 ## straight section of the beam
 L_b1 = 31.5 ## inch
 r_b1 = [2.5, 0, 0]
-nelem_b1 = 13
+nelem_b1 = 20
 lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
 
 ## swept section of the beam
 L_b2 = 6 ## inch
 r_b2 = [34, 0, 0]
-nelem_b2 = 3
+nelem_b2 = 20
 cs, ss = cos(sweep), sin(sweep)
 frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
 lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
@@ -670,13 +673,18 @@ objfun = (p) -> begin
     system, λ, V, converged = eigenvalue_analysis(assembly; pfunc, p,
         angular_velocity = [0, 0, rpm*(2*pi)/60],
         prescribed_conditions = prescribed_conditions,
+        eigenvector_sensitivities=true,
         nev = nev)
 
     ## return frequencies
-    return [imag(λ[k])/(2*pi) for k = 1:2:nev]
+    return [imag(λ[k])/(2*pi) for k = 1:2:length(λ)]
 end
 
-# this doesn't work!!!
-
 ## compute sensitivities using ForwardDiff with λ = 1.0
-# ForwardDiff.jacobian(objfun, p)
+ForwardDiff.jacobian(objfun, p)
+
+# Note the use of the keyword argument `eigenvector_sensitivities=false` in our call to
+# `eigenvalue_analysis`.  This keyword argument tells the solver that we are only interested
+# in eigenvalue derivatives, rather than eigenvalue and eigenvector derivatives.  Setting
+# this keyword argument to `false` (when appropriate) significantly reduces the computational
+# expenses associated with computing design sensitivities.

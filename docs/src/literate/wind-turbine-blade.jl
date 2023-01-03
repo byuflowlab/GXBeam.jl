@@ -6,6 +6,8 @@
 #md #     [`wind-turbine-blade.ipynb`](@__NBVIEWER_ROOT_URL__/examples/wind-turbine-blade.ipynb).
 #-
 
+## Time Domain Analysis
+
 using GXBeam, LinearAlgebra
 
 L = 60 # m
@@ -62,6 +64,8 @@ system, history, converged = time_domain_analysis(assembly, t;
     structural_damping = false)
 
 #!jl nothing #hide
+
+## Visualization
 
 # We can visualize tip displacements and the resultant forces in the root by accessing
 # the post-processed results for each time step contained in the variable `history`.
@@ -253,3 +257,50 @@ write_vtk("wind-turbine-blade-simulation/wind-turbine-blade-simulation", assembl
 #md rm("wind-turbine-blade-simulation"; recursive=true) #hide
 
 # ![](../assets/wind-turbine-blade-simulation.gif)
+
+
+# ## Sensitivity Analysis
+
+# Suppose we are interested in computing the sensitivity of the tip deflection at `t=2.0`
+# to the tip force magnitude.  We can compute this sensitivity using the following code:
+
+using ForwardDiff
+
+## simulation time
+t = 0:0.001:2.0
+
+## construct parameter function
+pfunc = (p, t) -> begin
+
+    ## prescribed conditions
+    prescribed_conditions = Dict(
+        ## fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        ## force on right side
+        nelem+1 => PrescribedConditions(Fz = p[1]*sin(p[2]*t))
+    )
+
+    ## return named tuple with new arguments
+    return (; prescribed_conditions=prescribed_conditions)
+end
+
+## construct objective function
+objfun = (p) -> begin
+
+    # perform time domain analysis
+    system, history, converged = time_domain_analysis(assembly, t;
+        prescribed_conditions = prescribed_conditions, # default prescribed conditions
+        structural_damping = false,
+        pfunc = pfunc, # sensitivity function
+        p = p, # sensitivity parameters
+        )
+
+    ## return vertical tip displacement at `t=2.0`
+    return [history[end].points[end].u[3]]
+end
+
+## sensitivity parameters
+p = [1e5, 20] # force magnitude and frequency
+
+## compute sensitivities using ForwardDiff
+ForwardDiff.jacobian(objfun, p)

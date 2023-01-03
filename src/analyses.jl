@@ -584,7 +584,7 @@ function steady_output!(system, x, p, constants)
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
 
     # initialize state rate vector (if necessary)
-    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : zero(x)
+    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : similar(x) .= 0
 
     # extract body frame accelerations
     ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
@@ -849,6 +849,10 @@ function linearize!(system, assembly;
         mass_matrix!(M, x, p, constants)
     end
 
+    # update the jacobians in `system`
+    dual_safe_copy!(system.K, K)
+    dual_safe_copy!(system.M, M)
+
     # return state and jacobian matrices
     return x, K, M
 end
@@ -864,12 +868,12 @@ function solve_eigensystem(x, K, M, nev)
     T = eltype(x)
     nx = length(x)
     Kfact = lu(K)
-    f! = (b, x) -> b .= ImplicitAD.implicit_linear(K,  M * x; Af=Kfact)
-    fc! = (b, x) -> mul!(b, M', ImplicitAD.implicit_linear(K', x; Af=Kfact'))
+    f! = (b, x) -> ldiv!(b, Kfact, M * x)
+    fc! = (b, x) -> mul!(b, M', Kfact' \ x)
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
 
     # compute eigenvalues and eigenvectors
-    λ, V = partialeigen(partialschur(A; nev=min(nx, nev), which=LM())[1])
+    λ, V = partialeigen(partialschur(A; nev=min(nx, nev), which=LM(), tol=1e-9)[1])
 
     # sort eigenvalues by magnitude
     perm = sortperm(λ, by=(λ) -> (abs(λ), imag(λ)), rev=true)
@@ -1184,6 +1188,7 @@ function eigenvalue_analysis!(system, assembly;
     p = nothing,
     # eigenvalue analysis keyword arguments
     nev = 6,
+    eigenvector_sensitivities=true,
     steady_state=true,
     left=false,
     Uprev=nothing,
@@ -1243,53 +1248,247 @@ function eigenvalue_analysis!(system, assembly;
         converged = true
     end
 
-    # linearize the resulting system of equations
-    x, K, M = linearize!(system, assembly;
-        # general keyword arguments
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        gravity=gravity,
-        time=time,
-        # control flag keyword arguments
-        reset_state=false,
-        initial_state=initial_state,
-        structural_damping=structural_damping,
-        constant_mass_matrix=typeof(system) <: ExpandedSystem,
-        two_dimensional=two_dimensional,
-        show_trace=show_trace,
-        # sensitivity analysis keyword arguments
-        pfunc=pfunc,
-        p=p,
-        )
+    # unpack force scaling parameter and system pointers
+    @unpack force_scaling, indices = system
 
-    # solve the eigensystem
-    λ, V = solve_eigensystem(x, K, M, nev)
+    # package up keyword arguments corresponding to this analysis
+    constants = (;
+        # assembly, indices, control flags, parameter function, and current time
+        assembly, indices, structural_damping, two_dimensional, force_scaling, pfunc, t=first(time),
+        # default parameters
+        prescribed_conditions, distributed_loads, point_masses, gravity,
+        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
+    )
+
+    # initialize state vector, jacobian, and mass matrix
+    x = steady_state_vector(system, initial_state, p, constants)
+    K = spzeros(eltype(x), indices.nstates, indices.nstates)
+    M = spzeros(eltype(x), indices.nstates, indices.nstates)
+
+    # compute the jacobian and mass matrix
+    steady_jacobian!(K, x, p, constants)
+    mass_matrix!(M, x, p, constants)
+
+    # update the system storage
+    xv = dual_safe_copy!(system.x, x)
+    Kv = dual_safe_copy!(system.K, K)
+    Mv = dual_safe_copy!(system.M, M)
+
+    # augment parameters with state variables
+    px = x
+    pp = p
+    p = isnothing(p) ? x : vcat(x, p)
+
+    # compute eigenvalues and eigenvectors (without sensitivities)
+    λv, Vv = solve_eigensystem(xv, Kv, Mv, nev)
+
+    # resolve eigenvector ambiguities
+    imax = zeros(Int, length(λv))
+    for iλ = 1:length(λv)
+        # extract eigenvector
+        v = view(Vv, :, iλ)
+        # apply normalization
+        Vv[:,iλ] ./= norm(v)
+        # resolve phase ambiguity
+        imax[iλ] = findfirst(x->abs(x)>1e-4, v)
+        Vv[:,iλ] .*= conj(v[imax[iλ]])/abs(v[imax[iλ]])
+    end
 
     # correlate eigenmodes
     if !isnothing(Uprev)
         # construct correlation matrix
-        C = Uprev*M*V
+        C = Uprev*M*Vv
         # find correct permutation of eigenmodes
         perm, corruption = correlate_eigenmodes(C)
         # rearrange eigenmodes
-        λ = λ[perm]
-        V = V[:,perm]
+        λv = λv[perm]
+        Vv = Vv[:,perm]
+        # also rearrange the index for resolving the phase ambiguity
+        imax = imax[perm]
     end
 
-    if left
+    # compute desired sensitivities
+    if eigenvector_sensitivities
+        # compute eigenvalue and eigenvector sensitivities
+
+        # store precomputed values
+        constants = (; constants..., K_value=Kv, M_value=Mv, K_dual=K, M_dual=M)
+
+        # process sensitivities for each eigenvalue individually
+        λ = similar(λv, complex(eltype(x))) # λ (with sensitivities)
+        V = similar(Vv, complex(eltype(x))) # V (with sensitivities)
+        for iλ = 1:length(λ)
+            # update stored eigenvalue and eigenvector
+            constants = (; constants..., λ=λv[iλ], v=view(Vv, :, iλ), imax=imax[iλ])
+            # compute sensitivities
+            eigenstate = ImplicitAD.implicit(eigenproblem_solve!, eigenproblem_residual!, p, constants; drdy=eigenproblem_drdy)
+            # extract eigenvalues and eigenvectors (with sensitivities) from the output
+            λ[iλ] = complex(eigenstate[2*length(x)+1], eigenstate[2*length(x)+2])
+            for ix = 1:length(x)
+                V[ix,iλ] = complex(eigenstate[2*ix-1], eigenstate[2*ix])
+            end
+        end
+
+        # compute corresponding left eigenvectors
+        if left
+            # find the left eigenvector corresponding to each right eigenvector
+            U = left_eigenvectors(K, M, λ, V)
+            # return left and right eigenvectors
+            return system, λ, U, V, converged
+        else
+            # return only right eigenvectors
+            return system, λ, V, converged
+        end
+
+    else
+        # compute only eigenvalue sensitivities
+
         # find the left eigenvector corresponding to each right eigenvector
-        U = left_eigenvectors(K, M, λ, V)
-        # return left and right eigenvectors
-        return system, λ, U, V, converged
+        Uv = left_eigenvectors(Kv, Mv, λv, Vv)
+
+        # propagate partial derivatives: λdot = transpose(ui)*(Kdot + Mdot*λi)*vi
+        λ = similar(λv, complex(eltype(x)))
+        for iλ = 1:length(λ)
+            λi = λv[iλ]
+            ui = transpose(view(Uv, iλ, :))
+            vi = view(Vv, :, iλ)
+            # NOTE: Since `ui*(K + M*λi)*vi = 0` we can augment the primal values `λi`
+            # with the analytically derivatived sensitivities by adding `ui*(K + M*λi)*vi`
+            λ[iλ] = λi + ui*(K + M*λi)*vi
+        end
+
+        # ignore sensitivities associated with V
+        V = Vv
+
+        # return requested output
+        if left
+            # ignore sensitivities associated with U
+            U = Uv
+            # return left and right eigenvectors
+            return system, λ, U, V, converged
+        else
+            # return only right eigenvectors
+            return system, λ, V, converged
+        end
+
     end
 
-    # return only right eigenvalues
-    return system, λ, V, converged
+end
+
+# combines constant and variable parameters for an eigenvalue analysis
+function eigenvalue_parameters(p, constants)
+    # extract state vector
+    nx = constants.indices.nstates
+    x = view(p, 1:nx)
+    # extract parameters
+    p = view(p, nx+1:length(p))
+    parameters = steady_parameters(p, constants)
+    # return state vector and parameters
+    return x, parameters...
+end
+
+# residual function for an eigenvalue analysis (in format expected by ImplicitAD)
+function eigenproblem_residual!(resid, eigenstate, p, constants)
+    # unpack indices and control flags
+    @unpack indices, two_dimensional, force_scaling, structural_damping, imax = constants
+    # get jacobian and mass matrix
+    if eltype(resid) <: ForwardDiff.Dual
+        # unpack precomputed jacobian and mass matrix
+        K, M = constants.K_dual, constants.M_dual
+    else
+        # combine constants and parameters
+        x, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = eigenvalue_parameters(p, constants)
+        # initialize jacobian and mass matrix
+        K = similar(resid, length(x), length(x))
+        M = similar(resid, length(x), length(x))
+        # populate jacobian and mass matrix
+        steady_system_jacobian!(K, x, indices, two_dimensional, force_scaling,
+            structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p)
+        system_mass_matrix!(M, x, indices, two_dimensional, force_scaling,
+            assembly, pcond, pmass)
+    end
+    # number of state variables
+    nx = div(length(eigenstate) - 2, 2)
+    # extract real and imaginary parts of the eigenvalue
+    λr = eigenstate[2*nx+1]
+    λi = eigenstate[2*nx+2]
+    # extract real and imaginary parts of the eigenvector
+    vr = view(eigenstate, 1:2:2*nx)
+    vi = view(eigenstate, 2:2:2*nx)
+    # eigenproblem residual: (K + M*λ)*v = 0
+    # real((K + M*λ)*v) = K*real(v) + M*real(λ)*real(v) - M*imag(λ)*imag(v) = 0
+    rr = view(resid, 1:2:2*nx)
+    mul!(rr, K, vr)
+    mul!(rr, M, vr, λr, 1)
+    mul!(rr, M, vi, -λi, 1)
+    # imag((K + M*λ)*v) = K*imag(v) + M*imag(λ)*real(v) + M*real(λ)*imag(v) = 0
+    ri = view(resid, 2:2:2*nx)
+    mul!(ri, K, vi)
+    mul!(ri, M, vr, λi, 1)
+    mul!(ri, M, vi, λr, 1)
+    # normalization residual: v'*v - 1 = 0
+    resid[2*nx+1] = vr'*vr + vi'*vi - 1
+    # phase shift residual: argmax(abs, v) = 0
+    resid[2*nx+2] = vi[imax]
+    # return result
+    return resid
+end
+
+# jacobian function for an eigenvalue analysis
+function eigenproblem_jacobian!(jacob, eigenstate, p, constants)
+    # unpack indices and control flags
+    @unpack indices, two_dimensional, force_scaling, structural_damping, imax = constants
+    # unpack precomputed jacobian and mass matrix
+    K, M = constants.K_value, constants.M_value
+    # number of state variables
+    nx = div(length(eigenstate) - 2, 2)
+    # extract real and imaginary parts of eigenvalue
+    λr = eigenstate[2*nx+1]
+    λi = eigenstate[2*nx+2]
+    # extract real and imaginary parts of eigenvector
+    vr = view(eigenstate, 1:2:2*nx)
+    vi = view(eigenstate, 2:2:2*nx)
+    # eigenproblem residual: (K + M*λ)*v = 0
+    # residual for real part
+    copy!(view(jacob, 1:2:2*nx, 1:2:2*nx), K) # K*dvr
+    mul!(view(jacob, 1:2:2*nx, 1:2:2*nx), M, λr, 1, 1) # M*real(λ)*dvr
+    mul!(view(jacob, 1:2:2*nx, 2:2:2*nx), M, λi, -1, 1) # -M*imag(λ)*dvi
+    mul!(view(jacob, 1:2:2*nx, 2*nx+1), M, vr, 1, 1) # M*real(v)*dλr
+    mul!(view(jacob, 1:2:2*nx, 2*nx+2), M, vi, -1, 1) # -M*imag(v)*dλi
+    # residual for imaginary part
+    copy!(view(jacob, 2:2:2*nx, 2:2:2*nx), K) # K*dvi
+    mul!(view(jacob, 2:2:2*nx, 1:2:2*nx), M, λi, 1, 1) # M*imag(λ)*dvr
+    mul!(view(jacob, 2:2:2*nx, 2:2:2*nx), M, λr, 1, 1) # M*real(λ)*dvi
+    mul!(view(jacob, 2:2:2*nx, 2*nx+1), M, vi) # M*imag(v)*dλr
+    mul!(view(jacob, 2:2:2*nx, 2*nx+2), M, vr) # M*real(v)*dλi
+    # normalization residual: v'*v - 1 = 0
+    # real(v'*v - 1) = real(v)'*real(v) + imag(v)'*imag(v)
+    mul!(view(jacob, 2*nx+1, 1:2:2*nx), vr, 2) # real(v)'*real(v)
+    mul!(view(jacob, 2*nx+1, 2:2:2*nx), vi, 2) # imag(v)'*imag(v)
+    # phase shift residual: argmax(abs, vi) = 0
+    # imag(v[i]) = imag(v[i])
+    jacob[2*nx+2, 2*imax] = 1
+    # return result
+    return jacob
+end
+
+# jacobian function (in format expected by ImplicitAD)
+eigenproblem_drdy(residual, x, p, constants) = eigenproblem_jacobian!(spzeros(eltype(x), length(x), length(x)), x, p, constants)
+
+# dummy function (for use with ImplicitAD)
+function eigenproblem_solve!(p, constants)
+    # extract current eigenvalue and eigenvector
+    @unpack λ, v = constants
+    # combine eigenvalue and eigenvector into one real-valued vector
+    eigenstate = zeros(real(eltype(λ)), 2*length(v)+2)
+    for iv = 1:length(v)
+        eigenstate[2*iv-1] = real(v[iv])
+        eigenstate[2*iv] = imag(v[iv])
+    end
+    eigenstate[2*length(v)+1] = real(λ)
+    eigenstate[2*length(v)+2] = imag(λ)
+    # return result
+    return eigenstate
 end
 
 """
@@ -1604,8 +1803,8 @@ function initial_condition_analysis!(system, assembly, t0;
         set_rate!(original_system, assembly, state; prescribed_conditions=pcond)
     else
         # initialize storage
-        dx = similar(original_system.dx, output_type)
-        x = similar(original_system.x, output_type)
+        dx = similar(original_system.dx, eltype(state))
+        x = similar(original_system.x, eltype(state))
         # construct state and rate vectors
         set_rate!(dx, original_system, assembly, state; prescribed_conditions=pcond)
         set_state!(x, original_system, assembly, state; prescribed_conditions=pcond)
@@ -1754,7 +1953,8 @@ function initial_output(system, x, p, constants)
         Vdot0, Omegadot0 = initial_parameters(p, constants)
 
     # initialize state rate vector (if necessary)
-    dx = typeof(system.dx) <: typeof(x) ? system.dx : zero(x)
+    xx = typeof(system.x) <: typeof(x) ? system.x .= x : similar(x) .= x
+    dx = typeof(system.dx) <: typeof(x) ? system.dx : similar(x) .= 0
 
     # body velocities and accelerations
     vb, ωb = vb_p, ωb_p
@@ -1777,12 +1977,12 @@ function initial_output(system, x, p, constants)
         Vdot += ab + cross(αb, Δx + u) + cross(ωb, udot)
         Ωdot += αb
         # insert result into the state vector
-        set_linear_displacement!(x, system, pcond, u, ipoint)
-        set_angular_displacement!(x, system, pcond, θ, ipoint)
-        set_linear_velocity!(x, system, V, ipoint)
-        set_angular_velocity!(x, system, Ω, ipoint)
-        set_external_forces!(x, system, pcond, F, ipoint)
-        set_external_moments!(x, system, pcond, M, ipoint)
+        set_linear_displacement!(xx, system, pcond, u, ipoint)
+        set_angular_displacement!(xx, system, pcond, θ, ipoint)
+        set_linear_velocity!(xx, system, V, ipoint)
+        set_angular_velocity!(xx, system, Ω, ipoint)
+        set_external_forces!(xx, system, pcond, F, ipoint)
+        set_external_moments!(xx, system, pcond, M, ipoint)
         # insert result into the rate vector
         icol = indices.icol_point[ipoint]
         udot_udot, θdot_θdot = point_displacement_jacobians(ipoint, pcond)
@@ -1793,11 +1993,11 @@ function initial_output(system, x, p, constants)
     end
 
     # update the state and rate variables in `system`
-    dual_safe_copy!(system.x, x)
+    dual_safe_copy!(system.x, xx)
     dual_safe_copy!(system.dx, dx)
 
     # return result
-    state = AssemblyState(dx, x, system, assembly; prescribed_conditions=pcond)
+    state = AssemblyState(dx, xx, system, assembly; prescribed_conditions=pcond)
 
     return state
 end
@@ -1909,7 +2109,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     gravity=(@SVector zeros(3)),
     # control flag keyword arguments
     reset_state=true,
-    initialize=true,
     initial_state=nothing,
     steady_state=false,
     structural_damping=true,
@@ -1938,7 +2137,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
 
     # --- Find the Initial States and Rates --- #
 
-    if initialize
+    if isnothing(initial_state)
         # perform an analysis to find the initial state
         system, initial_state, converged = initial_condition_analysis!(system, assembly, first(tvec);
             # general keyword arguments
@@ -1993,17 +2192,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # update the system time
     system.t = t
 
-    # initialize temporary storage for state rate initialization terms
-    udot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    θdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    Vdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-    Ωdot_init = [(@SVector zeros(eltype(p), 3)) for i = 1:length(assembly.points)]
-
-    # augment the parameter vector with space for the newmark-scheme initialization terms
-    p_i = zeros(eltype(initial_state), 12*length(assembly.points))
-    p_p = p
-    p = isnothing(p) ? p_i : vcat(p_i, p_p)
-
     # initialize convergence flag
     converged = Ref(converged)
 
@@ -2016,8 +2204,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         # default parameters
         prescribed_conditions, distributed_loads, point_masses, gravity,
         linear_velocity, angular_velocity,
-        # pointers to the pre-allocated storage for state rate initialization terms
-        udot_init, θdot_init, Vdot_init, Ωdot_init,
         # nonlinear analysis keyword arguments
         show_trace, method, linesearch, ftol, iterations,
     )
@@ -2035,10 +2221,10 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     dual_safe_copy!(system.x, x)
     dual_safe_copy!(system.dx, dx)
 
-    # --- Perform Time-Domain Simulation --- #
+    # --- Initialize Time-Domain Solution --- #
 
     # initialize storage for each time step
-    history = Vector{AssemblyState{eltype(p)}}(undef, length(save))
+    history = Vector{AssemblyState{eltype(x)}}(undef, length(save))
     isave = 1
 
     # add initial state to the solution history
@@ -2047,22 +2233,20 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         isave += 1
     end
 
-    # define the newmark-scheme initialization terms for the first iteration
-    if length(tvec) > 1
-        # step size corresponding to the next time step
-        next_dt = tvec[2] - tvec[1]
-        # save initialization terms to the augmented parameter vector
-        for ipoint = 1:length(assembly.points)
-            irate = 12 * (ipoint - 1)
-            p[irate+1:irate+3] = 2/next_dt*initial_state.points[ipoint].u + initial_state.points[ipoint].udot
-            p[irate+4:irate+6] = 2/next_dt*initial_state.points[ipoint].theta + initial_state.points[ipoint].thetadot
-            p[irate+7:irate+9] = 2/next_dt*initial_state.points[ipoint].V + initial_state.points[ipoint].Vdot
-            p[irate+10:irate+12] = 2/next_dt*initial_state.points[ipoint].Omega + initial_state.points[ipoint].Omegadot
-        end
+    # augment parameter vector with space for the initial states
+    if isnothing(p)
+        # parameter vector is non-existant
+        paug = zeros(eltype(x), 12*length(assembly.points))
+    else
+        # parameter vector exists
+        paug = zeros(eltype(x), 12*length(assembly.points) + length(p))
+        # copy parameter values to the augmented parameter vector
+        paug[12*length(assembly.points) + 1 : 12*length(assembly.points) + length(p)] .= p
     end
 
-    # begin time stepping
-    for it in eachindex(tvec)[2:end]
+    # --- Begin Time Stepping --- #
+
+    for it = 2:length(tvec)
 
         # current time
         t = tvec[it]
@@ -2081,20 +2265,51 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         # update the stored time and time step
         constants = (; constants..., t, dt)
 
+        # get updated prescribed conditions
+        pcond = get(pfunc(p, t), :prescribed_conditions, prescribed_conditions)
+        pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
+
+        # update parameter vector with new initialization terms
+        for ipoint = 1:length(assembly.points)
+            # index into parameter vector
+            irate = 12 * (ipoint - 1)
+            # extract state variables
+            u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
+            V, Ω = point_velocities(x, indices.icol_point[ipoint])
+            # extract rate variables
+            if it <= 2
+                udot = initial_state.points[ipoint].udot
+                θdot = initial_state.points[ipoint].thetadot
+                Vdot = initial_state.points[ipoint].Vdot
+                Ωdot = initial_state.points[ipoint].Omegadot
+            else
+                dtprev = tvec[it-1] - tvec[it-2]
+                udot = 2/dtprev*u - SVector(paug[irate+1], paug[irate+2], paug[irate+3])
+                θdot = 2/dtprev*θ - SVector(paug[irate+4], paug[irate+5], paug[irate+6])
+                Vdot = 2/dtprev*V - SVector(paug[irate+7], paug[irate+8], paug[irate+9])
+                Ωdot = 2/dtprev*Ω - SVector(paug[irate+10], paug[irate+11], paug[irate+12])
+            end
+            # store initialization terms in the parameter vector
+            paug[irate+1:irate+3] = 2/dt*u + udot
+            paug[irate+4:irate+6] = 2/dt*θ + θdot
+            paug[irate+7:irate+9] = 2/dt*V + Vdot
+            paug[irate+10:irate+12] = 2/dt*Ω + Ωdot
+        end
+
         # solve for the new set of state variables
         if linear
             if update_linearization
-                x = newmark_lsolve!(x, p, constants)
+                x = newmark_lsolve!(x, paug, constants)
             else
-                x = newmark_lsolve!(x0, p, constants)
+                x = newmark_lsolve!(x0, paug, constants)
             end
         else
-            x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, p, constants; drdy=newmark_drdy)
+            x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
         end
 
         # add state to history
         if it in save
-            history[isave] = newmark_output(system, x, p, constants)
+            history[isave] = newmark_output(system, x, paug, constants)
             isave += 1
         end
 
@@ -2110,31 +2325,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             break
         end
 
-        # define the newmark-scheme initialization terms for the next iteration
-        if length(tvec) > it
-            # get updated set of parameters corresponding to the analysis
-            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, udot_init, θdot_init, Vdot_init, Ωdot_init, dt = newmark_parameters(p, constants)
-            # step size corresponding to the next time step
-            next_dt = (tvec[it+1] - tvec[it])
-            # save initialization terms to the augmented parameter vector
-            for ipoint = 1:length(assembly.points)
-                u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
-                V, Ω = point_velocities(x, indices.icol_point[ipoint])
-                # pointer to initialization terms for this point
-                irate = 12 * (ipoint - 1)
-                # extract current state rates
-                udot = 2/dt*u - SVector{3}(p[irate+1], p[irate+2], p[irate+3])
-                θdot = 2/dt*θ - SVector{3}(p[irate+4], p[irate+5], p[irate+6])
-                Vdot = 2/dt*V - SVector{3}(p[irate+7], p[irate+8], p[irate+9])
-                Ωdot = 2/dt*Ω - SVector{3}(p[irate+10], p[irate+11], p[irate+12])
-                # save initialization terms
-                p[irate+1:irate+3] = 2/next_dt*u + udot
-                p[irate+4:irate+6] = 2/next_dt*θ + θdot
-                p[irate+7:irate+9] = 2/next_dt*V + Vdot
-                p[irate+10:irate+12] = 2/next_dt*Ω + Ωdot
-            end
-        end
-
     end
 
     return system, history, converged[]
@@ -2147,8 +2337,8 @@ function newmark_parameters(p, constants)
     @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
         linear_velocity, angular_velocity, pfunc, t, dt = constants
 
-    # also unpack indices and temporary storage for rate variables
-    @unpack indices, udot_init, θdot_init, Vdot_init, Ωdot_init = constants
+    # also unpack indices
+    @unpack indices = constants
 
     # number of state variables and points
     np = length(assembly.points)
@@ -2157,14 +2347,11 @@ function newmark_parameters(p, constants)
     p_i = view(p, 1:12*np) # initialization terms
     p_p = view(p, 12*np+1:length(p)) # provided parameter vector
 
-    # extract state variable initialization terms
-    for ipoint = 1:length(assembly.points)
-        irate = 12 * (ipoint - 1)
-        udot_init[ipoint] = SVector{3}(p_i[irate+1], p_i[irate+2], p_i[irate+3])
-        θdot_init[ipoint] = SVector{3}(p_i[irate+4], p_i[irate+5], p_i[irate+6])
-        Vdot_init[ipoint] = SVector{3}(p_i[irate+7], p_i[irate+8], p_i[irate+9])
-        Ωdot_init[ipoint] = SVector{3}(p_i[irate+10], p_i[irate+11], p_i[irate+12])
-    end
+    # define state rate initialization terms
+    udot_init = [SVector{3}(p_i[12*(ip-1)+1], p_i[12*(ip-1)+2], p_i[12*(ip-1)+3]) for ip = 1:length(assembly.points)]
+    θdot_init = [SVector{3}(p_i[12*(ip-1)+4], p_i[12*(ip-1)+5], p_i[12*(ip-1)+6]) for ip = 1:length(assembly.points)]
+    Vdot_init = [SVector{3}(p_i[12*(ip-1)+7], p_i[12*(ip-1)+8], p_i[12*(ip-1)+9]) for ip = 1:length(assembly.points)]
+    Ωdot_init = [SVector{3}(p_i[12*(ip-1)+10], p_i[12*(ip-1)+11], p_i[12*(ip-1)+12]) for ip = 1:length(assembly.points)]
 
     # overwrite default assembly and parameters (if applicable)
     parameters = pfunc(p_p, t)
@@ -2206,8 +2393,7 @@ function newmark_state_vector(system, state, p, constants)
             dx0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
         end
         # combine constants and parameters
-        assembly, pcond, dload, pmass, gvec, vb_p, ωb_p,
-            udot_init, θdot_init, Vdot_init, Ωdot_init, dt = newmark_parameters(p, constants)
+        assembly, pcond, dload, pmass, gvec = static_parameters(p, constants)
         # set initial state variables in `x`
         set_state!(x0, system, assembly, state; prescribed_conditions=pcond)
         # set initial rate variables in `dx`
@@ -2275,18 +2461,21 @@ function newmark_output(system, x, p, constants)
     update_body_acceleration_indices!(indices, pcond)
 
     # initialize state rate vector (if necessary)
-    dx = typeof(system.dx) <: typeof(x) ? system.dx : zero(x)
+    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : similar(x) .= 0
 
     # populate state rate vector with differentiable variables
     for ipoint in eachindex(assembly.points)
-        # compute state rates
+        # index into parameter vector
+        irate = 12 * (ipoint - 1)
+        # state variables
         u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
         V, Ω = point_velocities(x, ipoint, indices.icol_point)
-        udot = 2/dt*u - udot_init[ipoint]
-        θdot = 2/dt*θ - θdot_init[ipoint]
-        Vdot = 2/dt*V - Vdot_init[ipoint]
-        Ωdot = 2/dt*Ω - Ωdot_init[ipoint]
-        # insert into state rate vector
+        # rate variables
+        udot = 2/dt*u - SVector(p[irate+1], p[irate+2], p[irate+3])
+        θdot = 2/dt*θ - SVector(p[irate+4], p[irate+5], p[irate+6])
+        Vdot = 2/dt*V - SVector(p[irate+7], p[irate+8], p[irate+9])
+        Ωdot = 2/dt*Ω - SVector(p[irate+10], p[irate+11], p[irate+12])
+        # save state rates
         icol = indices.icol_point[ipoint]
         udot_udot, θdot_θdot = point_displacement_jacobians(ipoint, pcond)
         dx[icol:icol+2] = udot_udot*udot
@@ -2423,5 +2612,6 @@ function dual_safe_copy!(dst, src)
 end
 
 # return the primal value
+nondual_value(x) = x
 nondual_value(x::ForwardDiff.Dual) = ForwardDiff.value(x)
 nondual_value(x::ReverseDiff.TrackedReal) = ReverseDiff.value(x)
