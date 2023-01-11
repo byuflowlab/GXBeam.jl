@@ -12,7 +12,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "Getting Started" => joinpath("examples", "guide.md"),
-        "Section Properties" => joinpath("examples", "section.md"),
+        "Section Properties and Strain Recovery" => joinpath("examples", "section.md"),
         "Sensitivity Analysis" => joinpath("examples", "sensitivities.md"),
         "DifferentialEquations" => joinpath("examples", "diffeq.md"),
         "Examples" => [

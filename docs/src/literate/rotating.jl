@@ -265,7 +265,7 @@ for i = 1:length(sweep)
     ## swept section of the beam
     L_b2 = 6 # inch
     r_b2 = [34, 0, 0]
-    nelem_b2 = 20
+    nelem_b2 = 4
     cs, ss = cos(sweep[i]), sin(sweep[i])
     frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
@@ -617,7 +617,7 @@ lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
 ## swept section of the beam
 L_b2 = 6 ## inch
 r_b2 = [34, 0, 0]
-nelem_b2 = 20
+nelem_b2 = 4
 cs, ss = cos(sweep), sin(sweep)
 frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
 lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)

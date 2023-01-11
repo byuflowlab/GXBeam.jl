@@ -165,7 +165,7 @@ given the rotational parameters in `θ`.
 
     c0 = 2 - c'*c/8
 
-    return 1/(4-c0)^2*((4 - 1/4*c'*c)*I - 2*tilde(c) + 1/2*c*c')
+    return 1/(4-c0)^2*((4 - 1/4*c'*c)*I3 - 2*tilde(c) + 1/2 * c .* c')
 end
 
 """

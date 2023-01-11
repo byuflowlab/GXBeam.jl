@@ -1266,8 +1266,13 @@ function eigenvalue_analysis!(system, assembly;
     M = spzeros(eltype(x), indices.nstates, indices.nstates)
 
     # compute the jacobian and mass matrix
-    steady_jacobian!(K, x, p, constants)
-    mass_matrix!(M, x, p, constants)
+    if constant_mass_matrix
+        expanded_steady_jacobian!(K, x, p, constants)
+        expanded_mass_matrix!(M, p, constants)
+    else
+        steady_jacobian!(K, x, p, constants)
+        mass_matrix!(M, x, p, constants)
+    end
 
     # update the system storage
     xv = dual_safe_copy!(system.x, x)

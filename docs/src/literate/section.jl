@@ -1,4 +1,4 @@
-# # [Computing Stiffness and Mass Matrices](@id section)
+# # [Computing Stiffness/Mass Matrices and Strain Recovery](@id section)
 
 # Cross section stiffness and inertial properties are provided as direct inputs for most of the 
 # examples in this package.  In general, however, we need to compute these section 
@@ -287,7 +287,7 @@ S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
 
 # ```julia
 # using PyPlot
-# figure(); plotmesh(node, elements, PyPlot)
+# figure(); plotmesh(nodes, elements, PyPlot)
 # ```
 
 # ![](../assets/afmesh.png)
@@ -331,3 +331,190 @@ S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
 # Finally, for discretizing along the webs we can use `wns` and `wnt`.  The parmeter wns is an integer and 
 # specifies the number of elements to use along the height of the web (same definition as ns but a web only 
 # needs one number). The default is four. The parameters wnt has the same definition as nt but applies to the webs.
+
+# ## Strain Recovery
+
+# After the beam solution is complete, we can map the forces and moments back into stresses and strains 
+# in the input mesh.  This allows us to compute strains and stresses within each ply and is much more accurate
+# than smeared approaches that are commonly used with classical laminate theory.
+
+# Just for illustration, let's use the same airfoil case we just completed.  
+# After the forces and moments are computed at this section using GXBeam we can input them into the strain
+# recovery function ([`strain_recovery`](@ref)).  These forces/moments are in the beam coordinate system 
+# in the order x, y, z. Note that we have to pass in that cache that corresponds to this section 
+# (we use values from the cache, computing during solution of the compliance matrix).
+
+F = [0.0; 0; 0]
+M = [2e3; 1e3; 0]
+strain_b, stress_b, strain_p, stress_p = strain_recovery(F, M, nodes, elements, cache)
+#!jl nothing #hide
+
+# The resulting outpus are the strains and the stresses in the beam (_b) and ply (_p)
+# coordinate systems at each element.  
+# The order for beam stresses/strains is: xx, yy, zz, xy, xz, yz.  
+# For ply stresses/strains the order is: 11, 22, 33, 12, 13, 23.
+
+# There is a convenience function for plotting stresses and strains ([`plotsoln`](@ref)).  For example, to plot the stress in 
+# the beam z (axial) direction we do the following:
+
+
+# ```julia
+# figure()
+# plotsoln(nodes, elements, stress_b[3, :], PyPlot)
+# axis("equal")
+# colorbar()
+# ```
+
+# ![](../assets/stressrecov.png)
+
+# There is also a function to compute the Tsai-wu failure criteria.  To use this function 
+# we need to initialize the material properties with their strengths.  
+# Note that the [`Material`](@ref) struct also defines strength properties.  Previously, we ignored these so now 
+# we will recreate the geometry.  Normally, this would not be a step we would do after the solution, 
+# we would have just created the material properties to begin with, but to keep the prior example simpler 
+# we are doing it after the fact.
+# The strength values chosen below are just arbitrary copies of the stiffnesses,
+# just for ilustration, not meant to represent actual strength values.
+
+uni = Material(37.00e9, 9.00e9, 9.00e9, 4.00e9, 4.00e9, 4.00e9, 0.28, 0.28, 0.28, 1.86e3,
+    37.00e9/100, 37.00e9/100, 9.00e9/100, 9.00e9/100, 9.00e9/100, 9.00e9/100, 4.00e9/100, 4.00e9/100, 4.00e9/100)
+double = Material(10.30e9, 10.30e9, 10.30e9, 8.00e9, 8.00e9, 8.00e9, 0.30, 0.30, 0.30, 1.83e3,
+    10.30e9/100, 10.30e9/100, 10.30e9/100, 10.30e9/100, 10.30e9/100, 10.30e9/100, 8.00e9/100, 8.00e9/100, 8.00e9/100)
+gelcoat = Material(1e1, 1e1, 1e1, 1.0, 1.0, 1.0, 0.30, 0.30, 0.30, 1.83e3,
+    1e1/100, 1e1/100, 1e1/100, 1e1/100, 1e1/100, 1e1/100, 1.0/100, 1.0/100, 1.0/100)
+nexus = Material(10.30e9, 10.30e9, 10.30e9, 8.00e9, 8.00e9, 8.00e9, 0.30, 0.30, 0.30, 1.664e3,
+    10.30e9/100, 10.30e9/100, 10.30e9/100, 10.30e9/100, 10.30e9/100, 10.30e9/100, 8.00e9/100, 8.00e9/100, 8.00e9/100)
+balsa = Material(0.01e9, 0.01e9, 0.01e9, 2e5, 2e5, 2e5, 0.30, 0.30, 0.30, 0.128e3,
+    0.01e9/100, 0.01e9/100, 0.01e9/100, 0.01e9/100, 0.01e9/100, 0.01e9/100, 2e5/100, 2e5/100, 2e5/100)
+mat = [uni, double, gelcoat, nexus, balsa]
+#!jl nothing #hide
+
+# We now redo everything we did before with these new values.  Note that the cache
+# should be initialized (and saved) as we need to reuse values 
+# computed in the solution of the compliance matrix.
+
+idx = [3, 4, 2]  # material index
+t = [0.000381, 0.00051, 18*0.00053]
+theta = [0, 0, 20]*pi/180
+layup1 = Layer.(mat[idx], t, theta)
+idx = [3, 4, 2]
+t = [0.000381, 0.00051, 33*0.00053]
+theta = [0, 0, 20]*pi/180
+layup2 = Layer.(mat[idx], t, theta)
+idx = [3, 4, 2, 1, 5, 1, 2]
+t = [0.000381, 0.00051, 17*0.00053, 38*0.00053, 1*0.003125, 37*0.00053, 16*0.00053]
+theta = [0, 0, 20, 30, 0, 30, 20]*pi/180
+layup3 = Layer.(mat[idx], t, theta)
+idx = [3, 4, 2, 5, 2]
+t = [0.000381, 0.00051, 17*0.00053, 0.003125, 16*0.00053]
+theta = [0, 0, 20, 0, 0]*pi/180
+layup4 = Layer.(mat[idx], t, theta) 
+
+segments = [layup1, layup2, layup3, layup4]
+xbreak = [0.0, 0.0041, 0.1147, 0.5366, 1.0]
+
+idx = [1, 5, 1]
+t = [38*0.00053, 0.003125, 38*0.00053]
+theta = [0, 0, 0]*pi/180
+web = Layer.(mat[idx], t, theta)
+
+webs = [web, web]
+webloc = [0.15, 0.5]
+nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs)
+
+cache = initialize_cache(nodes, elements)
+S, sc, tc = compliance_matrix(nodes, elements; cache)
+
+F = [0.0; 0; 0]
+M = [2e4; 1e4; 0]
+strain_b, stress_b, strain_p, stress_p = strain_recovery(F, M, nodes, elements, cache)
+#!jl nothing #hide
+
+# The [`tsai_wu`](@ref) function is now called. 
+
+failure = tsai_wu(stress_p, elements)
+#!jl nothing #hide
+
+# The result is a vector (one for each element) where failure is predicted for values >= 1.
+# These results can be plotted as shown previously, or used as constraints in an optimization 
+# typically with a [smooth max](http://flow.byu.edu/FLOWMath.jl/dev/#Kreisselmeier-Steinhauser-Constraint-Aggregation-Function-1), 
+# an extraction of some subset of elements, or some combination of both.
+
+
+# We now show a verification case using the composite pipe from the study published in the 
+# MS Thesis: "Loss of accuracy using smeared properties in composite beam modeling" by Ning Liu, Purdue University.
+# This geometry is convenient as it is simple enough to reproduce exactly but contains relevant features.
+# The details of creating the mesh are not important for this section, so those are left in a separate function
+# but the full function is available in the unit tests if interested.
+
+include("./pipe.jl")
+nodes, elements = composite_pipe()
+
+cache = initialize_cache(nodes, elements)
+S, sc, tc = compliance_matrix(nodes, elements; cache)
+
+F = [0.0; 0; 0]
+M = [-1000.0; 0; 0]
+strain_b, stress_b, strain_p, stress_p = strain_recovery(F, M, nodes, elements, cache)
+#!jl nothing #hide
+
+# We now compare the stresses at a vertical cut through the upper surface near the center of the section,
+# corresponding to finite element data from the above mentioned thesis (x = 0, y = 0.3 -> 0.5)
+
+idx = 481:500  # elements at x = 0 from y = 0.3 -> 0.5 
+n = length(idx)
+yvec = zeros(n)
+s11 = zeros(n)
+s22 = zeros(n)
+for i = 1:n
+    _, _, yvec[i] = GXBeam.area_and_centroid_of_element(nodes[elements[idx[i]].nodenum])
+    s11[i] = stress_b[3, idx[i]]
+    s22[i] = stress_b[1, idx[i]]
+end
+
+# data from paper
+data1 = [
+-1.0408340855860843e-17  -0.2233363719234286
+0.02504493708807669  -0.24156791248860665
+0.049970041941282226  -0.25979945305378427
+0.07501497902935894  -0.2734731084776677
+0.10005991611743567  -0.29170464904284577
+0.10005991611743564  -4.416590701914313
+0.12510485320551235  -4.690063810391979
+0.15002995805871785  -4.96809480401094
+0.17507489514679453  -5.241567912488606
+0.2001198322348712  -5.519598906107569
+]
+
+data2 = [0.00011487650775416497  0.004832104832104944
+0.02504307869040781  0.06871416871416883
+0.04997128087306147  0.13226863226863234
+0.07501435956346927  0.19582309582309587
+0.09994256174612295  0.2597051597051597
+0.10005743825387711  -0.10196560196560189
+0.12498564043653071  -0.10491400491400493
+0.1500287191269386  -0.10786240786240764
+0.17484204480183801  -0.11146601146601148
+0.19999999999999993  -0.11408681408681415
+]
+#!jl nothing #hide
+
+# ```julia
+# figure()
+# plot(data1[:, 1], data1[:, 2])
+# plot(yvec .- 0.3, s11/1e3, "ko")
+# xlabel("y")
+# ylabel(L"\sigma_z (ksi)")
+# legend(["3D FEA", "GXBeam"])
+
+# figure()
+# plot(data2[:, 1], data2[:, 2], "--")
+# plot(yvec .- 0.3, s22/1e3, "ko")
+# xlabel("y")
+# ylabel(L"\sigma_x (ksi)")
+# legend(["3D FEA", "GXBeam"])
+# ```
+
+# ![](../assets/srecov1.png)
+# ![](../assets/srecov2.png)
+

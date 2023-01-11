@@ -2,7 +2,8 @@
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://flow.byu.edu/GXBeam.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://flow.byu.edu/GXBeam.jl/dev)
-![](https://github.com/byuflowlab/GXBeam.jl/workflows/Run%20tests/badge.svg)
+![](https://github.com/byuflowlab/GXBeam.jl/workflows/CI/badge.svg)
+[![DOI](https://zenodo.org/badge/274440380.svg)](https://zenodo.org/badge/latestdoi/274440380)
 [![status](https://joss.theoj.org/papers/13cb0c41e9834510c6acf732bdfa8c05/status.svg)](https://joss.theoj.org/papers/13cb0c41e9834510c6acf732bdfa8c05)
 
 *Pure Julia Implementation of Geometrically Exact Beam Theory*
@@ -27,11 +28,13 @@ And here's a dynamic simulation of a wind turbine subjected to a sinusoidal tip 
     - Captures all geometric nonlinearities due to large deflections and rotations (subject to a small strain assumption)
     - Models angular displacements of any magnitude using only three parameters
     - Uses the full 6x6 Timoshenko beam stiffness matrix
- - Calculate section compliance and inertia matrices 
+ - Calculate section compliance and inertia matrices and compute strain recovery
     - Uses quadrilateral finite elements rather than classical lamiante theory for much better accuracy and cross coupling
     - Allows for general geometry with inhomogenous properties and anisotropic behavior (computes full 6x6 matrix)
     - Ply materials are general orthotropic
     - Provides convenience method for paramterizing airfoil layups
+    - Strain recovery functionality to compute stresses and strains on the mesh using the results of the beam solution
+    - Tsai-wu failure criteria
  - Models time-varying distributed forces/moments including
     - Point and distributed loads which remain fixed in the body-frame
     - Point and distributed loads which rotate with the structure

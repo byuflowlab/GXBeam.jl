@@ -106,7 +106,8 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan;
         constant_mass_matrix=constant_mass_matrix,
         sparse=sparse,
         # sensitivity analysis keyword arguments
-        pfunc=pfunc)
+        pfunc=pfunc,
+        p=p)
 
     # return ODEProblem
     return SciMLBase.ODEProblem{true}(func, u0, tspan, p; kwargs...)
@@ -220,13 +221,16 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
             linear_velocity, angular_velocity, gravity, t=0.0)
 
         # set state rate vector
-        du = zeros(indices.nstates)
+        du = zeros(indices.nstates) # state rate vector must be zero
+        u = rand(indices.nstates) # state vector can be anything
+        t = rand() # time can be anything
 
         # mass matrix (constant mass matrix system)
         TF = eltype(system)
         nx = indices.nstates
-        mass_matrix = zeros(TF, nx, nx)
+        mass_matrix = spzeros(TF, nx, nx)
         expanded_mass_matrix!(mass_matrix, p, constants)
+        mass_matrix .*= -1
 
         # residual function
         f = (resid, u, p, t) -> expanded_dynamic_residual!(resid, du, u, p, (; constants..., t))
@@ -237,6 +241,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
         # jacobian prototype
         if sparse
             jac_prototype = spzeros(TF, nx, nx)
+            update_jacobian!(jac_prototype, u, p, t)
         else
             jac_prototype = nothing
         end
@@ -252,7 +257,9 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
             linear_velocity, angular_velocity, gravity, t=0.0)
 
         # set state rate vector
-        du = zeros(indices.nstates)
+        du = zeros(indices.nstates) # state rate vector must be zero
+        u = rand(indices.nstates) # state vector can be anything
+        t = rand() # time can be anything
 
         # mass matrix
         TF = eltype(system)
@@ -279,6 +286,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
         # jacobian prototype
         if sparse
             jac_prototype = spzeros(TF, nx, nx)
+            update_jacobian!(jac_prototype, u, p, t)
         else
             jac_prototype = nothing
         end
@@ -402,7 +410,8 @@ function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan;
         constant_mass_matrix=constant_mass_matrix,
         sparse=sparse,
         # sensitivity analysis keyword arguments
-        pfunc=pfunc)
+        pfunc=pfunc,
+        p=p,)
 
     # return DAEProblem
     return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars, kwargs...)
@@ -699,9 +708,6 @@ function expanded_dynamic_residual!(resid, dx, x, p, constants)
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
 
-    # update acceleration state variable indices
-    update_body_acceleration_indices!(indices, pcond)
-
     # compute and return the residual
     return expanded_dynamic_system_residual!(resid, dx, x, indices, two_dimensional, force_scaling,
         structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
@@ -719,12 +725,11 @@ function expanded_dynamic_jacobian!(jacob, dx, x, p, constants)
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
 
-    # update acceleration state variable indices
-    update_body_acceleration_indices!(indices, pcond)
-
     # compute and return the residual
-    return expanded_dynamic_system_jacobian!(jacob, dx, x, indices, two_dimensional, force_scaling,
+    result = expanded_dynamic_system_jacobian!(jacob, dx, x, indices, two_dimensional, force_scaling,
         structural_damping, assembly, pcond, dload, pmass, gvec, vb_p, ωb_p)
+
+    return result
 end
 
 # differential variables for a constant mass matrix system
