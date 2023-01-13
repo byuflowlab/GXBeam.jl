@@ -63,7 +63,7 @@ using GXBeam, LinearAlgebra, UnPack, Test
     angular_velocity = [0, 0, 78.5398163397448]
 
     # perform time marching analysis
-    system, state, converged = initial_condition_analysis(assembly, tvec;
+    system, state, converged = initial_condition_analysis(assembly, 0.0;
         structural_damping = false,
         linear_velocity = linear_velocity,
         angular_velocity = angular_velocity,
