@@ -80,7 +80,7 @@ using GXBeam, LinearAlgebra, UnPack, Test
     gravity=[0.0, 0.0, 0.0]
 
     # construct state vector
-    x = set_state!(system.x, system, state, prescribed_conditions)
+    x = set_state!(system.x, system, assembly, state; prescribed_conditions)
 
     # construct rate vector
     dx = similar(x) .= 0
