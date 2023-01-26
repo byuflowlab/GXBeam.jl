@@ -107,7 +107,7 @@ using GXBeam, LinearAlgebra, Test
 
         _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions, linear=true)
 
-        linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        linear_states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
         @test converged
     end

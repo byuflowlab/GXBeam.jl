@@ -77,7 +77,7 @@ using GXBeam, LinearAlgebra, Test
             angular_velocity = w0,
             prescribed_conditions = prescribed_conditions)
 
-        nonlinear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        nonlinear_states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
         # perform linear steady state analysis
         system, converged = steady_state_analysis(assembly,
@@ -85,7 +85,7 @@ using GXBeam, LinearAlgebra, Test
             prescribed_conditions = prescribed_conditions,
             linear = true)
 
-        linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        linear_states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
     end
 
     sweep = (0:2.5:45) * pi/180
@@ -158,7 +158,7 @@ using GXBeam, LinearAlgebra, Test
 
             # process state and eigenstates
             state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
-            eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
+            eigenstates[i,j] = [AssemblyState(V[:,k], system, assembly;
                 prescribed_conditions=prescribed_conditions) for k = 1:nev]
         end
     end
@@ -293,7 +293,7 @@ using GXBeam, LinearAlgebra, Test
     #             prescribed_conditions = prescribed_conditions,
     #             constant_mass_matrix = true,
     #             nev=nev)
-                
+
     #         # corresponding left eigenvectors
     #         U[i,j] = left_eigenvectors(system, λ[i,j], V)
 
@@ -303,7 +303,7 @@ using GXBeam, LinearAlgebra, Test
 
     #         # process state and eigenstates
     #         state[i,j] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
-    #         eigenstates[i,j] = [AssemblyState(system, assembly, V[:,k];
+    #         eigenstates[i,j] = [AssemblyState(V[:,k], system, assembly;
     #             prescribed_conditions=prescribed_conditions) for k = 1:nev]
     #     end
     # end

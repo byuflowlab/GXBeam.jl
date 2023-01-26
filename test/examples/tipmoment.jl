@@ -52,7 +52,7 @@ using GXBeam, LinearAlgebra, Test
         static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
 
         # post-process the results
-        states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
     end
 
@@ -88,11 +88,11 @@ using GXBeam, LinearAlgebra, Test
     #         nelem+1 => PrescribedConditions(Mz = M[i])
     #     )
 
-    #     steady_state_analysis!(system, assembly, 
+    #     steady_state_analysis!(system, assembly,
     #         prescribed_conditions = prescribed_conditions,
     #         constant_mass_matrix = true)
 
-    #     states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    #     states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
     # end
 
     # for i = 1:length(M)
