@@ -287,7 +287,7 @@ end
 ## construct objective function
 objfun = (p) -> begin
 
-    # perform time domain analysis
+    ## perform time domain analysis
     system, history, converged = time_domain_analysis(assembly, t;
         prescribed_conditions = prescribed_conditions, # default prescribed conditions
         structural_damping = false,
