@@ -41,10 +41,8 @@ using GXBeam, LinearAlgebra, Test
         distributed_loads[ielem] = DistributedLoads(assembly, ielem; fz = (s) -> q)
     end
 
-    system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
+    system, state, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads, linear=true)
-
-    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
     # analytical solution obtained using superposition
     initial_slope = -q/(6*EI)*((L-a)^3 - (L-b)^3)
@@ -98,13 +96,11 @@ using GXBeam, LinearAlgebra, Test
     end
 
     # # now check the state variables for a constant mass matrix system
-    # system, converged = steady_state_analysis(assembly, 
+    # system, state, converged = steady_state_analysis(assembly,
     #     prescribed_conditions = prescribed_conditions,
     #     distributed_loads = distributed_loads,
-    #     constant_mass_matrix = true, 
+    #     constant_mass_matrix = true,
     #     linear = true)
-
-    # state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
 
     # for i = 1:length(assembly.elements)
     #     xi = assembly.elements[i].x[1]

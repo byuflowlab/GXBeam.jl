@@ -73,14 +73,14 @@ using GXBeam, LinearAlgebra, Test
         w0 = [0, 0, rpm[i]*(2*pi)/60]
 
         # perform nonlinear steady state analysis
-        system, converged = steady_state_analysis(assembly,
+        system, state, converged = steady_state_analysis(assembly,
             angular_velocity = w0,
             prescribed_conditions = prescribed_conditions)
 
         nonlinear_states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
         # perform linear steady state analysis
-        system, converged = steady_state_analysis(assembly,
+        system, state, converged = steady_state_analysis(assembly,
             angular_velocity = w0,
             prescribed_conditions = prescribed_conditions,
             linear = true)

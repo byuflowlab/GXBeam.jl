@@ -39,11 +39,8 @@ using GXBeam, LinearAlgebra, Test
     end
 
     # solve system
-    system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
+    system, state, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads, linear=true)
-
-    # post-process the results
-    state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
     # construct analytical solution
     analytical_deflection = (x) -> qmax*(1-x)^2/(120*EI)*(4 - 8*(1-x) + 5*(1-x)^2 - (1-x)^3)
@@ -66,13 +63,11 @@ using GXBeam, LinearAlgebra, Test
     end
 
     # # now check the state variables for a constant mass matrix system
-    # system, converged = steady_state_analysis(assembly,
+    # system, state, converged = steady_state_analysis(assembly,
     #     prescribed_conditions=prescribed_conditions,
     #     distributed_loads=distributed_loads,
     #     constant_mass_matrix=true,
     #     linear=true)
-
-    # state = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
     # # test element properties
     # for i = 1:length(assembly.elements)

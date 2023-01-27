@@ -50,10 +50,7 @@ using GXBeam, LinearAlgebra, Test
     )
 
     # perform static analysis
-    system, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
-
-    # post-process results
-    state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+    system, state, converged = static_analysis(assembly, prescribed_conditions=prescribed_conditions)
 
     # test tip deflections
     @test isapprox(state.points[end].u[1], -13.4, atol=0.2) # -13.577383726758564
@@ -68,12 +65,10 @@ using GXBeam, LinearAlgebra, Test
     # than analytical solutions, so some variation is expected.
 
     # # perform the same analysis for a constant mass matrix system
-    # system, converged = steady_state_analysis(assembly, 
+    # system, state, converged = steady_state_analysis(assembly,
     #     prescribed_conditions = prescribed_conditions,
     #     constant_mass_matrix = true)
 
-    # state = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-    
     # # test tip deflections
     # @test isapprox(state.points[end].u[1], -13.4, atol=0.2) # -13.577383726758564
     # @test isapprox(state.points[end].u[2], -23.5, atol=0.1) # -23.545303336988038
