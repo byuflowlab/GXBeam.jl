@@ -647,7 +647,7 @@ pfunc = (p, t) -> begin
 
     sweep = p[1] # sweep angle
 
-    # redefine swept section of the beam
+    ## redefine swept section of the beam
     cs, ss = cos(sweep), sin(sweep)
     frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
