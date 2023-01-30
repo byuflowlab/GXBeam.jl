@@ -37,6 +37,7 @@ indicating whether the iteration procedure converged.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
+ - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
  # Linear Analysis Keyword Arguments
  - `update_linearization = false`: Flag indicating whether to update the linearization state
@@ -51,6 +52,10 @@ indicating whether the iteration procedure converged.
  - `iterations = 1000`: Iteration limit when solving nonlinear systems of equations
 
 # Sensitivity Analysis Keyword Arguments
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation and switches
+        the nonlinear solver to a Newton-Krylov solver (with linesearch).
  - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
         to updated versions of the arguments `assembly`, `prescribed_conditions`,
         `distributed_loads`, `point_masses`, and `gravity`. Only fields contained in the
@@ -84,6 +89,7 @@ function static_analysis!(system::StaticSystem, assembly;
     linear=false,
     two_dimensional=false,
     show_trace=false,
+    matrixfree=false,
     # linear analysis keyword arguments
     update_linearization=false,
     # nonlinear analysis keyword arguments
@@ -92,6 +98,7 @@ function static_analysis!(system::StaticSystem, assembly;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
+    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -110,7 +117,7 @@ function static_analysis!(system::StaticSystem, assembly;
     # package up keyword arguments corresponding to this analysis
     constants = (;
         # assembly, indices, control flags, parameter function, and current time
-        assembly, indices, two_dimensional, force_scaling, pfunc, t=first(time),
+        assembly, indices, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # pointers to the pre-allocated storage and the convergence flag
         x=system.x, resid=system.r, jacob=system.K, converged=converged,
         # default parameters
@@ -152,7 +159,11 @@ function static_analysis!(system::StaticSystem, assembly;
                 x = static_lsolve!(x0, p, constants)
             end
         else
-            x = ImplicitAD.implicit(static_nlsolve!, static_residual!, p, constants; drdy=static_drdy)
+            if isnothing(xpfunc)
+                x = ImplicitAD.implicit(static_nlsolve!, static_residual!, p, constants; drdy=static_drdy)
+            else
+                x = ImplicitAD.implicit(static_matrixfree_nlsolve!, static_residual!, p, constants; drdy=matrixfree_jacobian)
+            end
         end
 
         # NOTE: `x`, `r`, `K`, and `converged` are updated in `lsolve!`/`nlsolve!`
@@ -169,14 +180,14 @@ function static_analysis!(system::StaticSystem, assembly;
 end
 
 # combine constant and variable parameters for a static analysis
-function static_parameters(p, constants)
+function static_parameters(x, p, constants)
 
     # unpack default parameters, parameter function, and current time
     @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
-        pfunc, t = constants
+        xpfunc, pfunc, t = constants
 
     # overwrite default assembly and parameters (if applicable)
-    parameters = pfunc(p, t)
+    parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
     assembly = get(parameters, :assembly, assembly)
     prescribed_conditions = get(parameters, :prescribed_conditions, prescribed_conditions)
     distributed_loads = get(parameters, :distributed_loads, distributed_loads)
@@ -208,7 +219,7 @@ function static_state_vector(system, state, p, constants)
             x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
         end
         # combine constants and parameters
-        assembly, pcond, dload, pmass, gvec = static_parameters(p, constants)
+        assembly, pcond, dload, pmass, gvec = static_parameters(x0, p, constants)
         # set initial state variables in `x`
         set_state!(x0, system, state, pcond)
     end
@@ -223,7 +234,7 @@ function static_residual!(resid, x, p, constants)
     @unpack indices, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec = static_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec = static_parameters(x, p, constants)
 
     # compute and return the residual
     return static_system_residual!(resid, x, indices, two_dimensional, force_scaling,
@@ -237,7 +248,7 @@ function static_jacobian!(jacob, x, p, constants)
     @unpack indices, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec = static_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec = static_parameters(x, p, constants)
 
     # compute and return the jacobian
     return static_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling,
@@ -253,11 +264,14 @@ static_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, static_residual!, s
 # nonlinear solve for a static analysis (for use with ImplicitAD)
 static_nlsolve!(p, constants) = nlsolve!(p, constants, static_residual!, static_jacobian!)
 
+# matrix-free nonlinear solve for a static analysis (for use with ImplicitAD)
+static_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, static_residual!)
+
 # returns post-processed state and rate variable vectors
 function static_output!(system, x, p, constants)
 
     # get new assembly and parameters
-    assembly, pcond, dload, pmass, gvec = static_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec = static_parameters(x, p, constants)
 
     # update the state variables in `system`
     dual_safe_copy!(system.x, x)
@@ -314,6 +328,7 @@ iteration procedure converged.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
+ - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
 # Linear Analysis Keyword Arguments
  - `update_linearization = false`: Flag indicating whether to update the linearization state
@@ -328,6 +343,10 @@ iteration procedure converged.
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations=
 
 # Sensitivity Analysis Keyword Arguments
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation and switches
+        the nonlinear solver to a Newton-Krylov solver (with linesearch).
  - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
         to updated versions of the arguments `assembly`, `prescribed_conditions`,
         `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`,
@@ -372,6 +391,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     constant_mass_matrix=typeof(system)<:ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
+    matrixfree=false,
     # linear analysis keyword arguments
     update_linearization=false,
     # nonlinear analysis keyword arguments
@@ -380,6 +400,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
+    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -405,7 +426,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     # package up keyword arguments corresponding to this analysis
     constants = (;
         # assembly, indices, control flags, parameter function, and current time
-        assembly, indices, structural_damping, two_dimensional, force_scaling, pfunc, t=first(time),
+        assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # pointers to the pre-allocated storage and the convergence flag
         x=system.x, resid=system.r, jacob=system.K, converged=converged,
         # default parameters
@@ -455,9 +476,17 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
             end
         else
             if constant_mass_matrix
-                x = ImplicitAD.implicit(expanded_steady_nlsolve!, expanded_steady_residual!, p, constants; drdy=expanded_steady_drdy)
+                if isnothing(xpfunc)
+                    x = ImplicitAD.implicit(expanded_steady_nlsolve!, expanded_steady_residual!, p, constants; drdy=expanded_steady_drdy)
+                else
+                    x = ImplicitAD.implicit(expanded_steady_matrixfree_nlsolve!, expanded_steady_residual!, p, constants; drdy=matrixfree_jacobian)
+                end
             else
-                x = ImplicitAD.implicit(steady_nlsolve!, steady_residual!, p, constants; drdy=steady_drdy)
+                if isnothing(xpfunc)
+                    x = ImplicitAD.implicit(steady_nlsolve!, steady_residual!, p, constants; drdy=steady_drdy)
+                else
+                    x = ImplicitAD.implicit(steady_matrixfree_nlsolve!, steady_residual!, p, constants; drdy=matrixfree_jacobian)
+                end
             end
         end
 
@@ -479,15 +508,15 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
 end
 
 # combines constant and variable parameters for a steady state analysis
-function steady_parameters(p, constants)
+function steady_parameters(x, p, constants)
 
     # unpack default parameters, parameter function, and current time
     @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
-        pfunc, t = constants
+        xpfunc, pfunc, t = constants
 
     # overwrite default assembly and parameters (if applicable)
-    parameters = pfunc(p, t)
+    parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
     assembly = get(parameters, :assembly, assembly)
     prescribed_conditions = get(parameters, :prescribed_conditions, prescribed_conditions)
     distributed_loads = get(parameters, :distributed_loads, distributed_loads)
@@ -529,7 +558,7 @@ function steady_state_vector(system, state, p, constants)
             x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
         end
         # combine constants and parameters
-        assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
+        assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x0, p, constants)
         # set initial state variables in `x`
         set_state!(x0, system, assembly, state; prescribed_conditions=pcond)
     end
@@ -541,10 +570,10 @@ end
 function steady_residual!(resid, x, p, constants)
 
     # unpack indices and control flags
-    @unpack indices, structural_damping, two_dimensional, force_scaling, pfunc = constants
+    @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # compute and return the residual
     return steady_system_residual!(resid, x, indices, two_dimensional, force_scaling,
@@ -558,7 +587,7 @@ function steady_jacobian!(jacob, x, p, constants)
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # compute and return the jacobian
     return steady_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling,
@@ -574,6 +603,9 @@ steady_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, steady_residual!, s
 # defines the nonlinear solver (for use with ImplicitAD)
 steady_nlsolve!(p, constants) = nlsolve!(p, constants, steady_residual!, steady_jacobian!)
 
+# defines the nonlinear solver (for use with ImplicitAD)
+steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, steady_residual!)
+
 # returns post-processed state and rate variable vectors
 function steady_output!(system, x, p, constants)
 
@@ -581,7 +613,7 @@ function steady_output!(system, x, p, constants)
     @unpack indices = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # initialize state rate vector (if necessary)
     dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : similar(x) .= 0
@@ -622,7 +654,7 @@ function expanded_steady_residual!(resid, x, p, constants)
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # compute and return the residual
     return expanded_steady_system_residual!(resid, x, indices, two_dimensional, force_scaling,
@@ -636,7 +668,7 @@ function expanded_steady_jacobian!(jacob, x, p, constants)
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # compute and return the jacobian
     return expanded_steady_system_jacobian!(jacob, x, indices, two_dimensional, force_scaling,
@@ -652,6 +684,9 @@ expanded_steady_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, expanded_s
 # defines the nonlinear solver (for use with ImplicitAD)
 expanded_steady_nlsolve!(p, constants) = nlsolve!(p, constants, expanded_steady_residual!, expanded_steady_jacobian!)
 
+# defines the nonlinear solver (for use with ImplicitAD)
+expanded_steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, expanded_steady_residual!)
+
 # returns post-processed state and rate variable vectors
 function expanded_steady_output!(system, x, p, constants)
 
@@ -659,7 +694,7 @@ function expanded_steady_output!(system, x, p, constants)
     @unpack indices = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # initialize state rate vector (if necessary)
     dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : zero(x)
@@ -757,6 +792,10 @@ the current system state vector.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
 
  # Sensitivity Analysis Keyword Arguments
+  - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation and switches
+        the nonlinear solver to a Newton-Krylov solver (with linesearch).
  - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
         to updated versions of the arguments `assembly`, `prescribed_conditions`,
         `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`,
@@ -784,7 +823,9 @@ function linearize!(system, assembly;
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
+    autodiff=false,
     # sensitivity analysis keyword arguments
+    xpfunc = autodiff ? (x, p, t) -> (;) : nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -807,7 +848,7 @@ function linearize!(system, assembly;
     # package up keyword arguments corresponding to this analysis
     constants = (;
         # assembly, indices, control flags, parameter function, and current time
-        assembly, indices, structural_damping, two_dimensional, force_scaling, pfunc, t=first(time),
+        assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # default parameters
         prescribed_conditions, distributed_loads, point_masses, gravity,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
@@ -840,13 +881,23 @@ function linearize!(system, assembly;
     K = similar(system.K, eltype(x))
     M = similar(system.M, eltype(x))
 
-    # solve for the system stiffness and mass matrices
-    if constant_mass_matrix
-        expanded_steady_jacobian!(K, x, p, constants)
-        expanded_mass_matrix!(M, p, constants)
+    if isnothing(xpfunc)
+        # solve for the system stiffness and mass matrices
+        if constant_mass_matrix
+            expanded_steady_jacobian!(K, x, p, constants)
+            expanded_mass_matrix!(M, p, constants)
+        else
+            steady_jacobian!(K, x, p, constants)
+            mass_matrix!(M, x, p, constants)
+        end
     else
-        steady_jacobian!(K, x, p, constants)
-        mass_matrix!(M, x, p, constants)
+        if constant_mass_matrix
+            autodiff_jacobian!(K, expanded_steady_residual!, x, p, constants)
+            expanded_mass_matrix!(M, p, constants)
+        else
+            autodiff_jacobian!(K, steady_residual!, x, p, constants)
+            mass_matrix!(M, x, p, constants)
+        end
     end
 
     # update the jacobians in `system`
@@ -1109,6 +1160,7 @@ converged.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
+ - `autodiff = false`: Indicates whether to use automatic differentiation to compute jacobians
 
 # Linear Analysis Keyword Arguments
  - `update_linearization = false`: Flag indicating whether to update the linearization state
@@ -1123,6 +1175,10 @@ converged.
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
 
 # Sensitivity Analysis Keyword Arguments
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation and switches
+        the nonlinear solver to a Newton-Krylov solver (with linesearch).
 - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
         to updated versions of the arguments `assembly`, `prescribed_conditions`,
         `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`,
@@ -1176,6 +1232,7 @@ function eigenvalue_analysis!(system, assembly;
     constant_mass_matrix=typeof(system)<:ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
+    autodiff=false,
     # linear analysis keyword arguments
     update_linearization=false,
     # nonlinear analysis keyword arguments
@@ -1184,6 +1241,7 @@ function eigenvalue_analysis!(system, assembly;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
+    xpfunc = autodiff ? (x, p, t) -> (;) : nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     # eigenvalue analysis keyword arguments
@@ -1232,6 +1290,7 @@ function eigenvalue_analysis!(system, assembly;
             constant_mass_matrix=constant_mass_matrix,
             two_dimensional=two_dimensional,
             show_trace=show_trace,
+            matrixfree=autodiff,
             # linear analysis keyword arguments
             update_linearization=update_linearization,
             # nonlinear analysis keyword arguments
@@ -1240,6 +1299,7 @@ function eigenvalue_analysis!(system, assembly;
             ftol=ftol,
             iterations=iterations,
             # sensitivity analysis keyword arguments
+            xpfunc = xpfunc,
             pfunc = pfunc,
             p = p,
             )
@@ -1254,7 +1314,7 @@ function eigenvalue_analysis!(system, assembly;
     # package up keyword arguments corresponding to this analysis
     constants = (;
         # assembly, indices, control flags, parameter function, and current time
-        assembly, indices, structural_damping, two_dimensional, force_scaling, pfunc, t=first(time),
+        assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # default parameters
         prescribed_conditions, distributed_loads, point_masses, gravity,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
@@ -1266,12 +1326,22 @@ function eigenvalue_analysis!(system, assembly;
     M = spzeros(eltype(x), indices.nstates, indices.nstates)
 
     # compute the jacobian and mass matrix
-    if constant_mass_matrix
-        expanded_steady_jacobian!(K, x, p, constants)
-        expanded_mass_matrix!(M, p, constants)
+    if isnothing(xpfunc)
+        if constant_mass_matrix
+            expanded_steady_jacobian!(K, x, p, constants)
+            expanded_mass_matrix!(M, p, constants)
+        else
+            steady_jacobian!(K, x, p, constants)
+            mass_matrix!(M, x, p, constants)
+        end
     else
-        steady_jacobian!(K, x, p, constants)
-        mass_matrix!(M, x, p, constants)
+        if constant_mass_matrix
+            autodiff_jacobian!(K, expanded_steady_residual!, x, p, constants)
+            expanded_mass_matrix!(M, p, constants)
+        else
+            autodiff_jacobian!(K, steady_residual!, x, p, constants)
+            mass_matrix!(M, x, p, constants)
+        end
     end
 
     # update the system storage
@@ -1381,13 +1451,13 @@ function eigenvalue_analysis!(system, assembly;
 end
 
 # combines constant and variable parameters for an eigenvalue analysis
-function eigenvalue_parameters(p, constants)
+function eigenvalue_parameters(x, p, constants)
     # extract state vector
     nx = constants.indices.nstates
     x = view(p, 1:nx)
     # extract parameters
     p = view(p, nx+1:length(p))
-    parameters = steady_parameters(p, constants)
+    parameters = steady_parameters(x, p, constants)
     # return state vector and parameters
     return x, parameters...
 end
@@ -1537,6 +1607,7 @@ resulting system and a flag indicating whether the iteration procedure converged
  - `steady_state=false`: Flag indicating whether to initialize by performing a steady state
         analysis.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
+ - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
  # Initial Condition Analysis Keyword Arguments
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of
@@ -1565,13 +1636,17 @@ resulting system and a flag indicating whether the iteration procedure converged
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
 
 # Sensitivity Analysis Keyword Arguments
-- `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation and switches
+        the nonlinear solver to a Newton-Krylov solver (with linesearch).
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
         to updated versions of the arguments `assembly`, `prescribed_conditions`,
         `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`,
         `linear_acceleration`, `angular_acceleration`, `gravity`, `u0`, `theta0`, `V0`,
         `Omega0`, `Vdot0`, and `Omegadot0`. Only fields contained in the resulting named
         tuple will be overwritten.
-- `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
         While not necessary, using `pfunc` and `p` to define the arguments to this function
         allows automatic differentiation sensitivities to be computed more efficiently
 """
@@ -1610,6 +1685,7 @@ function initial_condition_analysis!(system, assembly, t0;
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
+    matrixfree=false,
     # initial condition analysis keyword arguments
     u0=fill((@SVector zeros(3)), length(assembly.points)),
     theta0=fill((@SVector zeros(3)), length(assembly.points)),
@@ -1625,6 +1701,7 @@ function initial_condition_analysis!(system, assembly, t0;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
+    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -1658,6 +1735,7 @@ function initial_condition_analysis!(system, assembly, t0;
             ftol=ftol,
             iterations=iterations,
             # sensitivity analysis keyword arguments
+            xpfunc = xpfunc,
             pfunc = pfunc,
             p = p,
             )
@@ -1692,7 +1770,7 @@ function initial_condition_analysis!(system, assembly, t0;
     # package up keyword arguments corresponding to this analysis
     constants = (;
         # assembly, indices, control flags, parameter function, and current time
-        assembly, indices, structural_damping, two_dimensional, force_scaling, pfunc, t=first(t0),
+        assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(t0),
         # pointers to the pre-allocated storage and the convergence flag
         x=system.x, resid=system.r, jacob=system.K, converged=converged,
         # default parameters
@@ -1719,7 +1797,7 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # get new assembly and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0,
-        Vdot0, Omegadot0 = initial_parameters(p, constants)
+        Vdot0, Omegadot0 = initial_parameters(FillArrays.Zeros(system.x), p, constants)
 
     # extract initial state from the original system (if not provided)
     if isnothing(initial_state) && !reset_state
@@ -1793,7 +1871,11 @@ function initial_condition_analysis!(system, assembly, t0;
             x = initial_lsolve!(x0, p, constants)
         end
     else
-        x = ImplicitAD.implicit(initial_nlsolve!, initial_residual!, p, constants; drdy=initial_drdy)
+        if isnothing(xpfunc)
+            x = ImplicitAD.implicit(initial_nlsolve!, initial_residual!, p, constants; drdy=initial_drdy)
+        else
+            x = ImplicitAD.implicit(initial_matrixfree_nlsolve!, initial_residual!, p, constants; drdy=matrixfree_jacobian)
+        end
     end
 
     # NOTE: `x`, `r`, `K`, and `converged` are updated in lsolve!/nlsolve!
@@ -1822,18 +1904,18 @@ function initial_condition_analysis!(system, assembly, t0;
     return original_system, state, converged[]
 end
 
-function initial_parameters(p, constants)
+function initial_parameters(x, p, constants)
 
     # unpack default parameters, parameter function, and current time
     @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
-        pfunc, t = constants
+        xpfunc, pfunc, t = constants
 
     # also unpack initial conditions
     @unpack u0, theta0, V0, Omega0, Vdot0, Omegadot0 = constants
 
     # overwrite default assembly and parameters (if applicable)
-    parameters = pfunc(p, t)
+    parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
     assembly = get(parameters, :assembly, assembly)
     prescribed_conditions = get(parameters, :prescribed_conditions, prescribed_conditions)
     distributed_loads = get(parameters, :distributed_loads, distributed_loads)
@@ -1888,7 +1970,7 @@ function initial_state_vector(system, state, p, constants)
         end
         # combine constants and parameters
         assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p,
-            u0, theta0, V0, Omega0, Vdot0, Omegadot0 = initial_parameters(p, constants)
+            u0, theta0, V0, Omega0, Vdot0, Omegadot0 = initial_parameters(x0, p, constants)
         # set initial state variables in `x`
         set_initial_state!(x0, system, rate_vars, state, pcond)
     end
@@ -1900,13 +1982,13 @@ end
 function initial_residual!(resid, x, p, constants)
 
     # unpack indices, control flags, and parameter function
-    @unpack indices, structural_damping, two_dimensional, force_scaling, pfunc = constants
+    @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     @unpack rate_vars1, rate_vars2 = constants
 
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0,
-        Vdot0, Omegadot0 = initial_parameters(p, constants)
+        Vdot0, Omegadot0 = initial_parameters(x, p, constants)
 
     # update acceleration state variable indices
     update_body_acceleration_indices!(indices, pcond)
@@ -1921,13 +2003,13 @@ end
 function initial_jacobian!(jacob, x, p, constants)
 
     # unpack indices, control flags, and parameter function
-    @unpack indices, structural_damping, two_dimensional, force_scaling, pfunc = constants
+    @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     @unpack rate_vars1, rate_vars2 = constants
 
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0,
-        Vdot0, Omegadot0 = initial_parameters(p, constants)
+        Vdot0, Omegadot0 = initial_parameters(x, p, constants)
 
     # update acceleration state variable indices
     update_body_acceleration_indices!(indices, pcond)
@@ -1947,6 +2029,9 @@ initial_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, initial_residual!,
 # defines the nonlinear solver (for use with ImplicitAD)
 initial_nlsolve!(p, constants) = nlsolve!(p, constants, initial_residual!, initial_jacobian!)
 
+# defines the nonlinear solver (for use with ImplicitAD)
+initial_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, initial_residual!)
+
 # returns post-processed state and rate variable vectors
 function initial_output(system, x, p, constants)
 
@@ -1955,7 +2040,7 @@ function initial_output(system, x, p, constants)
 
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0,
-        Vdot0, Omegadot0 = initial_parameters(p, constants)
+        Vdot0, Omegadot0 = initial_parameters(x, p, constants)
 
     # initialize state rate vector (if necessary)
     xx = typeof(system.x) <: typeof(x) ? system.x .= x : similar(x) .= x
@@ -2052,6 +2137,7 @@ converged for every time step.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
  - `save = eachindex(tvec)`: Steps at which to save the time history
+ - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
  # Initial Condition Analysis Arguments
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of
@@ -2080,13 +2166,17 @@ converged for every time step.
  - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
 
 # Sensitivity Analysis Keyword Arguments
-- `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation and switches
+        the nonlinear solver to a Newton-Krylov solver (with linesearch).
+ - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
         to updated versions of the arguments `assembly`, `prescribed_conditions`,
         `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`,
         `linear_acceleration`, `angular_acceleration`, `gravity`, `u0`, `theta0`, `V0`,
         `Omega0`, `Vdot0`, and `Omegadot0`. Only fields contained in the resulting named
         tuple will be overwritten.
-- `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
+ - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
         While not necessary, using `pfunc` and `p` to define the arguments to this function
         allows automatic differentiation sensitivities to be computed more efficiently
 """
@@ -2121,6 +2211,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     two_dimensional=false,
     show_trace=false,
     save=eachindex(tvec),
+    matrixfree=false,
     # initial condition analysis keyword arguments
     u0=fill((@SVector zeros(3)), length(assembly.points)),
     theta0=fill((@SVector zeros(3)), length(assembly.points)),
@@ -2136,6 +2227,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
+    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -2162,6 +2254,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             linear=linear,
             two_dimensional=two_dimensional,
             show_trace=show_trace,
+            matrixfree=matrixfree,
             # initial condition analysis keyword arguments
             u0=u0,
             theta0=theta0,
@@ -2177,6 +2270,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             ftol=ftol,
             iterations=iterations,
             # sensitivity analysis keyword arguments
+            xpfunc=xpfunc,
             pfunc=pfunc,
             p=p,
             )
@@ -2203,7 +2297,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # package up keyword arguments corresponding to this analysis
     constants = (;
         # assembly, indices, control flags, parameter function, current time, and time step
-        assembly, indices, two_dimensional, structural_damping, force_scaling, pfunc, t, dt,
+        assembly, indices, two_dimensional, structural_damping, force_scaling, xpfunc, pfunc, t, dt,
         # pointers to the pre-allocated storage and the convergence flag
         x=system.x, resid=system.r, jacob=system.K, converged=converged,
         # default parameters
@@ -2271,7 +2365,8 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         constants = (; constants..., t, dt)
 
         # get updated prescribed conditions
-        pcond = get(pfunc(p, t), :prescribed_conditions, prescribed_conditions)
+        parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
+        pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
         pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
 
         # update parameter vector with new initialization terms
@@ -2309,7 +2404,11 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
                 x = newmark_lsolve!(x0, paug, constants)
             end
         else
-            x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
+            if isnothing(xpfunc)
+                x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
+            else
+                x = ImplicitAD.implicit(newmark_matrixfree_nlsolve!, newmark_residual!, paug, constants; drdy=matrixfree_jacobian)
+            end
         end
 
         # add state to history
@@ -2340,7 +2439,7 @@ function newmark_parameters(p, constants)
 
     # unpack default parameters, parameter function, current time, and step size
     @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
-        linear_velocity, angular_velocity, pfunc, t, dt = constants
+        linear_velocity, angular_velocity, xpfunc, pfunc, t, dt = constants
 
     # also unpack indices
     @unpack indices = constants
@@ -2359,7 +2458,7 @@ function newmark_parameters(p, constants)
     Ωdot_init = [SVector{3}(p_i[12*(ip-1)+10], p_i[12*(ip-1)+11], p_i[12*(ip-1)+12]) for ip = 1:length(assembly.points)]
 
     # overwrite default assembly and parameters (if applicable)
-    parameters = pfunc(p_p, t)
+    parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
     assembly = get(parameters, :assembly, assembly)
     prescribed_conditions = get(parameters, :prescribed_conditions, prescribed_conditions)
     distributed_loads = get(parameters, :distributed_loads, distributed_loads)
@@ -2398,7 +2497,7 @@ function newmark_state_vector(system, state, p, constants)
             dx0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
         end
         # combine constants and parameters
-        assembly, pcond, dload, pmass, gvec = static_parameters(p, constants)
+        assembly, pcond, dload, pmass, gvec = static_parameters(x0, p, constants)
         # set initial state variables in `x`
         set_state!(x0, system, assembly, state; prescribed_conditions=pcond)
         # set initial rate variables in `dx`
@@ -2452,6 +2551,9 @@ newmark_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, newmark_residual!,
 
 # defines the nonlinear solver (for use with ImplicitAD)
 newmark_nlsolve!(p, constants) = nlsolve!(p, constants, newmark_residual!, newmark_jacobian!)
+
+# defines the nonlinear solver (for use with ImplicitAD)
+newmark_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, newmark_residual!)
 
 # returns post-processed state and rate variable vectors
 function newmark_output(system, x, p, constants)
@@ -2555,11 +2657,107 @@ function nlsolve!(p, constants, residual!, jacobian!)
     return result.zero
 end
 
+# sparsity pattern detection
+function jacobian_colors(residual!, x, p, constants)
+    resid = similar(x)
+    config = ForwardDiff.JacobianConfig(residual!, resid, x)
+    J1 = ForwardDiff.jacobian(residual!, resid, x1, config)
+    J2 = ForwardDiff.jacobian(residual!, resid, x2, config)
+    J3 = ForwardDiff.jacobian(residual!, resid, x3, config)
+    @. jacob = abs(J1) + abs(J2) + abs(J3)
+    return SparseDiffTools.matrix_colors(jacob)
+end
+
+# automatic differentiation jacobian construction
+function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x))
+
+    f = (r, x) -> residual!(r, x, p, constants)
+
+    return SparseDiffTools.forwarddiff_color_jacobian!(jacob, f, x, colorvec = colors)
+end
+
+# matrix-free jacobian construction
+matrixfree_jacobian(residual!, x, p, constants) = SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
+
+# nonlinear analysis function
+function matrixfree_nlsolve!(p, constants, residual!; jacobian=matrixfree_jacobian)
+
+    # unpack pre-allocated storage and the convergence flag
+    @unpack x, resid, jacob, converged = constants
+
+    # unpack nonlinear solver parameters
+    @unpack show_trace, linesearch, ftol, iterations = constants
+
+    if show_trace
+        println("Iter     f(x) inf-norm")
+        println("------   --------------")
+    end
+
+    # initialize temporary storage
+    xtmp = copy(x)
+    dx = copy(x)
+
+    # perform newton-raphson iteration
+    for iter = 1:iterations
+
+        # check residual convergence
+        residual!(resid, x, p, constants)
+        rnorm = norm(resid, Inf)
+        show_trace && @printf("%6d%14e\n", iter, rnorm)
+        converged[] = rnorm < ftol
+        converged[] && break # exit if converged
+
+        # get proposed step (Newton's Method)
+        rmul!(dx, -1) # reset proposed step size
+        jacob = jacobian(residual!, x, p, constants) # compute jacobian
+        IterativeSolvers.gmres!(dx, jacob, resid; initially_zero=false, # get proposed step
+            abstol=0.1*ftol, reltol=0.1*ftol, restart=1000, maxiter=1000)
+        rmul!(dx, -1)
+
+        # initial line search objective and derivative
+        ϕ0 = dot(resid, resid) / 2
+        dϕ0 = dot(resid, mul!(xtmp, jacob, dx))
+
+        # line search objective function
+        function ϕ(α)
+            xtmp .= x .+ α .* dx # proposed state variables
+            residual!(resid, xtmp, p, constants) # associated residual
+            dot(resid, resid) / 2 # objective function
+        end
+
+        # line search directional derivative
+        function dϕ(α)
+            xtmp .= x .+ α .* dx # proposed state variables
+            residual!(resid, xtmp, p, constants) # associated residual
+            jacob = jacobian(residual!, xtmp, p, constants) # associated jacobian
+            dot(resid, mul!(xtmp, jacob, dx)) # directional derivative
+        end
+
+        # line search objective and directional derivative
+        function ϕdϕ(α)
+            xtmp .= x .+ α .* dx # proposed state variables
+            residual!(resid, xtmp, p, constants) # associated residual
+            jacob = jacobian(residual!, xtmp, p, constants) # associated jacobian
+            dot(resid, resid) / 2, dot(resid, mul!(xtmp, jacob, dx))  # objective and gradient
+        end
+
+        # perform line search
+        α, ϕα = linesearch(ϕ, dϕ, ϕdϕ, 1.0, ϕ0, dϕ0)
+
+        # apply step
+        x .+= α .* dx
+
+    end
+
+    # return the result
+    return x
+end
+
 # mass matrix function
 function mass_matrix!(jacob, x, p, constants)
 
     # unpack (default) parameters, parameter function, and current time
-    @unpack assembly, prescribed_conditions, point_masses, pfunc, t = constants
+    @unpack assembly, prescribed_conditions, point_masses, xpfunc, pfunc, t = constants
 
     # unpack indices, control flags, and jacobian storage
     @unpack indices, two_dimensional, force_scaling = constants
@@ -2583,7 +2781,7 @@ end
 function expanded_mass_matrix!(jacob, p, constants)
 
     # unpack (default) parameters, parameter function, and current time
-    @unpack assembly, prescribed_conditions, point_masses, pfunc, t = constants
+    @unpack assembly, prescribed_conditions, point_masses, xpfunc, pfunc, t = constants
 
     # unpack indices, control flags, and jacobian storage
     @unpack indices, two_dimensional, force_scaling = constants

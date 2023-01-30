@@ -6,12 +6,15 @@ using ChainRulesCore
 using FillArrays
 using FLOWMath
 using ImplicitAD
+import IterativeSolvers
 using LinearAlgebra
 using LinearMaps
+using Printf
 using NLsolve
 import Roots
 using ReverseDiff
 using SparseArrays
+import SparseDiffTools
 using StaticArrays
 using SciMLBase
 using UnPack
