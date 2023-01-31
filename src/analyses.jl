@@ -37,7 +37,6 @@ indicating whether the iteration procedure converged.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
- - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
  # Linear Analysis Keyword Arguments
  - `update_linearization = false`: Flag indicating whether to update the linearization state
@@ -89,7 +88,6 @@ function static_analysis!(system::StaticSystem, assembly;
     linear=false,
     two_dimensional=false,
     show_trace=false,
-    matrixfree=false,
     # linear analysis keyword arguments
     update_linearization=false,
     # nonlinear analysis keyword arguments
@@ -98,7 +96,7 @@ function static_analysis!(system::StaticSystem, assembly;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
-    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -265,7 +263,7 @@ static_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, static_residual!, s
 static_nlsolve!(p, constants) = nlsolve!(p, constants, static_residual!, static_jacobian!)
 
 # matrix-free nonlinear solve for a static analysis (for use with ImplicitAD)
-static_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, static_residual!)
+static_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, static_residual!, static_jacobian!)
 
 # returns post-processed state and rate variable vectors
 function static_output!(system, x, p, constants)
@@ -328,7 +326,6 @@ iteration procedure converged.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
- - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
 # Linear Analysis Keyword Arguments
  - `update_linearization = false`: Flag indicating whether to update the linearization state
@@ -391,7 +388,6 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     constant_mass_matrix=typeof(system)<:ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
-    matrixfree=false,
     # linear analysis keyword arguments
     update_linearization=false,
     # nonlinear analysis keyword arguments
@@ -400,7 +396,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
-    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -604,7 +600,7 @@ steady_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, steady_residual!, s
 steady_nlsolve!(p, constants) = nlsolve!(p, constants, steady_residual!, steady_jacobian!)
 
 # defines the nonlinear solver (for use with ImplicitAD)
-steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, steady_residual!)
+steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, steady_residual!, steady_jacobian!)
 
 # returns post-processed state and rate variable vectors
 function steady_output!(system, x, p, constants)
@@ -685,7 +681,7 @@ expanded_steady_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, expanded_s
 expanded_steady_nlsolve!(p, constants) = nlsolve!(p, constants, expanded_steady_residual!, expanded_steady_jacobian!)
 
 # defines the nonlinear solver (for use with ImplicitAD)
-expanded_steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, expanded_steady_residual!)
+expanded_steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, expanded_steady_residual!, expanded_steady_jacobian!)
 
 # returns post-processed state and rate variable vectors
 function expanded_steady_output!(system, x, p, constants)
@@ -823,9 +819,8 @@ function linearize!(system, assembly;
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
-    autodiff=false,
     # sensitivity analysis keyword arguments
-    xpfunc = autodiff ? (x, p, t) -> (;) : nothing,
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -1160,7 +1155,6 @@ converged.
  - `linear = false`: Flag indicating whether a linear analysis should be performed.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
- - `autodiff = false`: Indicates whether to use automatic differentiation to compute jacobians
 
 # Linear Analysis Keyword Arguments
  - `update_linearization = false`: Flag indicating whether to update the linearization state
@@ -1232,7 +1226,6 @@ function eigenvalue_analysis!(system, assembly;
     constant_mass_matrix=typeof(system)<:ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
-    autodiff=false,
     # linear analysis keyword arguments
     update_linearization=false,
     # nonlinear analysis keyword arguments
@@ -1241,7 +1234,7 @@ function eigenvalue_analysis!(system, assembly;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
-    xpfunc = autodiff ? (x, p, t) -> (;) : nothing,
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     # eigenvalue analysis keyword arguments
@@ -1290,7 +1283,6 @@ function eigenvalue_analysis!(system, assembly;
             constant_mass_matrix=constant_mass_matrix,
             two_dimensional=two_dimensional,
             show_trace=show_trace,
-            matrixfree=autodiff,
             # linear analysis keyword arguments
             update_linearization=update_linearization,
             # nonlinear analysis keyword arguments
@@ -1607,7 +1599,6 @@ resulting system and a flag indicating whether the iteration procedure converged
  - `steady_state=false`: Flag indicating whether to initialize by performing a steady state
         analysis.
  - `show_trace = false`: Flag indicating whether to display the solution progress.
- - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
  # Initial Condition Analysis Keyword Arguments
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of
@@ -1685,7 +1676,6 @@ function initial_condition_analysis!(system, assembly, t0;
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
     two_dimensional=false,
     show_trace=false,
-    matrixfree=false,
     # initial condition analysis keyword arguments
     u0=fill((@SVector zeros(3)), length(assembly.points)),
     theta0=fill((@SVector zeros(3)), length(assembly.points)),
@@ -1701,7 +1691,7 @@ function initial_condition_analysis!(system, assembly, t0;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
-    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -2030,7 +2020,7 @@ initial_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, initial_residual!,
 initial_nlsolve!(p, constants) = nlsolve!(p, constants, initial_residual!, initial_jacobian!)
 
 # defines the nonlinear solver (for use with ImplicitAD)
-initial_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, initial_residual!)
+initial_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, initial_residual!, initial_jacobian!)
 
 # returns post-processed state and rate variable vectors
 function initial_output(system, x, p, constants)
@@ -2137,7 +2127,6 @@ converged for every time step.
  - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
  - `show_trace = false`: Flag indicating whether to display the solution progress.
  - `save = eachindex(tvec)`: Steps at which to save the time history
- - `matrixfree = false`: Indicates whether to use matrix-free solution methods
 
  # Initial Condition Analysis Arguments
  - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of
@@ -2211,7 +2200,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     two_dimensional=false,
     show_trace=false,
     save=eachindex(tvec),
-    matrixfree=false,
     # initial condition analysis keyword arguments
     u0=fill((@SVector zeros(3)), length(assembly.points)),
     theta0=fill((@SVector zeros(3)), length(assembly.points)),
@@ -2227,7 +2215,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     ftol=1e-9,
     iterations=1000,
     # sensitivity analysis keyword arguments
-    xpfunc = matrixfree ? (x, p, t) -> (;) : nothing,
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     )
@@ -2254,7 +2242,6 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             linear=linear,
             two_dimensional=two_dimensional,
             show_trace=show_trace,
-            matrixfree=matrixfree,
             # initial condition analysis keyword arguments
             u0=u0,
             theta0=theta0,
@@ -2553,7 +2540,7 @@ newmark_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, newmark_residual!,
 newmark_nlsolve!(p, constants) = nlsolve!(p, constants, newmark_residual!, newmark_jacobian!)
 
 # defines the nonlinear solver (for use with ImplicitAD)
-newmark_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, newmark_residual!)
+newmark_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, newmark_residual!, newmark_jacobian!)
 
 # returns post-processed state and rate variable vectors
 function newmark_output(system, x, p, constants)
@@ -2677,10 +2664,12 @@ function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x
 end
 
 # matrix-free jacobian construction
-matrixfree_jacobian(residual!, x, p, constants) = SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
+function matrixfree_jacobian(residual!, x, p, constants)
+    return SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
+end
 
 # nonlinear analysis function
-function matrixfree_nlsolve!(p, constants, residual!; jacobian=matrixfree_jacobian)
+function matrixfree_nlsolve!(p, constants, residual!, jacobian!; coupled_jacobian=matrixfree_jacobian)
 
     # unpack pre-allocated storage and the convergence flag
     @unpack x, resid, jacob, converged = constants
@@ -2697,6 +2686,9 @@ function matrixfree_nlsolve!(p, constants, residual!; jacobian=matrixfree_jacobi
     xtmp = copy(x)
     dx = copy(x)
 
+    # construct coupled jacobian
+    coupled_jacob = coupled_jacobian(residual!, x, p, constants) # compute coupled_jacobian
+
     # perform newton-raphson iteration
     for iter = 1:iterations
 
@@ -2707,11 +2699,14 @@ function matrixfree_nlsolve!(p, constants, residual!; jacobian=matrixfree_jacobi
         converged[] = rnorm < ftol
         converged[] && break # exit if converged
 
+        # use structural jacobian factorization as a preconditioner
+        jacobian!(jacob, x, p, constants)
+        Pl = lu(jacob)
+
         # get proposed step (Newton's Method)
-        rmul!(dx, -1) # reset proposed step size
-        jacob = jacobian(residual!, x, p, constants) # compute jacobian
-        IterativeSolvers.gmres!(dx, jacob, resid; initially_zero=false, # get proposed step
-            abstol=0.1*ftol, reltol=0.1*ftol, restart=1000, maxiter=1000)
+        dx .= 0 # reset proposed step size
+        IterativeSolvers.gmres!(dx, coupled_jacob, resid; initially_zero=true, Pl=Pl,
+            abstol=ftol/10, reltol=ftol/10, maxiter=1000)
         rmul!(dx, -1)
 
         # initial line search objective and derivative
@@ -2729,7 +2724,7 @@ function matrixfree_nlsolve!(p, constants, residual!; jacobian=matrixfree_jacobi
         function dϕ(α)
             xtmp .= x .+ α .* dx # proposed state variables
             residual!(resid, xtmp, p, constants) # associated residual
-            jacob = jacobian(residual!, xtmp, p, constants) # associated jacobian
+            jacob = coupled_jacobian(residual!, xtmp, p, constants) # associated jacobian
             dot(resid, mul!(xtmp, jacob, dx)) # directional derivative
         end
 
@@ -2737,7 +2732,7 @@ function matrixfree_nlsolve!(p, constants, residual!; jacobian=matrixfree_jacobi
         function ϕdϕ(α)
             xtmp .= x .+ α .* dx # proposed state variables
             residual!(resid, xtmp, p, constants) # associated residual
-            jacob = jacobian(residual!, xtmp, p, constants) # associated jacobian
+            jacob = coupled_jacobian(residual!, xtmp, p, constants) # associated jacobian
             dot(resid, resid) / 2, dot(resid, mul!(xtmp, jacob, dx))  # objective and gradient
         end
 
