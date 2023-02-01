@@ -151,10 +151,18 @@ function static_analysis!(system::StaticSystem, assembly;
         if linear
             if update_linearization
                 # use current state vector for the linearization
-                x = static_lsolve!(x, p, constants)
+                if isnothing(xpfunc)
+                    x = static_lsolve!(x, p, constants)
+                else
+                    x = static_matrixfree_lsolve!(x, p, constants)
+                end
             else
                 # use the initial state vector for the linearization
-                x = static_lsolve!(x0, p, constants)
+                if isnothing(xpfunc)
+                    x = static_lsolve!(x0, p, constants)
+                else
+                    x = static_matrixfree_lsolve!(x0, p, constants)
+                end
             end
         else
             if isnothing(xpfunc)
@@ -212,9 +220,9 @@ function static_state_vector(system, state, p, constants)
     else
         # initialize new state vector storage
         if isnothing(p)
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state))) .= system.x
         else
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p))) .= system.x
         end
         # combine constants and parameters
         assembly, pcond, dload, pmass, gvec = static_parameters(x0, p, constants)
@@ -261,6 +269,9 @@ static_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, static_residual!, s
 
 # nonlinear solve for a static analysis (for use with ImplicitAD)
 static_nlsolve!(p, constants) = nlsolve!(p, constants, static_residual!, static_jacobian!)
+
+# matrix-free linear solve for a static analysis (for use with ImplicitAD)
+static_matrixfree_lsolve!(x0, p, constants) = matrixfree_lsolve!(x0, p, constants, static_residual!, static_jacobian!)
 
 # matrix-free nonlinear solve for a static analysis (for use with ImplicitAD)
 static_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, static_residual!, static_jacobian!)
@@ -459,15 +470,31 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
         if linear
             if constant_mass_matrix
                 if update_linearization
-                    x = expanded_steady_lsolve!(x, p, constants)
+                    if isnothing(xpfunc)
+                        x = expanded_steady_lsolve!(x, p, constants)
+                    else
+                        x = expanded_steady_matrixfree_lsolve!(x, p, constants)
+                    end
                 else
-                    x = expanded_steady_lsolve!(x0, p, constants)
+                    if isnothing(xpfunc)
+                        x = expanded_steady_lsolve!(x0, p, constants)
+                    else
+                        x = expanded_steady_matrixfree_lsolve!(x0, p, constants)
+                    end
                 end
             else
                 if update_linearization
-                    x = steady_lsolve!(x, p, constants)
+                    if isnothing(xpfunc)
+                        x = steady_lsolve!(x, p, constants)
+                    else
+                        x = steady_matrixfree_lsolve!(x, p, constants)
+                    end
                 else
-                    x = steady_lsolve!(x0, p, constants)
+                    if isnothing(xpfunc)
+                        x = steady_lsolve!(x0, p, constants)
+                    else
+                        x = steady_matrixfree_lsolve!(x0, p, constants)
+                    end
                 end
             end
         else
@@ -549,12 +576,12 @@ function steady_state_vector(system, state, p, constants)
     else
         # initialize new state vector storage
         if isnothing(p)
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state))) .= system.x
         else
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p))) .= system.x
         end
         # combine constants and parameters
-        assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x0, p, constants)
+        assembly, pcond, dload, pmass, gvec = static_parameters(x0, p, constants)
         # set initial state variables in `x`
         set_state!(x0, system, assembly, state; prescribed_conditions=pcond)
     end
@@ -599,6 +626,9 @@ steady_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, steady_residual!, s
 # defines the nonlinear solver (for use with ImplicitAD)
 steady_nlsolve!(p, constants) = nlsolve!(p, constants, steady_residual!, steady_jacobian!)
 
+# defines the linear solve (for use with ImplicitAD)
+steady_matrixfree_lsolve!(x0, p, constants) = matrixfree_lsolve!(x0, p, constants, steady_residual!, steady_jacobian!)
+
 # defines the nonlinear solver (for use with ImplicitAD)
 steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, steady_residual!, steady_jacobian!)
 
@@ -612,7 +642,7 @@ function steady_output!(system, x, p, constants)
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # initialize state rate vector (if necessary)
-    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : similar(x) .= 0
+    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : similar(x) .= system.x
 
     # extract body frame accelerations
     ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
@@ -679,6 +709,9 @@ expanded_steady_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, expanded_s
 
 # defines the nonlinear solver (for use with ImplicitAD)
 expanded_steady_nlsolve!(p, constants) = nlsolve!(p, constants, expanded_steady_residual!, expanded_steady_jacobian!)
+
+# defines the linear solve (for use with ImplicitAD)
+expanded_steady_matrixfree_lsolve!(x0, p, constants) = matrixfree_lsolve!(x0, p, constants, expanded_steady_residual!, expanded_steady_jacobian!)
 
 # defines the nonlinear solver (for use with ImplicitAD)
 expanded_steady_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, expanded_steady_residual!, expanded_steady_jacobian!)
@@ -1856,9 +1889,17 @@ function initial_condition_analysis!(system, assembly, t0;
     # solve for the new set of state variables
     if linear
         if update_linearization
-            x = initial_lsolve!(x, p, constants)
+            if isnothing(xpfunc)
+                x = initial_lsolve!(x, p, constants)
+            else
+                x = initial_matrixfree_lsolve!(x, p, constants)
+            end
         else
-            x = initial_lsolve!(x0, p, constants)
+            if isnothing(xpfunc)
+                x = initial_lsolve!(x0, p, constants)
+            else
+                x = initial_matrixfree_lsolve!(x0, p, constants)
+            end
         end
     else
         if isnothing(xpfunc)
@@ -1954,13 +1995,12 @@ function initial_state_vector(system, state, p, constants)
     else
         # initialize new state vector storage
         if isnothing(p)
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state))) .= system.x
         else
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p))) .= system.x
         end
         # combine constants and parameters
-        assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p,
-            u0, theta0, V0, Omega0, Vdot0, Omegadot0 = initial_parameters(x0, p, constants)
+        assembly, pcond, dload, pmass, gvec = static_parameters(x0, p, constants)
         # set initial state variables in `x`
         set_initial_state!(x0, system, rate_vars, state, pcond)
     end
@@ -2018,6 +2058,9 @@ initial_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, initial_residual!,
 
 # defines the nonlinear solver (for use with ImplicitAD)
 initial_nlsolve!(p, constants) = nlsolve!(p, constants, initial_residual!, initial_jacobian!)
+
+# defines the linear solve (for use with ImplicitAD)
+initial_matrixfree_lsolve!(x0, p, constants) = matrixfree_lsolve!(x0, p, constants, initial_residual!, initial_jacobian!)
 
 # defines the nonlinear solver (for use with ImplicitAD)
 initial_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, initial_residual!, initial_jacobian!)
@@ -2386,9 +2429,17 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         # solve for the new set of state variables
         if linear
             if update_linearization
-                x = newmark_lsolve!(x, paug, constants)
+                if isnothing(xpfunc)
+                    x = newmark_lsolve!(x, paug, constants)
+                else
+                    x = newmark_matrixfree_lsolve!(x, paug, constants)
+                end
             else
-                x = newmark_lsolve!(x0, paug, constants)
+                if isnothing(xpfunc)
+                    x = newmark_lsolve!(x0, paug, constants)
+                else
+                    x = newmark_matrixfree_lsolve!(x0, paug, constants)
+                end
             end
         else
             if isnothing(xpfunc)
@@ -2477,11 +2528,11 @@ function newmark_state_vector(system, state, p, constants)
     else
         # initialize new state vector storage
         if isnothing(p)
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state)))
-            dx0 = similar(system.x, promote_type(eltype(system), eltype(state)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state))) .= system.x
+            dx0 = similar(system.x, promote_type(eltype(system), eltype(state))) .= system.dx
         else
-            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
-            dx0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p)))
+            x0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p))) .= system.x
+            dx0 = similar(system.x, promote_type(eltype(system), eltype(state), eltype(p))) .= system.dx
         end
         # combine constants and parameters
         assembly, pcond, dload, pmass, gvec = static_parameters(x0, p, constants)
@@ -2539,6 +2590,9 @@ newmark_lsolve!(x0, p, constants) = lsolve!(x0, p, constants, newmark_residual!,
 # defines the nonlinear solver (for use with ImplicitAD)
 newmark_nlsolve!(p, constants) = nlsolve!(p, constants, newmark_residual!, newmark_jacobian!)
 
+# defines the linear solve (for use with ImplicitAD)
+newmark_matrixfree_lsolve!(x0, p, constants) = matrixfree_lsolve!(x0, p, constants, newmark_residual!, newmark_jacobian!)
+
 # defines the nonlinear solver (for use with ImplicitAD)
 newmark_matrixfree_nlsolve!(p, constants) = matrixfree_nlsolve!(p, constants, newmark_residual!, newmark_jacobian!)
 
@@ -2590,7 +2644,7 @@ end
 function lsolve!(x0, p, constants, residual!, jacobian!)
 
     # unpack pre-allocated storage and the convergence flag
-    @unpack resid, jacob, converged = constants
+    @unpack x, resid, jacob, converged = constants
 
     # update the residual
     residual!(resid, x0, p, constants)
@@ -2598,11 +2652,35 @@ function lsolve!(x0, p, constants, residual!, jacobian!)
     # update the jacobian
     jacobian!(jacob, x0, p, constants)
 
-    # solve the system
-    x = x0 - ImplicitAD.implicit_linear(jacob, resid)
+    # update the state
+    x .= x0 .- ImplicitAD.implicit_linear(jacob, resid)
 
-    # set the convergence flag
+    # update the convergence flag
     converged[] = true
+
+    return x
+end
+
+# matrix free linear analysis function
+function matrixfree_lsolve!(x0, p, constants, residual!, jacobian!; coupled_jacobian=matrixfree_jacobian)
+
+    # augment the parameter vector
+    paug = isnothing(p) ? x0 : vcat(x0, p)
+
+    # contruct linear solver
+    f_lsolve = matrixfree_lsolve_lsolve(paug, constants, jacobian!)
+
+    # define solve function
+    f_solve = (paug, constants) -> matrixfree_lsolve_solve!(paug, constants, residual!, f_lsolve)
+
+    # define residual function
+    f_residual = (resid, dx, paug, constants) -> matrixfree_lsolve_residual!(resid, dx, paug, constants, residual!)
+
+    # define drdy
+    f_drdy = (residual!, dx, paug, constants) = matrixfree_lsolve_drdy(residual!, dx, paug, constants)
+
+    # update the state
+    x = x0 .- ImplicitAD(f_solve, f_residual, paug, constants; drdy = f_drdy, lsolve=f_lsolve)
 
     return x
 end
@@ -2644,28 +2722,71 @@ function nlsolve!(p, constants, residual!, jacobian!)
     return result.zero
 end
 
-# sparsity pattern detection
-function jacobian_colors(residual!, x, p, constants)
-    resid = similar(x)
-    config = ForwardDiff.JacobianConfig(residual!, resid, x)
-    J1 = ForwardDiff.jacobian(residual!, resid, x1, config)
-    J2 = ForwardDiff.jacobian(residual!, resid, x2, config)
-    J3 = ForwardDiff.jacobian(residual!, resid, x3, config)
-    @. jacob = abs(J1) + abs(J2) + abs(J3)
-    return SparseDiffTools.matrix_colors(jacob)
+function matrixfree_lsolve_lsolve(paug, constants, jacobian!)
+
+    # unpack pre-allocated storage and the convergence flag
+    @unpack x, jacob, converged = constants
+
+    # unpack nonlinear solver parameters
+    @unpack show_trace, ftol, iterations = constants
+
+    # extract the primal values of the parameter vector
+    paug = nondual_value.(paug)
+
+    # split the parameter vector
+    x0 = view(paug, 1:length(x)) # initialization terms
+    p = view(p, length(x)+1:length(paug)) # provided parameter vector
+
+    # update the structural jacobian
+    jacobian!(jacob, x0, p, constants)
+
+    # use structural jacobian factorization as a preconditioner
+    Pl = lu(jacob)
+
+    return (A, b) -> IterativeSolvers.gmres(A, b; Pl=Pl,
+        abstol=ftol/10, reltol=ftol/10, maxiter=iterations, verbose=show_trace)
 end
 
-# automatic differentiation jacobian construction
-function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x))
+function matrixfree_lsolve_solve!(paug, constants, residual!, f_lsolve)
 
-    f = (r, x) -> residual!(r, x, p, constants)
+    # unpack pre-allocated storage and the convergence flag
+    @unpack x, resid, converged = constants
 
-    return SparseDiffTools.forwarddiff_color_jacobian!(jacob, f, x, colorvec = colors)
+    # split the parameter vector
+    x0 = view(paug, 1:length(x)) # initialization terms
+    p = view(p, length(x)+1:length(paug)) # provided parameter vector
+
+    # update the residual
+    residual!(resid, x0, p, constants)
+
+    # construct the coupled jacobian
+    coupled_jacob = coupled_jacobian(residual!, x0, p, constants)
+
+    # solve the system
+    dx = f_lsolve(coupled_jacob, resid)
+
+    # update the state
+    x .= x0 - dx
+
+    # update the convergence flag
+    converged[] = true
+
+    # return the result
+    return dx
 end
 
-# matrix-free jacobian construction
-function matrixfree_jacobian(residual!, x, p, constants)
-    return SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
+function matrixfree_lsolve_residual!(resid, dx, paug, constants, residual!)
+    x0 = view(paug, 1:length(dx)) # initialization terms
+    p = view(p, length(dx)+1:length(paug)) # provided parameter vector
+    residual!(resid, x0, p, constants) # right hand side
+    jacob = coupled_jacobian(residual!, x0, p, constants) # jacobian vector product operator
+    mul!(resid, jacob, dx, 1, -1) # linear solution residual A*x - b = 0
+end
+
+function matrixfree_lsolve_drdy(residual!, dx, paug, constants)
+    x0 = view(paug, 1:length(dx)) # initialization terms
+    p = view(p, length(dx)+1:length(paug)) # provided parameter vector
+    return coupled_jacobian(residual!, x0, p, constants) # jacobian vector product operator
 end
 
 # nonlinear analysis function
@@ -2704,9 +2825,9 @@ function matrixfree_nlsolve!(p, constants, residual!, jacobian!; coupled_jacobia
         Pl = lu(jacob)
 
         # get proposed step (Newton's Method)
-        dx .= 0 # reset proposed step size
+        dx .= 0
         IterativeSolvers.gmres!(dx, coupled_jacob, resid; initially_zero=true, Pl=Pl,
-            abstol=ftol/10, reltol=ftol/10, maxiter=1000)
+            abstol=ftol/10, reltol=ftol/10, maxiter=iterations)
         rmul!(dx, -1)
 
         # initial line search objective and derivative
@@ -2794,6 +2915,30 @@ function expanded_mass_matrix!(jacob, p, constants)
     # compute and return the jacobian
     return expanded_system_mass_matrix!(jacob, indices, two_dimensional, force_scaling,
         assembly, pcond, pmass)
+end
+
+# sparsity pattern detection
+function jacobian_colors(residual!, x, p, constants)
+    resid = similar(x)
+    config = ForwardDiff.JacobianConfig(residual!, resid, x)
+    J1 = ForwardDiff.jacobian(residual!, resid, x1, config)
+    J2 = ForwardDiff.jacobian(residual!, resid, x2, config)
+    J3 = ForwardDiff.jacobian(residual!, resid, x3, config)
+    @. jacob = abs(J1) + abs(J2) + abs(J3)
+    return SparseDiffTools.matrix_colors(jacob)
+end
+
+# automatic differentiation jacobian construction
+function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x))
+
+    f = (r, x) -> residual!(r, x, p, constants)
+
+    return SparseDiffTools.forwarddiff_color_jacobian!(jacob, f, x, colorvec = colors)
+end
+
+# matrix-free jacobian construction
+function matrixfree_jacobian(residual!, x, p, constants)
+    return SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
 end
 
 # copy the entire array
