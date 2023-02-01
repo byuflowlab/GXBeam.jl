@@ -37,6 +37,9 @@ Construct an `ODEProblem` corresponding to the system of nonlinear beams contain
  - `sparse = false`: Flag indicating whether to use a sparse jacobian.
 
  # Sensitivity Analysis Keyword Arguments
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation.
  - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
          to updated versions of the arguments `assembly`, `prescribed_conditions`,
          `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, and
@@ -62,6 +65,7 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan;
     constant_mass_matrix=typeof(system) <: ExpandedSystem,
     sparse=false,
     # sensitivity analysis keyword arguments
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     # additional keyword arguments (passed to ODEProblem constructor)
@@ -74,20 +78,22 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan;
         @assert typeof(system) <: DynamicSystem
     end
 
-    # extract parameters from the parameter vector using `pfunc`
-    parameters = pfunc(p, tspan[1])
-
-    # overwrite default prescribed conditions
-    pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
-
-    # get prescribed conditions corresponding to the initial time
-    pcond = typeof(prescribed_conditions) <: AbstractDict ? pcond : pcond(tspan[1])
-
-    # set initial state vector
     if isnothing(initial_state)
+        # use stored state vector
         u0 = system.x
     else
-        u0 = similar(system.x, promote_type(eltype(system), eltype(initial_state)))
+        # initialize new state vector
+        u0 = similar(system.x, promote_type(eltype(system), eltype(initial_state))) .= system.x
+
+        # set current time
+        t = tspan[1]
+
+        # get prescribed conditions
+        parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
+        pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
+        pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
+
+        # set state variables to provided values
         set_state!(u0, system, initial_state, pcond)
     end
 
@@ -106,6 +112,7 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan;
         constant_mass_matrix=constant_mass_matrix,
         sparse=sparse,
         # sensitivity analysis keyword arguments
+        xpfunc=xpfunc,
         pfunc=pfunc,
         p=p)
 
@@ -171,6 +178,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
     constant_mass_matrix=true,
     sparse=false,
     # sensitivity analysis keyword arguments
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     # additional keyword arguments (passed to ODEFunction constructor)
@@ -217,7 +225,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
 
         # default keyword arguments
         constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
-            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            xpfunc, pfunc, prescribed_conditions, distributed_loads, point_masses,
             linear_velocity, angular_velocity, gravity, t=0.0)
 
         # set state rate vector
@@ -253,7 +261,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
 
         # default keyword arguments
         constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
-            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            xpfunc, pfunc, prescribed_conditions, distributed_loads, point_masses,
             linear_velocity, angular_velocity, gravity, t=0.0)
 
         # set state rate vector
@@ -265,7 +273,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
         TF = eltype(system)
         nx = indices.nstates
         M = zeros(TF, nx, nx)
-        update_mass_matrix! = (M, u, p, t) -> begin
+        update_mass_matrix! = (jacob, x, p, t) -> begin
             # zero out all mass matrix entries
             M .= 0.0
             # compute mass matrix
@@ -293,8 +301,14 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
 
     end
 
-    return SciMLBase.ODEFunction{true,true}(f; mass_matrix = mass_matrix,
-        jac = update_jacobian!, jac_prototype = jac_prototype)
+    if isnothing(xpfunc)
+        odefunc = SciMLBase.ODEFunction{true,true}(f; mass_matrix = mass_matrix,
+            jac = update_jacobian!, jac_prototype = jac_prototype)
+    else
+        odefunc = SciMLBase.ODEFunction{true,true}(f; mass_matrix = mass_matrix)
+    end
+
+    return odefunc
 end
 
 """
@@ -336,6 +350,9 @@ Construct an `DAEProblem` corresponding to the system of nonlinear beams contain
  - `sparse = false`: Flag indicating whether to use a sparse jacobian.
 
  # Sensitivity Analysis Keyword Arguments
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation.
  - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
          to updated versions of the arguments `assembly`, `prescribed_conditions`,
          `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, and
@@ -361,29 +378,36 @@ function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan;
     constant_mass_matrix=false,
     sparse=false,
     # sensitivity analysis keyword arguments
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     # additional keyword arguments (passed to ODEProblem constructor)
     kwargs...)
 
-    # overwrite default parameters
-    parameters = pfunc(p, tspan[1])
+    if isnothing(initial_state)
+        # use stored state and rate vector
+        dx0 = system.dx
+        x0 = system.x
+    else
+        # initialize new state and rate vector
+        dx0 = similar(system.dx, promote_type(eltype(system), eltype(initial_state))) .= system.dx
+        x0 = similar(system.x, promote_type(eltype(system), eltype(initial_state))) .= system.x
+    end
+
+    # set current time
+    t = tspan[1]
+
+    # get prescribed conditions and point masses
+    parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x0, p, t)
     pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
     pmass = get(parameters, :point_masses, point_masses)
+    pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
+    pmass = typeof(point_masses) <: AbstractDict ? pmass : pmass(t)
 
-    # get parameters corresponding to the initial time
-    pcond = typeof(prescribed_conditions) <: AbstractDict ? pcond : pcond(tspan[1])
-    pmass = typeof(point_masses) <: AbstractDict ? pmass : pmass(tspan[1])
-
-    # set initial state and rate vector
-    if isnothing(initial_state)
-        du0 = system.dx
-        u0 = system.x
-    else
-        du0 = similar(system.dx, promote_type(eltype(system), eltype(initial_state)))
-        u0 = similar(system.x, promote_type(eltype(system), eltype(initial_state)))
-        set_state!(u0, system, initial_state, pcond)
-        set_rate!(du0, system, initial_state, pcond)
+    if !isnothing(initial_state)
+        # set state and rate variables to provided values
+        set_state!(x0, system, initial_state, pcond)
+        set_rate!(dx0, system, initial_state, pcond)
     end
 
     # define differential variables
@@ -392,7 +416,7 @@ function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan;
         differential_vars = expanded_differential_vars(indices, two_dimensional, assembly, pcond, pmass)
     else
         indices = SystemIndices(assembly.start, assembly.stop, static=false, expanded=false)
-        differential_vars = dynamic_differential_vars(u0, indices, two_dimensional, assembly, pcond, pmass)
+        differential_vars = dynamic_differential_vars(x0, indices, two_dimensional, assembly, pcond, pmass)
     end
 
     # construct DAEFunction
@@ -410,11 +434,12 @@ function SciMLBase.DAEProblem(system::AbstractSystem, assembly, tspan;
         constant_mass_matrix=constant_mass_matrix,
         sparse=sparse,
         # sensitivity analysis keyword arguments
+        xpfunc=xpfunc,
         pfunc=pfunc,
         p=p,)
 
     # return DAEProblem
-    return SciMLBase.DAEProblem{true}(func, du0, u0, tspan, p; differential_vars, kwargs...)
+    return SciMLBase.DAEProblem{true}(func, dx0, x0, tspan, p; differential_vars, kwargs...)
 end
 
 """
@@ -451,6 +476,9 @@ which may be used with the DifferentialEquations package.
  - `sparse = false`: Flag indicating whether to use a sparse jacobian.
 
 # Sensitivity Analysis Keyword Arguments
+ - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+        defined as a function of GXBeam's state variables.  Using this function forces
+        the system jacobian to be computed using automatic differentiation.
  - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
         to updated versions of the arguments `assembly`, `prescribed_conditions`,
         `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`, and
@@ -475,6 +503,7 @@ function SciMLBase.DAEFunction(system::AbstractSystem, assembly;
     constant_mass_matrix=false,
     sparse=false,
     # sensitivity analysis keyword arguments
+    xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
     # additional keyword arguments (passed to ODEFunction constructor)
@@ -520,7 +549,7 @@ function SciMLBase.DAEFunction(system::AbstractSystem, assembly;
 
         # default keyword arguments
         constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
-            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            xpfunc, pfunc, prescribed_conditions, distributed_loads, point_masses,
             linear_velocity, angular_velocity, gravity, t=0.0)
 
         # residual function
@@ -536,7 +565,7 @@ function SciMLBase.DAEFunction(system::AbstractSystem, assembly;
             @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
             # combine constants and parameters
-            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(x, p, constants)
 
             # compute and return the residual
             expanded_dynamic_system_jacobian!(resid, du, u, indices, two_dimensional, force_scaling,
@@ -563,7 +592,7 @@ function SciMLBase.DAEFunction(system::AbstractSystem, assembly;
 
         # default keyword arguments
         constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling,
-            pfunc, prescribed_conditions, distributed_loads, point_masses,
+            xpfunc, pfunc, prescribed_conditions, distributed_loads, point_masses,
             linear_velocity, angular_velocity, gravity, t=0.0)
 
         # residual function
@@ -579,7 +608,7 @@ function SciMLBase.DAEFunction(system::AbstractSystem, assembly;
             @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
             # combine constants and parameters
-            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+            assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(x, p, constants)
 
             # update acceleration state variable indices
             update_body_acceleration_indices!(indices, pcond)
@@ -608,17 +637,14 @@ function SciMLBase.DAEFunction(system::AbstractSystem, assembly;
 end
 
 # combines constant and variable parameters for a dynamic analysis
-function dynamic_parameters(p, constants)
+function dynamic_parameters(x, p, constants)
 
     # unpack default parameters, parameter function, and current time
     @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
-        linear_velocity, angular_velocity, pfunc, t = constants
-
-    # extract parameters from the parameter vector using `pfunc`
-    parameters = pfunc(p, t)
+        linear_velocity, angular_velocity, xpfunc, pfunc, t = constants
 
     # overwrite default assembly and parameters (if applicable)
-    parameters = pfunc(p, t)
+    parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
     assembly = get(parameters, :assembly, assembly)
     prescribed_conditions = get(parameters, :prescribed_conditions, prescribed_conditions)
     distributed_loads = get(parameters, :distributed_loads, distributed_loads)
@@ -648,7 +674,7 @@ function dynamic_residual!(resid, dx, x, p, constants)
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(x, p, constants)
 
     # update acceleration state variable indices
     update_body_acceleration_indices!(indices, pcond)
@@ -668,7 +694,7 @@ function dynamic_jacobian!(jacob, dx, x, p, constants)
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(x, p, constants)
 
     # update acceleration state variable indices
     update_body_acceleration_indices!(indices, pcond)
@@ -706,7 +732,7 @@ function expanded_dynamic_residual!(resid, dx, x, p, constants)
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(x, p, constants)
 
     # compute and return the residual
     return expanded_dynamic_system_residual!(resid, dx, x, indices, two_dimensional, force_scaling,
@@ -723,7 +749,7 @@ function expanded_dynamic_jacobian!(jacob, dx, x, p, constants)
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
-    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(p, constants)
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p = dynamic_parameters(x, p, constants)
 
     # compute and return the residual
     result = expanded_dynamic_system_jacobian!(jacob, dx, x, indices, two_dimensional, force_scaling,
