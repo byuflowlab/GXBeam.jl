@@ -514,18 +514,18 @@ end
 
 # compute sensitivities using ForwardDiff with λ = 1.0
 ForwardDiff.jacobian(objfun, p)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">15×1 Matrix{Float64}:
-   0.03674527226999638
-   0.8983685948149646
- -12.140533981457164
-  -9.537080532079006
-  -9.253326335747117
-  -7.316987305568483
-   8.101457732295904
-  -0.731638093858313
-  57.197303674225026
- -18.115542110000717
- -14.508055028176654
- 103.85774986359351
- -16.73939558152884
-   3.825600424985323
-  -3.7841762945816058</code></pre><p>Note the use of the keyword argument <code>eigenvector_sensitivities=false</code> in our call to <code>eigenvalue_analysis</code>.  This keyword argument tells the solver that we are only interested in eigenvalue derivatives, rather than eigenvalue and eigenvector derivatives.  Setting this keyword argument to <code>false</code> (when appropriate) significantly reduces the computational expenses associated with computing design sensitivities.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../curved/">« Bending of an Initially Curved Beam</a><a class="docs-footer-nextpage" href="../excited/">Excited Second Bending Mode »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 14 March 2023 17:13">Tuesday 14 March 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+   0.03674527227006159
+   0.8983685948148965
+ -12.140533981455466
+  -9.537080532092238
+  -9.253326335752673
+  -7.31698730556775
+   8.101457732289404
+  -0.7316380935737639
+  57.1973036736439
+ -18.115542110143615
+ -14.50805502857288
+ 103.8577498632748
+ -16.73939558155423
+   3.8256004261376724
+  -3.784176795682991</code></pre><p>Note the use of the keyword argument <code>eigenvector_sensitivities=false</code> in our call to <code>eigenvalue_analysis</code>.  This keyword argument tells the solver that we are only interested in eigenvalue derivatives, rather than eigenvalue and eigenvector derivatives.  Setting this keyword argument to <code>false</code> (when appropriate) significantly reduces the computational expenses associated with computing design sensitivities.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../curved/">« Bending of an Initially Curved Beam</a><a class="docs-footer-nextpage" href="../excited/">Excited Second Bending Mode »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 14 March 2023 17:26">Tuesday 14 March 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
