@@ -51,11 +51,7 @@ prescribed_conditions = Dict(
 )
 
 # perform static analysis
-system, converged = static_analysis(assembly;
-    prescribed_conditions = prescribed_conditions)
-
-# post-process results
-state = AssemblyState(system, assembly;
+system, state, converged = static_analysis(assembly;
     prescribed_conditions = prescribed_conditions)
 
 println("Tip Displacement: ", state.points[end].u)

@@ -1,6 +1,6 @@
 # # [Time-Domain Simulation of a Joined-Wing](@id dynamic-joined-wing)
-# 
-# In this example we use the same joined-wing model as used in the [previous example](@ref 
+#
+# In this example we use the same joined-wing model as used in the [previous example](@ref
 # static-joined-wing), but with the following time varying loads applied at the wingtip:
 #  - A piecewise-linear load ``F_L`` in the x and y-directions defined as follows:
 # ```math
@@ -18,10 +18,10 @@
 #     10^4 \text{ N} & 0.02 \leq t
 # \end{cases}
 # ```
-# 
-# We will also use the same compliance and mass matrix for all beams, in order to simplify 
+#
+# We will also use the same compliance and mass matrix for all beams, in order to simplify
 # the problem definition.
-# 
+#
 # ![](../assets/static-joined-wing-drawing.png)
 #
 #-
@@ -38,13 +38,13 @@ p2 = [-7.1726, -12, -3.21539]
 p3 = [7.1726, -12,  3.21539]
 
 Cab_1 = [
-0.5         0.866025  0.0   
+0.5         0.866025  0.0
 0.836516    -0.482963  0.258819
 0.224144     -0.12941   -0.965926
 ]
 
 Cab_2 = [
-0.5         0.866025  0.0   
+0.5         0.866025  0.0
 -0.836516    0.482963 0.258819
 0.224144    -0.12941   0.965926
 ]
@@ -126,9 +126,9 @@ system, history, converged = time_domain_analysis(assembly, t;
 
 #!jl nothing #hide
 
-# We can visualize tip displacements and the resultant forces accessing the post-processed 
-# results for each time step contained in the variable `history`.  Note that the fore-root 
-# and rear-root resultant forces for this case are equal to the external forces/moments, 
+# We can visualize tip displacements and the resultant forces accessing the post-processed
+# results for each time step contained in the variable `history`.  Note that the fore-root
+# and rear-root resultant forces for this case are equal to the external forces/moments,
 # but with opposite sign.
 
 #md using Suppressor #hide
@@ -151,7 +151,7 @@ ylabel = ["\$u_x\$ (\$m\$)", "\$u_y\$ (\$m\$)", "\$u_z\$ (\$m\$)",
 
 for i = 1:12
 #nb     ph[i] = plot(
-#!nb     plot(
+    plot( #!nb
         xlim = (0, 0.04),
         xticks = 0:0.01:0.04,
         xlabel = "Time (s)",
@@ -172,7 +172,7 @@ for i = 1:12
 
     plot!(t, y, label="")
     plot!(show=true) #!nb
-#md     savefig("../assets/dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); #hide 
+#md     savefig("../assets/dynamic-joined-wing-"*string(field[i])*string(direction[i])*".svg"); #hide
 #md     closeall() #hide
 end
 
@@ -230,10 +230,10 @@ end
 #md # ![](../assets/dynamic-joined-wing-M2.svg)
 #md # ![](../assets/dynamic-joined-wing-M3.svg)
 
-#- 
+#-
 
 # These graphs are identical to those presented in "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu and Maxwell Blair.
-# 
+#
 # We can also visualize the time history of the system using ParaView.  In order to view the small deflections we'll scale all the deflections up by a couple orders of magnitude.  We'll also set the color gradient to match the magnitude of the deflections at each point.
 
 airfoil  = [ #FX 60-100 airfoil

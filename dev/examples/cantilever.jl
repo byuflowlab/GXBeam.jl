@@ -40,13 +40,11 @@ distributed_loads = Dict(
     n1+1:n1+n2
 )
 
-system, converged = static_analysis(assembly;
+# perform static analysis
+system, state, converged = static_analysis(assembly;
     prescribed_conditions = prescribed_conditions,
     distributed_loads = distributed_loads,
     linear = true)
-
-state = AssemblyState(system, assembly;
-    prescribed_conditions = prescribed_conditions)
 
 # construct analytical solution
 dx = 1e-6

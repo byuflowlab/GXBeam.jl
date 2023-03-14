@@ -1,3 +1,5 @@
+# Time Domain Analysis
+
 using GXBeam, LinearAlgebra
 
 L = 60 # m
@@ -53,6 +55,9 @@ system, history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
+
+# Visualization
+
 using Plots
 pyplot()
 
@@ -70,7 +75,7 @@ for i = 1:12
 
     local y
 
-   plot(
+    plot(
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
         xlabel = "Time (s)",
@@ -178,6 +183,47 @@ end
 
 mkpath("wind-turbine-blade-simulation")
 write_vtk("wind-turbine-blade-simulation/wind-turbine-blade-simulation", assembly, history, t; sections = sections)
+
+using ForwardDiff
+
+# simulation time
+t = 0:0.001:2.0
+
+# construct parameter function
+pfunc = (p, t) -> begin
+
+    # prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # force on right side
+        nelem+1 => PrescribedConditions(Fz = p[1]*sin(p[2]*t))
+    )
+
+    # return named tuple with new arguments
+    return (; prescribed_conditions=prescribed_conditions)
+end
+
+# construct objective function
+objfun = (p) -> begin
+
+    # perform time domain analysis
+    system, history, converged = time_domain_analysis(assembly, t;
+        prescribed_conditions = prescribed_conditions, # default prescribed conditions
+        structural_damping = false,
+        pfunc = pfunc, # sensitivity function
+        p = p, # sensitivity parameters
+        )
+
+    # return vertical tip displacement at `t=2.0`
+    return [history[end].points[end].u[3]]
+end
+
+# sensitivity parameters
+p = [1e5, 20] # force magnitude and frequency
+
+# compute sensitivities using ForwardDiff
+ForwardDiff.jacobian(objfun, p)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 

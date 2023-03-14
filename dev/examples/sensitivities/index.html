@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Sensitivity Analysis · GXBeam.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">GXBeam.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../guide/">Getting Started</a></li><li><a class="tocitem" href="../section/">Section Properties and Strain Recovery</a></li><li class="is-active"><a class="tocitem" href>Sensitivity Analysis</a></li><li><a class="tocitem" href="../diffeq/">DifferentialEquations</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../cantilever/">Cantilever with a Uniform Load</a></li><li><a class="tocitem" href="../overdetermined/">Overdetermined Beam</a></li><li><a class="tocitem" href="../tipforce/">Cantilever with a Tip Force</a></li><li><a class="tocitem" href="../tipmoment/">Cantilever with a Tip Moment</a></li><li><a class="tocitem" href="../curved/">Bending of an Initially Curved Beam</a></li><li><a class="tocitem" href="../rotating/">Rotating Beam with a Swept Tip</a></li><li><a class="tocitem" href="../excited/">Excited Second Bending Mode</a></li><li><a class="tocitem" href="../wind-turbine-blade/">Time-Domain Simulation of a Wind Turbine Blade</a></li><li><a class="tocitem" href="../static-joined-wing/">Static Analysis of a Joined-Wing</a></li><li><a class="tocitem" href="../dynamic-joined-wing/">Time-Domain Simulation of a Joined-Wing</a></li><li><a class="tocitem" href="../vertical-axis-wind-turbine/">Sandia 34-Meter Vertical Axis Wind Turbine</a></li></ul></li><li><a class="tocitem" href="../../reference/reference/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Sensitivity Analysis</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Sensitivity Analysis</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/literate/sensitivities.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="sensitivities"><a class="docs-heading-anchor" href="#sensitivities">Sensitivity Analysis</a><a id="sensitivities-1"></a><a class="docs-heading-anchor-permalink" href="#sensitivities" title="Permalink"></a></h1><p>In order to facilitate gradient-based optimization, all linear solves in GXBeam have been overloaded to support automatic differentiation using the ImplicitAD package.  Automatic differentiation using ForwardDiff and ReverseDiff should therefore work with without any major headaches, as long as you initialize the internal storage with the correct type. (e.g. <code>system = DynamicSystem(TF, assembly)</code> where <code>TF</code> is an appropriate floating point type).</p><p>For example, consider the <a href="examples/@id tipmoment">Cantilever with a Tip Moment</a> example.  Suppose we were interested in the sensitivity of tip x and y-displacement with respect to the nondimensional tip moment <span>$\lambda$</span> when <span>$\lambda=1$</span>.  These sensitivites may be computed as follows:</p><pre><code class="language-julia hljs">using GXBeam, LinearAlgebra
+import ForwardDiff # for forward-mode automatic differentiation
+import ReverseDiff # for reverse-mode automatic differentiation
+using BenchmarkTools # for benchmarking function performance
+
+L = 12 # inches
+h = w = 1 # inches
+E = 30e6 # lb/in^4 Young&#39;s Modulus
+
+A = h*w
+Iyy = w*h^3/12
+Izz = w^3*h/12
+
+# create points
+nelem = 16
+x = range(0, L, length=nelem+1)
+y = zero(x)
+z = zero(x)
+points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+
+# index of endpoints of each beam element
+start = 1:nelem
+stop = 2:nelem+1
+
+# compliance matrix for each beam element
+compliance = fill(Diagonal([1/(E*A), 0, 0, 0, 1/(E*Iyy), 1/(E*Izz)]), nelem)
+
+# create assembly of interconnected nonlinear beams
+assembly = Assembly(points, start, stop, compliance=compliance)
+
+# construct objective function
+objfun1 = (p) -&gt; begin
+
+    # non-dimensional tip moment
+    λ = p[1]
+
+    # dimensionalized tip moment
+    m = pi*E*Iyy/L
+    M = λ*m
+
+    # prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # moment on right side
+        nelem+1 =&gt; PrescribedConditions(Mz = M)
+    )
+
+    # initialize internal storage with the correct type
+    system = StaticSystem(eltype(p), assembly)
+
+    # perform static analysis
+    system, state, converged = static_analysis!(system, assembly; prescribed_conditions)
+
+    # return the desired outputs
+    return [state.points[end].u[1], state.points[end].u[2]]
+end
+
+# compute sensitivities using ForwardDiff with λ = 1.0
+@btime ForwardDiff.jacobian(objfun1, [1.0])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2×1 Matrix{Float64}:
+ -12.025539968259285
+  -7.659921842013467</code></pre><pre><code class="language-julia hljs"># compute sensitivities using ReverseDiff with λ = 1.0
+@btime ReverseDiff.jacobian(objfun1, [1.0])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2×1 Matrix{Float64}:
+ -12.025539968259285
+  -7.659921842013468</code></pre><p>Advanced users, however, may wish to use overloaded versions of each nonlinear solve in order to further decrease the total computational costs associated with obtaining design sensitivites.  Overloading the nonlinear solver also significantly reduces the memory requirements associated with using ReverseDiff. Using these overloads, however, requires that the user provide the parameter function <code>parameters = pfunc(p, t)</code> and associated parameter vector <code>p</code>.  As described in the documentation for each analysis type, the <code>pfunc</code> function returns a named tuple which contains updated arguments for the analysis, based on the contents of the parameter vector <code>p</code> and the current time <code>t</code>.</p><pre><code class="language-julia hljs"># construct pfunc to overwrite prescribed conditions
+pfunc = (p, t) -&gt; begin
+
+    # non-dimensional tip moment
+    λ = p[1]
+
+    # dimensionalized tip moment
+    m = pi*E*Iyy/L
+    M = λ*m
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 =&gt; PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # moment on right side
+        nelem+1 =&gt; PrescribedConditions(Mz = M)
+    )
+
+    # return named tuple with new arguments
+    return (; prescribed_conditions=prescribed_conditions)
+end
+
+# construct objective function
+objfun2 = (p) -&gt; begin
+
+    # perform static analysis
+    system, state, converged = static_analysis(assembly; pfunc, p)
+
+    # return the desired outputs
+    return [state.points[end].u[1], state.points[end].u[2]]
+end
+
+# compute sensitivities using ForwardDiff with λ = 1.0
+@btime ForwardDiff.jacobian(objfun2, [1.0])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2×1 Matrix{Float64}:
+ -12.025539968209044
+  -7.659921841992019</code></pre><pre><code class="language-julia hljs"># compute sensitivities using ReverseDiff with λ = 1.0
+@btime ReverseDiff.jacobian(objfun2, [1.0])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">2×1 Matrix{Float64}:
+ -12.02553996820905
+  -7.65992184199202</code></pre><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../section/">« Section Properties and Strain Recovery</a><a class="docs-footer-nextpage" href="../diffeq/">DifferentialEquations »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 14 March 2023 17:13">Tuesday 14 March 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

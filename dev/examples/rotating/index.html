@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Rotating Beam with a Swept Tip · GXBeam.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">GXBeam.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../guide/">Getting Started</a></li><li><a class="tocitem" href="../section/">Stiffness/Mass Matrices and Strain Recovery</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../cantilever/">Cantilever with a Uniform Load</a></li><li><a class="tocitem" href="../overdetermined/">Overdetermined Beam</a></li><li><a class="tocitem" href="../tipforce/">Cantilever with a Tip Force</a></li><li><a class="tocitem" href="../tipmoment/">Cantilever with a Tip Moment</a></li><li><a class="tocitem" href="../curved/">Bending of an Initially Curved Beam</a></li><li class="is-active"><a class="tocitem" href>Rotating Beam with a Swept Tip</a></li><li><a class="tocitem" href="../excited/">Excited Second Bending Mode</a></li><li><a class="tocitem" href="../wind-turbine-blade/">Time-Domain Simulation of a Wind Turbine Blade</a></li><li><a class="tocitem" href="../static-joined-wing/">Static Analysis of a Joined-Wing</a></li><li><a class="tocitem" href="../dynamic-joined-wing/">Time-Domain Simulation of a Joined-Wing</a></li><li><a class="tocitem" href="../vertical-axis-wind-turbine/">Sandia 34-Meter Vertical Axis Wind Turbine</a></li></ul></li><li><a class="tocitem" href="../diffeq/">Using GXBeam with DifferentialEquations.jl</a></li><li><a class="tocitem" href="../../reference/reference/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Rotating Beam with a Swept Tip</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Rotating Beam with a Swept Tip</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/literate/rotating.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="rotating"><a class="docs-heading-anchor" href="#rotating">Rotating Beam with a Swept Tip</a><a id="rotating-1"></a><a class="docs-heading-anchor-permalink" href="#rotating" title="Permalink"></a></h1><p>In this example we analyze a rotating beam with a swept tip.  The parameters for this example come from &quot;Finite element solution of nonlinear intrinsic equations for curved composite beams&quot; by Hodges, Shang, and Cesnik.</p><p><img src="../../assets/rotating-drawing.svg" alt/></p><div class="admonition is-success"><header class="admonition-header">Tip</header><div class="admonition-body"><p>This example is also available as a Jupyter notebook: <a href="https://nbviewer.jupyter.org/github/byuflowlab/GXBeam.jl/blob/gh-pages/dev/examples/rotating.ipynb"><code>rotating.ipynb</code></a>.</p></div></div><pre><code class="language-julia hljs">using GXBeam, LinearAlgebra
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Rotating Beam with a Swept Tip · GXBeam.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">GXBeam.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../guide/">Getting Started</a></li><li><a class="tocitem" href="../section/">Section Properties and Strain Recovery</a></li><li><a class="tocitem" href="../sensitivities/">Sensitivity Analysis</a></li><li><a class="tocitem" href="../diffeq/">DifferentialEquations</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../cantilever/">Cantilever with a Uniform Load</a></li><li><a class="tocitem" href="../overdetermined/">Overdetermined Beam</a></li><li><a class="tocitem" href="../tipforce/">Cantilever with a Tip Force</a></li><li><a class="tocitem" href="../tipmoment/">Cantilever with a Tip Moment</a></li><li><a class="tocitem" href="../curved/">Bending of an Initially Curved Beam</a></li><li class="is-active"><a class="tocitem" href>Rotating Beam with a Swept Tip</a><ul class="internal"><li><a class="tocitem" href="#Steady-State-Analysis"><span>Steady State Analysis</span></a></li><li><a class="tocitem" href="#Eigenvalue-Analysis"><span>Eigenvalue Analysis</span></a></li><li><a class="tocitem" href="#Comparison-with-Experimental-Results"><span>Comparison with Experimental Results</span></a></li><li><a class="tocitem" href="#Eigenmode-Visualization"><span>Eigenmode Visualization</span></a></li><li><a class="tocitem" href="#Sensitivity-Analysis"><span>Sensitivity Analysis</span></a></li></ul></li><li><a class="tocitem" href="../excited/">Excited Second Bending Mode</a></li><li><a class="tocitem" href="../wind-turbine-blade/">Time-Domain Simulation of a Wind Turbine Blade</a></li><li><a class="tocitem" href="../static-joined-wing/">Static Analysis of a Joined-Wing</a></li><li><a class="tocitem" href="../dynamic-joined-wing/">Time-Domain Simulation of a Joined-Wing</a></li><li><a class="tocitem" href="../vertical-axis-wind-turbine/">Sandia 34-Meter Vertical Axis Wind Turbine</a></li></ul></li><li><a class="tocitem" href="../../reference/reference/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Rotating Beam with a Swept Tip</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Rotating Beam with a Swept Tip</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/byuflowlab/GXBeam.jl/blob/master/docs/src/literate/rotating.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="rotating"><a class="docs-heading-anchor" href="#rotating">Rotating Beam with a Swept Tip</a><a id="rotating-1"></a><a class="docs-heading-anchor-permalink" href="#rotating" title="Permalink"></a></h1><p>In this example we analyze a rotating beam with a swept tip.  The parameters for this example come from &quot;Finite element solution of nonlinear intrinsic equations for curved composite beams&quot; by Hodges, Shang, and Cesnik.</p><p><img src="../../assets/rotating-drawing.svg" alt/></p><div class="admonition is-success"><header class="admonition-header">Tip</header><div class="admonition-body"><p>This example is also available as a Jupyter notebook: <a href="https://nbviewer.jupyter.org/github/byuflowlab/GXBeam.jl/blob/gh-pages/dev/examples/rotating.ipynb"><code>rotating.ipynb</code></a>.</p></div></div><h2 id="Steady-State-Analysis"><a class="docs-heading-anchor" href="#Steady-State-Analysis">Steady State Analysis</a><a id="Steady-State-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Steady-State-Analysis" title="Permalink"></a></h2><pre><code class="language-julia hljs">using GXBeam, LinearAlgebra
 
 sweep = 45 * pi/180
 rpm = 0:25:750
@@ -79,22 +79,17 @@ for i = 1:length(rpm)
     # global frame rotation
     w0 = [0, 0, rpm[i]*(2*pi)/60]
 
-    # perform nonlinear steady state analysis
-    system, converged = steady_state_analysis(assembly,
-        angular_velocity = w0,
-        prescribed_conditions = prescribed_conditions)
-
-    nonlinear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
-
     # perform linear steady state analysis
-    system, converged = steady_state_analysis(assembly,
+    system, linear_states[i], converged = steady_state_analysis(assembly,
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions,
         linear = true)
 
-    linear_states[i] = AssemblyState(system, assembly;
+    # perform nonlinear steady state analysis
+    system, nonlinear_states[i], converged = steady_state_analysis(assembly,
+        angular_velocity = w0,
         prescribed_conditions = prescribed_conditions)
+
 end</code></pre><p>To visualize the solutions we will plot the root moment and tip deflections against the angular speed.</p><pre><code class="language-julia hljs">using Plots
 pyplot()
 colors = get_color_palette(:auto, 17)</code></pre><pre><code class="language-julia hljs"># root moment
@@ -158,7 +153,7 @@ theta_z_l = [4*atan(linear_states[i].points[end].theta[3]/4)
 plot!(rpm, theta_z_nl, label=&quot;Nonlinear&quot;)
 plot!(rpm, theta_z_l, label=&quot;Linear&quot;)
 
-plot!(show=true)</code></pre><p><img src="../../assets/rotating-theta_z.svg" alt/></p><p>We will now compute the eigenvalues of this system for a range of sweep angles and and angular speeds.</p><pre><code class="language-julia hljs">sweep = (0:2.5:45) * pi/180
+plot!(show=true)</code></pre><p><img src="../../assets/rotating-theta_z.svg" alt/></p><h2 id="Eigenvalue-Analysis"><a class="docs-heading-anchor" href="#Eigenvalue-Analysis">Eigenvalue Analysis</a><a id="Eigenvalue-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Eigenvalue-Analysis" title="Permalink"></a></h2><p>We will now compute the eigenvalues of this system for a range of sweep angles and and angular speeds.</p><pre><code class="language-julia hljs">sweep = (0:2.5:45) * pi/180
 rpm = [0, 500, 750]
 nev = 30
 
@@ -187,7 +182,7 @@ for i = 1:length(sweep)
     # swept section of the beam
     L_b2 = 6 # inch
     r_b2 = [34, 0, 0]
-    nelem_b2 = 20
+    nelem_b2 = 4
     cs, ss = cos(sweep[i]), sin(sweep[i])
     frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
@@ -245,7 +240,7 @@ for i = 1:length(sweep)
 
         # post-process eigenvector state variables
         eigenstates[i,j] = [
-            AssemblyState(system, assembly, V[i,j][:,k]; prescribed_conditions)
+            AssemblyState(V[i,j][:,k], system, assembly; prescribed_conditions)
             for k = 1:nev
         ]
     end
@@ -257,7 +252,7 @@ frequency = [
     ]</code></pre><p>Note that we correlated each eigenmode by taking advantage of the fact that left and right eigenvectors satisfy the following relationships:</p><p class="math-container">\[\begin{aligned}
 u^H M v &amp;= 1 &amp;\text{if \(u\) and \(v\) correspond to the same eigenmode} \\
 u^H M v &amp;= 0 &amp;\text{if \(u\) and \(v\) correspond to different eigenmodes}
-\end{aligned}\]</p><p>In this case these eigenmode correlations work, but remember that large changes in the underlying parameters (or just drastic changes in the eigenvectors themselves due to a small perturbation) can cause these correlations to fail.</p><p>We&#39;ll now plot the frequency of the different eigenmodes against those found by Epps and Chandra in &quot;The Natural Frequencies of Rotating Composite Beams With Tip Sweep&quot;.</p><pre><code class="language-julia hljs"># index of first bending mode
+\end{aligned}\]</p><p>In this case these eigenmode correlations work, but remember that large changes in the underlying parameters (or just drastic changes in the eigenvectors themselves due to a small perturbation) can cause these correlations to fail.</p><h2 id="Comparison-with-Experimental-Results"><a class="docs-heading-anchor" href="#Comparison-with-Experimental-Results">Comparison with Experimental Results</a><a id="Comparison-with-Experimental-Results-1"></a><a class="docs-heading-anchor-permalink" href="#Comparison-with-Experimental-Results" title="Permalink"></a></h2><p>We&#39;ll now plot the frequency of the different eigenmodes against those found by Epps and Chandra in &quot;The Natural Frequencies of Rotating Composite Beams With Tip Sweep&quot;.</p><pre><code class="language-julia hljs"># index of first bending mode
 index = 1
 
 # experimental data
@@ -428,7 +423,109 @@ for k = 1:length(indices)
     annotate!(xann, yann, text(&quot;$(names[k])&quot;, &quot;Serif&quot;, 8, :center, :bottom, colors[k]))
 end
 plot!(show=true)
-savefig(&quot;../assets/rotating-frequencies-4.svg&quot;);</code></pre><p><img src="../../assets/rotating-frequencies-4.svg" alt/></p><p>As you can see, the frequency results from the eigenmode analysis in this package compare well with experimental results.</p><p>We can also visualize eigenmodes using ParaView.  Here we will visualize the first bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be helpful for identifying different eigenmodes.</p><pre><code class="language-julia hljs"># write the response to vtk files for visualization using ParaView
+savefig(&quot;../assets/rotating-frequencies-4.svg&quot;);</code></pre><p><img src="../../assets/rotating-frequencies-4.svg" alt/></p><p>As you can see, the frequency results from the eigenmode analysis in this package compare well with experimental results.</p><h2 id="Eigenmode-Visualization"><a class="docs-heading-anchor" href="#Eigenmode-Visualization">Eigenmode Visualization</a><a id="Eigenmode-Visualization-1"></a><a class="docs-heading-anchor-permalink" href="#Eigenmode-Visualization" title="Permalink"></a></h2><p>We can also visualize eigenmodes using ParaView.  Here we will visualize the first bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be helpful for identifying different eigenmodes.</p><pre><code class="language-julia hljs"># write the response to vtk files for visualization using ParaView
 mkpath(&quot;rotating-eigenmode&quot;)
 write_vtk(&quot;rotating-eigenmode/rotating-eigenmode&quot;, assembly, state[end,end],
-    λ[end,end][1], eigenstates[end,end][1]; mode_scaling = 100.0)</code></pre><p><img src="../../assets/rotating-eigenmode.gif" alt/></p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../curved/">« Bending of an Initially Curved Beam</a><a class="docs-footer-nextpage" href="../excited/">Excited Second Bending Mode »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Friday 17 February 2023 19:31">Friday 17 February 2023</span>. Using Julia version 1.6.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+    λ[end,end][1], eigenstates[end,end][1]; mode_scaling = 100.0)</code></pre><p><img src="../../assets/rotating-eigenmode.gif" alt/></p><h2 id="Sensitivity-Analysis"><a class="docs-heading-anchor" href="#Sensitivity-Analysis">Sensitivity Analysis</a><a id="Sensitivity-Analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Sensitivity-Analysis" title="Permalink"></a></h2><p>Suppose we are interested in computing the sensitivity of the mode frequencies to sweep angle when rotating at 750 RPM with a \SI{45}{\deg} sweep angle.  We can compute these sensitivities as follows:</p><pre><code class="language-julia hljs">using ForwardDiff
+
+# number of eigenvalues
+nev = 30
+
+# define sweep angle
+sweep = 45 * pi/180
+
+# define RPM
+rpm = 750
+
+# define parameter vector
+p = [sweep]
+
+# straight section of the beam
+L_b1 = 31.5 ## inch
+r_b1 = [2.5, 0, 0]
+nelem_b1 = 20
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
+
+# swept section of the beam
+L_b2 = 6 ## inch
+r_b2 = [34, 0, 0]
+nelem_b2 = 4
+cs, ss = cos(sweep), sin(sweep)
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+# combine elements and points into one array
+nelem = nelem_b1 + nelem_b2
+points = vcat(xp_b1, xp_b2[2:end])
+start = 1:nelem_b1 + nelem_b2
+stop = 2:nelem_b1 + nelem_b2 + 1
+Cab = vcat(Cab_b1, Cab_b2)
+
+# define compliance
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
+1/(E*Izz)]), nelem)
+
+# define mass
+mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+# create (default) assembly
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab)
+
+# construct parameter function which overwrites the default assembly
+pfunc = (p, t) -&gt; begin
+
+    sweep = p[1] # sweep angle
+
+    # redefine swept section of the beam
+    cs, ss = cos(sweep), sin(sweep)
+    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+    # redefine points and reference frame
+    points = vcat(xp_b1, xp_b2[2:end])
+    Cab = vcat(Cab_b1, Cab_b2)
+
+    # create new assembly
+    assembly = Assembly(points, start, stop;
+        compliance = compliance,
+        mass = mass,
+        frames = Cab)
+
+    # return named tuple with new arguments
+    return (; assembly=assembly)
+end
+
+# construct objective function
+objfun = (p) -&gt; begin
+
+    # perform eigenvalue analysis
+    system, λ, V, converged = eigenvalue_analysis(assembly; pfunc, p,
+        angular_velocity = [0, 0, rpm*(2*pi)/60],
+        prescribed_conditions = prescribed_conditions,
+        eigenvector_sensitivities=true,
+        nev = nev)
+
+    # return frequencies
+    return [imag(λ[k])/(2*pi) for k = 1:2:length(λ)]
+end
+
+# compute sensitivities using ForwardDiff with λ = 1.0
+ForwardDiff.jacobian(objfun, p)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">15×1 Matrix{Float64}:
+   0.03674527226999638
+   0.8983685948149646
+ -12.140533981457164
+  -9.537080532079006
+  -9.253326335747117
+  -7.316987305568483
+   8.101457732295904
+  -0.731638093858313
+  57.197303674225026
+ -18.115542110000717
+ -14.508055028176654
+ 103.85774986359351
+ -16.73939558152884
+   3.825600424985323
+  -3.7841762945816058</code></pre><p>Note the use of the keyword argument <code>eigenvector_sensitivities=false</code> in our call to <code>eigenvalue_analysis</code>.  This keyword argument tells the solver that we are only interested in eigenvalue derivatives, rather than eigenvalue and eigenvector derivatives.  Setting this keyword argument to <code>false</code> (when appropriate) significantly reduces the computational expenses associated with computing design sensitivities.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../curved/">« Bending of an Initially Curved Beam</a><a class="docs-footer-nextpage" href="../excited/">Excited Second Bending Mode »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 14 March 2023 17:13">Tuesday 14 March 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

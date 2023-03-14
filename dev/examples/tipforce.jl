@@ -42,11 +42,7 @@ for i = 1:length(P)
     )
 
     # perform a static analysis
-    static_analysis!(system, assembly;
-        prescribed_conditions=prescribed_conditions)
-
-    # post-process the results
-    states[i] = AssemblyState(system, assembly;
+    _, states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions)
 
 end

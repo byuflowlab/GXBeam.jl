@@ -1,10 +1,10 @@
 # # [Excited Second Bending Mode](@id excited)
-# 
-# This example shows how to simulate a simply supported beam with an excited second bending 
+#
+# This example shows how to simulate a simply supported beam with an excited second bending
 # mode
 #
 # ![](../assets/excited-simulation.gif)
-# 
+#
 #-
 #md # !!! tip
 #md #     This example is also available as a Jupyter notebook:
@@ -13,7 +13,7 @@
 
 using GXBeam, LinearAlgebra
 
-## simply-supported beam with excited second bending mode 
+## simply-supported beam with excited second bending mode
 
 ## beam properties
 L = 1
@@ -36,7 +36,7 @@ stop = 2:nelem+1
 compliance = fill(Diagonal([1e-6, 1e-6, 1e-6, 1e-6, 1/EI, 1e-6]), nelem)
 
 ## mass matrix for each beam element
-mass = fill(Diagonal([ρA, ρA, ρA, 0.0, 0.0, 0.0]), nelem)
+mass = fill(Diagonal([ρA, ρA, ρA, 1e-6, 1e-6, 1e-6]), nelem)
 
 ## create assembly
 assembly = Assembly(points, start, stop; compliance=compliance, mass=mass)
@@ -56,17 +56,14 @@ prescribed_conditions[1] = PrescribedConditions(ux=0, uy=0, uz=0)
 prescribed_conditions[nelem+1] = PrescribedConditions(uz=0)
 
 ## solve for static operating conditions
-system, converged = static_analysis(assembly; prescribed_conditions)
-
-## postprocess results
-state = AssemblyState(system, assembly; prescribed_conditions)
+system, state, converged = static_analysis(assembly; prescribed_conditions)
 
 ## extract initial conditions from the state vector
 u0 = getproperty.(state.points, :u)
 theta0 = getproperty.(state.points, :theta)
 
 ## set new prescribed conditions
-prescribed_conditions = Dict( 
+prescribed_conditions = Dict(
     ## simply supported left side
     1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_z=0),
     ## simply supported right side
@@ -80,10 +77,9 @@ prescribed_conditions = Dict(
 t = range(0, 2*pi/ω, step=0.001)
 
 ## perform time domain analysis
-system, history, converged = time_domain_analysis(assembly, t; 
+system, history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions,
-    initialize = true,
-    structural_damping = false, 
+    structural_damping = false,
     u0=u0, theta0=theta0)
 
 ## write visualization file
@@ -91,10 +87,9 @@ mkpath("excited-simulation")
 write_vtk("excited-simulation/excited-simulation", assembly, history, t; scaling = 100)
 #md rm("excited-simulation"; recursive=true) #hide
 
-
 # ![](../assets/excited-simulation.gif)
 
-# Plotting the results reveals that the analytical and computational solutions show 
+# Plotting the results reveals that the analytical and computational solutions show
 # excellent agreement.
 
 ## Get displacements at 1/4 of the beam's length
@@ -116,9 +111,9 @@ plot(
     grid = false,
     legend = :bottomleft,
     overwrite_figure=false
-    )   
-plot!(t, w14_analytic, label="Analytic")    
-plot!(t, w14_gxbeam, label="GXBeam")     
+    )
+plot!(t, w14_analytic, label="Analytic")
+plot!(t, w14_gxbeam, label="GXBeam")
 plot!(show=true) #!nb
 #md savefig("../assets/excited-deflection.svg") #hide
 #md closeall() #hide

@@ -58,16 +58,14 @@ using DifferentialEquations
 # define simulation time
 tspan = (0.0, 2.0)
 
-# define named tuple with parameters
-p = (; prescribed_conditions=prescribed_conditions)
-
 # run initial condition analysis to get consistent set of initial conditions
 dae_system, converged = initial_condition_analysis(assembly, tspan[1];
     prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
 # construct an ODEProblem (with a constant mass matrix)
-dae_prob = DAEProblem(dae_system, assembly, tspan, p;
+dae_prob = DAEProblem(dae_system, assembly, tspan;
+    prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
 # solve the problem
@@ -80,17 +78,18 @@ ode_system, converged = initial_condition_analysis(assembly, tspan[1];
     structural_damping = false)
 
 # construct an ODEProblem (with a constant mass matrix)
-ode_prob = ODEProblem(ode_system, assembly, tspan, p;
+ode_prob = ODEProblem(ode_system, assembly, tspan;
+    prescribed_conditions = prescribed_conditions,
     constant_mass_matrix = true,
     structural_damping = false)
 
 # solve the problem
 ode_sol = solve(ode_prob, Rodas4())
 
-ode_history = [AssemblyState(ode_system, assembly, ode_sol[it]; prescribed_conditions)
+ode_history = [AssemblyState(ode_sol[it], ode_system, assembly; prescribed_conditions)
     for it in eachindex(ode_sol)]
 
-dae_history = [AssemblyState(dae_system, assembly, dae_sol[it]; prescribed_conditions)
+dae_history = [AssemblyState(dae_sol[it], dae_system, assembly; prescribed_conditions)
     for it in eachindex(dae_sol)]
 
 using Plots

@@ -113,13 +113,13 @@ for i = 1:length(rpm)
     w0 = [0, 0, rpm[i]*(2*pi)/60]
 
     # perform linear steady state analysis
-    _, converged = steady_state_analysis!(system, assembly,
+    _, state, converged = steady_state_analysis!(system, assembly,
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions,
         linear = true)
 
-    linear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions=prescribed_conditions)
+    # save result
+    linear_states[i] = state
 
 end
 
@@ -128,16 +128,16 @@ reset_state!(system)
 nonlinear_states = Vector{AssemblyState{Float64}}(undef, length(rpm))
 for i = 1:length(rpm)
 
-   # global frame rotation
-   w0 = [0, 0, rpm[i]*(2*pi)/60]
+    # global frame rotation
+    w0 = [0, 0, rpm[i]*(2*pi)/60]
 
     # perform nonlinear steady state analysis
-    _, converged = steady_state_analysis!(system, assembly,
+    _, state, converged = steady_state_analysis!(system, assembly,
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions)
 
-     nonlinear_states[i] = AssemblyState(system, assembly;
-         prescribed_conditions=prescribed_conditions)
+    # save result
+    nonlinear_states[i] = state
 
 end
 

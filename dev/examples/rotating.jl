@@ -78,22 +78,17 @@ for i = 1:length(rpm)
     # global frame rotation
     w0 = [0, 0, rpm[i]*(2*pi)/60]
 
-    # perform nonlinear steady state analysis
-    system, converged = steady_state_analysis(assembly,
-        angular_velocity = w0,
-        prescribed_conditions = prescribed_conditions)
-
-    nonlinear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
-
     # perform linear steady state analysis
-    system, converged = steady_state_analysis(assembly,
+    system, linear_states[i], converged = steady_state_analysis(assembly,
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions,
         linear = true)
 
-    linear_states[i] = AssemblyState(system, assembly;
+    # perform nonlinear steady state analysis
+    system, nonlinear_states[i], converged = steady_state_analysis(assembly,
+        angular_velocity = w0,
         prescribed_conditions = prescribed_conditions)
+
 end
 
 nothing ##hide
@@ -200,7 +195,7 @@ for i = 1:length(sweep)
     # swept section of the beam
     L_b2 = 6 # inch
     r_b2 = [34, 0, 0]
-    nelem_b2 = 20
+    nelem_b2 = 4
     cs, ss = cos(sweep[i]), sin(sweep[i])
     frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
@@ -258,7 +253,7 @@ for i = 1:length(sweep)
 
         # post-process eigenvector state variables
         eigenstates[i,j] = [
-            AssemblyState(system, assembly, V[i,j][:,k]; prescribed_conditions)
+            AssemblyState(V[i,j][:,k], system, assembly; prescribed_conditions)
             for k = 1:nev
         ]
     end
@@ -449,6 +444,95 @@ plot!(show=true)
 mkpath("rotating-eigenmode")
 write_vtk("rotating-eigenmode/rotating-eigenmode", assembly, state[end,end],
     λ[end,end][1], eigenstates[end,end][1]; mode_scaling = 100.0)
+
+using ForwardDiff
+
+# number of eigenvalues
+nev = 30
+
+# define sweep angle
+sweep = 45 * pi/180
+
+# define RPM
+rpm = 750
+
+# define parameter vector
+p = [sweep]
+
+# straight section of the beam
+L_b1 = 31.5 ## inch
+r_b1 = [2.5, 0, 0]
+nelem_b1 = 20
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
+
+# swept section of the beam
+L_b2 = 6 ## inch
+r_b2 = [34, 0, 0]
+nelem_b2 = 4
+cs, ss = cos(sweep), sin(sweep)
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+# combine elements and points into one array
+nelem = nelem_b1 + nelem_b2
+points = vcat(xp_b1, xp_b2[2:end])
+start = 1:nelem_b1 + nelem_b2
+stop = 2:nelem_b1 + nelem_b2 + 1
+Cab = vcat(Cab_b1, Cab_b2)
+
+# define compliance
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
+1/(E*Izz)]), nelem)
+
+# define mass
+mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+# create (default) assembly
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab)
+
+# construct parameter function which overwrites the default assembly
+pfunc = (p, t) -> begin
+
+    sweep = p[1] # sweep angle
+
+    # redefine swept section of the beam
+    cs, ss = cos(sweep), sin(sweep)
+    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+    # redefine points and reference frame
+    points = vcat(xp_b1, xp_b2[2:end])
+    Cab = vcat(Cab_b1, Cab_b2)
+
+    # create new assembly
+    assembly = Assembly(points, start, stop;
+        compliance = compliance,
+        mass = mass,
+        frames = Cab)
+
+    # return named tuple with new arguments
+    return (; assembly=assembly)
+end
+
+# construct objective function
+objfun = (p) -> begin
+
+    # perform eigenvalue analysis
+    system, λ, V, converged = eigenvalue_analysis(assembly; pfunc, p,
+        angular_velocity = [0, 0, rpm*(2*pi)/60],
+        prescribed_conditions = prescribed_conditions,
+        eigenvector_sensitivities=true,
+        nev = nev)
+
+    # return frequencies
+    return [imag(λ[k])/(2*pi) for k = 1:2:length(λ)]
+end
+
+# compute sensitivities using ForwardDiff with λ = 1.0
+ForwardDiff.jacobian(objfun, p)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 

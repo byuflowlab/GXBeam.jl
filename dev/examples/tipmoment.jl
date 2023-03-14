@@ -46,11 +46,7 @@ for i = 1:length(M)
     )
 
     # perform a static analysis
-    static_analysis!(system, assembly;
-        prescribed_conditions = prescribed_conditions)
-
-    # post-process the results
-    states[i] = AssemblyState(system, assembly;
+    _, states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions)
 
 end
@@ -145,11 +141,7 @@ for (igrid, nelem) in enumerate(grid_sizes)
     )
 
     # perform a static analysis
-    system, converged = static_analysis(assembly;
-        prescribed_conditions = prescribed_conditions)
-
-    # post-process the results
-    states[igrid] = AssemblyState(system, assembly;
+    system, states[igrid], converged = static_analysis(assembly;
         prescribed_conditions = prescribed_conditions)
 
 end
@@ -193,6 +185,43 @@ p2 = plot(grid_sizes .+ 1, εy, label="",
     ytick = 10.0 .^ -(0:7),
     overwrite_figure=false,
     show=true)
+
+using ForwardDiff
+
+# construct pfunc to overwrite prescribed conditions
+pfunc = (p, t) -> begin
+
+    # non-dimensional tip moment
+    λ = p[1]
+
+    # dimensionalized tip moment
+    m = pi*E*Iyy/L
+    M = λ*m
+
+    # create dictionary of prescribed conditions
+    prescribed_conditions = Dict(
+        # fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        # moment on right side
+        nelem+1 => PrescribedConditions(Mz = M)
+    )
+
+    # return named tuple with new arguments
+    return (; prescribed_conditions=prescribed_conditions)
+end
+
+# construct objective function
+objfun = (p) -> begin
+
+    # perform static analysis
+    system, state, converged = static_analysis(assembly; pfunc, p)
+
+    # return the desired outputs
+    return [state.points[end].u[1], state.points[end].u[2]]
+end
+
+# compute sensitivities using ForwardDiff with λ = 1.0
+ForwardDiff.jacobian(objfun, [1.0])
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 

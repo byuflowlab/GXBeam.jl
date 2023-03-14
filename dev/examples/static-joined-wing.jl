@@ -125,12 +125,9 @@ for i = 1:length(Fz)
             theta_z=0),
     )
 
-    static_analysis!(system, assembly;
+    _, linear_states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
         linear = true)
-
-    linear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -153,11 +150,8 @@ for i = 1:length(Fz)
             theta_z=0),
     )
 
-    static_analysis!(system, assembly;
+    _, nonlinear_states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions, reset_state=false)
-
-    nonlinear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -179,11 +173,8 @@ for i = 1:length(Fz)
             theta_z=0),
     )
 
-    static_analysis!(system, assembly;
+    _, nonlinear_follower_states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions, reset_state=false)
-
-    nonlinear_follower_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
 
 end
 

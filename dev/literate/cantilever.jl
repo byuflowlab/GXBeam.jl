@@ -1,10 +1,10 @@
 # # [Cantilever with a Uniform Load](@id cantilever)
-# 
-# This example shows how to predict the behavior of a cantilever beam which is partially 
+#
+# This example shows how to predict the behavior of a cantilever beam which is partially
 # subjected to a uniform distributed load.
 #
 # ![](../assets/cantilever-drawing.svg)
-# 
+#
 #-
 #md # !!! tip
 #md #     This example is also available as a Jupyter notebook:
@@ -53,19 +53,19 @@ distributed_loads = Dict(
     n1+1:n1+n2
 )
 
-system, converged = static_analysis(assembly;       
+## perform static analysis
+system, state, converged = static_analysis(assembly;
     prescribed_conditions = prescribed_conditions,
     distributed_loads = distributed_loads,
     linear = true)
 
-state = AssemblyState(system, assembly;
-    prescribed_conditions = prescribed_conditions)
-
 #nb nothing
 #md nothing #hide
 
+# ## Comparison with Analytical Results
+
 #
-# We can construct the analytical solution for this problem by integrating from the free 
+# We can construct the analytical solution for this problem by integrating from the free
 # end of the beam and applying the appropriate boundary conditions.
 #
 
@@ -89,7 +89,7 @@ M_a = -M_a
 #nb nothing
 #md nothing #hide
 
-# Plotting the results reveals that the analytical and computational solutions show 
+# Plotting the results reveals that the analytical and computational solutions show
 # excellent agreement.
 
 using Plots
@@ -125,7 +125,7 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/cantilever-deflection.svg)
 
-#- 
+#-
 
 #md @suppress_err begin #hide
 #md local x #hide
@@ -154,7 +154,7 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/cantilever-twist.svg)
 
-#- 
+#-
 
 #md @suppress_err begin #hide
 #md local x #hide
@@ -182,7 +182,7 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/cantilever-moment.svg)
 
-#- 
+#-
 
-# Note that we could have easily performed a nonlinear analysis for this problem by setting 
+# Note that we could have easily performed a nonlinear analysis for this problem by setting
 # `linear=false`.

@@ -38,14 +38,10 @@ for i = 1:nelem
 end
 
 # perform a static analysis
-system, converged = static_analysis(assembly;
+system, state, converged = static_analysis(assembly;
     prescribed_conditions = prescribed_conditions,
     distributed_loads = distributed_loads,
     linear = true)
-
-# post-process the results
-state = AssemblyState(system, assembly;
-    prescribed_conditions = prescribed_conditions)
 
 # construct analytical solution
 x_a = range(0.0, L, length=1000)

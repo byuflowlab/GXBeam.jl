@@ -23,7 +23,7 @@ stop = 2:nelem+1
 compliance = fill(Diagonal([1e-6, 1e-6, 1e-6, 1e-6, 1/EI, 1e-6]), nelem)
 
 # mass matrix for each beam element
-mass = fill(Diagonal([ρA, ρA, ρA, 0.0, 0.0, 0.0]), nelem)
+mass = fill(Diagonal([ρA, ρA, ρA, 1e-6, 1e-6, 1e-6]), nelem)
 
 # create assembly
 assembly = Assembly(points, start, stop; compliance=compliance, mass=mass)
@@ -43,10 +43,7 @@ prescribed_conditions[1] = PrescribedConditions(ux=0, uy=0, uz=0)
 prescribed_conditions[nelem+1] = PrescribedConditions(uz=0)
 
 # solve for static operating conditions
-system, converged = static_analysis(assembly; prescribed_conditions)
-
-# postprocess results
-state = AssemblyState(system, assembly; prescribed_conditions)
+system, state, converged = static_analysis(assembly; prescribed_conditions)
 
 # extract initial conditions from the state vector
 u0 = getproperty.(state.points, :u)
@@ -69,7 +66,6 @@ t = range(0, 2*pi/ω, step=0.001)
 # perform time domain analysis
 system, history, converged = time_domain_analysis(assembly, t;
     prescribed_conditions = prescribed_conditions,
-    initialize = true,
     structural_damping = false,
     u0=u0, theta0=theta0)
 
