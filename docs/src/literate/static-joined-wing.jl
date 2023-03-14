@@ -1,10 +1,10 @@
 # # [Static Analysis of a Joined-Wing](@id static-joined-wing)
-# 
+#
 # In this example we consider the joined-wing model proposed by Blair in "An Equivalent
 # Beam Formulation for Joined-Wings in a Post-Buckled State" and optimized by Green
 # et al. in "Structural Optimization of Joined-Wing Beam Model with Bend-Twist
 # Coupling using Equivalent Static Loads".
-# 
+#
 # ![](../assets/static-joined-wing-drawing.png)
 #
 #-
@@ -141,12 +141,9 @@ for i = 1:length(Fz)
             theta_z=0),
     )
 
-    static_analysis!(system, assembly;
+    _, linear_states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions = prescribed_conditions,
         linear = true)
-
-    linear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -169,11 +166,8 @@ for i = 1:length(Fz)
             theta_z=0),
     )
 
-    static_analysis!(system, assembly;
+    _, nonlinear_states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions, reset_state=false)
-
-    nonlinear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
 
 end
 
@@ -195,22 +189,19 @@ for i = 1:length(Fz)
             theta_z=0),
     )
 
-    static_analysis!(system, assembly;
+    _, nonlinear_follower_states[i], converged = static_analysis!(system, assembly;
         prescribed_conditions=prescribed_conditions, reset_state=false)
-
-    nonlinear_follower_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
 
 end
 
 #!jl nothing #hide
 
-# Note that we incrementally increased the load from 0 to 70 kN in order to ensure that we 
+# Note that we incrementally increased the load from 0 to 70 kN in order to ensure that we
 # obtained converged solutions.
-# 
+#
 #-
 #
-# To visualize the differences between the different types of analyses we can plot the 
+# To visualize the differences between the different types of analyses we can plot the
 # load deflection curve.
 
 #md using Suppressor #hide
@@ -245,14 +236,14 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/static-joined-wing-deflection.svg)
 
-#- 
+#-
 
-# This plot matches the plot provided by Wenbin Yu in "GEBT: A general-purpose nonlinear 
+# This plot matches the plot provided by Wenbin Yu in "GEBT: A general-purpose nonlinear
 # analysis tool for composite beams".
 
-#- 
+#-
 
-# We can also visualize the deformed geometry and inspect the associated point and element 
+# We can also visualize the deformed geometry and inspect the associated point and element
 # data for any of these operating conditions conditions using ParaView.  To demonstrate
 # we will visualize the 70kN follower force condition and set the color gradient to
 # match the magnitude of the deflections.

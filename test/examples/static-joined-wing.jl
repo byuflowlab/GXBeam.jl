@@ -105,9 +105,7 @@ using GXBeam, LinearAlgebra, Test
             nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         )
 
-        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions, linear=true)
-
-        linear_states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        _, linear_states[i], converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions, linear=true)
 
         @test converged
     end
@@ -126,11 +124,8 @@ using GXBeam, LinearAlgebra, Test
             nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         )
 
-        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions,
+        _, nonlinear_states[i], converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions,
             reset_state = false)
-
-        nonlinear_states[i] = AssemblyState(system, assembly;
-            prescribed_conditions=prescribed_conditions)
 
         @test converged
     end
@@ -148,11 +143,8 @@ using GXBeam, LinearAlgebra, Test
             nelem+1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         )
 
-        _, converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions,
+        _, nonlinear_follower_states[i], converged = static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions,
             reset_state = false)
-
-        nonlinear_follower_states[i] = AssemblyState(system, assembly;
-            prescribed_conditions=prescribed_conditions)
 
         @test converged
     end

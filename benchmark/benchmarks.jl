@@ -13,7 +13,7 @@ function steady_benchmark()
     r_b2 = [31.5, 0, 0]
     nelem_b2 = 4
     frame_b2 = [
-        0.707106781186548 0.707106781186548 0.0;   
+        0.707106781186548 0.707106781186548 0.0;
         -0.707106781186548 0.707106781186548 0.0;
         0.0               0.0               1.0]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
@@ -37,11 +37,11 @@ function steady_benchmark()
         1.7969451932E-05]), nelem)
 
     mass = fill(Diagonal([
-        1.5813000000E-05,                    
-        1.5813000000E-05,                
-        1.5813000000E-05,            
-        1.3229801498E-06,        
-        5.2301497500E-09,    
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.3229801498E-06,
+        5.2301497500E-09,
         1.3177500000E-06]), nelem)
 
     # create assembly
@@ -59,7 +59,7 @@ function steady_benchmark()
         )
 
     # perform nonlinear steady state analysis
-    system, converged = steady_state_analysis(assembly,
+    system, state, converged = steady_state_analysis(assembly,
         linear_velocity = [0, 196.349540849362, 0],
         angular_velocity = [0, 0, 78.5398163397448],
         prescribed_conditions = prescribed_conditions)
@@ -67,10 +67,7 @@ function steady_benchmark()
     # test convergence
     @assert converged
 
-    result = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
-
-    return result 
+    return state
 end
 
 function eigenvalue_benchmark()
@@ -86,7 +83,7 @@ function eigenvalue_benchmark()
     r_b2 = [31.5, 0, 0]
     nelem_b2 = 4
     frame_b2 = [
-        0.707106781186548 0.707106781186548 0.0;   
+        0.707106781186548 0.707106781186548 0.0;
         -0.707106781186548 0.707106781186548 0.0;
         0.0               0.0               1.0]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
@@ -110,11 +107,11 @@ function eigenvalue_benchmark()
         1.7969451932E-05]), nelem)
 
     mass = fill(Diagonal([
-        1.5813000000E-05,                    
-        1.5813000000E-05,                
-        1.5813000000E-05,            
-        1.3229801498E-06,        
-        5.2301497500E-09,    
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.3229801498E-06,
+        5.2301497500E-09,
         1.3177500000E-06]), nelem)
 
     # create assembly
@@ -158,7 +155,7 @@ function unsteady_benchmark()
     r_b2 = [31.5, 0, 0]
     nelem_b2 = 4
     frame_b2 = [
-        0.707106781186548 0.707106781186548 0.0;   
+        0.707106781186548 0.707106781186548 0.0;
         -0.707106781186548 0.707106781186548 0.0;
         0.0               0.0               1.0]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
@@ -182,11 +179,11 @@ function unsteady_benchmark()
         1.7969451932E-05]), nelem)
 
     mass = fill(Diagonal([
-        1.5813000000E-05,                    
-        1.5813000000E-05,                
-        1.5813000000E-05,            
-        1.3229801498E-06,        
-        5.2301497500E-09,    
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.5813000000E-05,
+        1.3229801498E-06,
+        5.2301497500E-09,
         1.3177500000E-06]), nelem)
 
     # create assembly

@@ -35,15 +35,15 @@ PrescribedConditions(pd, pl, u, theta, F, M, Ff, Mf) = PrescribedConditions(
 """
     PrescribedConditions(; kwargs...)
 
-Define the prescribed conditions at a point.  Individual prescribed conditions 
+Define the prescribed conditions at a point.  Individual prescribed conditions
 may be assigned as either a scalar parameter or as a function of time.
 
 Prescribed Wiener-Milenkovic parameters must satisfy the following inequality:
 sqrt(theta_x^2 + theta_y^2 + theta_z^2) <= 4.  Note that this restriction still
 allows all possible rotations to be represented.
 
-Note that if displacements and loads corresponding to the same degree of freedom are 
-prescribed at the same point, the global body-fixed acceleration corresponding to the 
+Note that if displacements and loads corresponding to the same degree of freedom are
+prescribed at the same point, the global body-fixed acceleration corresponding to the
 same degree of freedom will be modified to attempt to satisfy both conditions.
 
 # Keyword Arguments
@@ -292,7 +292,7 @@ Pre-integrate distributed loads on a beam element for use in an analysis.
 - `s1 = 0.0`: Start of the beam element (used solely for integrating the distributed loads)
 - `s2 = 1.0`: End of the beam element (used solely for integrating the distributed loads)
 - `method = (f, s1, s2) -> gauss_quadrature(f, s1, s2)`: Method which integrates function
-`f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points 
+`f` from `s1` to `s2`. Defaults to the Gauss-Legendre quadrature with 4 points
 on each element.
 - `fx = (s) -> 0.0`: Distributed x-direction force
 - `fy = (s) -> 0.0`: Distributed y-direction force
@@ -488,7 +488,7 @@ end
 """
     PointMass{T}
 
-Type which contains the aggregated inertial properties of one or more point masses which 
+Type which contains the aggregated inertial properties of one or more point masses which
 are rigidly attached to the center of an element.
 
 # Fields:

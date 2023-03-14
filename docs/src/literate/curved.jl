@@ -1,8 +1,8 @@
 # # [Bending of an Initially Curved Beam](@id curved)
-# 
-# This example is a common benchmark problem for the geometrically exact bending of 
+#
+# This example is a common benchmark problem for the geometrically exact bending of
 # nonlinear beams.
-# 
+#
 # ![](../assets/curved-drawing.svg)
 #
 #-
@@ -64,21 +64,17 @@ prescribed_conditions = Dict(
 )
 
 ## perform static analysis
-system, converged = static_analysis(assembly;
-    prescribed_conditions = prescribed_conditions)
-
-## post-process results
-state = AssemblyState(system, assembly;
+system, state, converged = static_analysis(assembly;
     prescribed_conditions = prescribed_conditions)
 
 println("Tip Displacement: ", state.points[end].u)
 println("Tip Displacement (Bathe and Bolourch): [-13.4, -23.5, 53.4]")
 
-# The calculated tip displacements match those reported by Bathe and Bolourch in "Large 
-# Displacement Analysis of Three-Dimensional Beam Structures" closely, thus verifying our 
+# The calculated tip displacements match those reported by Bathe and Bolourch in "Large
+# Displacement Analysis of Three-Dimensional Beam Structures" closely, thus verifying our
 # implementation of geometrically exact beam theory.
-# 
-# We can visualize the deformed geometry and inspect the associated point and element data 
+#
+# We can visualize the deformed geometry and inspect the associated point and element data
 # using ParaView.
 
 mkpath("curved-visualization")

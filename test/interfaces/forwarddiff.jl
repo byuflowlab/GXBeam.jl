@@ -44,9 +44,9 @@ using GXBeam, LinearAlgebra, ForwardDiff, Test
         end
 
         # solve system
-        system, converged = static_analysis(assembly; 
+        system, state, converged = static_analysis(assembly;
             prescribed_conditions = prescribed_conditions,
-            distributed_loads = distributed_loads, 
+            distributed_loads = distributed_loads,
             linear = true)
 
         return system.x

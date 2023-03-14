@@ -3,7 +3,7 @@ using DifferentialEquations
 import Elliptic
 using LinearAlgebra
 using ForwardDiff
-using Random 
+using Random
 using StaticArrays
 using Test
 
@@ -15,6 +15,9 @@ include("jacobians.jl")
 
 # cross-section tests
 include("section.jl")
+
+# initial condition analysis
+include("initial.jl")
 
 # examples
 include("examples/cantilever.jl")
@@ -34,7 +37,3 @@ include("interfaces/forwarddiff.jl")
 # issues
 include("issues/zeros.jl")
 include("issues/pointmass.jl")
-
-
-
-

@@ -6,17 +6,21 @@ using ChainRulesCore
 using FillArrays
 using FLOWMath
 using ImplicitAD
+import IterativeSolvers
 using LinearAlgebra
 using LinearMaps
+using Printf
 using NLsolve
 import Roots
+using ReverseDiff
 using SparseArrays
+import SparseDiffTools
 using StaticArrays
 using SciMLBase
 using UnPack
 using WriteVTK
 
-export AbstractSystem, StaticSystem, DynamicSystem, ExpandedSystem 
+export AbstractSystem, StaticSystem, DynamicSystem, ExpandedSystem
 
 export static_analysis, static_analysis!
 export steady_state_analysis, steady_state_analysis!
@@ -25,7 +29,7 @@ export eigenvalue_analysis, eigenvalue_analysis!
 export initial_condition_analysis, initial_condition_analysis!
 export time_domain_analysis, time_domain_analysis!
 
-export reset_state!, copy_state!, set_state!
+export reset_state!, set_state!, set_rate!
 
 export set_linear_displacement!, set_angular_displacement!
 export set_external_forces!, set_external_moments!
@@ -81,7 +85,7 @@ include("assembly.jl")
 # prescribed conditions, distributed loads, and point masses
 include("loads.jl")
 
-# system storage and pointers 
+# system storage and pointers
 include("system.jl")
 
 # state variable input and output methods
@@ -99,6 +103,9 @@ include("analyses.jl")
 
 # DifferentialEquations Interface
 include("interfaces/diffeq.jl")
+
+# ReverseDiff Overloads
+include("interfaces/reversediff.jl")
 
 # WriteVTK Interface
 include("interfaces/writevtk.jl")

@@ -51,17 +51,13 @@ using GXBeam, LinearAlgebra, DifferentialEquations, Test
     # define simulation time
     tspan = (0.0, 0.1)
 
-    # define named tuple with parameters
-    p = (; prescribed_conditions)
-
     # run initial condition analysis to get consistent set of initial conditions
-    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+    system, state, converged = initial_condition_analysis(assembly, tspan[1];
         prescribed_conditions = prescribed_conditions)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan, p; 
-        constant_mass_matrix = false,
-        structural_damping = false)
+    prob = ODEProblem(system, assembly, tspan;
+        constant_mass_matrix = false, structural_damping = false)
 
     # solve ODEProblem
     sol = solve(prob, Rodas4())
@@ -70,15 +66,13 @@ using GXBeam, LinearAlgebra, DifferentialEquations, Test
     @test sol.t[end] == 0.1
 
     # run initial condition analysis to get consistent set of initial conditions
-    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+    system, state, converged = initial_condition_analysis(assembly, tspan[1];
         prescribed_conditions = prescribed_conditions,
-        constant_mass_matrix = false,
-        structural_damping = true)
+        constant_mass_matrix = false, structural_damping = true)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan, p; 
-        constant_mass_matrix = false,
-        structural_damping = true)
+    prob = ODEProblem(system, assembly, tspan;
+        constant_mass_matrix = false, structural_damping = true)
 
     # solve ODEProblem
     sol = solve(prob, Rodas4())
@@ -87,15 +81,13 @@ using GXBeam, LinearAlgebra, DifferentialEquations, Test
     @test sol.t[end] == 0.1
 
     # run initial condition analysis to get consistent set of initial conditions
-    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+    system, state, converged = initial_condition_analysis(assembly, tspan[1];
         prescribed_conditions = prescribed_conditions,
-        constant_mass_matrix = true,
-        structural_damping = false)
+        constant_mass_matrix = true, structural_damping = false)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan, p; 
-        constant_mass_matrix = true,
-        structural_damping = false)
+    prob = ODEProblem(system, assembly, tspan;
+        constant_mass_matrix = true, structural_damping = false)
 
     # solve ODEProblem
     sol = solve(prob, Rodas4())
@@ -104,15 +96,13 @@ using GXBeam, LinearAlgebra, DifferentialEquations, Test
     @test sol.t[end] == 0.1
 
     # run initial condition analysis to get consistent set of initial conditions
-    system, converged = initial_condition_analysis(assembly, tspan[1]; 
+    system, state, converged = initial_condition_analysis(assembly, tspan[1];
         prescribed_conditions = prescribed_conditions,
-        constant_mass_matrix = true,
-        structural_damping = false)
+        constant_mass_matrix = true, structural_damping = false)
 
     # construct ODEProblem
-    prob = ODEProblem(system, assembly, tspan, p; 
-        constant_mass_matrix = true,
-        structural_damping = true)
+    prob = ODEProblem(system, assembly, tspan;
+        constant_mass_matrix = true, structural_damping = true)
 
     # solve ODEProblem
     sol = solve(prob, Rodas4())
@@ -121,13 +111,11 @@ using GXBeam, LinearAlgebra, DifferentialEquations, Test
     @test sol.t[end] == 0.1
 
     # run initial condition analysis to get consistent set of initial conditions
-    system, converged = initial_condition_analysis(assembly, tspan[1]; 
-        prescribed_conditions = prescribed_conditions,
-        structural_damping = false)
+    system, state, converged = initial_condition_analysis(assembly, tspan[1];
+        prescribed_conditions = prescribed_conditions, structural_damping = false)
 
     # construct DAEProblem
-    prob = DAEProblem(system, assembly, tspan, p; 
-        structural_damping = false)
+    prob = DAEProblem(system, assembly, tspan; structural_damping = false)
 
     # solve DAEProblem
     sol = solve(prob, DABDF2())
@@ -136,13 +124,11 @@ using GXBeam, LinearAlgebra, DifferentialEquations, Test
     @test sol.t[end] == 0.1
 
     # run initial condition analysis to get consistent set of initial conditions
-    system, converged = initial_condition_analysis(assembly, tspan[1]; 
-        prescribed_conditions = prescribed_conditions,
-        structural_damping = false)
+    system, state, converged = initial_condition_analysis(assembly, tspan[1];
+        prescribed_conditions = prescribed_conditions, structural_damping = false)
 
     # construct DAEProblem
-    prob = DAEProblem(system, assembly, tspan, p; 
-        structural_damping = true)
+    prob = DAEProblem(system, assembly, tspan; structural_damping = true)
 
     # solve DAEProblem
     sol = solve(prob, DABDF2())

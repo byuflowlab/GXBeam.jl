@@ -25,9 +25,9 @@ Set the state variables in `system` (or in the vector `x`) to the provided value
  - `Omega` Vector containing the angular velocity of each point
  - `F`: Vector containing the externally applied forces acting on each point
  - `M`: Vector containing the externally applied moments acting on each point
- - `Fi`: Vector containing internal forces for each beam element (in the deformed 
+ - `Fi`: Vector containing internal forces for each beam element (in the deformed
         element frame)
- - `Mi`: Vector containing internal moments for each beam element (in the deformed 
+ - `Mi`: Vector containing internal moments for each beam element (in the deformed
         element frame)
 """
 set_state!(system::DynamicSystem, prescribed_conditions; kwargs...)
@@ -44,13 +44,13 @@ Set the state variables in `system` (or in the vector `x`) to the provided value
  - `Omega` Vector containing the angular velocity of each point in the deformed point frame
  - `F`: Vector containing the externally applied forces acting on each point
  - `M`: Vector containing the externally applied moments acting on each point
- - `F1`: Vector containing resultant forces at the start of each beam element (in the 
+ - `F1`: Vector containing resultant forces at the start of each beam element (in the
     deformed element frame)
- - `M1`: Vector containing resultant moments at the start of each beam element (in the 
+ - `M1`: Vector containing resultant moments at the start of each beam element (in the
     deformed element frame)
- - `F2`: Vector containing resultant forces at the end of each beam element (in the 
+ - `F2`: Vector containing resultant forces at the end of each beam element (in the
     deformed element frame)
- - `M2`: Vector containing resultant moments at the end of each beam element (in the 
+ - `M2`: Vector containing resultant moments at the end of each beam element (in the
     deformed element frame)
  - `V_e`: Vector containing the linear velocity of each beam element in the deformed
     beam element reference frame.
@@ -64,11 +64,10 @@ function set_state!(system, prescribed_conditions; kwargs...)
     return system
 end
 
-function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing, 
+function set_state!(x, system, prescribed_conditions; u = nothing, theta = nothing,
     V = nothing, Omega = nothing, F = nothing, M = nothing, Fi = nothing, Mi = nothing,
     F1 = nothing, M1 = nothing, F2 = nothing, M2 = nothing, V_e = nothing, Omega_e = nothing
-
-    ) 
+    )
 
     if !isnothing(u)
         for ipoint in eachindex(u)
@@ -163,16 +162,23 @@ end
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 linear deflection of point `ipoint` to the provided values.
 """
-function set_linear_displacement!(system, prescribed_conditions, u, ipoint)
+function set_linear_displacement!(system::AbstractSystem, prescribed_conditions, u, ipoint)
     set_linear_displacement!(system.x, system, prescribed_conditions, u, ipoint)
     return system
 end
 
-function set_linear_displacement!(x, system, prescribed_conditions, u, ipoint)
-    
-    icol = system.indices.icol_point[ipoint]
-    
+function set_linear_displacement!(x, system::AbstractSystem, prescribed_conditions, u, ipoint)
+
+    indices = system.indices
+
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_linear_displacement!(x, indices, prescribed, u, ipoint)
+end
+
+function set_linear_displacement!(x, indices::SystemIndices, prescribed, u, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     if haskey(prescribed, ipoint)
         !prescribed[ipoint].pd[1] && setindex!(x, u[1], icol)
@@ -187,22 +193,98 @@ function set_linear_displacement!(x, system, prescribed_conditions, u, ipoint)
     return x
 end
 
+
+function set_linear_displacement_rate!(system::AbstractSystem, prescribed_conditions, udot, ipoint)
+    set_linear_displacement_rate!(system.dx, system, prescribed_conditions, udot, ipoint)
+    return system
+end
+
+function set_linear_displacement_rate!(dx, system::AbstractSystem, prescribed_conditions, udot, ipoint)
+
+    indices = system.indices
+
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_linear_displacement_rate!(dx, indices, prescribed, udot, ipoint)
+end
+
+function set_linear_displacement_rate!(dx, indices::SystemIndices, prescribed, udot, ipoint)
+
+    icol = indices.icol_point[ipoint]
+
+    if haskey(prescribed, ipoint)
+        !prescribed[ipoint].pd[1] && setindex!(dx, udot[1], icol)
+        !prescribed[ipoint].pd[2] && setindex!(dx, udot[2], icol+1)
+        !prescribed[ipoint].pd[3] && setindex!(dx, udot[3], icol+2)
+    else
+        dx[icol  ] = 0.0
+        dx[icol+1] = 0.0
+        dx[icol+2] = 0.0
+    end
+
+    return dx
+end
+
+function set_initial_linear_displacement!(system::AbstractSystem, rate_vars, prescribed_conditions, u, ipoint)
+    set_initial_linear_displacement!(system.x, system, rate_vars, prescribed_conditions, u, ipoint)
+    return system
+end
+
+function set_initial_linear_displacement!(x, system::AbstractSystem, rate_vars, prescribed_conditions, u, ipoint)
+
+    indices = system.indices
+
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_initial_linear_displacement!(x, indices, rate_vars, prescribed, u, ipoint)
+end
+
+function set_initial_linear_displacement!(x, indices::SystemIndices, rate_vars, prescribed, u, ipoint)
+
+    # Use prescribed displacement, if a displacement is prescribed.
+
+    # Otherwise, use a component of `u` or `θ` as a state variable if the corresponding
+    # component of `Vdot` and `Ωdot` cannot be used as a state variable.
+    # (which occurs for zero length elements, massless elements, and infinitely stiff elements)
+
+    icol = indices.icol_point[ipoint]
+
+    if haskey(prescribed, ipoint)
+        !prescribed[ipoint].pd[1] && !rate_vars[icol+6] && setindex!(x, u[1], icol)
+        !prescribed[ipoint].pd[2] && !rate_vars[icol+7] && setindex!(x, u[2], icol+1)
+        !prescribed[ipoint].pd[3] && !rate_vars[icol+8] && setindex!(x, u[3], icol+2)
+    else
+        !rate_vars[icol+6] && setindex!(x, u[1], icol)
+        !rate_vars[icol+7] && setindex!(x, u[2], icol+1)
+        !rate_vars[icol+8] && setindex!(x, u[3], icol+2)
+    end
+
+    return x
+end
+
 """
     set_angular_displacement!([x,] system, prescribed_conditions, theta, ipoint)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 angular deflection of point `ipoint` to the provided values.
 """
-function set_angular_displacement!(system, prescribed_conditions, theta, ipoint)
+function set_angular_displacement!(system::AbstractSystem, prescribed_conditions, theta, ipoint)
     set_angular_displacement!(system.x, system, prescribed_conditions, theta, ipoint)
     return system
 end
 
-function set_angular_displacement!(x, system, prescribed_conditions, theta, ipoint)
+function set_angular_displacement!(x, system::AbstractSystem, prescribed_conditions, theta, ipoint)
 
-    icol = system.indices.icol_point[ipoint]
-    
+    indices = system.indices
+
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_angular_displacement!(x, indices, prescribed, theta, ipoint)
+end
+
+function set_angular_displacement!(x, indices::SystemIndices, prescribed, theta, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     if haskey(prescribed, ipoint)
         !prescribed[ipoint].pd[4] && setindex!(x, theta[1], icol+3)
@@ -217,24 +299,123 @@ function set_angular_displacement!(x, system, prescribed_conditions, theta, ipoi
     return x
 end
 
+function set_angular_displacement_rate!(dx, system::AbstractSystem, prescribed_conditions, θdot, ipoint)
+
+    indices = system.indices
+
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_angular_displacement_rate!(dx, indices, prescribed, θdot, ipoint)
+end
+
+function set_angular_displacement_rate!(dx, indices::SystemIndices, prescribed, θdot, ipoint)
+
+    icol = indices.icol_point[ipoint]
+
+    if haskey(prescribed, ipoint)
+        !prescribed[ipoint].pd[1] && setindex!(dx, θdot[1], icol)
+        !prescribed[ipoint].pd[2] && setindex!(dx, θdot[2], icol+1)
+        !prescribed[ipoint].pd[3] && setindex!(dx, θdot[3], icol+2)
+    else
+        dx[icol  ] = 0.0
+        dx[icol+1] = 0.0
+        dx[icol+2] = 0.0
+    end
+
+    return dx
+end
+
+function set_initial_angular_displacement!(system::AbstractSystem, rate_vars, prescribed_conditions, theta, ipoint)
+    set_initial_angular_displacement!(system.x, system, rate_vars, prescribed_conditions, theta, ipoint)
+    return system
+end
+
+function set_initial_angular_displacement!(x, system::AbstractSystem, rate_vars, prescribed_conditions, theta, ipoint)
+
+    indices = system.indices
+
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_initial_angular_displacement!(x, indices, rate_vars, prescribed, theta, ipoint)
+end
+
+function set_initial_angular_displacement!(x, indices::SystemIndices, rate_vars, prescribed, theta, ipoint)
+
+    icol = indices.icol_point[ipoint]
+
+    if haskey(prescribed, ipoint)
+        !prescribed[ipoint].pd[4] && !rate_vars[icol+9] && setindex!(x, theta[1], icol+3)
+        !prescribed[ipoint].pd[5] && !rate_vars[icol+10] && setindex!(x, theta[2], icol+4)
+        !prescribed[ipoint].pd[6] && !rate_vars[icol+11] && setindex!(x, theta[3], icol+5)
+    else
+        !rate_vars[icol+9] && setindex!(x, theta[1], icol+3)
+        !rate_vars[icol+10] && setindex!(x, theta[2], icol+4)
+        !rate_vars[icol+11] && setindex!(x, theta[3], icol+5)
+    end
+
+    return x
+end
+
 """
     set_linear_velocity!([x,] system, V, ipoint)
 
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 linear velocity of point `ipoint` to the provided values.
 """
-function set_linear_velocity!(system, V, ipoint)
+function set_linear_velocity!(system::AbstractSystem, V, ipoint)
     set_linear_velocity!(system.x, system, V, ipoint)
     return system
 end
 
-function set_linear_velocity!(x, system, V, ipoint)
+function set_linear_velocity!(x, system::AbstractSystem, V, ipoint)
 
-    icol = system.indices.icol_point[ipoint]
+    indices = system.indices
+
+    return set_linear_velocity!(x, indices, V, ipoint)
+end
+
+function set_linear_velocity!(x, indices::SystemIndices, V, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     x[icol+6] = V[1]
     x[icol+7] = V[2]
     x[icol+8] = V[3]
+
+    return x
+end
+
+const set_linear_velocity_rate! = set_linear_velocity!
+
+const set_initial_linear_displacement_rate! = set_linear_velocity!
+
+function set_initial_linear_velocity_rate!(system::AbstractSystem, rate_vars, prescribed_conditions, Vdot, ipoint)
+    set_initial_linear_velocity_rate!(system.x, system, rate_vars, prescribed_conditions, Vdot, ipoint)
+    return system
+end
+
+function set_initial_linear_velocity_rate!(x, system::AbstractSystem, rate_vars, prescribed_conditions, Vdot, ipoint)
+
+    indices = system.indices
+
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_initial_linear_velocity_rate!(x, indices, rate_vars, prescribed, Vdot, ipoint)
+end
+
+function set_initial_linear_velocity_rate!(x, indices::SystemIndices, rate_vars, prescribed, Vdot, ipoint)
+
+    icol = indices.icol_point[ipoint]
+
+    if haskey(prescribed, ipoint)
+        !prescribed[ipoint].pd[1] && rate_vars[icol+6] && setindex!(x, Vdot[1], icol)
+        !prescribed[ipoint].pd[2] && rate_vars[icol+7] && setindex!(x, Vdot[2], icol+1)
+        !prescribed[ipoint].pd[3] && rate_vars[icol+8] && setindex!(x, Vdot[3], icol+2)
+    else
+        rate_vars[icol+6] && setindex!(x, Vdot[1], icol)
+        rate_vars[icol+7] && setindex!(x, Vdot[2], icol+1)
+        rate_vars[icol+8] && setindex!(x, Vdot[3], icol+2)
+    end
 
     return x
 end
@@ -245,18 +426,60 @@ end
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 angular velocity of point `ipoint` to the provided values.
 """
-function set_angular_velocity!(system, Omega, ipoint)
+function set_angular_velocity!(system::AbstractSystem, Omega, ipoint)
     set_angular_velocity!(system.x, system, Omega, ipoint)
     return system
 end
 
-function set_angular_velocity!(x, system, Omega, ipoint)
+function set_angular_velocity!(x, system::AbstractSystem, Omega, ipoint)
 
-    icol = system.indices.icol_point[ipoint]
+    indices = system.indices
+
+    return set_angular_velocity!(x, indices, Omega, ipoint)
+end
+
+function set_angular_velocity!(x, indices::SystemIndices, Omega, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     x[icol+9] = Omega[1]
     x[icol+10] = Omega[2]
     x[icol+11] = Omega[3]
+
+    return x
+end
+
+const set_angular_velocity_rate! = set_angular_velocity!
+
+const set_initial_angular_displacement_rate! = set_angular_velocity!
+
+function set_initial_angular_velocity_rate!(system::AbstractSystem, rate_vars, prescribed_conditions, Ωdot, ipoint)
+    set_initial_angular_velocity_rate!(system.x, system, rate_vars, prescribed_conditions, Ωdot, ipoint)
+    return system
+end
+
+function set_initial_angular_velocity_rate!(x, system::AbstractSystem, rate_vars, prescribed_conditions, Ωdot, ipoint)
+
+    indices = system.indices
+
+    prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_initial_angular_velocity_rate!(x, indices, rate_vars, prescribed, Ωdot, ipoint)
+end
+
+function set_initial_angular_velocity_rate!(x, indices::SystemIndices, rate_vars, prescribed, Ωdot, ipoint)
+
+    icol = indices.icol_point[ipoint]
+
+    if haskey(prescribed, ipoint)
+        !prescribed[ipoint].pd[4] && rate_vars[icol+9] && setindex!(x, Ωdot[1], icol+3)
+        !prescribed[ipoint].pd[5] && rate_vars[icol+10] && setindex!(x, Ωdot[2], icol+4)
+        !prescribed[ipoint].pd[6] && rate_vars[icol+11] && setindex!(x, Ωdot[3], icol+5)
+    else
+        rate_vars[icol+9] && setindex!(x, Ωdot[1], icol+3)
+        rate_vars[icol+10] && setindex!(x, Ωdot[2], icol+4)
+        rate_vars[icol+11] && setindex!(x, Ωdot[3], icol+5)
+    end
 
     return x
 end
@@ -267,27 +490,30 @@ end
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 external forces applied at point `ipoint` to the provided values.
 """
-function set_external_forces!(system, prescribed_conditions, F, ipoint)
+function set_external_forces!(system::AbstractSystem, prescribed_conditions, F, ipoint)
     set_external_forces!(system.x, system, prescribed_conditions, F, ipoint)
     return system
 end
 
-function set_external_forces!(x, system, prescribed_conditions, F, ipoint)
-    
-    icol = system.indices.icol_point[ipoint]
+function set_external_forces!(x, system::AbstractSystem, prescribed_conditions, F, ipoint)
+
+    indices = system.indices
 
     force_scaling = system.force_scaling
-    
+
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_external_forces!(x, indices, force_scaling, prescribed, F, ipoint)
+end
+
+function set_external_forces!(x, indices::SystemIndices, force_scaling, prescribed, F, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     if haskey(prescribed, ipoint)
         !prescribed[ipoint].pl[1] && setindex!(x, F[1] / force_scaling, icol)
         !prescribed[ipoint].pl[2] && setindex!(x, F[2] / force_scaling, icol+1)
         !prescribed[ipoint].pl[3] && setindex!(x, F[3] / force_scaling, icol+2)
-    else
-        x[icol  ] = F[1] / force_scaling
-        x[icol+1] = F[2] / force_scaling
-        x[icol+2] = F[3] / force_scaling
     end
 
     return x
@@ -299,27 +525,30 @@ end
 Set the state variables in `system` (or in the vector `x`) corresponding to the
 external moments applied at point `ipoint` to the provided values.
 """
-function set_external_moments!(system, prescribed_conditions, M, ipoint)
+function set_external_moments!(system::AbstractSystem, prescribed_conditions, M, ipoint)
     set_external_moments!(system.x, system, prescribed_conditions, M, ipoint)
     return system
 end
 
-function set_external_moments!(x, system, prescribed_conditions, M, ipoint)
+function set_external_moments!(x, system::AbstractSystem, prescribed_conditions, M, ipoint)
 
-    icol = system.indices.icol_point[ipoint]
-    
+    indices = system.indices
+
     force_scaling = system.force_scaling
 
     prescribed = typeof(prescribed_conditions) <: AbstractDict ? prescribed_conditions : prescribed_conditions(system.t)
+
+    return set_external_moments!(x, indices, force_scaling, prescribed, M, ipoint)
+end
+
+function set_external_moments!(x, indices::SystemIndices, force_scaling, prescribed, M, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     if haskey(prescribed, ipoint)
         !prescribed[ipoint].pl[4] && setindex!(x, M[1] / force_scaling, icol+3)
         !prescribed[ipoint].pl[5] && setindex!(x, M[2] / force_scaling, icol+4)
         !prescribed[ipoint].pl[6] && setindex!(x, M[3] / force_scaling, icol+5)
-    else
-        x[icol+3] = M[1] / force_scaling
-        x[icol+4] = M[2] / force_scaling
-        x[icol+5] = M[3] / force_scaling
     end
 
     return x
@@ -338,9 +567,16 @@ end
 
 function set_internal_forces!(x, system::Union{StaticSystem,DynamicSystem}, Fi, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
 
     force_scaling = system.force_scaling
+
+    return set_internal_forces!(x, indices, force_scaling, Fi, ielem)
+end
+
+function set_internal_forces!(x, indices::SystemIndices, force_scaling, Fi, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol  ] = Fi[1] / force_scaling
     x[icol+1] = Fi[2] / force_scaling
@@ -362,9 +598,16 @@ end
 
 function set_internal_moments!(x, system::Union{StaticSystem, DynamicSystem}, Mi, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
 
     force_scaling = system.force_scaling
+
+    return set_internal_moments!(x, indices, force_scaling, Mi, ielem)
+end
+
+function set_internal_moments!(x, indices::SystemIndices, force_scaling, Mi, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol+3] = Mi[1] / force_scaling
     x[icol+4] = Mi[2] / force_scaling
@@ -372,7 +615,6 @@ function set_internal_moments!(x, system::Union{StaticSystem, DynamicSystem}, Mi
 
     return x
 end
-
 
 """
     set_point_linear_velocity!([x,] system::ExpandedSystem, V, ipoint)
@@ -387,7 +629,14 @@ end
 
 function set_point_linear_velocity!(x, system::ExpandedSystem, V, ipoint)
 
-    icol = system.indices.icol_point[ipoint]
+    indices = system.indices
+
+    return set_point_linear_velocity!(x, indices, V, ipoint)
+end
+
+function set_point_linear_velocity!(x, indices::SystemIndices, V, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     x[icol+6] = V[1]
     x[icol+7] = V[2]
@@ -409,7 +658,14 @@ end
 
 function set_point_angular_velocity!(x, system::ExpandedSystem, Omega, ipoint)
 
-    icol = system.indices.icol_point[ipoint]
+    indices = system.indices
+
+    return set_point_angular_velocity!(x, indices, Omega, ipoint)
+end
+
+function set_point_angular_velocity!(x, indices::SystemIndices, Omega, ipoint)
+
+    icol = indices.icol_point[ipoint]
 
     x[icol+9] = Omega[1]
     x[icol+10] = Omega[2]
@@ -431,9 +687,16 @@ end
 
 function set_start_forces!(x, system::ExpandedSystem, F1, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
 
     force_scaling = system.force_scaling
+
+    return set_start_forces!(x, indices, force_scaling, F1, ielem)
+end
+
+function set_start_forces!(x, indices::SystemIndices, force_scaling, F1, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol] = F1[1] / force_scaling
     x[icol+1] = F1[2] / force_scaling
@@ -455,9 +718,16 @@ end
 
 function set_start_moments!(x, system::ExpandedSystem, M1, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
 
     force_scaling = system.force_scaling
+
+    return set_start_moments!(x, indices, force_scaling, M1, ielem)
+end
+
+function set_start_moments!(x, indices::SystemIndices, force_scaling, M1, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol+3] = M1[1] / force_scaling
     x[icol+4] = M1[2] / force_scaling
@@ -479,9 +749,16 @@ end
 
 function set_end_forces!(x, system::ExpandedSystem, F2, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
 
     force_scaling = system.force_scaling
+
+    return set_end_forces!(x, indices, force_scaling, F2, ielem)
+end
+
+function set_end_forces!(x, indices::SystemIndices, force_scaling, F2, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol+6] = F2[1] / force_scaling
     x[icol+7] = F2[2] / force_scaling
@@ -503,9 +780,16 @@ end
 
 function set_end_moments!(x, system::ExpandedSystem, M2, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
 
     force_scaling = system.force_scaling
+
+    return set_end_moments!(x, indices, force_scaling, M2, ielem)
+end
+
+function set_end_moments!(x, indices::SystemIndices, force_scaling, M2, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol+9] = M2[1] / force_scaling
     x[icol+10] = M2[2] / force_scaling
@@ -527,7 +811,14 @@ end
 
 function set_element_linear_velocity!(x, system::ExpandedSystem, V, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
+
+    return set_element_linear_velocity!(x, indices, V, ielem)
+end
+
+function set_element_linear_velocity!(x, indices::SystemIndices, V, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol+12] = V[1]
     x[icol+13] = V[2]
@@ -535,6 +826,8 @@ function set_element_linear_velocity!(x, system::ExpandedSystem, V, ielem)
 
     return x
 end
+
+const set_element_linear_velocity_rate! = set_element_linear_velocity!
 
 """
     set_element_angular_velocity!([x,] system::ExpandedSystem, Omega, ielem)
@@ -549,7 +842,14 @@ end
 
 function set_element_angular_velocity!(x, system::ExpandedSystem, Omega, ielem)
 
-    icol = system.indices.icol_elem[ielem]
+    indices = system.indices
+
+    return set_element_angular_velocity!(x, indices, Omega, ielem)
+end
+
+function set_element_angular_velocity!(x, indices::SystemIndices, Omega, ielem)
+
+    icol = indices.icol_elem[ielem]
 
     x[icol+15] = Omega[1]
     x[icol+16] = Omega[2]
@@ -558,4 +858,4 @@ function set_element_angular_velocity!(x, system::ExpandedSystem, Omega, ielem)
     return x
 end
 
-
+const set_element_angular_velocity_rate! = set_element_angular_velocity!

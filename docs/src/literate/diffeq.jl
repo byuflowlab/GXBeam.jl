@@ -1,10 +1,10 @@
 # # [Using GXBeam with DifferentialEquations.jl](@id diffeq)
 #
-# While the capabilities provided by GXBeam are probably sufficient for most users, 
-# advanced users may wish to make use of some of the features of the 
-# [`DifferentialEquations`](https://github.com/SciML/DifferentialEquations.jl) package.  
-# For this reason, we have created an interface in GXBeam to allow users to model the 
-# differential algebraic equations encountered in GXBeam in DifferentialEquations.
+# While the capabilities provided by GXBeam are probably sufficient for most users,
+# advanced users may wish to make use of some of the features of the
+# [`DifferentialEquations`](https://github.com/SciML/DifferentialEquations.jl) package.
+# For this reason, we have created an interface in GXBeam to allow users to model the
+# differential algebraic equations encountered in GXBeam using DifferentialEquations.
 #
 #md # ```@contents
 #md # Pages = ["diffeq.md"]
@@ -18,10 +18,10 @@
 #md #     [`diffeq.ipynb`](@__NBVIEWER_ROOT_URL__/examples/diffeq.ipynb).
 #
 #-
-# 
+#
 #md # ## Interface Functions
 #md #
-#md # The following constructors are available for modeling the differential algebraic 
+#md # The following constructors are available for modeling the differential algebraic
 #md # equations from GXBeam in DifferentialEquations.
 #md #
 #md # ```@docs
@@ -35,10 +35,10 @@
 #
 # ## Example Usage
 #
-# For this example we demonstrate how to solve the wind turbine [Time-Domain Simulation of 
+# For this example we demonstrate how to solve the wind turbine [Time-Domain Simulation of
 # a Wind Turbine Blade](@ref wind-turbine-blade) problem using DifferentialEquations.
-# 
-# We start by setting up the problem as if we were solving the problem using GXBeam's 
+#
+# We start by setting up the problem as if we were solving the problem using GXBeam's
 # internal solver.
 
 using GXBeam, LinearAlgebra
@@ -91,7 +91,7 @@ end
 
 #!jl nothing #hide
 
-# At this point if we wanted to use GXBeam's internal solver, we would choose a time 
+# At this point if we wanted to use GXBeam's internal solver, we would choose a time
 # discretization and call the `time_domain_analysis` function.
 
 ## simulation time
@@ -103,7 +103,7 @@ system, gxbeam_history, converged = time_domain_analysis(assembly, t;
 
 #!jl nothing #hide
 
-# To instead use the capabilities of the DifferentialEquations package we first initialize 
+# To instead use the capabilities of the DifferentialEquations package, we first initialize
 # our system using the `initial_condition_analysis` function and then construct and solve
 # a `DAEProblem`.
 
@@ -112,16 +112,14 @@ using DifferentialEquations
 ## define simulation time
 tspan = (0.0, 2.0)
 
-## define named tuple with parameters
-p = (; prescribed_conditions=prescribed_conditions)
-
 ## run initial condition analysis to get consistent set of initial conditions
-dae_system, converged = initial_condition_analysis(assembly, tspan[1]; 
+dae_system, converged = initial_condition_analysis(assembly, tspan[1];
     prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-dae_prob = DAEProblem(dae_system, assembly, tspan, p; 
+dae_prob = DAEProblem(dae_system, assembly, tspan;
+    prescribed_conditions = prescribed_conditions,
     structural_damping = false)
 
 ## solve the problem
@@ -129,17 +127,17 @@ dae_sol = solve(dae_prob, DABDF2())
 
 #!jl nothing #hide
 
-# Alternatively, we can construct and solve a constant mass matrix formulation of our
-# differential algebraic equations. 
+# Alternatively, we can use a mass matrix formulation of our differential algebraic equations.
 
 ## run initial condition analysis to get consistent set of initial conditions
-ode_system, converged = initial_condition_analysis(assembly, tspan[1]; 
+ode_system, converged = initial_condition_analysis(assembly, tspan[1];
     prescribed_conditions = prescribed_conditions,
     constant_mass_matrix = true,
     structural_damping = false)
 
 ## construct an ODEProblem (with a constant mass matrix)
-ode_prob = ODEProblem(ode_system, assembly, tspan, p; 
+ode_prob = ODEProblem(ode_system, assembly, tspan;
+    prescribed_conditions = prescribed_conditions,
     constant_mass_matrix = true,
     structural_damping = false)
 
@@ -148,18 +146,18 @@ ode_sol = solve(ode_prob, Rodas4())
 
 #!jl nothing #hide
 
-# We can then extract the outputs from the solution in a easy to understand format using the 
+# We can then extract the outputs from the solution in a easy to understand format using the
 # [`AssemblyState`](@ref) constructor.
 
-ode_history = [AssemblyState(ode_system, assembly, ode_sol[it]; prescribed_conditions)
+ode_history = [AssemblyState(ode_sol[it], ode_system, assembly; prescribed_conditions)
     for it in eachindex(ode_sol)]
 
-dae_history = [AssemblyState(dae_system, assembly, dae_sol[it]; prescribed_conditions)
+dae_history = [AssemblyState(dae_sol[it], dae_system, assembly; prescribed_conditions)
     for it in eachindex(dae_sol)]
 
 #!jl nothing #hide
 
-# Let's now compare the solutions from GXBeam's internal solver and the 
+# Let's now compare the solutions from GXBeam's internal solver and the
 # DifferentialEquations solvers.
 
 using Plots
@@ -266,7 +264,7 @@ end
 #md # ![](../assets/diffeq-M2.svg)
 #md # ![](../assets/diffeq-M3.svg)
 
-# As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely 
+# As can be seen, the solutions provided by GXBeam and DifferentialEquations track closely
 # with each other.
 
 root_chord = 1.9000

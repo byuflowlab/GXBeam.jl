@@ -1,9 +1,9 @@
 # # [Rotating Beam with a Swept Tip](@id rotating)
 #
-# In this example we analyze a rotating beam with a swept tip.  The parameters for this 
-# example come from "Finite element solution of nonlinear intrinsic equations for curved 
+# In this example we analyze a rotating beam with a swept tip.  The parameters for this
+# example come from "Finite element solution of nonlinear intrinsic equations for curved
 # composite beams" by Hodges, Shang, and Cesnik.
-# 
+#
 # ![](../assets/rotating-drawing.svg)
 #
 #-
@@ -11,6 +11,8 @@
 #md #     This example is also available as a Jupyter notebook:
 #md #     [`rotating.ipynb`](@__NBVIEWER_ROOT_URL__/examples/rotating.ipynb).
 #-
+
+# ## Steady State Analysis
 
 using GXBeam, LinearAlgebra
 
@@ -92,30 +94,25 @@ for i = 1:length(rpm)
     ## global frame rotation
     w0 = [0, 0, rpm[i]*(2*pi)/60]
 
-    ## perform nonlinear steady state analysis
-    system, converged = steady_state_analysis(assembly,
-        angular_velocity = w0,
-        prescribed_conditions = prescribed_conditions)
-
-    nonlinear_states[i] = AssemblyState(system, assembly;
-        prescribed_conditions = prescribed_conditions)
-
     ## perform linear steady state analysis
-    system, converged = steady_state_analysis(assembly,
+    system, linear_states[i], converged = steady_state_analysis(assembly,
         angular_velocity = w0,
         prescribed_conditions = prescribed_conditions,
         linear = true)
 
-    linear_states[i] = AssemblyState(system, assembly;
+    ## perform nonlinear steady state analysis
+    system, nonlinear_states[i], converged = steady_state_analysis(assembly,
+        angular_velocity = w0,
         prescribed_conditions = prescribed_conditions)
+
 end
 
 nothing ##hide
 
-# 
-# To visualize the solutions we will plot the root moment and tip deflections against the 
+#
+# To visualize the solutions we will plot the root moment and tip deflections against the
 # angular speed.
-# 
+#
 
 using Plots
 #md using Suppressor #hide
@@ -149,7 +146,7 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/rotating-Mz.svg)
 
-#- 
+#-
 
 #md @suppress_err begin #hide
 
@@ -176,7 +173,7 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/rotating-ux.svg)
 
-#- 
+#-
 
 #md @suppress_err begin #hide
 
@@ -203,7 +200,7 @@ plot!(show=true) #!nb
 
 #md # ![](../assets/rotating-uy.svg)
 
-#- 
+#-
 
 #md @suppress_err begin #hide
 
@@ -234,7 +231,9 @@ plot!(show=true) #!nb
 
 #-
 
-# We will now compute the eigenvalues of this system for a range of sweep angles and and 
+# ## Eigenvalue Analysis
+
+# We will now compute the eigenvalues of this system for a range of sweep angles and and
 # angular speeds.
 
 sweep = (0:2.5:45) * pi/180
@@ -266,7 +265,7 @@ for i = 1:length(sweep)
     ## swept section of the beam
     L_b2 = 6 # inch
     r_b2 = [34, 0, 0]
-    nelem_b2 = 20
+    nelem_b2 = 4
     cs, ss = cos(sweep[i]), sin(sweep[i])
     frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
     lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2;
@@ -324,7 +323,7 @@ for i = 1:length(sweep)
 
         ## post-process eigenvector state variables
         eigenstates[i,j] = [
-            AssemblyState(system, assembly, V[i,j][:,k]; prescribed_conditions) 
+            AssemblyState(V[i,j][:,k], system, assembly; prescribed_conditions)
             for k = 1:nev
         ]
     end
@@ -337,9 +336,9 @@ frequency = [
 
 #!jl nothing #hide
 
-# Note that we correlated each eigenmode by taking advantage of the fact that left and right 
+# Note that we correlated each eigenmode by taking advantage of the fact that left and right
 # eigenvectors satisfy the following relationships:
-# 
+#
 # ```math
 # \begin{aligned}
 # u^H M v &= 1 &\text{if \(u\) and \(v\) correspond to the same eigenmode} \\
@@ -347,11 +346,13 @@ frequency = [
 # \end{aligned}
 # ```
 
-# In this case these eigenmode correlations work, but remember that large changes in the 
-# underlying parameters (or just drastic changes in the eigenvectors themselves due to a 
+# In this case these eigenmode correlations work, but remember that large changes in the
+# underlying parameters (or just drastic changes in the eigenvectors themselves due to a
 # small perturbation) can cause these correlations to fail.
 
-# We'll now plot the frequency of the different eigenmodes against those found by Epps and 
+# ## Comparison with Experimental Results
+
+# We'll now plot the frequency of the different eigenmodes against those found by Epps and
 # Chandra in "The Natural Frequencies of Rotating Composite Beams With Tip Sweep".
 
 #md @suppress_err begin #hide
@@ -399,7 +400,7 @@ for j = 1:length(rpm)
     annotate!(xann, yann, text("$(rpm[j]) RPM", 8, :center, :bottom, colors[j]))
 end
 plot!(show=true) #!nb
-#md savefig("../assets/rotating-frequencies-1.svg"); 
+#md savefig("../assets/rotating-frequencies-1.svg");
 #md closeall() #hide
 #md end #hide
 #md nothing #hide
@@ -453,7 +454,7 @@ for j = 1:length(rpm)
     annotate!(xann, yann, text("$(rpm[j]) RPM", "Serif", 8, :center, :bottom, colors[j]))
 end
 plot!(show=true) #!nb
-#md savefig("../assets/rotating-frequencies-2.svg"); 
+#md savefig("../assets/rotating-frequencies-2.svg");
 #md closeall() #hide
 #md end #hide
 #md nothing #hide
@@ -561,7 +562,7 @@ for k = 1:length(indices)
     annotate!(xann, yann, text("$(names[k])", "Serif", 8, :center, :bottom, colors[k]))
 end
 plot!(show=true) #!nb
-#md savefig("../assets/rotating-frequencies-4.svg"); 
+#md savefig("../assets/rotating-frequencies-4.svg");
 #md closeall() #hide
 #md end #hide
 #md nothing #hide
@@ -570,11 +571,13 @@ plot!(show=true) #!nb
 
 #-
 
-# As you can see, the frequency results from the eigenmode analysis in this package 
+# As you can see, the frequency results from the eigenmode analysis in this package
 # compare well with experimental results.
 #
-# We can also visualize eigenmodes using ParaView.  Here we will visualize the first 
-# bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be 
+# ## Eigenmode Visualization
+#
+# We can also visualize eigenmodes using ParaView.  Here we will visualize the first
+# bending mode for the 45 degree swept tip at a rotational speed of 750 RPM.  This can be
 # helpful for identifying different eigenmodes.
 
 ## write the response to vtk files for visualization using ParaView
@@ -582,5 +585,106 @@ mkpath("rotating-eigenmode")
 write_vtk("rotating-eigenmode/rotating-eigenmode", assembly, state[end,end],
     λ[end,end][1], eigenstates[end,end][1]; mode_scaling = 100.0)
 #md rm("rotating-eigenmode"; recursive=true) #hide
-    
+
 # ![](../assets/rotating-eigenmode.gif)
+
+# ## Sensitivity Analysis
+
+# Suppose we are interested in computing the sensitivity of the mode frequencies to sweep
+# angle when rotating at 750 RPM with a \SI{45}{\deg} sweep angle.  We can compute these
+# sensitivities as follows:
+
+using ForwardDiff
+
+## number of eigenvalues
+nev = 30
+
+## define sweep angle
+sweep = 45 * pi/180
+
+## define RPM
+rpm = 750
+
+## define parameter vector
+p = [sweep]
+
+## straight section of the beam
+L_b1 = 31.5 ## inch
+r_b1 = [2.5, 0, 0]
+nelem_b1 = 20
+lengths_b1, xp_b1, xm_b1, Cab_b1 = discretize_beam(L_b1, r_b1, nelem_b1)
+
+## swept section of the beam
+L_b2 = 6 ## inch
+r_b2 = [34, 0, 0]
+nelem_b2 = 4
+cs, ss = cos(sweep), sin(sweep)
+frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+## combine elements and points into one array
+nelem = nelem_b1 + nelem_b2
+points = vcat(xp_b1, xp_b2[2:end])
+start = 1:nelem_b1 + nelem_b2
+stop = 2:nelem_b1 + nelem_b2 + 1
+Cab = vcat(Cab_b1, Cab_b2)
+
+## define compliance
+compliance = fill(Diagonal([1/(E*A), 1/(G*Ay), 1/(G*Az), 1/(G*Jx), 1/(E*Iyy),
+1/(E*Izz)]), nelem)
+
+## define mass
+mass = fill(Diagonal([ρ*A, ρ*A, ρ*A, ρ*J, ρ*Iyy, ρ*Izz]), nelem)
+
+## create (default) assembly
+assembly = Assembly(points, start, stop;
+    compliance = compliance,
+    mass = mass,
+    frames = Cab)
+
+## construct parameter function which overwrites the default assembly
+pfunc = (p, t) -> begin
+
+    sweep = p[1] # sweep angle
+
+    ## redefine swept section of the beam
+    cs, ss = cos(sweep), sin(sweep)
+    frame_b2 = [cs ss 0; -ss cs 0; 0 0 1]
+    lengths_b2, xp_b2, xm_b2, Cab_b2 = discretize_beam(L_b2, r_b2, nelem_b2; frame = frame_b2)
+
+    ## redefine points and reference frame
+    points = vcat(xp_b1, xp_b2[2:end])
+    Cab = vcat(Cab_b1, Cab_b2)
+
+    ## create new assembly
+    assembly = Assembly(points, start, stop;
+        compliance = compliance,
+        mass = mass,
+        frames = Cab)
+
+    ## return named tuple with new arguments
+    return (; assembly=assembly)
+end
+
+## construct objective function
+objfun = (p) -> begin
+
+    ## perform eigenvalue analysis
+    system, λ, V, converged = eigenvalue_analysis(assembly; pfunc, p,
+        angular_velocity = [0, 0, rpm*(2*pi)/60],
+        prescribed_conditions = prescribed_conditions,
+        eigenvector_sensitivities=true,
+        nev = nev)
+
+    ## return frequencies
+    return [imag(λ[k])/(2*pi) for k = 1:2:length(λ)]
+end
+
+## compute sensitivities using ForwardDiff with λ = 1.0
+ForwardDiff.jacobian(objfun, p)
+
+# Note the use of the keyword argument `eigenvector_sensitivities=false` in our call to
+# `eigenvalue_analysis`.  This keyword argument tells the solver that we are only interested
+# in eigenvalue derivatives, rather than eigenvalue and eigenvector derivatives.  Setting
+# this keyword argument to `false` (when appropriate) significantly reduces the computational
+# expenses associated with computing design sensitivities.

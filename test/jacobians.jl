@@ -1,7 +1,7 @@
 using GXBeam, LinearAlgebra, Random, StaticArrays, ForwardDiff, Test
 
 @testset "Rotation Parameter Jacobians" begin
-    
+
     RNG = MersenneTwister(1234)
 
     θ = 1e3*rand(RNG, 3)
@@ -63,7 +63,7 @@ end
 
     # point_displacement_jacobians
     u, θ = GXBeam.point_displacement(x, icol, prescribed_conditions)
-    
+
     u_u, θ_θ = GXBeam.point_displacement_jacobians(prescribed_conditions)
 
     f = x -> vcat(GXBeam.point_displacement(x, icol, prescribed_conditions)...)
@@ -159,7 +159,7 @@ end
     J = similar(x, length(x), length(x))
     two_dimensional = false
 
-    f = (x) -> GXBeam.static_system_residual!(similar(x), x, indices, two_dimensional, force_scaling, 
+    f = (x) -> GXBeam.static_system_residual!(similar(x), x, indices, two_dimensional, force_scaling,
         assembly, pcond, dload, pmass, gvec)
 
     GXBeam.static_system_jacobian!(J, x, indices, two_dimensional, force_scaling,
@@ -185,12 +185,12 @@ end
     linear_acceleration = SVector{3}(1e2*rand(RNG, 3))
     angular_acceleration = SVector{3}(1e2*rand(RNG, 3))
 
-    f = (x) -> GXBeam.steady_system_residual!(similar(x), x, indices, two_dimensional, 
-        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+    f = (x) -> GXBeam.steady_system_residual!(similar(x), x, indices, two_dimensional,
+        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
-    GXBeam.steady_system_jacobian!(J, x, indices, two_dimensional, force_scaling, 
-        structural_damping, assembly, pcond, dload, pmass, gvec, 
+    GXBeam.steady_system_jacobian!(J, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
     J_fd = ForwardDiff.jacobian(f, x)
@@ -212,13 +212,13 @@ end
     rate_vars1 = rand(RNG, Bool, length(x))
     rate_vars2 = rand(RNG, Bool, length(x))
 
-    f = (x) -> GXBeam.initial_system_residual!(similar(x), x, indices, rate_vars1, 
-        rate_vars2, two_dimensional, force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+    f = (x) -> GXBeam.initial_system_residual!(similar(x), x, indices, rate_vars1,
+        rate_vars2, two_dimensional, force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
         u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
     GXBeam.initial_system_jacobian!(J, x, indices, rate_vars1, rate_vars2, two_dimensional,
-        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
         u0, theta0, V0, Omega0, Vdot0, Omegadot0)
 
@@ -237,12 +237,12 @@ end
     x = rand(RNG, length(system.x))
     J = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, indices, two_dimensional, 
-        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+    f = (x) -> GXBeam.newmark_system_residual!(similar(x), x, indices, two_dimensional,
+        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, udot, θdot, Vdot, Ωdot, dt)
 
-    GXBeam.newmark_system_jacobian!(J, x, indices, two_dimensional, force_scaling, 
-        structural_damping, assembly, pcond, dload, pmass, gvec, 
+    GXBeam.newmark_system_jacobian!(J, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, udot, θdot, Vdot, Ωdot, dt)
 
     J_fd = ForwardDiff.jacobian(f, x)
@@ -256,16 +256,16 @@ end
     J = similar(x, length(x), length(x))
     M = similar(x, length(x), length(x))
 
-    fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), dx, x, indices, two_dimensional, 
+    fx = (x) -> GXBeam.dynamic_system_residual!(similar(x), dx, x, indices, two_dimensional,
         force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity)
 
-    fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), dx, x, indices, two_dimensional, 
-        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec, 
+    fdx = (dx) -> GXBeam.dynamic_system_residual!(similar(dx), dx, x, indices, two_dimensional,
+        force_scaling, structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity)
 
-    GXBeam.dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling, 
-        structural_damping, assembly, pcond, dload, pmass, gvec, 
+    GXBeam.dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity)
 
     GXBeam.system_mass_matrix!(M, x, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
@@ -282,8 +282,8 @@ end
 
     two_dimensional = true
 
-    GXBeam.dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling, 
-        structural_damping, assembly, pcond, dload, pmass, gvec, 
+    GXBeam.dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity)
 
     GXBeam.system_mass_matrix!(M, x, indices, two_dimensional, force_scaling, assembly, pcond, pmass)
@@ -308,28 +308,28 @@ end
     J = similar(x, length(x), length(x))
     M = similar(x, length(x), length(x))
 
-    f = (x) -> GXBeam.expanded_steady_system_residual!(similar(x), x, indices, two_dimensional, force_scaling, 
-        structural_damping, assembly, pcond, dload, pmass, gvec, 
+    f = (x) -> GXBeam.expanded_steady_system_residual!(similar(x), x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
-    GXBeam.expanded_steady_system_jacobian!(J, x, indices, two_dimensional, force_scaling, 
-        structural_damping, assembly, pcond, dload, pmass, gvec,         
+    GXBeam.expanded_steady_system_jacobian!(J, x, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, pcond, dload, pmass, gvec,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration)
 
     J_fd = ForwardDiff.jacobian(f, x)
 
     @test all(isapprox.(J, J_fd, atol=1e-10))
 
-    fx = (x) -> GXBeam.expanded_dynamic_system_residual!(similar(x), dx, x, indices, two_dimensional, force_scaling, 
+    fx = (x) -> GXBeam.expanded_dynamic_system_residual!(similar(x), dx, x, indices, two_dimensional, force_scaling,
         structural_damping, assembly, pcond, dload, pmass, gvec, linear_velocity, angular_velocity)
 
-    fdx = (dx) -> GXBeam.expanded_dynamic_system_residual!(similar(dx), dx, x, indices, two_dimensional, force_scaling, 
+    fdx = (dx) -> GXBeam.expanded_dynamic_system_residual!(similar(dx), dx, x, indices, two_dimensional, force_scaling,
         structural_damping, assembly, pcond, dload, pmass, gvec, linear_velocity, angular_velocity)
 
-    GXBeam.expanded_dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling, 
+    GXBeam.expanded_dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling,
         structural_damping, assembly, pcond, dload, pmass, gvec, linear_velocity, angular_velocity)
 
-    GXBeam.expanded_system_mass_matrix!(M, indices, two_dimensional, force_scaling, assembly, 
+    GXBeam.expanded_system_mass_matrix!(M, indices, two_dimensional, force_scaling, assembly,
         pcond, pmass)
 
     J_fd = ForwardDiff.jacobian(fx, x)
@@ -341,13 +341,13 @@ end
     @test all(isapprox.(M, M_fd, atol=1e-10))
 
     # -- Constant Mass Matrix (2D) --- #
-    
+
     two_dimensional = true
 
-    GXBeam.expanded_dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling, 
+    GXBeam.expanded_dynamic_system_jacobian!(J, dx, x, indices, two_dimensional, force_scaling,
         structural_damping, assembly, pcond, dload, pmass, gvec, linear_velocity, angular_velocity)
 
-    GXBeam.expanded_system_mass_matrix!(M, indices, two_dimensional, force_scaling, assembly, 
+    GXBeam.expanded_system_mass_matrix!(M, indices, two_dimensional, force_scaling, assembly,
         pcond, pmass)
 
     J_fd = ForwardDiff.jacobian(fx, x)

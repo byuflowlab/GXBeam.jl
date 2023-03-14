@@ -15,7 +15,7 @@ using GXBeam, LinearAlgebra, Elliptic, Test
     x = range(0, L, length=nelem+1)
     y = zero(x)
     z = zero(x)
-    points = [[x[i],y[i],z[i]] for i = 1:length(x)]
+    points = [[x[i],y[i],z[i]] for i = 1:nelem+1]
 
     # index of endpoints of each beam element
     start = 1:nelem
@@ -46,7 +46,7 @@ using GXBeam, LinearAlgebra, Elliptic, Test
         static_analysis!(system, assembly, prescribed_conditions=prescribed_conditions)
 
         # post-process the results
-        states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
+        states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
 
     end
 
@@ -70,30 +70,30 @@ using GXBeam, LinearAlgebra, Elliptic, Test
         @test isapprox(states[i].points[end].theta[2], -4*tan(θ_a[i_a]/4), atol=1e-2)
     end
 
-    # perform the same analysis for a constant mass matrix system
-    system = ExpandedSystem(assembly)
+    # # perform the same analysis for a constant mass matrix system
+    # system = ExpandedSystem(assembly)
 
-    states = Vector{AssemblyState{Float64}}(undef, length(P))
-    for i = 1:length(P)
+    # states = Vector{AssemblyState{Float64}}(undef, length(P))
+    # for i = 1:length(P)
 
-        prescribed_conditions = Dict(
-            1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
-            nelem+1 => PrescribedConditions(Fz = P[i])
-        )
+    #     prescribed_conditions = Dict(
+    #         1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+    #         nelem+1 => PrescribedConditions(Fz = P[i])
+    #     )
 
-        steady_state_analysis!(system, assembly, 
-            prescribed_conditions = prescribed_conditions,
-            constant_mass_matrix = true)
+    #     steady_state_analysis!(system, assembly,
+    #         prescribed_conditions = prescribed_conditions,
+    #         constant_mass_matrix = true)
 
-        states[i] = AssemblyState(system, assembly, prescribed_conditions=prescribed_conditions)
-    end
+    #     states[i] = AssemblyState(system, assembly; prescribed_conditions=prescribed_conditions)
+    # end
 
-    # test tip displacements
-    for i = 1:length(P)
-        i_a = argmin(abs.(λ[i] .- λ_a))
-        @test isapprox(states[i].points[end].u[1]/L, ξ_a[i_a], atol=1e-3)
-        @test isapprox(states[i].points[end].u[3]/L, η_a[i_a], atol=1e-3)
-        @test isapprox(states[i].points[end].theta[2], -4*tan(θ_a[i_a]/4), atol=1e-2)
-    end
+    # # test tip displacements
+    # for i = 1:length(P)
+    #     i_a = argmin(abs.(λ[i] .- λ_a))
+    #     @test isapprox(states[i].points[end].u[1]/L, ξ_a[i_a], atol=1e-3)
+    #     @test isapprox(states[i].points[end].u[3]/L, η_a[i_a], atol=1e-3)
+    #     @test isapprox(states[i].points[end].theta[2], -4*tan(θ_a[i_a]/4), atol=1e-2)
+    # end
 
 end

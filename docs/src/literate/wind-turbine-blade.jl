@@ -6,6 +6,8 @@
 #md #     [`wind-turbine-blade.ipynb`](@__NBVIEWER_ROOT_URL__/examples/wind-turbine-blade.ipynb).
 #-
 
+## Time Domain Analysis
+
 using GXBeam, LinearAlgebra
 
 L = 60 # m
@@ -63,9 +65,11 @@ system, history, converged = time_domain_analysis(assembly, t;
 
 #!jl nothing #hide
 
-# We can visualize tip displacements and the resultant forces in the root by accessing 
-# the post-processed results for each time step contained in the variable `history`.  
-# Note that the root resultant forces for this case are equal to the external 
+## Visualization
+
+# We can visualize tip displacements and the resultant forces in the root by accessing
+# the post-processed results for each time step contained in the variable `history`.
+# Note that the root resultant forces for this case are equal to the external
 # forces/moments, but with opposite sign.
 
 #md using Suppressor #hide
@@ -91,7 +95,7 @@ for i = 1:12
     local y
 
 #nb    ph[i] = plot(
-#!nb    plot(
+    plot( #!nb
         xlim = (0, 2.0),
         xticks = 0:0.5:2.0,
         xlabel = "Time (s)",
@@ -114,10 +118,10 @@ for i = 1:12
     end
 
     plot!(t, y, label="")
-#!nb     plot!(show=true)
+    plot!(show=true) #!nb
 #md     savefig("../assets/wind-turbine-blade-"*string(field[i])*string(direction[i])*".svg"); #hide
 #md     closeall() #hide
-end 
+end
 
 #md end #hide
 #md nothing #hide
@@ -160,14 +164,14 @@ end
 #md # ![](../assets/wind-turbine-blade-M2.svg)
 #md # ![](../assets/wind-turbine-blade-M3.svg)
 
-# These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A. 
-# Sprague in "Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic 
+# These plots are identical to those presented by Qi Wang, Wenbin Yu, and Michael A.
+# Sprague in "Geometric Nonlinear Analysis of Composite Beams Using Wiener-Milenkovic
 # Parameters".
-# 
+#
 #-
 #
 # We can also visualize the time history of the system using ParaView.
-# 
+#
 root_chord = 1.9000
 tip_chord =  0.4540
 airfoil = [ # MH-104
@@ -253,3 +257,50 @@ write_vtk("wind-turbine-blade-simulation/wind-turbine-blade-simulation", assembl
 #md rm("wind-turbine-blade-simulation"; recursive=true) #hide
 
 # ![](../assets/wind-turbine-blade-simulation.gif)
+
+
+# ## Sensitivity Analysis
+
+# Suppose we are interested in computing the sensitivity of the tip deflection at `t=2.0`
+# to the tip force magnitude.  We can compute this sensitivity using the following code:
+
+using ForwardDiff
+
+## simulation time
+t = 0:0.001:2.0
+
+## construct parameter function
+pfunc = (p, t) -> begin
+
+    ## prescribed conditions
+    prescribed_conditions = Dict(
+        ## fixed left side
+        1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
+        ## force on right side
+        nelem+1 => PrescribedConditions(Fz = p[1]*sin(p[2]*t))
+    )
+
+    ## return named tuple with new arguments
+    return (; prescribed_conditions=prescribed_conditions)
+end
+
+## construct objective function
+objfun = (p) -> begin
+
+    ## perform time domain analysis
+    system, history, converged = time_domain_analysis(assembly, t;
+        prescribed_conditions = prescribed_conditions, # default prescribed conditions
+        structural_damping = false,
+        pfunc = pfunc, # sensitivity function
+        p = p, # sensitivity parameters
+        )
+
+    ## return vertical tip displacement at `t=2.0`
+    return [history[end].points[end].u[3]]
+end
+
+## sensitivity parameters
+p = [1e5, 20] # force magnitude and frequency
+
+## compute sensitivities using ForwardDiff
+ForwardDiff.jacobian(objfun, p)

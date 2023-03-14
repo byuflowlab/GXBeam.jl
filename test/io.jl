@@ -1,11 +1,11 @@
 using GXBeam, LinearAlgebra, Random, Test
 
-@testset "Input and Output" begin
+@testset "Setting State Variables" begin
 
     RNG = MersenneTwister(1234)
 
-    # --- Assembly --- #
-    
+    # --- Define Assembly --- #
+
     # beam length
     L = 1
 
@@ -48,7 +48,7 @@ using GXBeam, LinearAlgebra, Random, Test
     # assembly
     assembly = Assembly(points, start, stop; stiffness=stiffness, mass=mass, damping=damping)
 
-    # --- Operating Conditions --- #
+    # --- Define Operating Conditions --- #
 
     # prescribed conditions
     prescribed_conditions = Dict(
@@ -56,9 +56,9 @@ using GXBeam, LinearAlgebra, Random, Test
         1 => PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         # loaded right side
         nelem+1 => PrescribedConditions(
-            Fx=rand(RNG), Fy=rand(RNG), Fz=rand(RNG), 
+            Fx=rand(RNG), Fy=rand(RNG), Fz=rand(RNG),
             Mx=rand(RNG), My=rand(RNG), Mz=rand(RNG),
-            Fx_follower=rand(RNG), Fy_follower=rand(RNG), Fz_follower=rand(RNG), 
+            Fx_follower=rand(RNG), Fy_follower=rand(RNG), Fz_follower=rand(RNG),
             Mx_follower=rand(RNG), My_follower=rand(RNG), Mz_follower=rand(RNG),),
         )
 
@@ -70,9 +70,9 @@ using GXBeam, LinearAlgebra, Random, Test
 
     distributed_loads = Dict(
         ielem => DistributedLoads(assembly, ielem;
-            fx=(s)->fx, fy=(s)->fy, fz=(s)->fz, 
+            fx=(s)->fx, fy=(s)->fy, fz=(s)->fz,
             mx=(s)->mx, my=(s)->my, mz=(s)->mz,
-            fx_follower=(s)->fx_follower, fy_follower=(s)->fy_follower, fz_follower=(s)->fz_follower, 
+            fx_follower=(s)->fx_follower, fy_follower=(s)->fy_follower, fz_follower=(s)->fz_follower,
             mx_follower=(s)->mx_follower, my_follower=(s)->my_follower, mz_follower=(s)->mz_follower,
             ) for ielem = 1:nelem
     )
@@ -82,73 +82,77 @@ using GXBeam, LinearAlgebra, Random, Test
         # point mass at the end of the beam
         nelem+1 => PointMass(Symmetric(rand(RNG, 6,6)))
     )
-   
+
     # body frame linear velocity
     linear_velocity = rand(RNG, 3)
-    
+
     # body frame angular velocity
     angular_velocity = rand(RNG, 3)
-    
+
     # body frame linear acceleration
     linear_acceleration = rand(RNG, 3)
-    
+
     # body frame angular acceleration
     angular_acceleration = rand(RNG, 3)
 
     # gravity vector
     gravity = rand(RNG, 3)
 
-    # --- State Variables --- #
+    # --- Define State Variables --- #
 
-    # define point linear and angular displacement
+    # point linear and angular displacement
     u = [rand(RNG, 3) for i = 1:nelem+1]
     theta = [rand(RNG, 3) for i = 1:nelem+1]
 
-    # fixed left side
-    u[1] .= 0
-    theta[1] .= 0 
+    # point linear and angular velocities
+    V = [rand(RNG, 3) for i = 1:nelem+1]
+    Omega = [rand(RNG, 3) for i = 1:nelem+1]
 
-    # define point velocities (in the deformed point frame)
-    V_p = [rand(RNG, 3) for i = 1:nelem+1]
-    Omega_p = [rand(RNG, 3) for i = 1:nelem+1]
-    
-    # define element velocities (in the deformed element frame)
+    # external forces and moments
+    F = [rand(RNG, 3) for i = 1:nelem+1]
+    M = [rand(RNG, 3) for i = 1:nelem+1]
+
+    # modify displacements to account for fixed left side
+    u[1] .= 0
+    theta[1] .= 0
+
+    # rotation angles for each point
+    C = [GXBeam.get_C(theta[i]) for i=1:nelem+1]
+
+    # modify forces to account for loaded right side
+    F[nelem+1] .= prescribed_conditions[nelem+1].F + C[nelem+1]'*prescribed_conditions[nelem+1].Ff
+    M[nelem+1] =  prescribed_conditions[nelem+1].M + C[nelem+1]'*prescribed_conditions[nelem+1].Mf
+
+    # point linear and angular velocities (in the local frame)
+    V_p = [C[i]*V[i] for i = 1:nelem+1]
+    Omega_p = [C[i]*Omega[i] for i = 1:nelem+1]
+
+    # element linear and angular velocities (in the local frame)
     V_e = [rand(RNG, 3) for i = 1:nelem]
     Omega_e = [rand(RNG, 3) for i = 1:nelem]
 
-    # define point velocities in the body frame
-    V = [GXBeam.get_C(theta[i])'*V_p[i] for i = 1:nelem+1]
-    Omega = [GXBeam.get_C(theta[i])'*Omega_p[i] for i = 1:nelem+1]
-
-    # define external forces and moments
-    F = [rand(RNG, 3) for i = 1:nelem+1]
-    M = [rand(RNG, 3) for i = 1:nelem+1]
-    
-    # loaded right side
-    F[nelem+1] .= prescribed_conditions[nelem+1].F + 
-        GXBeam.get_C(theta[nelem+1])'*prescribed_conditions[nelem+1].Ff
-    M[nelem+1] =  prescribed_conditions[nelem+1].M + 
-        GXBeam.get_C(theta[nelem+1])'*prescribed_conditions[nelem+1].Mf
-    
     # define resultant forces and moments
     F1 = [rand(RNG, 3) for i = 1:nelem]
     M1 = [rand(RNG, 3) for i = 1:nelem]
     F2 = [rand(RNG, 3) for i = 1:nelem]
     M2 = [rand(RNG, 3) for i = 1:nelem]
-    
+
     # define element internal forces
     Fi = [F1[i]/2 + F2[i]/2 for i = 1:nelem]
     Mi = [M1[i]/2 + M2[i]/2 for i = 1:nelem]
 
     # --- Test Setting Static States --- #
 
+    # create static system
     static_system = StaticSystem(assembly)
 
-    set_state!(static_system, prescribed_conditions; 
-        u, theta, F, M, Fi, Mi)
+    # set static states
+    set_state!(static_system, prescribed_conditions; u, theta, F, M, Fi, Mi)
 
+    # post-process states
     static_states = AssemblyState(static_system, assembly; prescribed_conditions)
 
+    # test that point state variables match
     for i = 1:nelem+1
         @test isapprox(static_states.points[i].F, F[i])
         @test isapprox(static_states.points[i].M, M[i])
@@ -156,6 +160,31 @@ using GXBeam, LinearAlgebra, Random, Test
         @test isapprox(static_states.points[i].theta, theta[i])
     end
 
+    # test that element state variables match
+    for i = 1:nelem
+        @test isapprox(static_states.elements[i].Fi, Fi[i])
+        @test isapprox(static_states.elements[i].Mi, Mi[i])
+    end
+
+    # reinitialize the state variables
+    reset_state!(static_system)
+
+    # set them to the values in `static_states`
+    set_state!(static_system, assembly, static_states;
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        point_masses=point_masses,
+        gravity=gravity)
+
+    # test that point state variables match
+    for i = 1:nelem+1
+        @test isapprox(static_states.points[i].F, F[i])
+        @test isapprox(static_states.points[i].M, M[i])
+        @test isapprox(static_states.points[i].u, u[i])
+        @test isapprox(static_states.points[i].theta, theta[i])
+    end
+
+    # test that element state variables match
     for i = 1:nelem
         @test isapprox(static_states.elements[i].Fi, Fi[i])
         @test isapprox(static_states.elements[i].Mi, Mi[i])
@@ -163,13 +192,16 @@ using GXBeam, LinearAlgebra, Random, Test
 
     # --- Test Setting Dynamic States --- #
 
+    # create dynamic system
     dynamic_system = DynamicSystem(assembly)
 
-    set_state!(dynamic_system, prescribed_conditions; 
-        u, theta, V, Omega, F, M, Fi, Mi)
+    # set dynamic states
+    set_state!(dynamic_system, prescribed_conditions; u, theta, V, Omega, F, M, Fi, Mi)
 
+    # post-process states
     dynamic_states = AssemblyState(dynamic_system, assembly; prescribed_conditions)
 
+    # test that point state variables match
     for i = 1:nelem+1
         @test isapprox(dynamic_states.points[i].F, F[i])
         @test isapprox(dynamic_states.points[i].M, M[i])
@@ -179,22 +211,87 @@ using GXBeam, LinearAlgebra, Random, Test
         @test isapprox(dynamic_states.points[i].Omega, Omega[i])
     end
 
+    # test that element state variables match
     for i = 1:nelem
         @test isapprox(dynamic_states.elements[i].Fi, Fi[i])
         @test isapprox(dynamic_states.elements[i].Mi, Mi[i])
         @test isapprox(dynamic_states.points[i].V, V[i])
         @test isapprox(dynamic_states.points[i].Omega, Omega[i])
     end
+
+    # reinitialize the state variables
+    reset_state!(dynamic_system)
+
+    # set them to the values in `dynamic_states`
+    set_state!(dynamic_system, assembly, dynamic_states;
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        point_masses=point_masses,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        gravity=gravity)
+
+    # test that point state variables match
+    for i = 1:nelem+1
+        @test isapprox(dynamic_states.points[i].F, F[i])
+        @test isapprox(dynamic_states.points[i].M, M[i])
+        @test isapprox(dynamic_states.points[i].u, u[i])
+        @test isapprox(dynamic_states.points[i].theta, theta[i])
+        @test isapprox(dynamic_states.points[i].V, V[i])
+        @test isapprox(dynamic_states.points[i].Omega, Omega[i])
+    end
+
+    # test that element state variables match
+    for i = 1:nelem
+        @test isapprox(dynamic_states.elements[i].Fi, Fi[i])
+        @test isapprox(dynamic_states.elements[i].Mi, Mi[i])
+        @test isapprox(dynamic_states.points[i].V, V[i])
+        @test isapprox(dynamic_states.points[i].Omega, Omega[i])
+    end
+
+    # now solve the dynamic system
+    dynamic_system, state, converged = steady_state_analysis!(dynamic_system, assembly;
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        point_masses=point_masses,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        linear_acceleration=linear_acceleration,
+        angular_acceleration=angular_acceleration,
+        gravity=gravity)
+
+    # initialize new state and rate vector
+    x = similar(dynamic_system.x)
+    dx = similar(dynamic_system.dx)
+
+    # copy result into new state and rate vectors
+    set_state!(x, dynamic_system, assembly, state;
+        prescribed_conditions=prescribed_conditions,
+        distributed_loads=distributed_loads,
+        point_masses=point_masses,
+        linear_velocity=linear_velocity,
+        angular_velocity=angular_velocity,
+        gravity=gravity)
+
+    set_rate!(dx, dynamic_system, assembly, state; prescribed_conditions)
+
+    # test that dynamic_system state and rate vectors matches the new state and rate vectors
+    @test all(isapprox.(dynamic_system.x, x, atol=1e-10))
+    @test all(isapprox.(dynamic_system.dx, dx, atol=1e-10))
 
     # --- Test Setting Expanded States --- #
 
+    # create expanded system
     expanded_system = ExpandedSystem(assembly)
 
-    set_state!(expanded_system, prescribed_conditions; 
-        u, theta, V=V_p, Omega=Omega_p, F, M, F1, M1, F2, M2, V_e, Omega_e)    
+    # set expanded states
+    set_state!(expanded_system, prescribed_conditions; u, theta, V=V_p, Omega=Omega_p, F, M,
+        F1, M1, F2, M2, V_e, Omega_e)
 
+    # post-process states
     expanded_states = AssemblyState(expanded_system, assembly; prescribed_conditions)
 
+    # test that point state variables match
     for i = 1:nelem+1
         @test isapprox(expanded_states.points[i].F, F[i])
         @test isapprox(expanded_states.points[i].M, M[i])
@@ -204,82 +301,25 @@ using GXBeam, LinearAlgebra, Random, Test
         @test isapprox(expanded_states.points[i].Omega, Omega[i])
     end
 
+    # test that element state variables match
     for i = 1:nelem
         @test isapprox(expanded_states.elements[i].Fi, Fi[i])
         @test isapprox(expanded_states.elements[i].Mi, Mi[i])
-    end   
+    end
 
-    # --- Test Copying Expanded States --- #
+    # reinitialize the state variables
+    reset_state!(expanded_system)
 
-    # expanded -> static
-    reset_state!(static_system)
-
-    copy_state!(static_system, expanded_system, assembly;     
+    # set them to the values in `expanded_states`
+    set_state!(expanded_system, assembly, expanded_states;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
         gravity=gravity)
 
-    static_states = AssemblyState(static_system, assembly; prescribed_conditions)
-
-    for i = 1:nelem+1
-        @test isapprox(static_states.points[i].F, F[i])
-        @test isapprox(static_states.points[i].M, M[i])
-        @test isapprox(static_states.points[i].u, u[i])
-        @test isapprox(static_states.points[i].theta, theta[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(static_states.elements[i].Fi, Fi[i])
-        @test isapprox(static_states.elements[i].Mi, Mi[i])
-    end
-
-    # expanded -> dynamic
-    reset_state!(dynamic_system)
-
-    copy_state!(dynamic_system, expanded_system, assembly;     
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        gravity=gravity)
-
-    dynamic_states = AssemblyState(dynamic_system, assembly; prescribed_conditions)
-
-    for i = 1:nelem+1
-        @test isapprox(dynamic_states.points[i].F, F[i])
-        @test isapprox(dynamic_states.points[i].M, M[i])
-        @test isapprox(dynamic_states.points[i].u, u[i])
-        @test isapprox(dynamic_states.points[i].theta, theta[i])
-        @test isapprox(dynamic_states.points[i].V, V[i])
-        @test isapprox(dynamic_states.points[i].Omega, Omega[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(dynamic_states.elements[i].Fi, Fi[i])
-        @test isapprox(dynamic_states.elements[i].Mi, Mi[i])
-    end
-
-    # expanded -> expanded
-    copy_state!(expanded_system, deepcopy(expanded_system), assembly;     
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        gravity=gravity)
-
-    expanded_states = AssemblyState(expanded_system, assembly; prescribed_conditions)
-
+    # test that point state variables match
     for i = 1:nelem+1
         @test isapprox(expanded_states.points[i].F, F[i])
         @test isapprox(expanded_states.points[i].M, M[i])
@@ -289,14 +329,14 @@ using GXBeam, LinearAlgebra, Random, Test
         @test isapprox(expanded_states.points[i].Omega, Omega[i])
     end
 
+    # test that element state variables match
     for i = 1:nelem
         @test isapprox(expanded_states.elements[i].Fi, Fi[i])
         @test isapprox(expanded_states.elements[i].Mi, Mi[i])
     end
 
-    # --- Test Copying Dynamic States --- #
-
-    copy_state!(static_system, dynamic_system, assembly;     
+    # now solve the expanded system
+    expanded_system, state, converged = steady_state_analysis!(expanded_system, assembly;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
@@ -306,149 +346,23 @@ using GXBeam, LinearAlgebra, Random, Test
         angular_acceleration=angular_acceleration,
         gravity=gravity)
 
-    static_states = AssemblyState(static_system, assembly; prescribed_conditions)
+    # initialize new state and rate vector
+    x = similar(expanded_system.x)
+    dx = similar(expanded_system.dx)
 
-    for i = 1:nelem+1
-        @test isapprox(static_states.points[i].F, F[i])
-        @test isapprox(static_states.points[i].M, M[i])
-        @test isapprox(static_states.points[i].u, u[i])
-        @test isapprox(static_states.points[i].theta, theta[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(static_states.elements[i].Fi, Fi[i])
-        @test isapprox(static_states.elements[i].Mi, Mi[i])
-    end
-
-    # dynamic -> dynamic
-    copy_state!(dynamic_system, deepcopy(dynamic_system), assembly;     
+    # copy result into new state and rate vectors
+    set_state!(x, expanded_system, assembly, state;
         prescribed_conditions=prescribed_conditions,
         distributed_loads=distributed_loads,
         point_masses=point_masses,
         linear_velocity=linear_velocity,
         angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
         gravity=gravity)
 
-    dynamic_states = AssemblyState(dynamic_system, assembly; prescribed_conditions)
+    set_rate!(dx, expanded_system, assembly, state; prescribed_conditions)
 
-    for i = 1:nelem+1
-        @test isapprox(dynamic_states.points[i].F, F[i])
-        @test isapprox(dynamic_states.points[i].M, M[i])
-        @test isapprox(dynamic_states.points[i].u, u[i])
-        @test isapprox(dynamic_states.points[i].theta, theta[i])
-        @test isapprox(dynamic_states.points[i].V, V[i])
-        @test isapprox(dynamic_states.points[i].Omega, Omega[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(dynamic_states.elements[i].Fi, Fi[i])
-        @test isapprox(dynamic_states.elements[i].Mi, Mi[i])
-    end
-
-    # dynamic -> expanded
-    copy_state!(expanded_system, dynamic_system, assembly;     
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        gravity=gravity)
-
-    expanded_states = AssemblyState(expanded_system, assembly; prescribed_conditions)
-
-    for i = 1:nelem+1
-        @test isapprox(expanded_states.points[i].F, F[i])
-        @test isapprox(expanded_states.points[i].M, M[i])
-        @test isapprox(expanded_states.points[i].u, u[i])
-        @test isapprox(expanded_states.points[i].theta, theta[i])
-        @test isapprox(expanded_states.points[i].V, V[i])
-        @test isapprox(expanded_states.points[i].Omega, Omega[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(expanded_states.elements[i].Fi, Fi[i])
-        @test isapprox(expanded_states.elements[i].Mi, Mi[i])
-    end
-
-    # --- Test Copying Static States --- #
-
-    # static -> static
-    copy_state!(static_system, deepcopy(static_system), assembly;     
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        gravity=gravity)
-
-    static_states = AssemblyState(static_system, assembly; prescribed_conditions)
-
-    for i = 1:nelem+1
-        @test isapprox(static_states.points[i].F, F[i])
-        @test isapprox(static_states.points[i].M, M[i])
-        @test isapprox(static_states.points[i].u, u[i])
-        @test isapprox(static_states.points[i].theta, theta[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(static_states.elements[i].Fi, Fi[i])
-        @test isapprox(static_states.elements[i].Mi, Mi[i])
-    end
-
-    # static -> dynamic
-    copy_state!(dynamic_system, static_system, assembly;     
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        gravity=gravity)
-
-    dynamic_states = AssemblyState(dynamic_system, assembly; prescribed_conditions)
-
-    for i = 1:nelem+1
-        @test isapprox(dynamic_states.points[i].F, F[i])
-        @test isapprox(dynamic_states.points[i].M, M[i])
-        @test isapprox(dynamic_states.points[i].u, u[i])
-        @test isapprox(dynamic_states.points[i].theta, theta[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(dynamic_states.elements[i].Fi, Fi[i])
-        @test isapprox(dynamic_states.elements[i].Mi, Mi[i])
-    end
-
-    # static -> expanded
-    copy_state!(expanded_system, static_system, assembly;     
-        prescribed_conditions=prescribed_conditions,
-        distributed_loads=distributed_loads,
-        point_masses=point_masses,
-        linear_velocity=linear_velocity,
-        angular_velocity=angular_velocity,
-        linear_acceleration=linear_acceleration,
-        angular_acceleration=angular_acceleration,
-        gravity=gravity)
-
-    expanded_states = AssemblyState(expanded_system, assembly; prescribed_conditions)
-
-    for i = 1:nelem+1
-        @test isapprox(expanded_states.points[i].F, F[i])
-        @test isapprox(expanded_states.points[i].M, M[i])
-        @test isapprox(expanded_states.points[i].u, u[i])
-        @test isapprox(expanded_states.points[i].theta, theta[i])
-    end
-
-    for i = 1:nelem
-        @test isapprox(expanded_states.elements[i].Fi, Fi[i])
-        @test isapprox(expanded_states.elements[i].Mi, Mi[i])
-    end
+    # test that system state and rate vectors matches the new state and rate vectors
+    @test all(isapprox.(expanded_system.x, x, atol=1e-10))
+    @test all(isapprox.(expanded_system.dx, dx, atol=1e-10))
 
 end

@@ -1,8 +1,8 @@
 """
-    Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho, 
+    Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho,
         S1t=1.0, S1c=1.0, S2t=1.0, S2c=1.0, S3t=1.0, S3c=1.0, S12=1.0, S13=1.0, S23=1.0)
 
-General orthotropic material properties. 
+General orthotropic material properties.
 1 is along main ply axis. 2 is transverse. 3 is normal to ply.
 for a fiber orientation of zero, 1 is along the beam axis.
 strength properties are optional
@@ -44,7 +44,7 @@ Material{TF}(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho) where TF = Materi
 Base.eltype(::Material{TF}) where TF = TF
 Base.eltype(::Type{Material{TF}}) where TF = TF
 
-Material{TF}(m::Material) where {TF} = Material{TF}(m.E1, m.E2, m.E3, m.G12, m.G13, m.G23, 
+Material{TF}(m::Material) where {TF} = Material{TF}(m.E1, m.E2, m.E3, m.G12, m.G13, m.G23,
 m.nu12, m.nu13, m.nu23, m.rho, m.S1t, m.S1c, m.S2t, m.S2c, m.S3t, m.S3c, m.S12, m.S13, m.S23)
 Base.convert(::Type{Material{TF}}, m::Material) where {TF} = Material{TF}(m)
 
@@ -74,7 +74,7 @@ Base.convert(::Type{Node{TF}}, n::Node) where {TF} = Node{TF}(n)
 An element in the mesh, consisting of four ordered nodes, a material, and a fiber orientation.
 
 **Arguments**
-- `nodenum::Vector{integer}`: a vector of four node numbers corresponding the the four nodes defining this element (vector indices of the nodes). 
+- `nodenum::Vector{integer}`: a vector of four node numbers corresponding the the four nodes defining this element (vector indices of the nodes).
     Node order should be counterclockwise starting from the bottom left node using the local coordinate sytem (see figure).
 - `material::Material`: material properties of this element
 - `theta::float`: fiber orientation
@@ -152,7 +152,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
 
     # create cache
     Q = zeros(etype, 6, 6)
-    
+
     Ttheta = zeros(etype, 6, 6)
     Ttheta[1, 1] = 1.0; Ttheta[1, 4] = 1.0; Ttheta[1, 6] = 1.0
     Ttheta[2, 2] = 1.0
@@ -161,7 +161,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     Ttheta[5, 3] = 1.0; Ttheta[5, 5] = 1.0
     Ttheta[6, 1] = 1.0; Ttheta[6, 4] = 1.0; Ttheta[6, 6] = 1.0
     Ttheta = sparse(Ttheta)
-    
+
     Tbeta = zeros(etype, 6, 6)
     Tbeta[1, 1] = 1.0; Tbeta[1, 2] = 1.0; Tbeta[1, 3] = 1.0
     Tbeta[2, 1] = 1.0; Tbeta[2, 2] = 1.0; Tbeta[2, 3] = 1.0
@@ -170,7 +170,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     Tbeta[5, 4] = 1.0; Tbeta[5, 5] = 1.0
     Tbeta[6, 6] = 1.0
     Tbeta = sparse(Tbeta)
-    
+
     Z = zeros(etype, 3, 6)  # [I zeros(etype, 3, 3)]
     Z[1, 1] = 1.0
     Z[2, 2] = 1.0
@@ -201,7 +201,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
 
     SZ = spzeros(etype, 6, 6)
     SN = spzeros(etype, 6, 12)
-    
+
     Bksi = zeros(etype, 6, 3)
     Bksi[1, 1] = 1.0
     Bksi[2, 2] = 1.0
@@ -210,7 +210,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     Bksi[4, 3] = 1.0
     Bksi[5, 3] = 1.0
     Bksi = sparse(Bksi)
-    
+
     Beta = zeros(etype, 6, 3)
     Beta[1, 1] = 1.0
     Beta[2, 2] = 1.0
@@ -219,7 +219,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     Beta[4, 3] = 1.0
     Beta[5, 3] = 1.0
     Beta = sparse(Beta)
-    
+
     dNM_dksi = zeros(etype, 3, 12)
     dNM_dksi[1, 1] = 1.0
     dNM_dksi[2, 2] = 1.0
@@ -234,7 +234,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     dNM_dksi[2, 11] = 1.0
     dNM_dksi[3, 12] = 1.0
     dNM_dksi = sparse(dNM_dksi)
-    
+
     dNM_deta = zeros(etype, 3, 12)
     dNM_deta[1, 1] = 1.0
     dNM_deta[2, 2] = 1.0
@@ -249,7 +249,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     dNM_deta[2, 11] = 1.0
     dNM_deta[3, 12] = 1.0
     dNM_deta = sparse(dNM_deta)
-    
+
     BN = spzeros(etype, 6, 12)
 
     Ae = zeros(etype, 6, 6)
@@ -292,7 +292,7 @@ function initialize_cache(nodes, elements, etype=Float64, d=0)
     Y = zeros(etype, 6, 6)
     dX = zeros(etype, ndof, 6)
     XY = zeros(etype, 2*ndof+6, 6)
-    
+
     # ---- used for derivatives ------
     # all of these are always floats
     X1 = zeros(ndof+12, 6)
@@ -317,7 +317,7 @@ end
 """
 Constituitive matrix of this material using the internal ordering.
 """
-function stiffness!(material, cache) 
+function stiffness!(material, cache)
     E1 = material.E1; E2 = material.E2; E3 = material.E3
     nu12 = material.nu12; nu13 = material.nu13; nu23 = material.nu23
     G12 = material.G12; G13 = material.G13; G23 = material.G23
@@ -417,7 +417,7 @@ function addelementintegrand!(ksi, eta, element, nodes, cache)
     N[2] = 0.25*(1 + ksi)*(1 - eta)
     N[3] = 0.25*(1 + ksi)*(1 + eta)
     N[4] = 0.25*(1 - ksi)*(1 + eta)
-    
+
     # x, y position
     x = 0.0
     y = 0.0
@@ -436,7 +436,7 @@ function addelementintegrand!(ksi, eta, element, nodes, cache)
     ds = sqrt(dx^2 + dy^2)
     cbeta = dx/ds
     sbeta = dy/ds
-    
+
     # basic matrices
     # Z = [I [0.0 0 -y; 0 0 x; y -x 0]]  # translation and cross product
     cache.Z[1, 6] = -y
@@ -534,7 +534,7 @@ function addelementintegrand!(ksi, eta, element, nodes, cache)
     cache.dNM_deta[3, 12] = dN_deta[4]
 
     cache.BN .= sparse(cache.Bksi) * sparse(cache.dNM_dksi) + sparse(cache.Beta) * sparse(cache.dNM_deta)
-    
+
     # integrands
     cache.Ae .+= cache.SZ' * cache.Q * cache.SZ * detJ
     cache.Re .+= cache.BN' * cache.Q * cache.SZ * detJ
@@ -562,11 +562,11 @@ function submatrix!(element, nodes, cache)
     # 2-point Gauss quadrature in both dimensions
     ksi = [1.0/sqrt(3), 1.0/sqrt(3), -1.0/sqrt(3), -1.0/sqrt(3)]
     eta = [1.0/sqrt(3), -1.0/sqrt(3), 1.0/sqrt(3), -1.0/sqrt(3)]
-    
+
     for i = 1:4
         addelementintegrand!(ksi[i], eta[i], element, nodes, cache)
     end
-    
+
     return nothing
 end
 
@@ -602,8 +602,8 @@ end
 
 """
 pull out linear solve so can overload it with analytic derivatives
-solves Ax = b but takes in factorization of A (AF).  Only needs A for the 
-overloaded portion but must keep it here to maintain function signature. 
+solves Ax = b but takes in factorization of A (AF).  Only needs A for the
+overloaded portion but must keep it here to maintain function signature.
 uses cache to avoid allocations
 """
 function linearsolve1(A, B1, AF, cache)
@@ -640,7 +640,7 @@ function linearsolve1(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B1, AF, cache) 
      # extract primal values
     #  Av = ForwardDiff.value.(A)
     B1v = ForwardDiff.value.(B1)
- 
+
      # linear solve
     #  Av = factorize(Av)
     #  x1v = zeros(size(B1v))
@@ -648,7 +648,7 @@ function linearsolve1(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B1, AF, cache) 
     for j = 1:n
         cache.X1[:, j] = AF \ B1v[:, j]
     end
- 
+
      # extract dual values
     ap = ForwardDiff.partials.(A)
     m, n = size(A)
@@ -657,8 +657,8 @@ function linearsolve1(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B1, AF, cache) 
         for j = 1:n
             cache.Adot[i, j, :] .= ap[i, j].values
         end
-    end    
-     
+    end
+
     bp = ForwardDiff.partials.(B1)
     m, n = size(B1v)
     @views for i = 1:m
@@ -666,17 +666,17 @@ function linearsolve1(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B1, AF, cache) 
             cache.B1dot[i, j, :] .= bp[i, j].values
         end
     end
- 
+
      # analytic derivative of linear solve
     for i = 1:d
         for j = 1:n
             cache.X1dot[:, j, i] = AF \ (view(cache.B1dot, :, j, i) - view(cache.Adot, :, :, i) * view(cache.X1, :, j))
         end
     end
- 
+
      # repack in dual
     X1D = ForwardDiff.Dual{T}.(cache.X1, ForwardDiff.Partials.(Tuple.(view(cache.X1dot, i, j, :) for i = 1:m, j = 1:n)))
-    
+
     return X1D
 
 end
@@ -705,10 +705,10 @@ function linearsolve2(A::SparseMatrixCSC{<:ForwardDiff.Dual{T}}, B2, cache) wher
         for j = 1:n
            cache.Adot[i, j, :] .= ap[i, j].values
         end
-    end    
+    end
 
     m, n = size(B2v)
-    
+
     # analytic derivative of linear solve
     for i = 1:d
         for j = 1:n
@@ -740,7 +740,7 @@ Compute compliance matrix given the finite element mesh described by nodes and e
 - `S::Matrix`: compliance matrix (about the shear center as long as gxbeam_order = true)
 - `sc::Vector{float}`: x, y location of shear center
     (location where a transverse/shear force will not produce any torsion, i.e., beam will not twist)
-- `tc::Vector{float}`: x, y location of tension center, aka elastic center, aka centroid 
+- `tc::Vector{float}`: x, y location of tension center, aka elastic center, aka centroid
     (location where an axial force will not produce any bending, i.e., beam will remain straight)
 """
 function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements), gxbeam_order=true)
@@ -802,7 +802,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
         R' A zeros(6, 6);
         DT zeros(6, 12)]
     # AM = factorize(Symmetric(sparse(AM)))
-    
+
     B2 = sparse([zeros(ndof, 6); Tr'; zeros(6, 6)])
     AF, X2 = linearsolve2(AM, B2, cache)
     cache.dX .= view(X2, 1:ndof, :)
@@ -827,7 +827,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     xs = -S[6, 2]/S[6, 6]
     ys = S[6, 1]/S[6, 6]
     xt = (S[4, 4]*S[5, 3] - S[4, 5]*S[4, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2)
-    yt = (-S[4, 3]*S[5, 5] + S[4, 5]*S[5, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2) 
+    yt = (-S[4, 3]*S[5, 5] + S[4, 5]*S[5, 3])/(S[4, 4]*S[5, 5] - S[4, 5]^2)
     sc = [xs, ys]
     tc = [xt, yt]
 
@@ -857,9 +857,9 @@ function area_and_centroid_of_element(node)
 
     # shoelace formula for area
     A = 0.5 * (
-        node[1].x * node[2].y - node[2].x * node[1].y + 
-        node[2].x * node[3].y - node[3].x * node[2].y + 
-        node[3].x * node[4].y - node[4].x * node[3].y + 
+        node[1].x * node[2].y - node[2].x * node[1].y +
+        node[2].x * node[3].y - node[3].x * node[2].y +
+        node[3].x * node[4].y - node[4].x * node[3].y +
         node[4].x * node[1].y - node[1].x * node[4].y)
 
     # centroid of element
@@ -874,7 +874,7 @@ end
     mass_matrix(nodes, elements)
 
 Compute mass matrix for the structure using GXBeam ordering.
-    
+
 **Returns**
 - `M::Matrix`: mass matrix
 - `mc::Vector{float}`: x, y location of mass center
@@ -939,13 +939,13 @@ Need to pass in a PyPlot object as PyPlot is not loaded by this package.
 """
 function plotmesh(nodes, elements, pyplot; plotnumbers=false)
     ne = length(elements)
-    
+
     for i = 1:ne
         node = nodes[elements[i].nodenum]
         for i = 1:4
             iplus = i+1
             if iplus == 5
-                iplus = 1 
+                iplus = 1
             end
             pyplot.plot([node[i].x, node[iplus].x], [node[i].y, node[iplus].y], "k")
         end
@@ -974,7 +974,7 @@ Compute stresses and strains at each element in cross section.
 - `M::Vector(3)`: moment at this cross section in x, y, z directions
 - `nodes::Vector{Node{TF}}`: all the nodes in the mesh
 - `elements::Vector{MeshElement{VI, TF}}`: all the elements in the mesh
-- `cache::SectionCache`: needs to reuse data from the compliance solve 
+- `cache::SectionCache`: needs to reuse data from the compliance solve
     (thus must initialize cache and pass it to both compliance and this function)
 
 # Returns
@@ -984,7 +984,7 @@ Compute stresses and strains at each element in cross section.
 - `stress_p::Vector(6, ne)`: stresses in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
 """
 function strain_recovery(F, M, nodes, elements, cache)
-    
+
     # initialize
     T = promote_type(eltype(F), eltype(M), eltype(cache.X))
     ne = length(elements)
@@ -1057,7 +1057,7 @@ Need to pass in a PyPlot object as PyPlot is not loaded by this package.
 function plotsoln(nodes, elements, soln, pyplot)
     ne = length(elements)
     nn = length(nodes)
-    
+
     # extract node points
     xpts = zeros(nn)
     ypts = zeros(nn)
@@ -1065,10 +1065,10 @@ function plotsoln(nodes, elements, soln, pyplot)
         xpts[i] = nodes[i].x
         ypts[i] = nodes[i].y
     end
-    
+
     # split quads into trianagles
     triangles = zeros(Int64, ne*2, 3)
-    trisol = zeros(ne*2)  
+    trisol = zeros(ne*2)
 
     for i = 1:ne
         nnum = elements[i].nodenum
@@ -1086,9 +1086,9 @@ end
 
 
 # function tsai_hill(sigma, strength)
-    
+
 #     (; S1t, S1c, S2t, S2c, S3t, S3c, S12, S13, S23) = strength
-    
+
 #     _, ne = size(sigma)
 #     T = eltype(sigma)
 #     failure = Vector{T}(undef, n)  # fails if > 1
@@ -1135,19 +1135,19 @@ function tsai_wu(stress_p, elements)
     @views for i = 1:ne
         m = elements[i].material
         s .= stress_p[:, i]
-        failure[i] = s[1]^2/(m.S1t*m.S1c) + 
+        failure[i] = s[1]^2/(m.S1t*m.S1c) +
                      s[2]^2/(m.S2t*m.S2c) +
                      s[3]^2/(m.S3t*m.S3c) +
-                     s[4]^2/m.S12^2 + 
-                     s[5]^2/m.S13^2 + 
-                     s[6]^2/m.S23^2 + 
-                     s[1]*(1/m.S1t - 1/m.S1c) + 
-                     s[2]*(1/m.S2t - 1/m.S2c) + 
-                     s[3]*(1/m.S3t - 1/m.S3c) - 
+                     s[4]^2/m.S12^2 +
+                     s[5]^2/m.S13^2 +
+                     s[6]^2/m.S23^2 +
+                     s[1]*(1/m.S1t - 1/m.S1c) +
+                     s[2]*(1/m.S2t - 1/m.S2c) +
+                     s[3]*(1/m.S3t - 1/m.S3c) -
                      s[1]*s[2]/sqrt(m.S1t*m.S1c*m.S2t*m.S2c) -
                      s[1]*s[3]/sqrt(m.S1t*m.S1c*m.S3t*m.S3c) -
                      s[2]*s[3]/sqrt(m.S2t*m.S2c*m.S3t*m.S3c)
     end
-        
+
     return failure
 end
