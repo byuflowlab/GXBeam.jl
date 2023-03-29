@@ -89,7 +89,7 @@ Base.eltype(::Type{AssemblyState{TF, TP, TE}}) where {TF, TP, TE} = TF
 function AssemblyState{TF, TP, TE}(a::AssemblyState) where {TF, TP, TE}
     return AssemblyState{TF, TP, TE}(a.points, a.elements)
 end
-Base.convert(::Type{AssemblyState{TF, TP, TE}}, p::AssemblyState) where {TF, TP, TE} = AssemblyState{TF, TP, TE}(p)
+Base.convert(::Type{AssemblyState{TF, TP, TE}}, a::AssemblyState) where {TF, TP, TE} = AssemblyState{TF, TP, TE}(a)
 
 """
     AssemblyState(system, assembly; prescribed_conditions = Dict())
@@ -445,7 +445,7 @@ function extract_element_state(dx, x, system::ExpandedSystem, assembly, ielem;
     V = CtCab*V
     Ω = CtCab*Ω
 
-    # rotate linear and angular veocity rates into the body frame
+    # rotate linear and angular velocity rates into the body frame
     CtCabdot = tilde(C'*get_Q(θ)*θdot)*CtCab
     Vdot = CtCabdot*V + CtCab*Vdot
     Ωdot = CtCabdot*Ω + CtCab*Ωdot

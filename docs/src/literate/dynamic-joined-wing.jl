@@ -217,19 +217,6 @@ end
 #md # ![](../assets/dynamic-joined-wing-M2.svg)
 #md # ![](../assets/dynamic-joined-wing-M3.svg)
 
-#md # ![](../assets/dynamic-joined-wing-u1.svg)
-#md # ![](../assets/dynamic-joined-wing-u2.svg)
-#md # ![](../assets/dynamic-joined-wing-u3.svg)
-#md # ![](../assets/dynamic-joined-wing-theta1.svg)
-#md # ![](../assets/dynamic-joined-wing-theta2.svg)
-#md # ![](../assets/dynamic-joined-wing-theta3.svg)
-#md # ![](../assets/dynamic-joined-wing-F1.svg)
-#md # ![](../assets/dynamic-joined-wing-F2.svg)
-#md # ![](../assets/dynamic-joined-wing-F3.svg)
-#md # ![](../assets/dynamic-joined-wing-M1.svg)
-#md # ![](../assets/dynamic-joined-wing-M2.svg)
-#md # ![](../assets/dynamic-joined-wing-M3.svg)
-
 #-
 
 # These graphs are identical to those presented in "GEBT: A general-purpose nonlinear analysis tool for composite beams" by Wenbin Yu and Maxwell Blair.
