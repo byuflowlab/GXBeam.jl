@@ -92,8 +92,9 @@ end
 Base.convert(::Type{AssemblyState{TF, TP, TE}}, a::AssemblyState) where {TF, TP, TE} = AssemblyState{TF, TP, TE}(a)
 
 """
-
-    AssemblyState(system, assembly, x=system.x, dx=system.dx; prescribed_conditions = Dict())
+    AssemblyState(system, assembly; prescribed_conditions = Dict())
+    AssemblyState(x, system, assembly; prescribed_conditions = Dict())
+    AssemblyState(dx, x, system, assembly; prescribed_conditions = Dict())
 
 Post-process the system state given the state vector `x` and rate vector `dx`.  Return an
 object of type `AssemblyState` that defines the state of the assembly for the time step.
