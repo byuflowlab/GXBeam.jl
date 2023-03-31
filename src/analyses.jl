@@ -642,7 +642,7 @@ function steady_output!(system, x, p, constants)
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # initialize state rate vector (if necessary)
-    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : similar(x) .= system.x
+    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : zero(x)
 
     # extract body frame accelerations
     ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
@@ -1002,7 +1002,7 @@ function left_eigenvectors(K, M, λ, V)
     for iλ = 1:nev
 
         # factorize (K + λ*M)'
-        KmλMfact = factorize(K' + λ[iλ]'*M')
+        KmλMfact = factorize(K' + (λ[iλ]+1e-9)'*M')
 
         # initialize left eigenvector
         for i = 1:nx
@@ -1050,7 +1050,7 @@ function left_eigenvectors(K, M::SparseMatrixCSC, λ, V)
     for iλ = 1:nev
 
         # factorize (K + λ*M)'
-        KmλMfact = factorize(K' + λ[iλ]'*M')
+        KmλMfact = factorize(K' + (λ[iλ]+1e-9)'*M')
 
         # initialize left eigenvector
         for i = 1:nx
@@ -2353,7 +2353,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # --- Initialize Time-Domain Solution --- #
 
     # initialize storage for each time step
-    history = Vector{AssemblyState{eltype(x)}}(undef, length(save))
+    history = Vector{AssemblyState{eltype(x), Vector{PointState{eltype(x)}}, Vector{ElementState{eltype(x)}}}}(undef, length(save))
     isave = 1
 
     # add initial state to the solution history
@@ -2496,7 +2496,7 @@ function newmark_parameters(p, constants)
     Ωdot_init = [SVector{3}(p_i[12*(ip-1)+10], p_i[12*(ip-1)+11], p_i[12*(ip-1)+12]) for ip = 1:length(assembly.points)]
 
     # overwrite default assembly and parameters (if applicable)
-    parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
+    parameters = isnothing(xpfunc) ? pfunc(p_p, t) : xpfunc(x, p_p, t)
     assembly = get(parameters, :assembly, assembly)
     prescribed_conditions = get(parameters, :prescribed_conditions, prescribed_conditions)
     distributed_loads = get(parameters, :distributed_loads, distributed_loads)
@@ -2604,9 +2604,6 @@ function newmark_output(system, x, p, constants)
 
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, udot_init, θdot_init, Vdot_init, Ωdot_init, dt = newmark_parameters(p, constants)
-
-    # update acceleration state variable indices
-    update_body_acceleration_indices!(indices, pcond)
 
     # initialize state rate vector (if necessary)
     dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : similar(x) .= 0

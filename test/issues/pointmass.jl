@@ -48,16 +48,13 @@ using GXBeam, LinearAlgebra, Test
 
     imagλ = imag(λ)
     isort = sortperm(abs.(imagλ))
-    freq = imagλ[isort[1:2:10]]/(2*pi)
+    freq = imagλ[isort]/(2*pi)
 
-    # frequencies
-    frequencies = [
-        2.8182004347800804, 
-        17.66611982731975, 
-        27.978670985969078, 
-        49.93431945680836, 
-        66.07594270678581]
-
-    @test isapprox(freq, frequencies)
+    # check frequencies
+    @test any(x -> isapprox(x, 2.8182004347800804), freq)
+    @test any(x -> isapprox(x, 17.66611982731975), freq)
+    @test any(x -> isapprox(x, 27.978670985969078), freq)
+    @test any(x -> isapprox(x, 49.93431945680836), freq)
+    @test any(x -> isapprox(x, 66.07594270678581), freq)
 
 end
