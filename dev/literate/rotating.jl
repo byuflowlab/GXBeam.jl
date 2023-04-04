@@ -129,6 +129,7 @@ plot(
     xlim = (0, 760),
     xticks = 0:100:750,
     xlabel = "Angular Speed (RPM)",
+    ylim = (0, 12),
     yticks = 0.0:2:12,
     ylabel = "\$M_z\$ at the root (lb-in)",
     grid = false,

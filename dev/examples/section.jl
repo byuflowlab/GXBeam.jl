@@ -42,7 +42,7 @@ x = range(-0.05, 0.05, length=11)
 y = range(-0.05, 0.05, length=11)
 
 nodes = Vector{Node{Float64}}(undef, 11*11)
-elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, 10*10)
+elements = Vector{MeshElement{Float64}}(undef, 10*10)
 
 let
     m = 1

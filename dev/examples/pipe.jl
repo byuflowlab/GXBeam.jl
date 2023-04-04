@@ -11,7 +11,7 @@ function composite_pipe()
     nt = 24
     nr = 21
     nodes = Vector{Node{Float64}}(undef, (2*(nx-1) + 2*(nt-1))*nr)
-    elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, (2*(nx-1) + 2*(nt-1))*(nr-1))
+    elements = Vector{MeshElement{Float64}}(undef, (2*(nx-1) + 2*(nt-1))*(nr-1))
 
     x1 = -1.0
     y1 = 0.3
