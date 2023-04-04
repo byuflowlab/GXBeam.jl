@@ -4,7 +4,7 @@ using GXBeam, LinearAlgebra, Random, Test
 using ForwardDiff, FiniteDiff
 
 @testset "section properties: material stiffness matrix" begin
-    
+
     RNG = MersenneTwister(1234)
 
     E1 = rand(RNG)
@@ -18,9 +18,7 @@ using ForwardDiff, FiniteDiff
     nu13 = rand(RNG)
     rho = 1.0
     mat = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
-    cache = initialize_cache([Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0), Node(0.0, 0.0)], [MeshElement([1, 2, 3, 4], mat, 0.0)])
-    GXBeam.stiffness!(mat, cache)
-    Q1 = cache.Q
+    Q1 = GXBeam.stiffness(mat)
 
     nu21 = nu12*E2/E1
     nu31 = nu13*E3/E1
@@ -40,7 +38,7 @@ end
 
 
 @testset "section properties: square cross sections" begin
-    
+
     # BECAS User Guide
     #  Case 1: Square cross section of isotropic material - S1
 
@@ -49,7 +47,7 @@ end
     y = range(-0.05, 0.05, length=11)
 
     nodes = Vector{Node{Float64}}(undef, 11*11)
-    elements = Vector{MeshElement{Vector{Int64}, Float64}}(undef, 10*10)
+    elements = Vector{MeshElement{Float64}}(undef, 10*10)
 
     let
     m = 1
@@ -196,8 +194,8 @@ end
     iso1 = Material(100.0, 100.0, 100.0, 41.667, 41.667, 41.667, 0.2, 0.2, 0.2, 1.0)
 
     nodes = Vector{Node{Float64}}(undef, nr*(nt-1))
-    elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, (nr-1)*(nt-1))
-    let 
+    elements = Vector{MeshElement{Float64}}(undef, (nr-1)*(nt-1))
+    let
     m = 1
     for i = 1:nt-1
         for j = 1:nr
@@ -249,8 +247,8 @@ end
     theta = range(pi/2, 3*pi/2, length=nt)
 
     nodes = Vector{Node{Float64}}(undef, nr*nt)
-    elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, (nr-1)*(nt-1))
-    let 
+    elements = Vector{MeshElement{Float64}}(undef, (nr-1)*(nt-1))
+    let
     m = 1
     for i = 1:nt
         for j = 1:nr
@@ -283,12 +281,12 @@ end
     @test isapprox(K[5, 5], 1.349E-03, atol=0.001e-3)
     @test isapprox(K[6, 6], 9.120E-04, atol=0.003e-4)
     @test isapprox(K[3, 5], 1.805E-02, atol=0.001e-2)
-    @test isapprox(K[2, 6], -7.529E-03, atol=0.003e-3) 
+    @test isapprox(K[2, 6], -7.529E-03, atol=0.003e-3)
 
-    @test isapprox(sc[1], -1.206E-01, atol=0.001e-1) 
-    @test isapprox(sc[2], 0.0, atol=1e-6) 
-    @test isapprox(tc[1], -6.051E-02, atol=0.002e-2) 
-    @test isapprox(tc[2], 0.0, atol=1e-6) 
+    @test isapprox(sc[1], -1.206E-01, atol=0.001e-1)
+    @test isapprox(sc[2], 0.0, atol=1e-6)
+    @test isapprox(tc[1], -6.051E-02, atol=0.002e-2)
+    @test isapprox(tc[2], 0.0, atol=1e-6)
 end
 
 @testset "section properties: circular tube" begin
@@ -309,8 +307,8 @@ end
     theta = range(0.0, 2*pi, length=nt)
 
     nodes = Vector{Node{Float64}}(undef, nr*(nt-1))
-    elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, (nr-1)*(nt-1))
-    let 
+    elements = Vector{MeshElement{Float64}}(undef, (nr-1)*(nt-1))
+    let
     m = 1
     for i = 1:nt-1
         for j = 1:nr
@@ -370,7 +368,7 @@ function composite_pipe()
     nt = 24
     nr = 21
     nodes = Vector{Node{Float64}}(undef, (2*(nx-1) + 2*(nt-1))*nr)
-    elements = Vector{MeshElement{Vector{Int64},Float64}}(undef, (2*(nx-1) + 2*(nt-1))*(nr-1))
+    elements = Vector{MeshElement{Float64}}(undef, (2*(nx-1) + 2*(nt-1))*(nr-1))
 
 
     # x1 = -50.8e-3/2
@@ -381,7 +379,7 @@ function composite_pipe()
     y1 = 0.3
     x2 = 1.0
     y2 = 0.5
-    
+
     x = range(x1, x2, length=nx)
     y = range(y1, y2, length=nr)
 
@@ -493,9 +491,9 @@ function composite_pipe()
 end
 
 @testset "section properties: multi-layer composite pipe" begin
-    
+
     #  --- Generalized Timoshenko Theory of the Variational Asymptotic Beam Sectional Analysis ----
-    # multi-layer composite pipe 
+    # multi-layer composite pipe
     # note that the previous paper has a composite pipe also, but the numbers are inconsistent.
     # see also preVABS documentation examples
 
@@ -510,7 +508,7 @@ end
     @test isapprox(K[3, 3], 3.29279e5, rtol=0.005)
     @test isapprox(K[1, 4], 9.84575e4, rtol=0.01)
     @test isapprox(K[2, 5], -8.21805e3, rtol=0.011)
-    @test isapprox(K[3, 6], -5.20981e4, rtol=0.01)   
+    @test isapprox(K[3, 6], -5.20981e4, rtol=0.01)
     @test isapprox(K[4, 4], 6.87275e5, rtol=0.01)
     @test isapprox(K[5, 5], 1.88238e6, rtol=0.005)
     @test isapprox(K[6, 6], 5.38987e6, rtol=0.005)
@@ -596,9 +594,9 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
     #     end
     # end
 
-    
+
     # grab elements at x = 0 from y = 0.3 -> 0.5
-    idx = 481:500  # elements at x = 0 from y = 0.3 -> 0.5 
+    idx = 481:500  # elements at x = 0 from y = 0.3 -> 0.5
     n = length(idx)
     yvec = zeros(n)
     s11 = zeros(n)
@@ -626,7 +624,7 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
     # interpolate data onto my pts
     ydata = yvec .- 0.3
     s11interp = linearinterp(data1[:, 1], data1[:, 2], ydata)
-    
+
     # figure()
     # plot(ydata, s11/1e3, ".")
     # plot(ydata, s11interp, "kx")
@@ -666,12 +664,12 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
 
     s22mine = s22/1e3
     s22fea = s22interp
-    
+
     @test isapprox(s22mine[1], s22fea[1], atol=0.003) # close to zero
     @test isapprox(s22mine[2], s22fea[2], atol=0.002) # close to zero
     @test isapprox(s22mine[3], s22fea[3], atol=0.002) # close to zero
     @test isapprox(s22mine[4], s22fea[4], atol=0.002) # close to zero
-    
+
     n = length(s22mine)
     for i = 5:n
         @test isapprox(s22mine[i], s22fea[i], rtol=0.01)
@@ -683,7 +681,7 @@ end
     # A critical assessment of computer tools for calculating composite wind turbine blade properties, Chen, Yu, Capellaro
     # ST1
     # See also: https://wenbinyugroup.github.io/ivabs/prevabs/contents/examples/example_airfoil.html
-    
+
     xaf = [1.00000000, 0.99619582, 0.98515158, 0.96764209, 0.94421447, 0.91510964, 0.88074158, 0.84177999, 0.79894110, 0.75297076, 0.70461763, 0.65461515, 0.60366461, 0.55242353, 0.50149950, 0.45144530, 0.40276150, 0.35589801, 0.31131449, 0.26917194, 0.22927064, 0.19167283, 0.15672257, 0.12469599, 0.09585870, 0.07046974, 0.04874337, 0.03081405, 0.01681379, 0.00687971, 0.00143518, 0.00053606, 0.00006572, 0.00001249, 0.00023032, 0.00079945, 0.00170287, 0.00354717, 0.00592084, 0.01810144, 0.03471169, 0.05589286, 0.08132751, 0.11073805, 0.14391397, 0.18067874, 0.22089879, 0.26433734, 0.31062190, 0.35933893, 0.40999990, 0.46204424, 0.51483073, 0.56767889, 0.61998250, 0.67114514, 0.72054815, 0.76758733, 0.81168064, 0.85227225, 0.88883823, 0.92088961, 0.94797259, 0.96977487, 0.98607009, 0.99640466, 1.00000000]
     yaf = [0.00000000, 0.00017047, 0.00100213, 0.00285474, 0.00556001, 0.00906779, 0.01357364, 0.01916802, 0.02580144, 0.03334313, 0.04158593, 0.05026338, 0.05906756, 0.06766426, 0.07571157, 0.08287416, 0.08882939, 0.09329359, 0.09592864, 0.09626763, 0.09424396, 0.09023579, 0.08451656, 0.07727756, 0.06875796, 0.05918984, 0.04880096, 0.03786904, 0.02676332, 0.01592385, 0.00647946, 0.00370956, 0.00112514, -0.00046881, -0.00191488, -0.00329201, -0.00470585, -0.00688469, -0.00912202, -0.01720842, -0.02488211, -0.03226730, -0.03908459, -0.04503763, -0.04986836, -0.05338180, -0.05551392, -0.05636585, -0.05605816, -0.05472399, -0.05254383, -0.04969990, -0.04637175, -0.04264894, -0.03859653, -0.03433153, -0.02996944, -0.02560890, -0.02134397, -0.01726049, -0.01343567, -0.00993849, -0.00679919, -0.00402321, -0.00180118, -0.00044469, 0.00000000]
 
@@ -727,7 +725,7 @@ end
 
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, ds=0.005, dt=0.01, wns=20)
     # nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs, nt=[[1, 1, 7], [1, 1, 7], [1, 1, 1, 2, 1, 2, 1], [1, 1, 1, 1, 5]], wnt=[[1, 1, 1], [1, 1, 1]])
-    
+
     S, sc, tc = compliance_matrix(nodes, elements)
     K = inv(S)
 
@@ -796,7 +794,7 @@ end
     # println("K46 = ", round((log10(K[4, 6])/log10(1.430e6) - 1)*100, digits=2), "%")
     # println("K56 = ", round((log10(K[5, 6])/log10(1.209e7) - 1)*100, digits=2), "%")
     # println("K66 = ", round((log10(K[6, 6])/log10(4.406e8) - 1)*100, digits=2), "%")
-    
+
 
     M, mc = mass_matrix(nodes, elements)
     @test isapprox(M[1, 1], 258.053, rtol=0.01)
@@ -815,7 +813,7 @@ end
     Ixy = -M[5, 6]
     theta = 0.5 * atan(2*Ixy / (Iyy - Ixx))
     @test isapprox(theta*180/pi, -1.244, rtol=0.1)
-    
+
 end
 
 
@@ -823,7 +821,7 @@ end
     # Loss of Accuracy Using Smeared Properties in Composite Beam Modeling
     # Ning Liu, Purdue University
     # Uses airfoil from above, but with different property values.
-    
+
     xaf = [1.00000000, 0.99619582, 0.98515158, 0.96764209, 0.94421447, 0.91510964, 0.88074158, 0.84177999, 0.79894110, 0.75297076, 0.70461763, 0.65461515, 0.60366461, 0.55242353, 0.50149950, 0.45144530, 0.40276150, 0.35589801, 0.31131449, 0.26917194, 0.22927064, 0.19167283, 0.15672257, 0.12469599, 0.09585870, 0.07046974, 0.04874337, 0.03081405, 0.01681379, 0.00687971, 0.00143518, 0.00053606, 0.00006572, 0.00001249, 0.00023032, 0.00079945, 0.00170287, 0.00354717, 0.00592084, 0.01810144, 0.03471169, 0.05589286, 0.08132751, 0.11073805, 0.14391397, 0.18067874, 0.22089879, 0.26433734, 0.31062190, 0.35933893, 0.40999990, 0.46204424, 0.51483073, 0.56767889, 0.61998250, 0.67114514, 0.72054815, 0.76758733, 0.81168064, 0.85227225, 0.88883823, 0.92088961, 0.94797259, 0.96977487, 0.98607009, 0.99640466, 1.00000000]
     yaf = [0.00000000, 0.00017047, 0.00100213, 0.00285474, 0.00556001, 0.00906779, 0.01357364, 0.01916802, 0.02580144, 0.03334313, 0.04158593, 0.05026338, 0.05906756, 0.06766426, 0.07571157, 0.08287416, 0.08882939, 0.09329359, 0.09592864, 0.09626763, 0.09424396, 0.09023579, 0.08451656, 0.07727756, 0.06875796, 0.05918984, 0.04880096, 0.03786904, 0.02676332, 0.01592385, 0.00647946, 0.00370956, 0.00112514, -0.00046881, -0.00191488, -0.00329201, -0.00470585, -0.00688469, -0.00912202, -0.01720842, -0.02488211, -0.03226730, -0.03908459, -0.04503763, -0.04986836, -0.05338180, -0.05551392, -0.05636585, -0.05605816, -0.05472399, -0.05254383, -0.04969990, -0.04637175, -0.04264894, -0.03859653, -0.03433153, -0.02996944, -0.02560890, -0.02134397, -0.01726049, -0.01343567, -0.00993849, -0.00679919, -0.00402321, -0.00180118, -0.00044469, 0.00000000]
 
@@ -1054,7 +1052,7 @@ end
     @test isapprox(s22[5], s22interp[5], atol=20.0)
     @test isapprox(s22[6], s22interp[6], atol=20.0)
     @test isapprox(s22[7], s22interp[7], atol=1.0) # close to zero
-    @test isapprox(s22[8], s22interp[8], atol=20.0) 
+    @test isapprox(s22[8], s22interp[8], atol=20.0)
     @test isapprox(s22[9], s22interp[9], atol=20.0)
     @test isapprox(s22[10], s22interp[10], atol=15.0)
     @test isapprox(s22[11], s22interp[11], atol=15.0)
@@ -1070,7 +1068,7 @@ end
     @test isapprox(s12[5], s12interp[5], rtol=0.13)
     @test isapprox(s12[6], s12interp[6], rtol=0.14)
     @test isapprox(s12[7], s12interp[7], atol=1.0) # close to zero
-    @test isapprox(s12[8], s12interp[8], rtol=0.3) 
+    @test isapprox(s12[8], s12interp[8], rtol=0.3)
     @test isapprox(s12[9], s12interp[9], rtol=0.25)
     @test isapprox(s12[10], s12interp[10], rtol=0.2)
     @test isapprox(s12[11], s12interp[11], rtol=0.16)
@@ -1078,7 +1076,7 @@ end
     @test isapprox(s12[13], s12interp[13], rtol=0.1)
     @test isapprox(s12[14], s12interp[14], rtol=0.1)
     @test isapprox(s12[15], s12interp[15], atol=130) # close to zero
-    
+
 end
 
 function sectionwrapper(x)
@@ -1087,7 +1085,7 @@ function sectionwrapper(x)
 
     xaf = TF[1.00000000, 0.99619582, 0.98515158, 0.96764209, 0.94421447, 0.91510964, 0.88074158, 0.84177999, 0.79894110, 0.75297076, 0.70461763, 0.65461515, 0.60366461, 0.55242353, 0.50149950, 0.45144530, 0.40276150, 0.35589801, 0.31131449, 0.26917194, 0.22927064, 0.19167283, 0.15672257, 0.12469599, 0.09585870, 0.07046974, 0.04874337, 0.03081405, 0.01681379, 0.00687971, 0.00143518, 0.00053606, 0.00006572, 0.00001249, 0.00023032, 0.00079945, 0.00170287, 0.00354717, 0.00592084, 0.01810144, 0.03471169, 0.05589286, 0.08132751, 0.11073805, 0.14391397, 0.18067874, 0.22089879, 0.26433734, 0.31062190, 0.35933893, 0.40999990, 0.46204424, 0.51483073, 0.56767889, 0.61998250, 0.67114514, 0.72054815, 0.76758733, 0.81168064, 0.85227225, 0.88883823, 0.92088961, 0.94797259, 0.96977487, 0.98607009, 0.99640466, 1.00000000]
     yaf = TF[0.00000000, 0.00017047, 0.00100213, 0.00285474, 0.00556001, 0.00906779, 0.01357364, 0.01916802, 0.02580144, 0.03334313, 0.04158593, 0.05026338, 0.05906756, 0.06766426, 0.07571157, 0.08287416, 0.08882939, 0.09329359, 0.09592864, 0.09626763, 0.09424396, 0.09023579, 0.08451656, 0.07727756, 0.06875796, 0.05918984, 0.04880096, 0.03786904, 0.02676332, 0.01592385, 0.00647946, 0.00370956, 0.00112514, -0.00046881, -0.00191488, -0.00329201, -0.00470585, -0.00688469, -0.00912202, -0.01720842, -0.02488211, -0.03226730, -0.03908459, -0.04503763, -0.04986836, -0.05338180, -0.05551392, -0.05636585, -0.05605816, -0.05472399, -0.05254383, -0.04969990, -0.04637175, -0.04264894, -0.03859653, -0.03433153, -0.02996944, -0.02560890, -0.02134397, -0.01726049, -0.01343567, -0.00993849, -0.00679919, -0.00402321, -0.00180118, -0.00044469, 0.00000000]
-    
+
     xaf[15] = x[1]
     yaf[15] = x[2]
 
@@ -1127,12 +1125,12 @@ function sectionwrapper(x)
     web = Layer.(mat[idx], t, theta)
 
     segments = [layup1, layup2, layup3, layup4]
-    
+
     webs = [web, web]
 
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs)
-    
-    cache = initialize_cache(nodes, elements, TF, length(x))
+
+    cache = initialize_cache(TF, nodes, elements)
     S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
     M, mc = mass_matrix(nodes, elements)
 
@@ -1145,7 +1143,7 @@ function sectionwrapper_nowebs(x)
 
     xaf = TF[1.00000000, 0.99619582, 0.98515158, 0.96764209, 0.94421447, 0.91510964, 0.88074158, 0.84177999, 0.79894110, 0.75297076, 0.70461763, 0.65461515, 0.60366461, 0.55242353, 0.50149950, 0.45144530, 0.40276150, 0.35589801, 0.31131449, 0.26917194, 0.22927064, 0.19167283, 0.15672257, 0.12469599, 0.09585870, 0.07046974, 0.04874337, 0.03081405, 0.01681379, 0.00687971, 0.00143518, 0.00053606, 0.00006572, 0.00001249, 0.00023032, 0.00079945, 0.00170287, 0.00354717, 0.00592084, 0.01810144, 0.03471169, 0.05589286, 0.08132751, 0.11073805, 0.14391397, 0.18067874, 0.22089879, 0.26433734, 0.31062190, 0.35933893, 0.40999990, 0.46204424, 0.51483073, 0.56767889, 0.61998250, 0.67114514, 0.72054815, 0.76758733, 0.81168064, 0.85227225, 0.88883823, 0.92088961, 0.94797259, 0.96977487, 0.98607009, 0.99640466, 1.00000000]
     yaf = TF[0.00000000, 0.00017047, 0.00100213, 0.00285474, 0.00556001, 0.00906779, 0.01357364, 0.01916802, 0.02580144, 0.03334313, 0.04158593, 0.05026338, 0.05906756, 0.06766426, 0.07571157, 0.08287416, 0.08882939, 0.09329359, 0.09592864, 0.09626763, 0.09424396, 0.09023579, 0.08451656, 0.07727756, 0.06875796, 0.05918984, 0.04880096, 0.03786904, 0.02676332, 0.01592385, 0.00647946, 0.00370956, 0.00112514, -0.00046881, -0.00191488, -0.00329201, -0.00470585, -0.00688469, -0.00912202, -0.01720842, -0.02488211, -0.03226730, -0.03908459, -0.04503763, -0.04986836, -0.05338180, -0.05551392, -0.05636585, -0.05605816, -0.05472399, -0.05254383, -0.04969990, -0.04637175, -0.04264894, -0.03859653, -0.03433153, -0.02996944, -0.02560890, -0.02134397, -0.01726049, -0.01343567, -0.00993849, -0.00679919, -0.00402321, -0.00180118, -0.00044469, 0.00000000]
-    
+
     xaf[15] = x[1]
     yaf[15] = x[2]
 
@@ -1180,12 +1178,12 @@ function sectionwrapper_nowebs(x)
     layup4 = Layer.(mat[idx], t, theta)
 
     segments = [layup1, layup2, layup3, layup4]
-    
+
     webs = []
 
     nodes, elements = afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs)
-    
-    cache = initialize_cache(nodes, elements, TF, length(x))
+
+    cache = initialize_cache(TF, nodes, elements)
     S, sc, tc = compliance_matrix(nodes, elements, cache=cache)
     M, mc = mass_matrix(nodes, elements)
 
@@ -1213,7 +1211,7 @@ end
 
     # should use graph coloring b.c. plenty of sparsity, but dense is fine for purpose of this test.
     xvec = [0.5014995, 0.07571157, 10.30e9, 1.9, 0.0*pi/180, 17*0.00053, 20.0, 38*0.00053, 0.0]
-    
+
     J1 = ForwardDiff.jacobian(sectionwrapper, xvec)
     J2 = FiniteDiff.finite_difference_jacobian(sectionwrapper, xvec, Val{:central})
 
@@ -1224,7 +1222,7 @@ end
 @testset "Jacobian without Webs" begin
 
     xvec = [0.5014995, 0.07571157, 10.30e9, 1.9, 0.0*pi/180, 17*0.00053, 20.0, 38*0.00053, 0.0]
-    
+
     J1 = ForwardDiff.jacobian(sectionwrapper_nowebs, xvec)
     J2 = FiniteDiff.finite_difference_jacobian(sectionwrapper_nowebs, xvec, Val{:central})
 

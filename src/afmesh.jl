@@ -60,13 +60,13 @@ function redistribute_thickness(segments, dt, nt)
         matvec = Material{TF}[]
         tvec = TF[]
         thetavec = TF[]
-        
+
         for j = 1:length(segments[i])
             #extract layer
             layer = segments[i][j]
             # determine number of segments
             if isnothing(nt)
-                nseg = round(Int64, layer.t/dt)  
+                nseg = round(Int64, layer.t/dt)
             else
                 nseg = nt[i][j]
             end
@@ -90,7 +90,7 @@ end
 
 
 """
-convert segments to all have the same number of layers for ease in meshing.  
+convert segments to all have the same number of layers for ease in meshing.
 Overall definition remains consistent, just break up some thicker layers into multiple thinner layers (with same material and orientation properties)
 """
 function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
@@ -100,15 +100,15 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
     # number of segments
     ns = length(segments)
 
-    # repartion thickneses if necessary so that thickness mesh is consistent    
+    # repartion thickneses if necessary so that thickness mesh is consistent
     if !isnothing(dt) || !isnothing(nt)
         segments = redistribute_thickness(segments, dt, nt)
     end
     if !isnothing(dt) || !isnothing(wnt)
         webs = redistribute_thickness(webs, dt, wnt)
     end
-    
-    # determine number of layers in each segment and thickness of each segment 
+
+    # determine number of layers in each segment and thickness of each segment
     nl = vector_ints(ns)
     t = Vector{Vector{TF}}(undef, ns)
     for i = 1:ns
@@ -119,7 +119,7 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
         end
     end
 
-   
+
     # find segment with the most layers
     baseidx = argmax(nl)
     nlayers = nl[baseidx]
@@ -129,10 +129,10 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
 
     for i = 1:ns
         # make all other segments have the same number of layers
-        newsegments[i] = Vector{Layer{TF}}(undef, nlayers)  
+        newsegments[i] = Vector{Layer{TF}}(undef, nlayers)
 
         # check if already has correct number of layers
-        if length(segments[i]) == nlayers  
+        if length(segments[i]) == nlayers
             for j = 1:nlayers
                 newsegments[i][j] = segments[i][j]
             end
@@ -150,7 +150,7 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
             idx = searchsortednearest(tbn, tin[j])
             deleteat!(tbn, idx)
         end
-        
+
         # append remaining values into original and resort
         new_tin = sort([tin; tbn])
 
@@ -166,7 +166,7 @@ function preprocess_layers(segments, webs, dt=nothing, nt=nothing, wnt=nothing)
             seg = segments[i][indices[j]]
             newsegments[i][j] = Layer(seg.material, thickness[j], seg.theta)
         end
-        
+
     end
 
     return newsegments, webs
@@ -178,11 +178,11 @@ add new point xn into existing airfoil coordinates x, y.  Used to ensure breakpo
 assumes x is already sorted (and thus represents either upper or lower half)
 """
 function insertpoint(x, y, xn)
-    
+
     if indexin(xn, x) .== nothing  # element doesn't already exist in array
         idx = searchsortedfirst(x, xn)  # find where to insert
         yn = linear(x, y, xn)  # linear interpolate new y point
-        
+
         # insert new point
         xnew = [x[1:idx-1]; xn; x[idx:end]]
         ynew = [y[1:idx-1]; yn; y[idx:end]]
@@ -204,11 +204,11 @@ If nseg is provided then ds is ignored.
 During optimization either keep mesh fixed, or if changes are needed, then nseg should be used rather than ds to avoid discrete changes.
 """
 function resample(x, y, xbreak, ds, nseg=nothing)
-    
+
     # initialize new airfoil coordinates
     xnew = [0.0]
     ynew = [0.0]
-    
+
     # starting counter
     is = 1
 
@@ -284,7 +284,7 @@ function parseairfoil(xaf, yaf, xbreak, ds, nseg=nothing)
         error("xbreak must end at 1.0")
     end
     # -------------------------------
-    
+
     # --- separate into upper and lower surfaces -----
     # find leading edge
     idx = argmin(xaf)
@@ -331,7 +331,7 @@ end
 
 
 """
-determine tangential direction for each point on airfoil (as a normal vector with magnitudes tx and ty).  
+determine tangential direction for each point on airfoil (as a normal vector with magnitudes tx and ty).
 keyword signifies whether this is the upper or lower surface
 """
 function tangential(x, y; upper=true)
@@ -346,7 +346,7 @@ function tangential(x, y; upper=true)
     # iterate through airfoil (except end points)
     for i = 2:nx-1
         # use central differencing to determine tangential direction
-        dx = x[i+1] - x[i-1]  
+        dx = x[i+1] - x[i-1]
         dy = y[i+1] - y[i-1]
         ds = sqrt(dx^2 + dy^2)
         if upper
@@ -357,19 +357,19 @@ function tangential(x, y; upper=true)
             ty[i] = dx/ds
         end
     end
-    
+
     # tangent to leading always points straight back along chord line
     tx[1] = 1.0
     ty[1] = 0.0
-    
+
     # tangent at last point alwyas point straight down along blunt T.E.
     tx[nx] = 0.0
     if upper
         ty[nx] = -1.0
     else
         ty[nx] = 1.0
-    end 
-    
+    end
+
     return tx, ty
 end
 
@@ -390,7 +390,7 @@ determine curve for inner surface to find intersections at trailing edge and wit
 function find_inner_surface(x, y, tx, ty, segments, xbreak)
 
     TF = promote_type(eltype(x), eltype(y), eltype(tx), eltype(ty))
-    
+
     # initialize
     nx = length(x)
 
@@ -421,7 +421,7 @@ end
 
 
 """
-determine where web intersects the inner surface curves.  
+determine where web intersects the inner surface curves.
 creates a new discretization where points are added to line up with the vertical mesh in the web.
 also returns the x vector index where the web mesh should start
 """
@@ -471,7 +471,7 @@ function web_intersections(xiu, yiu, xu, yu, txu, tyu, chord, webloc_i, web)
     # find locations where to insert these new grid points (remove anything between them)
     idxs = searchsortedlast(xu, xu_web[1])
     idxe = searchsortedfirst(xu, xu_web[end])
-    
+
     # create new grid points (note that other index values could change)
     newxiu = [xiu[1:idxs]; xiu_web; xiu[idxe:end]]
     newyiu = [yiu[1:idxs]; yiu_web; yiu[idxe:end]]
@@ -486,7 +486,7 @@ end
 
 """
 given curves for inner surfaces, find where they intersect (if they intersect), for handling trailing-edge mesh
-returns index of upper and lower surface where the trailing-edge-mesh should start (before intersection).  
+returns index of upper and lower surface where the trailing-edge-mesh should start (before intersection).
 also returns the x, y location of intersection.
 """
 function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
@@ -517,11 +517,11 @@ function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     # 3 and 4 are endpoints of the other line
     x3 = xil[il-1]; y3 = yil[il-1]
     x4 = xil[il]; y4 = yil[il]
-    
+
     # compute point of intersection between the two lines (https://dirask.com/posts/JavaScript-calculate-intersection-point-of-two-lines-for-given-4-points-VjvnAj)
     den = (x1 - x2)*(y3 - y4) - (y1 - y2)*(x3 - x4)
     px = (x1*y2 - y1*x2)*(x3 - x4) - (x1 - x2)*(x3*y4 - y3*x4)
-    py = (x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4)    
+    py = (x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4)
 
     # return point of intersection
     if den != 0
@@ -537,7 +537,7 @@ function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
         return 0.0, 0.0, xu, yu, xl, yl
     end
 
-    
+
 
 end
 
@@ -546,7 +546,7 @@ create nodes and elements for half (upper or lower) portion of airfoil
 """
 function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
     nl = length(segments[1])  # number of layers (same for all segments)
-    
+
     TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(eltype(eltype(segments))), eltype(chord), eltype(x_te), eltype(y_te))
     # initialize
     nxu = length(xu)
@@ -558,7 +558,7 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
         elements_te = 0
     end
     nodesu = Vector{Node{TF}}(undef, nxu * (nl + 1) + nodes_te)
-    elementsu = Vector{MeshElement{Vector{Int},TF}}(undef, (nxu - 1) * nl + elements_te)
+    elementsu = Vector{MeshElement{TF}}(undef, (nxu - 1) * nl + elements_te)
 
     # create nodes
     n = 1
@@ -569,11 +569,11 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
         y = yu[i]
         nodesu[n] = Node(x, y)
         n += 1
-        
+
         # find corresponding segment
         idx = find_segment_idx(xu[i], xbreak)
         layers = segments[idx]
-        
+
         # check if at segment break
         segmentbreak = false
         if x == xbreak[idx+1] && xbreak[idx+1] != chord
@@ -621,7 +621,7 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
 
         for j = 1:nl+1
             njy = nodesu[n - (nl+1) - j].y  # use last row height (could really do either)
-            
+
             frac = (njy - nsy)/(ney - nsy)
             nodesu[n - j] = Node(nsx + frac*(nex-nsx), njy)
         end
@@ -662,10 +662,10 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
     TE = promote_type(eltype(eltype(elementsu)), eltype(eltype(elementsl)))
 
     nt = 1 + nlayers  # number of points across thickness
-    nnu = length(nodesu) 
-    nnl = length(nodesl) 
-    neu = length(elementsu) 
-    nel = length(elementsl) 
+    nnu = length(nodesu)
+    nnl = length(nodesl)
+    neu = length(elementsu)
+    nel = length(elementsl)
     if x_te != 0.0
         nn = nnu + nnl - 2*nt  # number of nodes
         ne = neu + nel  # number of elements
@@ -673,9 +673,9 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
         nn = nnu + nnl - nt  # no shared t.e.
         ne = neu + nel + nlayers
     end
-    
+
     nodes = Vector{Node{TN}}(undef, nn)
-    elements = Vector{MeshElement{Vector{Int},TE}}(undef, ne)
+    elements = Vector{MeshElement{TE}}(undef, ne)
 
     # copy over upper nodes and elements unchanged
     nodes[1:nnu] .= nodesu
@@ -689,7 +689,7 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
 
     # we retain the same number of elements, but the node numbers have changed on the lower surface
     # first nt-1 elements use the node numbers from the upper surface leading edge
-    for i = neu+1:neu+nt-1  
+    for i = neu+1:neu+nt-1
         j = i - neu  # starts at 1
         nodenum = [nnu+j+1; j+1; j; nnu+j]
         elements[i] = MeshElement(nodenum, elementsl[j].material, elementsl[j].theta)
@@ -708,7 +708,7 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
         nodenum = [oldnodenum[2]; oldnodenum[1]; oldnodenum[4]; oldnodenum[3]]  # reorder the old nodenumbers since lower surface is flipped (sttart at bottom left, ccw)
         elements[i] = MeshElement(nodenum, elementsl[j].material, elementsl[j].theta)
     end
-    
+
     # last nt-1 elements use the node numbers from the upper surface trailing edge
     if x_te != 0.0
         for i = neu+nel-(nt-1)+1:neu+nel
@@ -726,7 +726,7 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
             elements[neu+nel+i] = MeshElement(nodenum, elementsu[end-i+1].material, elementsu[end-i+1].theta)
         end
     end
-    
+
     return nodes, elements
 end
 
@@ -736,10 +736,10 @@ and the number of grid points in the webs.
 """
 function addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, nnu, nl, ne_web=4)
     nt = 1 + nl  # number of points across thickness
-    
+
     TN = eltype(eltype(nodes))
     TE = promote_type(eltype(eltype(elements)), eltype(eltype(eltype(webs))))
-    
+
     # find nodes numbers for start of webs
     idx_webu *= nt  # there are nt points per nx index
     idx_webl *= nt
@@ -747,7 +747,7 @@ function addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, nnu, nl, ne_
 
     # initialize sizes of nodes and elements for web
     web_nodes = Vector{Node{TN}}(undef, (ne_web-1)*sum(nx_web))
-    web_elements = Vector{MeshElement{Vector{Int},TE}}(undef, ne_web*sum(nx_web .- 1))
+    web_elements = Vector{MeshElement{TE}}(undef, ne_web*sum(nx_web .- 1))
     nn = length(nodes)
     n_web = 1
     e_web = 1
@@ -784,7 +784,7 @@ function addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, nnu, nl, ne_
             end
         end
     end
-    
+
     # concatenate
     nodes = [nodes; web_nodes]
     elements = [elements; web_elements]
@@ -811,14 +811,14 @@ in the normal direction, using the number of grid points as defined by segment w
 - `webs::Vector{Vector{Layer}}`: same structure as segments, except each inner vector is from left to right (although this is usually symmetric), and each outer vector is for a separate web
 - `ds::float`: if provided, airfoil spacing will be resampling with approximately this spacing, normalized by chord.  e.g., 0.01 will have points on the airfoil roughly 1% chord apart.
 - `dt::float`: if provided, thickness will be resampled with this maximum mesh size (thickness is absolute). Note that the total number of cells remains constant along airfoil, so most thicknesses will be much less.  e.g., 0.01 will target a maximum mesh thickness of 0.01 (absolute).
-- `ns::vector{int}`: if provided, rather than use a targert size ds, we specify the number of cells to use in each segment.  This is desirable for gradient-based optimization, if airfoil coordinates are changed, so that during resizing operations the  mesh stretch/shrinks rather than experiencing discrete jumps.  For example, ns=[15, 20, 40, 30] would use 15 elements between xbreak[1] and xbreak[2] and so on.  
+- `ns::vector{int}`: if provided, rather than use a targert size ds, we specify the number of cells to use in each segment.  This is desirable for gradient-based optimization, if airfoil coordinates are changed, so that during resizing operations the  mesh stretch/shrinks rather than experiencing discrete jumps.  For example, ns=[15, 20, 40, 30] would use 15 elements between xbreak[1] and xbreak[2] and so on.
 - `nt::vector{vector{int}}`: if provided, defines how many elements to use across tangential direction.  Again, prefered over dt for gradient-based optimization, if the thicknesses are changed during optimization.  each entry defines how many cells to put in that layer following order of original layup.  for example, nt=[[1, 2, 1], [1, 3]] would use 1 element, 2 elements (subdivide), then 1 elements over first sector, and so on.
 - `wns::int`: discretization level for number of elements vertically along web.
 - `wnt::vector{vector{int}}`: same definition as nt but for the webs
 
 **Returns**
 - `nodes::Vector{Node{Float64}}`: nodes for this mesh
-- `elements::Vector{MeshElement{Vector{Int},Float64}}`: elements for this mesh
+- `elements::Vector{MeshElement{Float64}}`: elements for this mesh
 """
 function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, wns=4, wnt=nothing)
 
@@ -858,7 +858,7 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     x_te, y_te, xu, yu, xl, yl = te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     # -----------------------------------------------------------------
 
-    # ------------------ build mesh --------------------    
+    # ------------------ build mesh --------------------
     nodesu, elementsu = nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
     nodesl, elementsl = nodes_half(xl, yl, txl, tyl, xbreak, segments, chord, x_te, y_te)
 
@@ -869,7 +869,7 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
         nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, wns)
     end
     # -----------------------------------
-    
+
     # ------ rotate with twist -------
     c = cos(twist)
     s = sin(twist)
@@ -883,4 +883,3 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
 
     return nodes, elements
 end
-
