@@ -969,7 +969,7 @@ function strain_recovery(F, M, nodes, elements, cache)
         epsilon_p[:, i] .= Ttheta' * Tbeta' * epsilon_b[:, i]
 
         # corresponding stresses
-        Q = stiffness(element.material)
+        Q = stiffness(material)
         sigma_p[:, i] .= Q * epsilon_p[:, i]
 
         # reorder to a more conventional order
