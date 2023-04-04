@@ -920,7 +920,7 @@ Compute stresses and strains at each element in cross section.
 function strain_recovery(F, M, nodes, elements, cache)
 
     # initialize outputs
-    T = promote_type(eltype(F), eltype(M), eltype(cache.X))
+    T = promote_type(eltype(F), eltype(M))
     ne = length(elements)
     epsilon_b = Matrix{T}(undef, 6, ne)
     sigma_b = Matrix{T}(undef, 6, ne)
@@ -928,7 +928,10 @@ function strain_recovery(F, M, nodes, elements, cache)
     sigma_p = Matrix{T}(undef, 6, ne)
 
     # concatenate forces/moments
-    theta = SVector{6}([F; M])
+    theta = vcat(SVector{3}(F), SVector{3}(M))
+
+    # indices into global matrices
+    idx = cache.idx
 
     # save reordering index
     idx_b = [1, 2, 6, 3, 4, 5]   # xx, yy, zz, xy, xz, yz
@@ -939,14 +942,18 @@ function strain_recovery(F, M, nodes, elements, cache)
 
         # analyze this element
         element = elements[i]
+        nodenum = element.nodenum
+        material = element.material
+        theta = element.theta
+        element_nodes = nodes[nodenum]
 
         # compute submatrices SZ, BN, SN (evaluated at center of element)
-        Q, J, SZ, SN, BN = element_matrices(0.0, 0.0, element, nodes[element.nodenum])
+        Q, J, SZ, SN, BN = element_matrices(0.0, 0.0, element, element_nodes)
 
         # extract part of solution corresponding to this element
-        node2idx!(cache.idx, element.nodenum)
-        Xe = SMatrix{12,6}(view(cache.X, cache.idx, :))
-        dXe = SMatrix{12,6}(view(cache.dX, cache.idx, :))
+        node2idx!(idx, nodenum)
+        Xe = SMatrix{12,6}(view(cache.X, idx, :))
+        dXe = SMatrix{12,6}(view(cache.dX, idx, :))
         Y = SMatrix{6,6}(cache.Y)
 
         # element strains in beam reference frame
@@ -956,8 +963,8 @@ function strain_recovery(F, M, nodes, elements, cache)
         sigma_b[:, i] .= Q * epsilon_b[:, i]
 
         # element strains in ply reference frame
-        cbeta, sbeta = element_orientation(nodes)
-        Ttheta = get_Ttheta(element.theta)
+        cbeta, sbeta = element_orientation(element_nodes)
+        Ttheta = get_Ttheta(theta)
         Tbeta = get_Tbeta(cbeta, sbeta)
         epsilon_p[:, i] .= Ttheta' * Tbeta' * epsilon_b[:, i]
 
