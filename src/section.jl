@@ -944,7 +944,6 @@ function strain_recovery(F, M, nodes, elements, cache)
         element = elements[i]
         nodenum = element.nodenum
         material = element.material
-        theta = element.theta
         element_nodes = nodes[nodenum]
 
         # compute submatrices SZ, BN, SN (evaluated at center of element)
@@ -964,7 +963,7 @@ function strain_recovery(F, M, nodes, elements, cache)
 
         # element strains in ply reference frame
         cbeta, sbeta = element_orientation(element_nodes)
-        Ttheta = get_Ttheta(theta)
+        Ttheta = get_Ttheta(element.theta)
         Tbeta = get_Tbeta(cbeta, sbeta)
         epsilon_p[:, i] .= Ttheta' * Tbeta' * epsilon_b[:, i]
 
