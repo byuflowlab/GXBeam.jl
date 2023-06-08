@@ -565,7 +565,7 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
 
     F = [0.0; 0; 0]
     M = [-1000.0; 0; 0]
-    epsilon_b, sigma_b, epsilon_p, sigma_p = strain_recovery(F, M, nodes, elements, cache)
+    epsilon_b, sigma_b, epsilon_p, sigma_p = strain_recovery(F, M, nodes, elements, cache; gxbeam_order=false)
 
     # using PyPlot
     # pygui(true); close("all")
@@ -884,7 +884,7 @@ end
 
     F = [0.0; 0; 0]
     M = [0.0; 0; 1e6]
-    epsilon_b, sigma_b, epsilon_p, sigma_p = strain_recovery(F, M, nodes, elements, cache)
+    epsilon_b, sigma_b, epsilon_p, sigma_p = strain_recovery(F, M, nodes, elements, cache; gxbeam_order=false)
 
     idx = 585:-1:571
     n = length(idx)

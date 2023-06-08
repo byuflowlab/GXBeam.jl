@@ -899,7 +899,7 @@ end
 
 
 """
-    strain_recovery(F, M, nodes, elements, cache; gxbeam_order=false)
+    strain_recovery(F, M, nodes, elements, cache; gxbeam_order=true)
 
 Compute stresses and strains at each element in cross section.
 
@@ -912,7 +912,7 @@ Compute stresses and strains at each element in cross section.
     (thus must initialize cache and pass it to both compliance and this function)
 
 # Keyword Arguments
-- `gxbeam_order=false::Bool`: if true, `F`` and `M` are assumed to be in the 
+- `gxbeam_order=true::Bool`: if true, `F`` and `M` are assumed to be in the 
     local beam axis used by GXBeam (where the beam extends along the x-axis). This
     also returns beam stresses and strains in the axis order set by GXBeam 
     (e.g. axial stresses would correspond to the `xx` direction, or first index).
@@ -925,7 +925,7 @@ Compute stresses and strains at each element in cross section.
 - `strain_p::Vector(6, ne)`: strains in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
 - `stress_p::Vector(6, ne)`: stresses in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23
 """
-function strain_recovery(F, M, nodes, elements, cache; gxbeam_order=false)
+function strain_recovery(F, M, nodes, elements, cache; gxbeam_order=true)
 
     # initialize outputs
     T = promote_type(eltype(F), eltype(M))
@@ -940,7 +940,7 @@ function strain_recovery(F, M, nodes, elements, cache; gxbeam_order=false)
         new_idxs = [2,3,1]
         theta = vcat(SVector{3}(F[new_idxs]), SVector{3}(M[new_idxs])) # convert input loads from GXBeam local frame to stress recovery local frame
     else
-    theta = vcat(SVector{3}(F), SVector{3}(M))
+        theta = vcat(SVector{3}(F), SVector{3}(M))
     end
 
     # indices into global matrices
