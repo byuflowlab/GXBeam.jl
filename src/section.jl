@@ -639,7 +639,7 @@ Compute compliance matrix given a finite element mesh described by nodes and ele
     straight)
 """
 function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elements),
-    gxbeam_order=true, shear_center=gxbeam_order)
+    gxbeam_order=true, shear_center=true)
 
     # problem dimensions
     ne = length(elements) # number of elements
@@ -766,8 +766,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
     sc = [xs, ys]
     tc = [xt, yt]
 
-    # --- Change Ordering to Match GXBeam --- #
-
+    # compute properties about shear center
     if shear_center
         P = [0 0 ys; 0 0 -xs; -ys xs 0]
         Hinv = [I transpose(P); zeros(3, 3) I]
@@ -775,6 +774,7 @@ function compliance_matrix(nodes, elements; cache=initialize_cache(nodes, elemen
         S = Hinv * S * HinvT
     end
 
+    # --- Change Ordering to Match GXBeam --- #
     if gxbeam_order
         S = reorder(S)
     end
@@ -912,14 +912,14 @@ Compute stresses and strains at each element in cross section.
     (thus must initialize cache and pass it to both compliance and this function)
 
 # Keyword Arguments
-- `gxbeam_order=true::Bool`: if true, `F`` and `M` are assumed to be in the 
+- `gxbeam_order=true::Bool`: if true, `F`` and `M` are assumed to be in the
     local beam axis used by GXBeam (where the beam extends along the x-axis). This
-    also returns beam stresses and strains in the axis order set by GXBeam 
+    also returns beam stresses and strains in the axis order set by GXBeam
     (e.g. axial stresses would correspond to the `xx` direction, or first index).
 
 # Returns
 - `strain_b::Vector(6, ne)`: strains in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
-    Note: this order (as well as those below) corresponds to the local beam reference frame if `gxbeam_order` 
+    Note: this order (as well as those below) corresponds to the local beam reference frame if `gxbeam_order`
     is set to `true`.
 - `stress_b::Vector(6, ne)`: stresses in beam coordinate system for each element. order: xx, yy, zz, xy, xz, yz
 - `strain_p::Vector(6, ne)`: strains in ply coordinate system for each element. order: 11, 22, 33, 12, 13, 23

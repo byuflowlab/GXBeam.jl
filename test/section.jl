@@ -68,7 +68,7 @@ end
 
     end
 
-    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false, shear_center=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 3.4899e-1, atol=0.0001e-1)
@@ -102,7 +102,7 @@ end
     end
 
 
-    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false, shear_center=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 1.28e-1, atol=0.01e-1)
@@ -128,7 +128,7 @@ end
         end
     end
 
-    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false, shear_center=false)
     K = inv(S)
     @test isapprox(K[1, 1], 5.039E-01, atol=0.001e-1)
     @test isapprox(K[2, 2], 4.201E-01, atol=0.001e-1)
@@ -148,7 +148,7 @@ end
         end
     end
 
-    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false, shear_center=false)
     K = inv(S)
     @test isapprox(K[1, 1], 7.598E-01, atol=0.001e-1)
     @test isapprox(K[2, 2], 4.129E-01, atol=0.001e-1)
@@ -170,7 +170,7 @@ end
         end
     end
 
-    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false, shear_center=false)
     K = inv(S)
     @test isapprox(K[1, 1], 5.0202E-01, atol=0.0001e-1)
     @test isapprox(K[2, 2], 5.0406E-01, atol=0.0001e-1)
@@ -226,7 +226,7 @@ end
 
     # plotmesh(nodes, elements)
 
-    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false, shear_center=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 1.249E-01, atol=0.001e-1/2)
@@ -271,7 +271,7 @@ end
 
     # plotmesh(nodes, elements)
 
-    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false)
+    S, sc, tc = compliance_matrix(nodes, elements, gxbeam_order=false, shear_center=false)
     K = inv(S)
 
     @test isapprox(K[1, 1], 4.964E-02, atol=0.002e-2)
@@ -1084,7 +1084,7 @@ end
     # Simple cantilever beam with tip load
     beam_length = 1.0
     num_beam_elements = 10
-    
+
     # define material - aluminum
     E1 = 70e9
     E2 = 70e9
@@ -1096,65 +1096,65 @@ end
     nu13 = 0.3
     nu23 = 0.3
     rho = 2.7e3
-    
-    material = GXBeam.Material(E1, E2, E3, G12, G13, G23, 
+
+    material = GXBeam.Material(E1, E2, E3, G12, G13, G23,
                                     nu12, nu13, nu23, rho)
-    
+
     # model square cross section mesh
-    nx = 20 
-    ny = 20 
-    
+    nx = 20
+    ny = 20
+
     xs = range(0.0, stop=beam_length/10, length=nx+1)
     ys = range(0.0, stop=beam_length/10, length=ny+1)
-    
+
     nodes = [GXBeam.Node(xs[i], ys[j]) for j in 1:ny+1 for i in 1:nx+1]
     elements = [GXBeam.MeshElement([i+(j-1)*(nx+1),
                                     i+1+(j-1)*(nx+1),
                                     nx+2+i+(j-1)*(nx+1),
-                                    nx+1+i+(j-1)*(nx+1)], material, 0.0) 
+                                    nx+1+i+(j-1)*(nx+1)], material, 0.0)
                 for i in 1:nx for j in 1:ny]
-    
+
     # get compliance, mass matrices
     cache = initialize_cache(nodes, elements)
-    compliance = [GXBeam.compliance_matrix(nodes, elements; cache, gxbeam_order=true, shear_center=false)[1] 
+    compliance = [GXBeam.compliance_matrix(nodes, elements; cache, gxbeam_order=true, shear_center=false)[1]
                     for i in 1:num_beam_elements]
     mass = [GXBeam.mass_matrix(nodes, elements)[1] for i in 1:num_beam_elements]
-    
+
     # model cantilever beam in GXBeam
     xb = range(0.0, stop=beam_length, length=num_beam_elements+1)
     yb = zero(xb)
     zb = zero(xb)
     points = [[xb[i],yb[i],zb[i]] for i = 1:lastindex(xb)]
-    
+
     start = 1:num_beam_elements
     stop = 2:num_beam_elements+1
-    
+
     assembly = GXBeam.Assembly(points, start, stop; compliance, mass)
-    
+
     # apply a point load at the tip
     Fx = 0.0
     Fy = 0.0
     Fz = -3.0
-    
+
     prescribed_conditions = Dict(
         1 => GXBeam.PrescribedConditions(ux=0, uy=0, uz=0, theta_x=0, theta_y=0, theta_z=0),
         num_beam_elements+1 => GXBeam.PrescribedConditions(Fx=Fx, Fy=Fy, Fz=Fz)
         )
-    
+
     #solve GXBeam
     system, state, converged = static_analysis(assembly;
                                                 prescribed_conditions,
                                                 linear=true)
-    
+
     # internal reaction loads at beam root
     F_GXBeam = -state.points[1].F
     M_GXBeam = -state.points[1].M
-    
+
     # run GXBeam strain recovery
-    strain_beam, stress_beam, 
-        strain_ply, stress_ply = GXBeam.strain_recovery(F_GXBeam, M_GXBeam, nodes, elements, cache; 
+    strain_beam, stress_beam,
+        strain_ply, stress_ply = GXBeam.strain_recovery(F_GXBeam, M_GXBeam, nodes, elements, cache;
                                                         gxbeam_order=true)
-    
+
     #strains
     @test isapprox(strain_beam[1,1], -2.44191e-7, rtol=1e-4) #axial strain is in the first row now to match GXBeam coordinate system
     @test isapprox(strain_beam[1,400], 2.44191e-7, rtol=1e-4)
@@ -1163,7 +1163,7 @@ end
     @test isapprox(strain_beam[4,2], -1.51972e-8, rtol=1e-4)
     @test isapprox(strain_beam[5,5], -1.03921e-11, rtol=1e-4)
     @test isapprox(strain_beam[6,1], 4.22068e-9, rtol=1e-4)
-    
+
     #stresses
     @test isapprox(stress_beam[1,1], -17090.9, rtol=1e-4) #axial stress is in the first row now to match GXBeam coordinate system
     @test isapprox(stress_beam[1,400], 17090.9, rtol=1e-4)
@@ -1172,7 +1172,7 @@ end
     @test isapprox(stress_beam[4,2], -410.326, rtol=1e-4)
     @test isapprox(stress_beam[5,5], -0.280588, rtol=1e-4)
     @test isapprox(stress_beam[6,1], 113.958, rtol=1e-4)
-    
+
     end
 
 function sectionwrapper(x)
