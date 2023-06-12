@@ -642,7 +642,7 @@ function steady_output!(system, x, p, constants)
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
 
     # initialize state rate vector (if necessary)
-    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : zero(x)
+    dx = typeof(system.dx) <: typeof(x) ? system.dx .= 0 : zeros(eltype(x), length(x))
 
     # extract body frame accelerations
     ab, αb = body_accelerations(x, indices.icol_body, ab_p, αb_p)
@@ -1446,7 +1446,7 @@ function eigenvalue_analysis!(system, assembly;
         # find the left eigenvector corresponding to each right eigenvector
         Uv = left_eigenvectors(Kv, Mv, λv, Vv)
 
-        # propagate partial derivatives: λdot = transpose(ui)*(Kdot + Mdot*λi)*vi
+        # propagate partial derivatives: λdot = -transpose(ui)*(Kdot + Mdot*λi)*vi
         λ = similar(λv, complex(eltype(x)))
         for iλ = 1:length(λ)
             λi = λv[iλ]
@@ -1454,7 +1454,7 @@ function eigenvalue_analysis!(system, assembly;
             vi = view(Vv, :, iλ)
             # NOTE: Since `ui*(K + M*λi)*vi = 0` we can augment the primal values `λi`
             # with the analytically derivatived sensitivities by adding `ui*(K + M*λi)*vi`
-            λ[iλ] = λi + ui*(K + M*λi)*vi
+            λ[iλ] = λi - ui*(K + M*λi)*vi
         end
 
         # ignore sensitivities associated with V
@@ -1476,7 +1476,7 @@ function eigenvalue_analysis!(system, assembly;
 end
 
 # combines constant and variable parameters for an eigenvalue analysis
-function eigenvalue_parameters(x, p, constants)
+function eigenvalue_parameters(p, constants)
     # extract state vector
     nx = constants.indices.nstates
     x = view(p, 1:nx)
