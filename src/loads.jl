@@ -525,7 +525,7 @@ Combine the point masses in the iterable collection `masses`
 function combine_masses(masses)
     M = @SMatrix zeros(6,6)
     for mass in masses
-        M += mass.M
+        M += mass.mass
     end
     return PointMass(M)
 end
