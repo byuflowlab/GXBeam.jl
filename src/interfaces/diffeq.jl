@@ -236,7 +236,7 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
         # mass matrix (constant mass matrix system)
         TF = eltype(system)
         nx = indices.nstates
-        mass_matrix = spzeros(TF, nx, nx)
+        mass_matrix = zeros(TF, nx, nx)
         expanded_mass_matrix!(mass_matrix, p, constants)
         mass_matrix .*= -1
 
