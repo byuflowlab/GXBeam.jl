@@ -705,6 +705,8 @@ analysis initialization.
     # forces and moments
     F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, prescribed_conditions)
 
+    # @show typeof(assembly.points) #Note: At some point the whole assembly's memory is getting reallocated. 
+
     # distance from the rotation center
     Δx = assembly.points[ipoint]
 
@@ -718,6 +720,12 @@ analysis initialization.
     gvec = SVector{3}(gravity)
 
     # relative velocity
+    # @show typeof(V0[ipoint])
+    # @show typeof(vb)
+    # @show typeof(ωb)
+    # @show typeof(Δx) #This is the only dual. 
+    # @show typeof(u)
+
     V = SVector{3}(V0[ipoint])
     Ω = SVector{3}(Ω0[ipoint])
 
@@ -1049,6 +1057,15 @@ corresponding to a point for a Newmark scheme time marching analysis
 
     # linear and angular velocity (including body frame motion)
     V_u = tilde(ωb)
+
+    # @show typeof(C_θ1)
+    # @show typeof(C_θ2)
+    # @show typeof(C_θ3)
+    # @show typeof(mass11)
+    # @show typeof(C)
+    # @show typeof(V) #This is the only dual. 
+    # @show typeof(mass12)
+    # @show typeof(Ω)
 
     # linear and angular momentum
     P_u = C'*mass11*C*V_u
@@ -1556,6 +1573,11 @@ of a time domain analysis.
 
     @unpack F_θ, M_θ = jacobians
 
+    # @show typeof(F_θ) #False, this was a dual as well. 
+    # @show typeof(ωb) #This is the only one that isn't a dual. 
+    # @show typeof(P_θ)
+    # @show typeof(Pdot_θ)
+
     # add loads due to linear and angular momentum
     F_ab = -Pdot_ab
     F_αb = -Pdot_αb
@@ -1861,6 +1883,13 @@ time domain analysis into the system jacobian matrix.
 
     irow = indices.irow_point[ipoint]
     icol = indices.icol_point[ipoint]
+
+    # @show typeof(F_θ) #Note: Everything else is a float, and this is a dual. 
+    # @show typeof(θ_θ)
+    # @show typeof(force_scaling)
+    # @show typeof(F_Ωdot)
+    # @show typeof(Ωdot_Ωdot)
+    # println("")
 
     jacob[irow:irow+2, icol:icol+2] .= -F_F .- F_u*u_u ./ force_scaling .- F_Vdot*Vdot_Vdot ./ force_scaling
     jacob[irow:irow+2, icol+3:icol+5] .= -F_θ*θ_θ ./ force_scaling .- F_Ωdot*Ωdot_Ωdot ./ force_scaling
@@ -2377,14 +2406,28 @@ of a time domain analysis into the system jacobian matrix.
     linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
     u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
+    # @show typeof(u0) #All floats
+    # @show typeof(θ0)
+    # @show typeof(V0)
+    # @show typeof(Ω0)
+    # @show typeof(Vdot0)
+    # @show typeof(Ωdot0)
+
     properties = initial_point_properties(x, indices, rate_vars,
         force_scaling, assembly, ipoint, prescribed_conditions, point_masses, gravity,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
         u0, θ0, V0, Ω0, Vdot0, Ωdot0)
 
+    # @show typeof(properties.P_θ)
+
+    #Dual is getting introduced in this function. 
     properties = initial_point_jacobian_properties(properties, x, indices,
         rate_vars, force_scaling, assembly, ipoint, prescribed_conditions,
         point_masses, gravity, u0, θ0, V0, Ω0, Vdot0, Ωdot0)
+
+    # @show keys(properties)
+    # @show typeof(properties.P_θ) #Note: P_0 should be here. 
+
 
     resultants = initial_point_resultant_jacobians(properties)
 

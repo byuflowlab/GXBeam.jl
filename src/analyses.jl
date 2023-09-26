@@ -1942,6 +1942,8 @@ function initial_parameters(x, p, constants)
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
         xpfunc, pfunc, t = constants
 
+    # @show typeof(assembly)
+
     # also unpack initial conditions
     @unpack u0, theta0, V0, Omega0, Vdot0, Omegadot0 = constants
 
@@ -1977,6 +1979,8 @@ function initial_parameters(x, p, constants)
 
     # update body acceleration frame indices
     update_body_acceleration_indices!(constants.indices, pcond)
+
+    # @show typeof(assembly)
 
     return assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0,
         V0, Omega0, Vdot0, Omegadot0
@@ -2043,6 +2047,8 @@ function initial_jacobian!(jacob, x, p, constants)
 
     # update acceleration state variable indices
     update_body_acceleration_indices!(indices, pcond)
+
+    # @show typeof(assembly)
 
     # compute and return the jacobian
     return initial_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2, two_dimensional,
@@ -2324,6 +2330,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # initialize convergence flag
     converged = Ref(converged)
 
+
     # package up keyword arguments corresponding to this analysis
     constants = (;
         # assembly, indices, control flags, parameter function, current time, and time step
@@ -2338,9 +2345,9 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     )
 
     # --- Process the Initial States --- #
-
     # construct initial state and rate vector
     x0, dx0 = newmark_state_vector(system, initial_state, p, constants)
+
 
     # current state and rate vector is the initial state and rate vector
     x = x0
@@ -2349,6 +2356,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # also update the state and rate variables in system.x
     dual_safe_copy!(system.x, x)
     dual_safe_copy!(system.dx, dx)
+
 
     # --- Initialize Time-Domain Solution --- #
 
@@ -2383,6 +2391,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         # current time step size
         dt = tvec[it] - tvec[it-1]
 
+
         # print the current time
         if show_trace
             println("Solving for t=$t")
@@ -2403,22 +2412,27 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         for ipoint = 1:length(assembly.points)
             # index into parameter vector
             irate = 12 * (ipoint - 1)
+
             # extract state variables
             u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
             V, Ω = point_velocities(x, indices.icol_point[ipoint])
+
             # extract rate variables
             if it <= 2
                 udot = initial_state.points[ipoint].udot
                 θdot = initial_state.points[ipoint].thetadot
                 Vdot = initial_state.points[ipoint].Vdot
                 Ωdot = initial_state.points[ipoint].Omegadot
+
             else
                 dtprev = tvec[it-1] - tvec[it-2]
+                
                 udot = 2/dtprev*u - SVector(paug[irate+1], paug[irate+2], paug[irate+3])
                 θdot = 2/dtprev*θ - SVector(paug[irate+4], paug[irate+5], paug[irate+6])
                 Vdot = 2/dtprev*V - SVector(paug[irate+7], paug[irate+8], paug[irate+9])
                 Ωdot = 2/dtprev*Ω - SVector(paug[irate+10], paug[irate+11], paug[irate+12])
             end
+
             # store initialization terms in the parameter vector
             paug[irate+1:irate+3] = 2/dt*u + udot
             paug[irate+4:irate+6] = 2/dt*θ + θdot
@@ -2434,6 +2448,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
                 else
                     x = newmark_matrixfree_lsolve!(x, paug, constants)
                 end
+
             else
                 if isnothing(xpfunc)
                     x = newmark_lsolve!(x0, paug, constants)
@@ -2441,14 +2456,17 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
                     x = newmark_matrixfree_lsolve!(x0, paug, constants)
                 end
             end
+
         else
             if isnothing(xpfunc)
                 x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
+
             else
                 x = ImplicitAD.implicit(newmark_matrixfree_nlsolve!, newmark_residual!, paug, constants; drdy=matrixfree_jacobian)
             end
         end
 
+        
         # add state to history
         if it in save
             history[isave] = newmark_output(system, x, paug, constants)
@@ -2471,6 +2489,255 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
 
     return system, history, converged[]
 end
+
+"""
+    take_step!(system::DynamicSystem, history, assembly, t, dt, isave)
+
+    Take a step in time-domain analysis for the system of nonlinear beams contained in
+    `assembly` using the time vector `tvec`.  Return the final system, a post-processed
+    solution history, and a convergence flag indicating whether the iteration procedure
+    converged for every time step.
+    
+    # General Keyword Arguments
+     - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
+            A dictionary with keys corresponding to the points at
+            which prescribed conditions are applied and values of type
+            [`PrescribedConditions`](@ref) which describe the prescribed conditions
+            at those points.  If time varying, this input may be provided as a
+            function of time.
+     - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
+            with keys corresponding to the elements to which distributed loads are
+            applied and values of type [`DistributedLoads`](@ref) which describe
+            the distributed loads on those elements.  If time varying, this input may
+            be provided as a function of time.
+     - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys
+            corresponding to the points to which point masses are attached and values
+            of type [`PointMass`](@ref) which contain the properties of the attached
+            point masses.  If time varying, this input may be provided as a function of time.
+     - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame.
+     - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame.
+     - `linear_acceleration = zeros(3)`: Initial linear acceleration of the body frame.
+     - `angular_acceleration = zeros(3)`: Initial angular acceleration of the body frame.
+     - `gravity = [0,0,0]`: Gravity vector in the body frame.  If time varying, this input
+            may be provided as a function of time.
+    
+     # Control Flag Keyword Arguments
+     - `reset_state = true`: Flag indicating whether the system state variables should be
+            set to zero prior to performing this analysis.
+     - `initial_state = nothing`: Object of type `AssemblyState`, which defines the initial
+            states and state rates corresponding to the analysis.  By default, this input is
+            calculated using either `steady_state_analysis` or `initial_condition_analysis`.
+     - `steady_state = false`: Flag indicating whether to compute the state variables
+            corresponding to the keyword argument `initial_state` using `steady_state_analysis`
+            (rather than `initial_condition_analysis`).
+     - `structural_damping = true`: Flag indicating whether to enable structural damping
+     - `linear = false`: Flag indicating whether a linear analysis should be performed.
+     - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
+     - `show_trace = false`: Flag indicating whether to display the solution progress.
+     - `save = eachindex(tvec)`: Steps at which to save the time history
+    
+     # Initial Condition Analysis Arguments
+     - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of
+            each point in the body frame
+     - `theta0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement of
+            each point in the body frame (using Wiener-Milenkovic Parameters)
+     - `V0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity of
+            each point in the body frame **excluding contributions from body frame motion**
+     - `Omega0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity of
+            each point in the body frame **excluding contributions from body frame motion**
+     - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear acceleration of
+            each point in the body frame **excluding contributions from body frame motion**
+     - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular acceleration of
+            each point in the body frame **excluding contributions from body frame motion**
+    
+     # Linear Analysis Keyword Arguments
+     - `update_linearization = false`: Flag indicating whether to update the linearization state
+            variables for a linear analysis with the instantaneous state variables. If `false`,
+            then the initial set of state variables will be used for the linearization.
+    
+     # Nonlinear Analysis Keyword Arguments
+     - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
+     - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve
+            nonlinear systems of equations
+     - `ftol = 1e-9`: tolerance for solving the nonlinear system of equations
+     - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
+    
+    # Sensitivity Analysis Keyword Arguments
+     - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
+            defined as a function of GXBeam's state variables.  Using this function forces
+            the system jacobian to be computed using automatic differentiation and switches
+            the nonlinear solver to a Newton-Krylov solver (with linesearch).
+     - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
+            to updated versions of the arguments `assembly`, `prescribed_conditions`,
+            `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`,
+            `linear_acceleration`, `angular_acceleration`, `gravity`, `u0`, `theta0`, `V0`,
+            `Omega0`, `Vdot0`, and `Omegadot0`. Only fields contained in the resulting named
+            tuple will be overwritten.
+     - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
+            While not necessary, using `pfunc` and `p` to define the arguments to this function
+            allows automatic differentiation sensitivities to be computed more efficiently
+"""
+function take_step(system::DynamicSystem, old_state, constants, paug;
+    # general keyword arguments
+    # prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    # distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    # point_masses=Dict{Int,PointMass{Float64}}(),
+    # linear_velocity=(@SVector zeros(3)),
+    # angular_velocity=(@SVector zeros(3)),
+    # linear_acceleration=(@SVector zeros(3)),
+    # angular_acceleration=(@SVector zeros(3)),
+    # gravity=(@SVector zeros(3)),
+    # control flag keyword arguments
+    # reset_state=true,
+    # initial_state=nothing,
+    # steady_state=false,
+    # structural_damping=true,
+    linear=false,
+    # two_dimensional=false,
+    # show_trace=false,
+    # initial condition analysis keyword arguments
+    # u0=fill((@SVector zeros(3)), length(assembly.points)),
+    # theta0=fill((@SVector zeros(3)), length(assembly.points)),
+    # V0=fill((@SVector zeros(3)), length(assembly.points)),
+    # Omega0=fill((@SVector zeros(3)), length(assembly.points)),
+    # Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
+    # Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
+    # linear analysis keyword arguments
+    update_linearization=false,
+    # nonlinear analysis keyword arguments
+    # method=:newton,
+    # linesearch=LineSearches.BackTracking(maxstep=1e6),
+    # ftol=1e-9,
+    # iterations=1000,
+    # sensitivity analysis keyword arguments
+    # xpfunc = nothing,
+    # pfunc = (p, t) -> (;),
+    # p = nothing,
+    )
+    #TODO: Maybe this function should operate off of x, and dx (skip the newmark_state_vector function at the beginning and end of the function.)
+
+    # --- Find the Initial States and Rates --- #  
+    # converged by default
+    converged = true
+
+    t = constants.t
+    dt = constants.dt
+    dtprev = constants.dtprev
+
+    # --- Initialize Analysis --- #
+    # unpack force scaling parameter and system indices
+    @unpack force_scaling, indices = system
+
+    # update the system time
+    system.t = t
+
+    # initialize convergence flag
+    converged = Ref(converged)
+
+
+    # --- Process the Initial States --- #
+    # construct initial state and rate vector
+    x0, dx0 = newmark_state_vector(system, old_state, constants.p, constants) #Note: This allocates. 
+
+    # current state and rate vector is the initial state and rate vector
+    x = x0
+    dx = dx0
+
+
+    # also update the state and rate variables in system.x
+    dual_safe_copy!(system.x, x)
+    dual_safe_copy!(system.dx, dx)
+
+
+    # --- Begin Time Stepping --- #
+
+    # print the current time
+    if constants.show_trace
+        println("Solving for t=$t")
+    end
+
+
+    # get updated prescribed conditions
+    parameters = isnothing(constants.xpfunc) ? constants.pfunc(constants.p, t) : constants.xpfunc(x, constants.p, t)
+    pcond = get(parameters, :prescribed_conditions, constants.prescribed_conditions)
+    pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
+
+    ### update parameter vector with new initialization terms
+    for ipoint = 1:length(constants.assembly.points)
+
+        # index into parameter vector
+        irate = 12 * (ipoint - 1)
+
+        # extract state variables
+        u, θ = point_displacement(x, ipoint, constants.indices.icol_point, pcond)
+        V, Ω = point_velocities(x, constants.indices.icol_point[ipoint])
+    
+
+        ### extract rate variables
+        if dtprev == 0 #First time step
+            udot = old_state.points[ipoint].udot
+            θdot = old_state.points[ipoint].thetadot
+            Vdot = old_state.points[ipoint].Vdot
+            Ωdot = old_state.points[ipoint].Omegadot
+
+        else #All other time steps. 
+            udot = 2/dtprev*u - SVector(paug[irate+1], paug[irate+2], paug[irate+3])
+            θdot = 2/dtprev*θ - SVector(paug[irate+4], paug[irate+5], paug[irate+6])
+            Vdot = 2/dtprev*V - SVector(paug[irate+7], paug[irate+8], paug[irate+9])
+            Ωdot = 2/dtprev*Ω - SVector(paug[irate+10], paug[irate+11], paug[irate+12])
+        end
+
+        # store initialization terms in the parameter vector
+        paug[irate+1:irate+3] = 2/dt*u + udot
+        paug[irate+4:irate+6] = 2/dt*θ + θdot
+        paug[irate+7:irate+9] = 2/dt*V + Vdot
+        paug[irate+10:irate+12] = 2/dt*Ω + Ωdot
+    end
+
+    # solve for the new set of state variables
+    if linear
+        if update_linearization
+            if isnothing(constants.xpfunc)
+                x = newmark_lsolve!(x, paug, constants)
+
+            else
+                x = newmark_matrixfree_lsolve!(x, paug, constants)
+            end
+
+        else
+            if isnothing(constants.xpfunc)
+                x = newmark_lsolve!(x0, paug, constants)
+
+            else
+                x = newmark_matrixfree_lsolve!(x0, paug, constants)
+            end
+        end
+
+    else
+        if isnothing(constants.xpfunc)
+            x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
+
+        else
+            x = ImplicitAD.implicit(newmark_matrixfree_nlsolve!, newmark_residual!, paug, constants; drdy=matrixfree_jacobian)
+        end
+    end
+
+
+    ### stop early if unconverged
+    if !converged[]
+        # print error message
+        if constants.show_trace
+            println("Solution failed to converge")
+        end
+    end
+
+    # end
+
+    return system, x, converged
+end
+
+
+
 
 # combines constant and variable parameters for a newmark-scheme time marching analysis
 function newmark_parameters(p, constants)

@@ -739,6 +739,8 @@ function initial_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2, two
     linear_acceleration, angular_acceleration = body_accelerations(x, indices.icol_body,
         linear_acceleration, angular_acceleration)
 
+    # @show typeof(assembly.points)
+
     for ipoint = 1:length(assembly.points)
         initial_point_jacobian!(jacob, x, indices, rate_vars2, force_scaling,
             assembly, ipoint, prescribed_conditions, point_masses, gravity,
