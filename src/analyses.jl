@@ -1685,6 +1685,9 @@ function initial_condition_analysis(assembly, t0; constant_mass_matrix=false, kw
     return initial_condition_analysis!(system, assembly, t0; kwargs..., reset_state=true)
 end
 
+
+
+
 """
     initial_condition_analysis!(system, assembly, t0; kwargs...)
 
@@ -1904,6 +1907,7 @@ function initial_condition_analysis!(system, assembly, t0;
     else
         if isnothing(xpfunc)
             x = ImplicitAD.implicit(initial_nlsolve!, initial_residual!, p, constants; drdy=initial_drdy)
+            
         else
             x = ImplicitAD.implicit(initial_matrixfree_nlsolve!, initial_residual!, p, constants; drdy=matrixfree_jacobian)
         end
@@ -1919,16 +1923,28 @@ function initial_condition_analysis!(system, assembly, t0;
         # set the values of the original system directly
         set_state!(original_system, assembly, state; prescribed_conditions=pcond)
         set_rate!(original_system, assembly, state; prescribed_conditions=pcond)
+
     else
         # initialize storage
-        dx = similar(original_system.dx, eltype(state))
-        x = similar(original_system.x, eltype(state))
+        # dx = similar(original_system.dx, eltype(state)) #TODO: Why don't I just use x and create a dx? Is there a link there that'll break something? 
+        # x = similar(original_system.x, eltype(state))
+        xx = similar(original_system.x, eltype(state)) 
+        dxx = similar(original_system.dx, eltype(state)) 
+        
+
         # construct state and rate vectors
-        set_rate!(dx, original_system, assembly, state; prescribed_conditions=pcond)
-        set_state!(x, original_system, assembly, state; prescribed_conditions=pcond)
-        # copy only the primal portion of the variables
-        dual_safe_copy!(system.dx, dx)
-        dual_safe_copy!(system.x, x)
+        # set_rate!(dx, original_system, assembly, state; prescribed_conditions=pcond)
+        # set_state!(x, original_system, assembly, state; prescribed_conditions=pcond)
+        set_state!(xx, original_system, assembly, state; prescribed_conditions=pcond) 
+        set_rate!(dxx, original_system, assembly, state; prescribed_conditions=pcond) 
+    
+
+        # copy only the primal portion of the variables . 
+        # dual_safe_copy!(system.dx, dx)  
+        # dual_safe_copy!(system.x, x)
+        dual_safe_copy!(system.x, xx)  
+        dual_safe_copy!(system.dx, dxx)
+         
     end
 
     # return the system, state, and the (de-referenced) convergence flag
@@ -1941,8 +1957,6 @@ function initial_parameters(x, p, constants)
     @unpack assembly, prescribed_conditions, distributed_loads, point_masses, gravity,
         linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
         xpfunc, pfunc, t = constants
-
-    # @show typeof(assembly)
 
     # also unpack initial conditions
     @unpack u0, theta0, V0, Omega0, Vdot0, Omegadot0 = constants
@@ -1980,7 +1994,6 @@ function initial_parameters(x, p, constants)
     # update body acceleration frame indices
     update_body_acceleration_indices!(constants.indices, pcond)
 
-    # @show typeof(assembly)
 
     return assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0,
         V0, Omega0, Vdot0, Omegadot0
@@ -2048,8 +2061,6 @@ function initial_jacobian!(jacob, x, p, constants)
     # update acceleration state variable indices
     update_body_acceleration_indices!(indices, pcond)
 
-    # @show typeof(assembly)
-
     # compute and return the jacobian
     return initial_system_jacobian!(jacob, x, indices, rate_vars1, rate_vars2, two_dimensional,
         force_scaling, structural_damping, assembly, pcond, dload, pmass,
@@ -2095,16 +2106,19 @@ function initial_output(system, x, p, constants)
         u, θ = initial_point_displacement(x, ipoint, indices.icol_point, pcond, u0, theta0, rate_vars2)
         V, Ω = V0[ipoint], Omega0[ipoint]
         F, M = point_loads(x, ipoint, indices.icol_point, force_scaling, pcond)
+
         # rates corresponding to this point
         udot, θdot = initial_point_displacement_rates(x, ipoint, indices.icol_point)
         Vdot, Ωdot = initial_point_velocity_rates(x, ipoint, indices.icol_point, pcond,
             Vdot0, Omegadot0, rate_vars2)
+
         # adjust velocities and accelerations to account for rigid body motion
         Δx = assembly.points[ipoint]
         V += vb + cross(ωb, Δx + u)
         Ω += ωb
         Vdot += ab + cross(αb, Δx + u) + cross(ωb, udot)
         Ωdot += αb
+
         # insert result into the state vector
         set_linear_displacement!(xx, system, pcond, u, ipoint)
         set_angular_displacement!(xx, system, pcond, θ, ipoint)
@@ -2112,6 +2126,7 @@ function initial_output(system, x, p, constants)
         set_angular_velocity!(xx, system, Ω, ipoint)
         set_external_forces!(xx, system, pcond, F, ipoint)
         set_external_moments!(xx, system, pcond, M, ipoint)
+
         # insert result into the rate vector
         icol = indices.icol_point[ipoint]
         udot_udot, θdot_θdot = point_displacement_jacobians(ipoint, pcond)
@@ -2121,9 +2136,11 @@ function initial_output(system, x, p, constants)
         dx[icol+9:icol+11] = Ωdot
     end
 
+
     # update the state and rate variables in `system`
     dual_safe_copy!(system.x, xx)
     dual_safe_copy!(system.dx, dx)
+
 
     # return result
     state = AssemblyState(dx, xx, system, assembly; prescribed_conditions=pcond)
@@ -2491,128 +2508,59 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
 end
 
 """
-    take_step!(system::DynamicSystem, history, assembly, t, dt, isave)
+    take_step!(system::DynamicSystem, old_state, constants, P_aug)
 
     Take a step in time-domain analysis for the system of nonlinear beams contained in
-    `assembly` using the time vector `tvec`.  Return the final system, a post-processed
-    solution history, and a convergence flag indicating whether the iteration procedure
-    converged for every time step.
+    `assembly` based on the `old_state` at time `t`.  Return the final system, a state vector,
+    and a convergence flag indicating whether the iteration procedure converged for every time step.
+
+    **Arguments**
+    - system::DynamicSystem - The system from the previous time step (or initialization phase). 
+    - old_state::AssemblyState - The state for the assembly from the previous time step. 
+    - constants::NamedTuple - A named tuple carrying the arguments and kwargs of a typical GXBeam analysis. 
+    i.e. constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling, xpfunc, 
+    pfunc, p, t, dt, dtprev, x, resid, jacob, converged, prescribed_conditions, distributed_loads, point_masses, gravity,
+    linear_velocity, angular_velocity, show_trace, method, linesearch, ftol, iterations)
+    where
+        - assembly
+        - indices
+        - two-dimensional
+        - structural_damping
+        - force_scaling
+        - xpfunc
+        - pfunc
+        - p
+        - t
+        - dt
+        - dtprev
+        - x
+        - resid
+        - jacob
+        - converged
+        - prescribed_conditions
+        - distributed_loads
+        - point_masses
+        - gravity
+        - linear_velocity
+        - angular_velocity
+        - show_trace
+        - method
+        - linesearch
+        - ftol
+        - iterations
+    - Paug::Vector{TF} - A vector holding the states and design parameters. Length = 12*length(points) + length(p)
     
-    # General Keyword Arguments
-     - `prescribed_conditions = Dict{Int,PrescribedConditions{Float64}}()`:
-            A dictionary with keys corresponding to the points at
-            which prescribed conditions are applied and values of type
-            [`PrescribedConditions`](@ref) which describe the prescribed conditions
-            at those points.  If time varying, this input may be provided as a
-            function of time.
-     - `distributed_loads = Dict{Int,DistributedLoads{Float64}}()`: A dictionary
-            with keys corresponding to the elements to which distributed loads are
-            applied and values of type [`DistributedLoads`](@ref) which describe
-            the distributed loads on those elements.  If time varying, this input may
-            be provided as a function of time.
-     - `point_masses = Dict{Int,PointMass{Float64}}()`: A dictionary with keys
-            corresponding to the points to which point masses are attached and values
-            of type [`PointMass`](@ref) which contain the properties of the attached
-            point masses.  If time varying, this input may be provided as a function of time.
-     - `linear_velocity = zeros(3)`: Prescribed linear velocity of the body frame.
-     - `angular_velocity = zeros(3)`: Prescribed angular velocity of the body frame.
-     - `linear_acceleration = zeros(3)`: Initial linear acceleration of the body frame.
-     - `angular_acceleration = zeros(3)`: Initial angular acceleration of the body frame.
-     - `gravity = [0,0,0]`: Gravity vector in the body frame.  If time varying, this input
-            may be provided as a function of time.
-    
-     # Control Flag Keyword Arguments
-     - `reset_state = true`: Flag indicating whether the system state variables should be
-            set to zero prior to performing this analysis.
-     - `initial_state = nothing`: Object of type `AssemblyState`, which defines the initial
-            states and state rates corresponding to the analysis.  By default, this input is
-            calculated using either `steady_state_analysis` or `initial_condition_analysis`.
-     - `steady_state = false`: Flag indicating whether to compute the state variables
-            corresponding to the keyword argument `initial_state` using `steady_state_analysis`
-            (rather than `initial_condition_analysis`).
-     - `structural_damping = true`: Flag indicating whether to enable structural damping
-     - `linear = false`: Flag indicating whether a linear analysis should be performed.
-     - `two_dimensional = false`: Flag indicating whether to constrain results to the x-y plane
-     - `show_trace = false`: Flag indicating whether to display the solution progress.
-     - `save = eachindex(tvec)`: Steps at which to save the time history
-    
-     # Initial Condition Analysis Arguments
-     - `u0 = fill(zeros(3), length(assembly.points))`: Initial linear displacement of
-            each point in the body frame
-     - `theta0 = fill(zeros(3), length(assembly.points))`: Initial angular displacement of
-            each point in the body frame (using Wiener-Milenkovic Parameters)
-     - `V0 = fill(zeros(3), length(assembly.points))`: Initial linear velocity of
-            each point in the body frame **excluding contributions from body frame motion**
-     - `Omega0 = fill(zeros(3), length(assembly.points))`: Initial angular velocity of
-            each point in the body frame **excluding contributions from body frame motion**
-     - `Vdot0 = fill(zeros(3), length(assembly.points))`: Initial linear acceleration of
-            each point in the body frame **excluding contributions from body frame motion**
-     - `Omegadot0 = fill(zeros(3), length(assembly.points))`: Initial angular acceleration of
-            each point in the body frame **excluding contributions from body frame motion**
-    
-     # Linear Analysis Keyword Arguments
-     - `update_linearization = false`: Flag indicating whether to update the linearization state
+    - `update_linearization = false`: Flag indicating whether to update the linearization state
             variables for a linear analysis with the instantaneous state variables. If `false`,
             then the initial set of state variables will be used for the linearization.
-    
-     # Nonlinear Analysis Keyword Arguments
-     - `method = :newton`: Method (as defined in NLsolve) to solve nonlinear system of equations
-     - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve
+    - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve
             nonlinear systems of equations
-     - `ftol = 1e-9`: tolerance for solving the nonlinear system of equations
-     - `iterations = 1000`: maximum iterations for solving the nonlinear system of equations
     
-    # Sensitivity Analysis Keyword Arguments
-     - `xpfunc = (x, p, t) -> (;)`: Similar to `pfunc`, except that parameters can also be
-            defined as a function of GXBeam's state variables.  Using this function forces
-            the system jacobian to be computed using automatic differentiation and switches
-            the nonlinear solver to a Newton-Krylov solver (with linesearch).
-     - `pfunc = (p, t) -> (;)`: Function which returns a named tuple with fields corresponding
-            to updated versions of the arguments `assembly`, `prescribed_conditions`,
-            `distributed_loads`, `point_masses`, `linear_velocity`, `angular_velocity`,
-            `linear_acceleration`, `angular_acceleration`, `gravity`, `u0`, `theta0`, `V0`,
-            `Omega0`, `Vdot0`, and `Omegadot0`. Only fields contained in the resulting named
-            tuple will be overwritten.
-     - `p`: Sensitivity parameters, as defined in conjunction with the keyword argument `pfunc`.
-            While not necessary, using `pfunc` and `p` to define the arguments to this function
-            allows automatic differentiation sensitivities to be computed more efficiently
+    
 """
 function take_step(system::DynamicSystem, old_state, constants, paug;
-    # general keyword arguments
-    # prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
-    # distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    # point_masses=Dict{Int,PointMass{Float64}}(),
-    # linear_velocity=(@SVector zeros(3)),
-    # angular_velocity=(@SVector zeros(3)),
-    # linear_acceleration=(@SVector zeros(3)),
-    # angular_acceleration=(@SVector zeros(3)),
-    # gravity=(@SVector zeros(3)),
-    # control flag keyword arguments
-    # reset_state=true,
-    # initial_state=nothing,
-    # steady_state=false,
-    # structural_damping=true,
     linear=false,
-    # two_dimensional=false,
-    # show_trace=false,
-    # initial condition analysis keyword arguments
-    # u0=fill((@SVector zeros(3)), length(assembly.points)),
-    # theta0=fill((@SVector zeros(3)), length(assembly.points)),
-    # V0=fill((@SVector zeros(3)), length(assembly.points)),
-    # Omega0=fill((@SVector zeros(3)), length(assembly.points)),
-    # Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
-    # Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
-    # linear analysis keyword arguments
     update_linearization=false,
-    # nonlinear analysis keyword arguments
-    # method=:newton,
-    # linesearch=LineSearches.BackTracking(maxstep=1e6),
-    # ftol=1e-9,
-    # iterations=1000,
-    # sensitivity analysis keyword arguments
-    # xpfunc = nothing,
-    # pfunc = (p, t) -> (;),
-    # p = nothing,
     )
     #TODO: Maybe this function should operate off of x, and dx (skip the newmark_state_vector function at the beginning and end of the function.)
 
@@ -2662,6 +2610,7 @@ function take_step(system::DynamicSystem, old_state, constants, paug;
     pcond = get(parameters, :prescribed_conditions, constants.prescribed_conditions)
     pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
 
+
     ### update parameter vector with new initialization terms
     for ipoint = 1:length(constants.assembly.points)
 
@@ -2674,7 +2623,7 @@ function take_step(system::DynamicSystem, old_state, constants, paug;
     
 
         ### extract rate variables
-        if dtprev == 0 #First time step
+        if dtprev == 0 #First time step #The user will have to set dtprev to zero on the first time step. 
             udot = old_state.points[ipoint].udot
             θdot = old_state.points[ipoint].thetadot
             Vdot = old_state.points[ipoint].Vdot
@@ -2723,15 +2672,13 @@ function take_step(system::DynamicSystem, old_state, constants, paug;
     end
 
 
-    ### stop early if unconverged
+    ### stop if unconverged
     if !converged[]
         # print error message
         if constants.show_trace
             println("Solution failed to converge")
         end
     end
-
-    # end
 
     return system, x, converged
 end

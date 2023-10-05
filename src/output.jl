@@ -640,7 +640,8 @@ end
 Set the state variable rates in `dx` to the values in `state`
 """
 function set_rate!(system::AbstractSystem, assembly::Assembly, state::AssemblyState; kwargs...)
-    return set_rate!(system.x, system, assembly, state; kwargs...)
+    # return set_rate!(system.x, system, assembly, state; kwargs...) #Todo. shouldn't this be dx, not x? 
+    return set_rate!(system.dx, system, assembly, state; kwargs...)
 end
 
 # dynamic system
