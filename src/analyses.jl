@@ -2369,6 +2369,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # current state and rate vector is the initial state and rate vector
     x = x0
     dx = dx0
+    # @show x0
 
     # also update the state and rate variables in system.x
     dual_safe_copy!(system.x, x)
@@ -2478,6 +2479,8 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             if isnothing(xpfunc)
                 x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
 
+                # @show x
+
             else
                 x = ImplicitAD.implicit(newmark_matrixfree_nlsolve!, newmark_residual!, paug, constants; drdy=matrixfree_jacobian)
             end
@@ -2486,6 +2489,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         
         # add state to history
         if it in save
+            # @show paug
             history[isave] = newmark_output(system, x, paug, constants)
             isave += 1
         end
@@ -2507,182 +2511,152 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     return system, history, converged[]
 end
 
-"""
-    take_step!(system::DynamicSystem, old_state, constants, P_aug)
-
-    Take a step in time-domain analysis for the system of nonlinear beams contained in
-    `assembly` based on the `old_state` at time `t`.  Return the final system, a state vector,
-    and a convergence flag indicating whether the iteration procedure converged for every time step.
-
-    **Arguments**
-    - system::DynamicSystem - The system from the previous time step (or initialization phase). 
-    - old_state::AssemblyState - The state for the assembly from the previous time step. 
-    - constants::NamedTuple - A named tuple carrying the arguments and kwargs of a typical GXBeam analysis. 
-    i.e. constants = (; assembly, indices, two_dimensional, structural_damping, force_scaling, xpfunc, 
-    pfunc, p, t, dt, dtprev, x, resid, jacob, converged, prescribed_conditions, distributed_loads, point_masses, gravity,
-    linear_velocity, angular_velocity, show_trace, method, linesearch, ftol, iterations)
-    where
-        - assembly
-        - indices
-        - two-dimensional
-        - structural_damping
-        - force_scaling
-        - xpfunc
-        - pfunc
-        - p
-        - t
-        - dt
-        - dtprev
-        - x
-        - resid
-        - jacob
-        - converged
-        - prescribed_conditions
-        - distributed_loads
-        - point_masses
-        - gravity
-        - linear_velocity
-        - angular_velocity
-        - show_trace
-        - method
-        - linesearch
-        - ftol
-        - iterations
-    - Paug::Vector{TF} - A vector holding the states and design parameters. Length = 12*length(points) + length(p)
-    
-    - `update_linearization = false`: Flag indicating whether to update the linearization state
-            variables for a linear analysis with the instantaneous state variables. If `false`,
-            then the initial set of state variables will be used for the linearization.
-    - `linesearch = LineSearches.BackTracking(maxstep=1e6)`: Line search used to solve
-            nonlinear systems of equations
-    
-    
-"""
-function take_step(system::DynamicSystem, old_state, constants, paug;
-    linear=false,
-    update_linearization=false,
-    )
-    #TODO: Maybe this function should operate off of x, and dx (skip the newmark_state_vector function at the beginning and end of the function.)
-
-    # --- Find the Initial States and Rates --- #  
-    # converged by default
-    converged = true
-
-    t = constants.t
-    dt = constants.dt
-    dtprev = constants.dtprev
-
-    # --- Initialize Analysis --- #
-    # unpack force scaling parameter and system indices
-    @unpack force_scaling, indices = system
-
-    # update the system time
-    system.t = t
-
-    # initialize convergence flag
-    converged = Ref(converged)
 
 
-    # --- Process the Initial States --- #
-    # construct initial state and rate vector
-    x0, dx0 = newmark_state_vector(system, old_state, constants.p, constants) #Note: This allocates. 
+function implicit_euler_residual!(resid, rn, x_in, p) 
 
-    # current state and rate vector is the initial state and rate vector
-    x = x0
-    dx = dx0
+    dt, n,
+    assembly, prescribed_conditions, distributed_loads, point_masses,
+    gravity, linear_velocity, angular_velocity,
+    indices, force_scaling, structural_damping, two_dimensional = p
 
+    x = view(x_in, 1:n) #previous states
+    # dx = view(x_in, n+1:2*n) #previous state rates
 
-    # also update the state and rate variables in system.x
-    dual_safe_copy!(system.x, x)
-    dual_safe_copy!(system.dx, dx)
+    xn = view(rn, 1:n) #New state
+    dxn = view(rn, n+1:2n) #New state rates
 
-
-    # --- Begin Time Stepping --- #
-
-    # print the current time
-    if constants.show_trace
-        println("Solving for t=$t")
-    end
+    constraint = view(resid, 1:n) #The algebraic equations of the DAE. 
+    integrand = view(resid, n+1:2n) #The differential equations of the DAE. 
 
 
-    # get updated prescribed conditions
-    parameters = isnothing(constants.xpfunc) ? constants.pfunc(constants.p, t) : constants.xpfunc(x, constants.p, t)
-    pcond = get(parameters, :prescribed_conditions, constants.prescribed_conditions)
-    pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
+    #Constraining the states and state rates to be consistent. 
+    dynamic_system_residual!(constraint, dxn, xn, indices, two_dimensional, force_scaling,
+        structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses,
+        gravity, linear_velocity, angular_velocity)
 
-
-    ### update parameter vector with new initialization terms
-    for ipoint = 1:length(constants.assembly.points)
-
-        # index into parameter vector
-        irate = 12 * (ipoint - 1)
-
-        # extract state variables
-        u, θ = point_displacement(x, ipoint, constants.indices.icol_point, pcond)
-        V, Ω = point_velocities(x, constants.indices.icol_point[ipoint])
-    
-
-        ### extract rate variables
-        if dtprev == 0 #First time step #The user will have to set dtprev to zero on the first time step. 
-            udot = old_state.points[ipoint].udot
-            θdot = old_state.points[ipoint].thetadot
-            Vdot = old_state.points[ipoint].Vdot
-            Ωdot = old_state.points[ipoint].Omegadot
-
-        else #All other time steps. 
-            udot = 2/dtprev*u - SVector(paug[irate+1], paug[irate+2], paug[irate+3])
-            θdot = 2/dtprev*θ - SVector(paug[irate+4], paug[irate+5], paug[irate+6])
-            Vdot = 2/dtprev*V - SVector(paug[irate+7], paug[irate+8], paug[irate+9])
-            Ωdot = 2/dtprev*Ω - SVector(paug[irate+10], paug[irate+11], paug[irate+12])
-        end
-
-        # store initialization terms in the parameter vector
-        paug[irate+1:irate+3] = 2/dt*u + udot
-        paug[irate+4:irate+6] = 2/dt*θ + θdot
-        paug[irate+7:irate+9] = 2/dt*V + Vdot
-        paug[irate+10:irate+12] = 2/dt*Ω + Ωdot
-    end
-
-    # solve for the new set of state variables
-    if linear
-        if update_linearization
-            if isnothing(constants.xpfunc)
-                x = newmark_lsolve!(x, paug, constants)
-
-            else
-                x = newmark_matrixfree_lsolve!(x, paug, constants)
-            end
-
-        else
-            if isnothing(constants.xpfunc)
-                x = newmark_lsolve!(x0, paug, constants)
-
-            else
-                x = newmark_matrixfree_lsolve!(x0, paug, constants)
-            end
-        end
-
-    else
-        if isnothing(constants.xpfunc)
-            x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
-
-        else
-            x = ImplicitAD.implicit(newmark_matrixfree_nlsolve!, newmark_residual!, paug, constants; drdy=matrixfree_jacobian)
-        end
-    end
-
-
-    ### stop if unconverged
-    if !converged[]
-        # print error message
-        if constants.show_trace
-            println("Solution failed to converge")
-        end
-    end
-
-    return system, x, converged
+    #Constraining the state rates to be an implicit Euler step. 
+    integrand .= @. x + dxn*dt - xn 
 end
 
+function implicit_euler_solve(x_in, p)
+
+    dt = p[1]
+    n = p[2]
+    
+    x = view(x_in, 1:n)
+    dx = view(x_in, n+1:2*n)
+    
+    residual! = (resid, rn) -> implicit_euler_residual!(resid, rn, x_in, p)
+
+    #TODO: Is there a way I can provide the jacobian to speed up calcs?
+    result = nlsolve(residual!, vcat(x + dx.*dt, dx)) 
+
+    return result.zero
+end
+
+
+function take_step(x, dx, system, assembly, t, tprev, 
+    prescribed_conditions, distributed_loads, point_masses,
+    gravity, linear_velocity, angular_velocity,
+    structural_damping, two_dimensional)
+    
+    #TODO: Make an inplace version that doesn't allocate.
+    @unpack force_scaling, indices = system
+
+    dt = t-tprev
+    n = length(x)
+
+    p = (dt, n,
+    assembly, prescribed_conditions, distributed_loads, point_masses,
+    gravity, linear_velocity, angular_velocity,
+    indices, force_scaling, structural_damping, two_dimensional)
+
+    x_in = vcat(x, dx)
+    x_out = implicit(implicit_euler_solve, implicit_euler_residual!, x_in, p)
+
+    # , result.x_converged #TODO: get 
+    return x_out[1:n], x_out[n+1:end]
+end
+
+
+
+"""
+    simulate()
+
+Use the take_step function to run a time_domain_analysis. 
+"""
+function simulate(assembly, tvec; 
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    gravity=(@SVector zeros(3)), linear_velocity=(@SVector zeros(3)), angular_velocity=(@SVector zeros(3)),
+    xpfunc = nothing, pfunc = (p, t) -> (;), p = nothing,
+    structural_damping::Bool=true, two_dimensional::Bool=false, verbose::Bool=false)
+
+    ### Initialize the solution
+    if verbose
+        println("Initializing...")
+    end
+
+    system = DynamicSystem(assembly)
+
+    nt = length(tvec)
+    t0 = first(tvec)
+
+
+    system, initial_state, converged0 = initial_condition_analysis!(system, assembly, t0;
+    prescribed_conditions, distributed_loads, point_masses, gravity, linear_velocity, angular_velocity,
+    structural_damping, two_dimensional)
+
+    x0 = system.x
+    dx0 = system.dx
+
+    nx = length(x0)
+
+    inittype = eltype(x0)
+    history = Vector{AssemblyState{inittype, Vector{PointState{inittype}}, Vector{ElementState{inittype}}}}(undef, nt)
+    x = zeros(nt, nx)
+    dx = zeros(nt, nx)
+    converged = Vector{Bool}(undef, nt)
+
+    x[1,:] .= x0
+    dx[1,:] .= dx0
+    converged[1] = converged0
+    history[1] = initial_state
+
+    
+    ### Loop through the solution
+    if verbose
+        println("Solving...")
+    end
+    for i = 2:nt
+        if verbose
+            println("Step $i")
+        end
+        #Time step information
+        t = tvec[i]
+        tprev = tvec[i-1]
+        dt = t-tprev
+
+        #TODO: I probably will need to update the prescribed_conditions, distributed_loads, gravity, linear_velocity, and anything else that I'm supposed to 
+        parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x, p, t)
+        pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
+        pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
+
+
+        x[i,:], dx[i,:] = take_step(x[i-1,:], dx[i-1,:], system, assembly, t, tprev, 
+                            prescribed_conditions, distributed_loads, point_masses,
+                            gravity, linear_velocity, angular_velocity,
+                            structural_damping, two_dimensional)
+
+        #calculate output state
+        history[i] = AssemblyState(dx[i,:], x[i,:], system, assembly; prescribed_conditions=pcond)
+    end
+
+
+    return history, converged
+end
 
 
 
@@ -2826,14 +2800,17 @@ function newmark_output(system, x, p, constants)
     for ipoint in eachindex(assembly.points)
         # index into parameter vector
         irate = 12 * (ipoint - 1)
+
         # state variables
         u, θ = point_displacement(x, ipoint, indices.icol_point, pcond)
         V, Ω = point_velocities(x, ipoint, indices.icol_point)
+
         # rate variables
         udot = 2/dt*u - SVector(p[irate+1], p[irate+2], p[irate+3])
         θdot = 2/dt*θ - SVector(p[irate+4], p[irate+5], p[irate+6])
         Vdot = 2/dt*V - SVector(p[irate+7], p[irate+8], p[irate+9])
         Ωdot = 2/dt*Ω - SVector(p[irate+10], p[irate+11], p[irate+12])
+
         # save state rates
         icol = indices.icol_point[ipoint]
         udot_udot, θdot_θdot = point_displacement_jacobians(ipoint, pcond)
@@ -2846,6 +2823,9 @@ function newmark_output(system, x, p, constants)
     # update the state and rate variables in `system`
     dual_safe_copy!(system.x, x)
     dual_safe_copy!(system.dx, dx)
+
+    # @show x
+    # @show dx
 
     # return result
     return AssemblyState(dx, x, system, assembly; prescribed_conditions=pcond)
