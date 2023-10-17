@@ -2242,6 +2242,28 @@ function time_domain_analysis(assembly, tvec; kwargs...)
     return time_domain_analysis!(system, assembly, tvec; kwargs...)
 end
 
+macro show_tracked_array(arr)
+    # A show macro to show a tracked array that may or may not have duals. 
+    print(string(arr)) #Todo: Not printing???
+    print(" = ")
+    
+    quote
+        access = $(esc(arr)) #xp not defined - scoping issue
+
+        if isa(access[1], ReverseDiff.TrackedReal)
+            newarr = [access[i].value for i in eachindex(access)]
+            println(newarr)
+
+        elseif isa(access[1], ForwardDiff.Dual)
+            newarr = [access[i].value for i in eachindex(access)]
+            println(newarr)
+
+        else
+            println(access)
+        end
+    end
+end
+
 """
     time_domain_analysis!(system, assembly, tvec; kwargs...)
 
@@ -2369,7 +2391,8 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # current state and rate vector is the initial state and rate vector
     x = x0
     dx = dx0
-    # @show x0
+    # @show_tracked_array x0
+    # @show_tracked_array dx0
 
     # also update the state and rate variables in system.x
     dual_safe_copy!(system.x, x)
@@ -2477,9 +2500,12 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
 
         else
             if isnothing(xpfunc)
+                # @show t
+
                 x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
 
-                # @show x
+                # println("x")
+                # @show_tracked_array x
 
             else
                 x = ImplicitAD.implicit(newmark_matrixfree_nlsolve!, newmark_residual!, paug, constants; drdy=matrixfree_jacobian)
@@ -2513,16 +2539,50 @@ end
 
 
 
-function implicit_euler_residual!(resid, rn, x_in, p) 
+function implicit_euler_residual!(resid, rn, inputs, p) 
 
-    dt, n,
+    # @show typeof(resid)
+    # @show typeof(rn)
+    # @show typeof(inputs)
+
+    t, dt, n, nd,
     assembly, prescribed_conditions, distributed_loads, point_masses,
     gravity, linear_velocity, angular_velocity,
+    xpfunc, pfunc,
     indices, force_scaling, structural_damping, two_dimensional = p
 
-    x = view(x_in, 1:n) #previous states
-    # dx = view(x_in, n+1:2*n) #previous state rates
+    # @show typeof(assembly)
 
+    ### Extract the states
+    x = view(inputs, 1:n) #previous states
+    # dx = view(inputs, n+1:2*n) #previous state rates - unused
+
+
+    ### Update the inputs based on the design variables. 
+    if nd>0
+        xd = view(inputs, 2n+1:2n+nd) #Design variables
+    else
+        xd = nothing
+    end
+
+    parameters = isnothing(xpfunc) ? pfunc(xd, t) : xpfunc(x, xd, t) #Todo: This will unfortunately get called at every time step. 
+    assmb = get(parameters, :assembly, assembly)
+    pcs = get(parameters, :prescribed_conditions, prescribed_conditions)
+    dls = get(parameters, :distributed_loads, distributed_loads)
+    pms = get(parameters, :point_masses, point_masses)
+    grv = get(parameters, :gravity, gravity)
+    lv = get(parameters, :linear_velocity, linear_velocity)
+    av = get(parameters, :angular_velocity, angular_velocity)
+
+    pcond = typeof(pcs) <: AbstractDict ? pcs : pcs(t)
+    dload = typeof(dls) <: AbstractDict ? dls : dls(t)
+    pmass = typeof(pms) <: AbstractDict ? pms : pms(t)
+    gvec = typeof(grv) <: AbstractVector ? SVector{3}(grv) : SVector{3}(grv(t))
+    vvec = typeof(lv) <: AbstractVector ? SVector{3}(lv) : SVector{3}(lv(t))
+    omegavec = typeof(av) <: AbstractVector ? SVector{3}(av) : SVector{3}(av(t))
+
+
+    #Extract the outputs. 
     xn = view(rn, 1:n) #New state
     dxn = view(rn, n+1:2n) #New state rates
 
@@ -2530,24 +2590,25 @@ function implicit_euler_residual!(resid, rn, x_in, p)
     integrand = view(resid, n+1:2n) #The differential equations of the DAE. 
 
 
-    #Constraining the states and state rates to be consistent. 
+    #Constraining the states and state rates to be consistent. #Todo: Something is sneaking in as a trackedReal. I suspect it's the assembly (from pfunc)
     dynamic_system_residual!(constraint, dxn, xn, indices, two_dimensional, force_scaling,
-        structural_damping, assembly, prescribed_conditions, distributed_loads, point_masses,
-        gravity, linear_velocity, angular_velocity)
+        structural_damping, assmb, pcond, dload, pmass,
+        gvec, vvec, omegavec)
 
     #Constraining the state rates to be an implicit Euler step. 
     integrand .= @. x + dxn*dt - xn 
 end
 
-function implicit_euler_solve(x_in, p)
+function implicit_euler_solve(inputs, p)
 
-    dt = p[1]
-    n = p[2]
+    dt = p[2]
+    n = p[3]
     
-    x = view(x_in, 1:n)
-    dx = view(x_in, n+1:2*n)
+    x = view(inputs, 1:n)
+    dx = view(inputs, n+1:2*n)
+    #TODO: I could make a smaller inputs for the residual. 
     
-    residual! = (resid, rn) -> implicit_euler_residual!(resid, rn, x_in, p)
+    residual! = (resid, rn) -> implicit_euler_residual!(resid, rn, inputs, p)
 
     #TODO: Is there a way I can provide the jacobian to speed up calcs?
     result = nlsolve(residual!, vcat(x + dx.*dt, dx)) 
@@ -2559,23 +2620,35 @@ end
 function take_step(x, dx, system, assembly, t, tprev, 
     prescribed_conditions, distributed_loads, point_masses,
     gravity, linear_velocity, angular_velocity,
+    xpfunc, pfunc, p,
     structural_damping, two_dimensional)
     
     #TODO: Make an inplace version that doesn't allocate.
     @unpack force_scaling, indices = system
 
+    ### Prepare the vector of design vars (which includes the states and state rates)
+    if isnothing(p)
+        nd = 0
+        inputs = vcat(x, dx)
+    else
+        nd = length(p)
+        inputs = vcat(x, dx, p)
+    end
+
+    ### Fixed parameters (i.e. not going to have derivatives)
     dt = t-tprev
     n = length(x)
 
-    p = (dt, n,
+    params = (t, dt, n, nd,
     assembly, prescribed_conditions, distributed_loads, point_masses,
     gravity, linear_velocity, angular_velocity,
+    xpfunc, pfunc,
     indices, force_scaling, structural_damping, two_dimensional)
 
-    x_in = vcat(x, dx)
-    x_out = implicit(implicit_euler_solve, implicit_euler_residual!, x_in, p)
+    
+    x_out = implicit(implicit_euler_solve, implicit_euler_residual!, inputs, params)
 
-    # , result.x_converged #TODO: get 
+    # , result.x_converged #TODO: get the convergence. 
     return x_out[1:n], x_out[n+1:end]
 end
 
@@ -2648,6 +2721,7 @@ function simulate(assembly, tvec;
         x[i,:], dx[i,:] = take_step(x[i-1,:], dx[i-1,:], system, assembly, t, tprev, 
                             prescribed_conditions, distributed_loads, point_masses,
                             gravity, linear_velocity, angular_velocity,
+                            xpfunc, pfunc, p,
                             structural_damping, two_dimensional)
 
         #calculate output state
