@@ -1951,6 +1951,260 @@ function initial_condition_analysis!(system, assembly, t0;
     return original_system, state, converged[]
 end
 
+
+function initial_state_analysis!(system, assembly, t0;
+    # general keyword arguments
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
+    # control flag keyword arguments
+    reset_state=true,
+    initial_state=nothing,
+    structural_damping=true,
+    linear=false,
+    steady_state=false,
+    constant_mass_matrix=typeof(system) <: ExpandedSystem,
+    two_dimensional=false,
+    show_trace=false,
+    # initial condition analysis keyword arguments
+    u0=fill((@SVector zeros(3)), length(assembly.points)),
+    theta0=fill((@SVector zeros(3)), length(assembly.points)),
+    V0=fill((@SVector zeros(3)), length(assembly.points)),
+    Omega0=fill((@SVector zeros(3)), length(assembly.points)),
+    Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
+    Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
+    # linear analysis keyword arguments
+    update_linearization=false,
+    # nonlinear analysis keyword arguments
+    method=:newton,
+    linesearch=LineSearches.BackTracking(maxstep=1e6),
+    ftol=1e-9,
+    iterations=1000,
+    # sensitivity analysis keyword arguments
+    xpfunc = nothing,
+    pfunc = (p, t) -> (;),
+    p = nothing,
+    )
+
+    # perform steady state analysis instead (if requested)
+    if steady_state
+        error("initial_state_analysis!(): steady state not set up. ")
+        return steady_state_analysis!(system, assembly;
+            # general keyword arguments
+            prescribed_conditions=prescribed_conditions,
+            distributed_loads=distributed_loads,
+            point_masses=point_masses,
+            linear_velocity=linear_velocity,
+            angular_velocity=angular_velocity,
+            linear_acceleration=linear_acceleration,
+            angular_acceleration=angular_acceleration,
+            gravity=gravity,
+            time=t0,
+            # control flag keyword arguments
+            reset_state=reset_state,
+            initial_state=initial_state,
+            structural_damping=structural_damping,
+            linear=linear,
+            constant_mass_matrix=constant_mass_matrix,
+            two_dimensional=two_dimensional,
+            show_trace=show_trace,
+            # linear analysis keyword arguments
+            update_linearization=update_linearization,
+            # nonlinear analysis keyword arguments
+            method=method,
+            linesearch=linesearch,
+            ftol=ftol,
+            iterations=iterations,
+            # sensitivity analysis keyword arguments
+            xpfunc = xpfunc,
+            pfunc = pfunc,
+            p = p,
+            )
+    end
+
+    # check if provided system is consistent with the provided keyword arguments
+    if constant_mass_matrix
+        @assert typeof(system) <: ExpandedSystem
+    else
+        @assert typeof(system) <: DynamicSystem
+    end
+
+    # reset state, if specified
+    if reset_state
+        reset_state!(system)
+    end
+
+    # save provided system
+    original_system = system
+
+    # construct dynamic system for this analysis
+    if constant_mass_matrix
+        system = DynamicSystem(assembly; force_scaling = system.force_scaling)
+    end
+
+    # unpack force scaling parameter and system pointers
+    @unpack force_scaling, indices = system
+
+    # initialize convergence flag
+    converged = Ref(false)
+
+    # package up keyword arguments corresponding to this analysis
+    constants = (;
+        # assembly, indices, control flags, parameter function, and current time
+        assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(t0),
+        # pointers to the pre-allocated storage and the convergence flag
+        x=system.x, resid=system.r, jacob=system.K, converged=converged,
+        # default parameters
+        prescribed_conditions, distributed_loads, point_masses, gravity,
+        linear_velocity, angular_velocity, linear_acceleration, angular_acceleration,
+        u0, theta0, V0, Omega0, Vdot0, Omegadot0,
+        # nonlinear analysis keyword arguments
+        show_trace, method, linesearch, ftol, iterations
+    )
+
+    # solve for initial time
+    t = first(t0)
+
+    # print the current time
+    if show_trace
+        println("Solving for t=$t")
+    end
+
+    # update the system time
+    system.t = t
+
+    # update the stored time
+    constants = (; constants..., t)
+
+    # get new assembly and parameters
+    assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p, u0, theta0, V0, Omega0,
+        Vdot0, Omegadot0 = initial_parameters(FillArrays.Zeros(system.x), p, constants)
+
+    # extract initial state from the original system (if not provided)
+    if isnothing(initial_state) && !reset_state
+        initial_state = AssemblyState(original_system, assembly; prescribed_conditions=pcond)
+    end
+
+    # get floating point type
+    TF = isnothing(p) ? eltype(system) : promote_type(eltype(system), eltype(p))
+
+    # --- Determine whether Vdot and Ωdot may be found using the equilibrium equations --- #
+
+    # NOTE: Our system of equations cannot be solved for Vdot and Ωdot if the corresponding
+    # rows and columns of the mass matrix are zero.
+
+    # Fortunately, though we cannot solve for these variables, their values are not used.
+
+    # construct `rate_vars` vector
+    M1 = similar(system.M, TF)
+    M1 = system_mass_matrix!(M1, FillArrays.Zeros(system.x), indices, two_dimensional,
+        force_scaling, assembly, pcond, pmass)
+    rate_vars1 = .!(iszero.(sum(M1, dims=1)))
+
+    # save results
+    constants = (; constants..., rate_vars1)
+
+    # --- Determine whether Fi and Mi may be found using the compatability equations --- #
+
+    # NOTE: The compatability equations cannot be solved for Fi and Mi if the corresponding
+    # rows and columns of the compliance matrix are zero.
+
+    # Values for these variables must then be derived from the equilibrium equations.
+    # Since the equilibrium equations cannot then be used to find Vdot and Ωdot,
+    # compatible values for Vdot and Ωdot must be provided.
+
+    # replace mass matrix with compliance matrix
+    elements = copy(assembly.elements)
+    for (i, e) in enumerate(assembly.elements)
+        assembly.elements[i] = Element(e.L, e.x, e.compliance, e.compliance, e.Cab, e.mu)
+    end
+
+    # temporarily ignore the mass of all point masses
+    pmass2 = Dict{Int,PointMass{Float64}}()
+
+    # construct `rate_vars2` vector to test if the second case applies
+    M2 = similar(system.M, TF)
+    M2 = system_mass_matrix!(M2, FillArrays.Zeros(system.x), indices, two_dimensional,
+        force_scaling, assembly, pcond, pmass2)
+    rate_vars2 = .!(iszero.(sum(M2, dims=1)))
+
+    # restore original element mass matrices
+    for i in eachindex(assembly.elements)
+        assembly.elements[i] = elements[i]
+    end
+
+    # save results
+    constants = (; constants..., rate_vars2)
+
+    # ---------------------------------------------------------------------------------- #
+
+    # construct initial state vector
+    x0 = initial_state_vector(system, initial_state, p, constants)
+
+    # current state vector is the initial state vector
+    x = x0
+
+    # solve for the new set of state variables
+    if linear
+        if update_linearization
+            if isnothing(xpfunc)
+                x = initial_lsolve!(x, p, constants)
+            else
+                x = initial_matrixfree_lsolve!(x, p, constants)
+            end
+        else
+            if isnothing(xpfunc)
+                x = initial_lsolve!(x0, p, constants)
+            else
+                x = initial_matrixfree_lsolve!(x0, p, constants)
+            end
+        end
+    else
+        if isnothing(xpfunc)
+            x = ImplicitAD.implicit(initial_nlsolve!, initial_residual!, p, constants; drdy=initial_drdy)
+            
+        else
+            x = ImplicitAD.implicit(initial_matrixfree_nlsolve!, initial_residual!, p, constants; drdy=matrixfree_jacobian)
+        end
+    end
+
+    # NOTE: `x`, `r`, `K`, and `converged` are updated in lsolve!/nlsolve!
+
+    # postprocess the dual number state
+    state = initial_output(system, x, p, constants)
+
+    # copy the state and rate variables to the original system
+    # if eltype(original_system) <: eltype(state)
+    #     # set the values of the original system directly
+    #     set_state!(original_system, assembly, state; prescribed_conditions=pcond)
+    #     set_rate!(original_system, assembly, state; prescribed_conditions=pcond)
+
+    # else
+    #     # initialize storage
+        xx = similar(original_system.x, eltype(state)) 
+        dxx = similar(original_system.dx, eltype(state)) 
+        
+
+        # construct state and rate vectors
+        set_state!(xx, original_system, assembly, state; prescribed_conditions=pcond) 
+        set_rate!(dxx, original_system, assembly, state; prescribed_conditions=pcond) 
+    
+
+        # copy only the primal portion of the variables . 
+        dual_safe_copy!(system.x, xx)  
+        dual_safe_copy!(system.dx, dxx)
+         
+    # end
+
+    # return the system, state, and the (de-referenced) convergence flag
+    return xx, dxx, state, converged[]
+end
+
 function initial_parameters(x, p, constants)
 
     # unpack default parameters, parameter function, and current time
@@ -2242,25 +2496,39 @@ function time_domain_analysis(assembly, tvec; kwargs...)
     return time_domain_analysis!(system, assembly, tvec; kwargs...)
 end
 
-macro show_tracked_array(arr)
-    # A show macro to show a tracked array that may or may not have duals. 
-    print(string(arr)) #Todo: Not printing???
-    print(" = ")
+# macro show_tracked_array(arr)
+#     # A show macro to show a tracked array that may or may not have duals. 
+#     print(string(arr)) #Todo: Not printing???
+#     print(" = ")
     
-    quote
-        access = $(esc(arr)) #xp not defined - scoping issue
+#     quote
+#         access = $(esc(arr)) #xp not defined - scoping issue
 
-        if isa(access[1], ReverseDiff.TrackedReal)
-            newarr = [access[i].value for i in eachindex(access)]
-            println(newarr)
+#         if isa(access[1], ReverseDiff.TrackedReal)
+#             newarr = [access[i].value for i in eachindex(access)]
+#             println(newarr)
 
-        elseif isa(access[1], ForwardDiff.Dual)
-            newarr = [access[i].value for i in eachindex(access)]
-            println(newarr)
+#         elseif isa(access[1], ForwardDiff.Dual)
+#             newarr = [access[i].value for i in eachindex(access)]
+#             println(newarr)
 
-        else
-            println(access)
-        end
+#         else
+#             println(access)
+#         end
+#     end
+# end
+
+function show_tracked_array(arr)
+    if isa(arr[1], ReverseDiff.TrackedReal)
+        newarr = [arr[i].value for i in eachindex(arr)]
+        println(newarr)
+
+    elseif isa(arr[1], ForwardDiff.Dual)
+        newarr = [arr[i].value for i in eachindex(arr)]
+        println(newarr)
+
+    else
+        println(arr)
     end
 end
 
@@ -2391,8 +2659,10 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     # current state and rate vector is the initial state and rate vector
     x = x0
     dx = dx0
-    # @show_tracked_array x0
-    # @show_tracked_array dx0
+    # println("x0")
+    # show_tracked_array(x0)
+    # println("dx0")
+    # show_tracked_array(dx0)
 
     # also update the state and rate variables in system.x
     dual_safe_copy!(system.x, x)
@@ -2610,8 +2880,8 @@ function implicit_euler_solve(inputs, p)
     
     residual! = (resid, rn) -> implicit_euler_residual!(resid, rn, inputs, p)
 
-    #TODO: Is there a way I can provide the jacobian to speed up calcs?
-    result = nlsolve(residual!, vcat(x + dx.*dt, dx)) 
+    #TODO: Is there a way I can provide the jacobian to speed up calcs? or minimally decrease the length of the tape. 
+    result = nlsolve(residual!, vcat(x + dx.*dt, dx)) #Adding autodiff=:forward didn't decrease the length of the tape. 
 
     return result.zero
 end
@@ -2625,6 +2895,9 @@ function take_step(x, dx, system, assembly, t, tprev,
     
     #TODO: Make an inplace version that doesn't allocate.
     @unpack force_scaling, indices = system
+
+    # @show x
+    # @show dx
 
     ### Prepare the vector of design vars (which includes the states and state rates)
     if isnothing(p)
@@ -2678,12 +2951,12 @@ function simulate(assembly, tvec;
     t0 = first(tvec)
 
 
-    system, initial_state, converged0 = initial_condition_analysis!(system, assembly, t0;
+    x0, dx0, initial_state, converged0 = initial_state_analysis!(system, assembly, t0;
     prescribed_conditions, distributed_loads, point_masses, gravity, linear_velocity, angular_velocity,
     structural_damping, two_dimensional)
 
-    x0 = system.x
-    dx0 = system.dx
+    # x0 = system.x
+    # dx0 = system.dx
 
     nx = length(x0)
 
