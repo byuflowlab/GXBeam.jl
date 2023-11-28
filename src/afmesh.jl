@@ -233,7 +233,21 @@ function resample(x, y, xbreak, ds, nseg=nothing)
         end
 
         # create new segment and interpolate onto original airfoil coordinates
-        xseg = range(xs, xe, length=npts)
+        if i === 1 || i === 2 || i === 4 #more resolution at LE
+            xseg = halfcosine_spacing(xs, xe, npts)
+            # xseg = range(xs, xe, length=npts)
+            # xseg = halfsine_spacing(xs, xe, npts)
+        elseif i === 3
+            xseg = cosine_spacing(xs, xe, npts)
+        elseif i === length(xbreak)-1 #more resolution at TE
+            # xseg = halfcosine_spacing(xs, xe, npts)
+            xseg = range(xs, xe, length=npts)
+            # xseg = halfsine_spacing(xs, xe, npts)
+        else #uniform spacing
+            # xseg = halfcosine_spacing(xs, xe, npts)
+            xseg = range(xs, xe, length=npts)
+            # xseg = halfsine_spacing(xs, xe, npts)
+        end
         yseg = linear(x[is:ie], y[is:ie], xseg)
 
         # add new segment to end of array
@@ -373,6 +387,68 @@ function tangential(x, y; upper=true)
     return tx, ty
 end
 
+"""
+determine tangential direction for each point on airfoil (as a normal vector with magnitudes tx and ty).  
+keyword signifies whether this is the upper or lower surface
+"""
+function tangential_tyler(x, y, xbreak; upper=true)
+
+    TF = promote_type(eltype(x), eltype(y))
+
+    # initialize
+    nx = length(x)
+    tx = zeros(TF, nx)
+    ty = zeros(TF, nx)
+
+    x_central_LE = xbreak[2] * 1.5
+    y_central_LE = xbreak[2] * 0.1894
+    # y_central_LE = 0.0 #todo: find y centroid here
+# println("$xbreak")
+# println("x[1]: $(x[1])")
+# println("x[end]: $(x[end])")
+# println("y[1]: $(y[1])")
+# println("y[end]: $(y[end])")
+    # iterate through airfoil (except end points)
+    for i = 1:nx-1
+        idx = find_segment_idx(x[i], xbreak)
+
+        if idx != 1 #previous method
+            # use central differencing to determine tangential direction
+            dx = x[i+1] - x[i-1]  
+            dy = y[i+1] - y[i-1]
+            ds = sqrt(dx^2 + dy^2)
+            if upper
+                tx[i] = dy/ds
+                ty[i] = -dx/ds
+            else
+                tx[i] = -dy/ds
+                ty[i] = dx/ds
+            end
+        else #new method
+            dx = x_central_LE - x[i]
+            dy = y_central_LE - y[i]
+            ds = sqrt(dx^2 + dy^2)
+
+            tx[i] = dx/ds
+            ty[i] = dy/ds
+        end
+    end
+    
+    # tangent to leading always points straight back along chord line
+    # tx[1] = 1.0
+    # ty[1] = 0.0
+    
+    # tangent at last point alwyas point straight down along blunt T.E.
+    tx[nx] = 0.0
+    if upper
+        ty[nx] = -1.0
+    else
+        ty[nx] = 1.0
+    end 
+    
+    return tx, ty
+end
+
 
 function find_segment_idx(xi, xbreak)
     if xi == 0.0
@@ -400,19 +476,32 @@ function find_inner_surface(x, y, tx, ty, segments, xbreak)
         # find corresponding segment
         idx = find_segment_idx(x[i], xbreak)
 
-        # pull out layers for this segment
-        layers = segments[idx]
-        nl = length(layers)  # number of layers
+        # if idx != 1 #old method
+            # pull out layers for this segment
+            # local layers
+            layers = segments[idx]
+            nl = length(layers)  # number of layers
 
-        # start at outer surface
-        xinner[i] = x[i]
-        yinner[i] = y[i]
+            # start at outer surface
+            xinner[i] = x[i]
+            yinner[i] = y[i]
 
-        # add thicknesses of layers to reach inner surface
-        for j = 1:nl
-            xinner[i] += layers[j].t * tx[i]
-            yinner[i] += layers[j].t * ty[i]
-        end
+            # add thicknesses of layers to reach inner surface
+            for j = 1:nl
+                xinner[i] += layers[j].t * tx[i]
+                yinner[i] += layers[j].t * ty[i]
+            end
+        # else #if in 1st sector, try new method
+        #     x0 = xbreak[2]
+        #     y0 = 0.0
+        #     xnew = -(x[i] - x0) #positive to the left of "origin"
+        #     ynew = y[i]
+
+        #     r = sqrt(xnew^2 + ynew^2)
+        #     θ = atan(ynew,xnew)
+
+        #     r2 = r - layers[j].t
+        # end
     end
 
     return xinner, yinner
@@ -835,9 +924,11 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     xbreak *= chord
 
     # compute tangential directions
-    txu, tyu = tangential(xu, yu, upper=true)
-    txl, tyl = tangential(xl, yl, upper=false)
-
+    txu, tyu = tangential_tyler(xu, yu, xbreak, upper=true)
+    txl, tyl = tangential_tyler(xl, yl, xbreak, upper=false)
+    # txu, tyu = tangential(xu, yu, upper=true)
+    # txl, tyl = tangential(xl, yl, upper=false)
+    
     # find inner surface curves
     xiu, yiu = find_inner_surface(xu, yu, txu, tyu, segments, xbreak)
     xil, yil = find_inner_surface(xl, yl, txl, tyl, segments, xbreak)
@@ -883,3 +974,40 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
 
     return nodes, elements
 end
+
+
+function halfcosine_spacing(x1, x2, npoints)
+
+    θs = range(0, pi/2, length=npoints)
+
+    return (x2-x1) * (1 .- cos.(θs)) .+ x1
+end
+
+halfcosine_spacing(x::AbstractVector) = halfcosine_spacing(x[1], x[end], length(x))
+
+function cosine_spacing(x1, x2, npoints)
+
+    θs = range(0, pi, length=npoints)
+
+    return (x2-x1) / 2 * (1 .- cos.(θs)) .+ x1
+end
+
+cosine_spacing(x::AbstractVector) = cosine_spacing(x[1], x[end], length(x))
+
+function halfsine_spacing(x1, x2, npoints)
+
+    θs = range(0, pi/2, length=npoints)
+
+    return (x2-x1) * (sin.(θs)) .+ x1
+end
+
+halfsine_spacing(x::AbstractVector) = halfsine_spacing(x[1], x[end], length(x))
+
+function sine_spacing(x1, x2, npoints)
+
+    θs = range(0, pi, length=npoints)
+
+    return (x2-x1) / 2 * (sin.(θs)) .+ x1
+end
+
+sine_spacing(x::AbstractVector) = sine_spacing(x[1], x[end], length(x))
