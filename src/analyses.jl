@@ -2991,21 +2991,21 @@ A similar function to time_domain_analysis, but instead history is already alloc
 function step_system!(system::DynamicSystem, paug, x, constants, initial_state, assembly, tvec, i; #Todo: Do we even need history? 
     # general keyword arguments
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
-    # distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
-    # point_masses=Dict{Int,PointMass{Float64}}(),
-    # linear_velocity=(@SVector zeros(3)),
-    # angular_velocity=(@SVector zeros(3)),
-    # linear_acceleration=(@SVector zeros(3)),
-    # angular_acceleration=(@SVector zeros(3)),
-    # gravity=(@SVector zeros(3)),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    linear_acceleration=(@SVector zeros(3)),
+    angular_acceleration=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
     ## control flag keyword arguments
     # reset_state=true,
     # steady_state=false,
-    # structural_damping=true,
+    structural_damping=true,
     linear=false,
     # two_dimensional=false,
     show_trace=false,
-    save=eachindex(tvec),
+    # save=eachindex(tvec),
     ## initial condition analysis keyword arguments
     # u0=fill((@SVector zeros(3)), length(assembly.points)),
     # theta0=fill((@SVector zeros(3)), length(assembly.points)),
@@ -3029,11 +3029,8 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
 
     @unpack force_scaling, indices = system
 
-    
+    constants = (; constants..., prescribed_conditions, distributed_loads, point_masses, linear_velocity, angular_velocity, linear_acceleration, angular_acceleration, gravity, structural_damping)
 
-    # --- Begin Time Stepping --- #
-
-    # for it = 2:length(tvec)
 
     # current time
     t = tvec[i]
