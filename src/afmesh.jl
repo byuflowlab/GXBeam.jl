@@ -841,6 +841,7 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     # find inner surface curves
     xiu, yiu = find_inner_surface(xu, yu, txu, tyu, segments, xbreak)
     xil, yil = find_inner_surface(xl, yl, txl, tyl, segments, xbreak)
+    # @show xil[end], yil[end]
 
     # add webs. note that doing so changes the mesh so tangential directions and inner surface must be recomputed
     # webloc[i] must be in increasing order so that the previous indices in idx_web remain correct as points are added behind them.
@@ -883,3 +884,161 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
 
     return nodes, elements
 end
+
+
+function mesh_cylinder(xaf, yaf, chord, thickness, material, theta)
+    ### Let the airfoil outer surface be the airfoil coordinates
+    #-> The outer nodes are the airfoil coordinates
+    #todo: check that the airfoil vectors are the same length
+    #todo: Check that the xaf is unique... in the midpoints. 
+    #todo:  check that it is a zero thickness airfoil. 
+    xex = xaf.*chord
+    yex = yaf.*chord
+    np = length(xex)
+    ne = np - 1
+
+    ### Find the interior nodes. 
+    #Assume that the order of the airfoil coordinates starts with the TE
+    # and goes upper surface, then lower surface, then returns to the
+    # original coordinate (zero thickness TE). 
+    xin = similar(xex) #TODO: Do I need the last point? 
+    yin = similar(yex)   #todo: Correct typing here. 
+
+    #todo: I should really be doing something similar to what is done in the for loop using the very last, first, and second points. 
+    xin[1] = xex[1]-thickness
+    yin[1] = yex[1]
+
+    #Iterate through the points to find the interior points
+    for i = 2:np-1 #TODO: The argument of the for loop could be made into a function. 
+        #=
+        Finding a vector that bisects the angle formed by the previous, current, and next points. 
+        =#
+
+        #A vector between the last point and the current
+        rx1 = xex[i]-xex[i-1]
+        ry1 = yex[i]-yex[i-1]
+
+        #A vector between the next and current point (from current to next)
+        rx2 = xex[i+1]-xex[i]
+        ry2 = yex[i+1]-yex[i]
+
+        #The vector from last to next
+        rx3 = rx1+rx2
+        ry3 = ry1+ry2
+
+        
+        l1 = sqrt(rx1^2 + ry1^2)
+        l2 = sqrt(rx2^2 + ry2^2)
+        # @show l1, l2
+        percent = l1/(l1+l2)
+
+        nx = xex[i-1] + rx3*percent
+        ny = yex[i-1] + ry3*percent
+
+        rx4 = nx - xex[i]
+        ry4 = ny - yex[i]
+        l4 = sqrt(rx4^2 + ry4^2)
+        
+        xin[i] = xex[i] + rx4*thickness/l4
+        yin[i] = yex[i] + ry4*thickness/l4
+    end
+
+    xin[end] = xin[1]
+    yin[end] = yin[1]
+
+    #todo: Rotate the points by theta (twist). 
+
+    # plt = plot(xex, yex, lab="exterior", markershape=:x, aspect_ratio=:equal)
+    # plot!(plt, xin, yin, lab="interior", markershape=:x)
+    # display(plt)
+
+    #TODO: Uses an extra set of nodes
+    #Todo. This is breaking. -> There should only be 2*(np-1) nodes (5 points, should result in 8 nodes)-> breaking for even numbers of nodes -> I was passing in repeating points. 
+    nodes = Array{Node{eltype(xex)}, 1}(undef, 2np)
+    # @show np, ne, 2*(np-1), length(xex), length(xin)
+    for i in eachindex(xex)
+        idx = 2*(i-1)
+        nodes[idx+1] = Node(xex[i], yex[i])
+        nodes[idx+2] = Node(xin[i], yin[i])
+    end
+
+
+    ### Create elements
+    elements = Array{MeshElement{eltype(xaf)}, 1}(undef, ne)
+    for i in 1:ne
+        idx = 2*(i-1)
+        # println("")
+        # @show idx
+        nodenumbers = [idx+1, idx+3, idx+4, idx+2] #original
+        # nodenumbers = [idx+3, idx+4, idx+2, idx+1] #Shift by one (rotate by 90 deg)
+        # nodenumbers = [idx+4, idx+2, idx+1, idx+3] #Flip the orientation angle 180 deg. 
+        # @show nodenumbers
+
+        # The element angle is accounted for in the solver. 
+        # element_ang = atan(nodes[idx+3].y-nodes[idx+1].y, nodes[idx+3].x-nodes[idx+1].x) #I think these are the correct angles. 
+        # element_ang = 0
+        # element_ang = -(pi - atan(nodes[idx+3].y-nodes[idx+1].y, nodes[idx+3].x-nodes[idx+1].x)) #Works... sorta. 
+        # element_ang = atan(nodes[idx+3].x-nodes[idx+1].x, nodes[idx+3].y-nodes[idx+1].y)
+        # element_ang = atan(abs(nodes[idx+3].y-nodes[idx+1].y), abs(nodes[idx+3].x-nodes[idx+1].x))
+        # println("")
+        # @show element_ang*180/pi
+        # @show (pi - element_ang)*180/pi
+        
+        elements[i] = MeshElement(nodenumbers, material, theta) 
+        # elements[i] = MeshElement(nodenumbers, material, theta) #Question: Should this be the ply alignment, the twist, or the angle relative to the local reference frame. 
+    end
+
+    return nodes, elements
+end
+
+# @recipe function f(::Type{Val{:gxmesh}}, nodes, elements)
+# # @recipe function plot_mesh(nodemesh::Tuple{Array{Node}, Array{MeshElement}}; plotnumbers=false) #Didn't work. 
+# # @recipe function plot_mesh(nodes::Vector{Node}, elements::Vector{MeshElement}; plotnumbers=false) #Didn't work
+# # @recipe function plot_mesh(nodes::Array{Node}, elements::Array{MeshElement}; plotnumbers=false) #Didn't work
+# # @recipe function plot_mesh(nodemesh::NodeMesh; plotnumbers=false) #Worked
+#     # nodes = nodemesh.nodes
+#     # elements = nodemesh.elements
+#     # nodes = nodemesh[1]
+#     # elements = nodemesh[2]
+#     num_nodes = length(nodes)
+#     ne = length(elements)
+
+#     aspect_ratio --> :equal
+
+#     # x = zeros(num_nodes)
+#     # y = zeros(num_nodes)
+#     # for i in eachindex(nodes)
+#     #     x[i] = nodes[i].x
+#     #     y[i] = nodes[i].y
+#     # end
+    
+#     x = zeros(5*ne)
+#     y = zeros(5*ne)
+
+#     for i = 1:ne
+#         element = elements[i]
+#         idx = 5*(i-1)
+#         # println("")
+#         nn = length(element.nodenum)
+#         for j = 1:nn+1
+#             if j<nn
+#                 jreach = element.nodenum[j+1]
+#             elseif j==nn
+#                 jreach = element.nodenum[1]
+#             elseif j==nn+1
+#                 jreach = element.nodenum[2]
+#             end
+#             # jreach = element.nodenum[j]
+#             # @show jreach
+
+#             x[idx+j] = nodes[jreach].x
+#             y[idx+j] = nodes[jreach].y
+#         end
+#     end
+
+#     # x := x
+#     # y := y
+
+#     return x, y
+# end
+

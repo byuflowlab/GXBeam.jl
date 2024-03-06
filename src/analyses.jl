@@ -3585,6 +3585,11 @@ function matrixfree_lsolve!(x0, p, constants, residual!, jacobian!; coupled_jaco
     return x
 end
 
+function mylinsolve!(A, b)
+    prob = LinearProblem(A, b)
+    return solve(prob).u
+end
+
 # nonlinear analysis function
 function nlsolve!(p, constants, residual!, jacobian!)
 
@@ -3599,6 +3604,10 @@ function nlsolve!(p, constants, residual!, jacobian!)
 
     # wrap the jacobian
     j!(jacob, x) = jacobian!(jacob, x, p, constants)
+
+    # jjabrahms = zero(jacob)
+    # j!(jjabrahms, x)
+    # @show typeof(LinearAlgebra.factorize(jjabrahms)) #Appears to always be UmfpackLU
 
     # construct temporary storage
     df = NLsolve.OnceDifferentiable(f!, j!, x, resid, jacob)
