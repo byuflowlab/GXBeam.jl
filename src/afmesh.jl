@@ -887,6 +887,9 @@ end
 
 
 function mesh_cylinder(xaf, yaf, chord, thickness, material, theta; twist=0., paxis=0.5*chord)
+    #Todo: Convert to use radius? 
+    #Todo: Do I need too be able to do different sections? -> Is this function needed? 
+    
     ### Let the airfoil outer surface be the airfoil coordinates
     #-> The outer nodes are the airfoil coordinates
     #todo: check that the airfoil vectors are the same length
@@ -1037,7 +1040,7 @@ function mesh_cylinder(xaf, yaf, chord, thickness, material, theta; twist=0., pa
 end
 
 #=
-A function to 
+A recipe to plot the nodes of an airfoil mesh. 
 =#
 @recipe function plot_nodes_recipe(nodes::Array{T1, 1}; plot_numbers=false) where {T1<:Node}
     num_nodes = length(nodes)
@@ -1049,50 +1052,87 @@ A function to
         y[i] = nodes[i].y
     end
 
+    #Todo: show_nums
+
     return x, y
 end
 
 
-@recipe function plot_mesh_recipe(nodes::Array{T1, 1}, elements::Array{T2, 1}) where {T1<:Node, T2<:MeshElement}
-    num_nodes = length(nodes)
-    ne = length(elements)
+@recipe function plot_mesh_recipe(nodes::Array{T1, 1}, elements::Array{T2, 1};
+     shownodenums=false, showelemnums=false, shownodes=false, showorientation=false) where {T1<:Node, T2<:MeshElement}
 
+    ne = length(elements)
     aspect_ratio --> :equal
 
-    # x = zeros(num_nodes)
-    # y = zeros(num_nodes)
-    # for i in eachindex(nodes)
-    #     x[i] = nodes[i].x
-    #     y[i] = nodes[i].y
-    # end
-    
-    x = zeros(5*ne)
-    y = zeros(5*ne)
+    if showelemnums
+        xbarvec = Float64[]
+        ybarvec = Float64[]
+        annotation_labels = String[]
+    end
 
     for i = 1:ne
-        element = elements[i]
-        idx = 5*(i-1)
-        # println("")
-        nn = length(element.nodenum)
-        for j = 1:nn+1
-            if j<nn
-                jreach = element.nodenum[j+1]
-            elseif j==nn
-                jreach = element.nodenum[1]
-            elseif j==nn+1
-                jreach = element.nodenum[2]
-            end
-            # jreach = element.nodenum[j]
-            # @show jreach
+        @series begin
+            nodes_local = nodes[elements[i].nodenum]
+            xi = zeros(5)
+            yi = zeros(5)
 
-            x[idx+j] = nodes[jreach].x
-            y[idx+j] = nodes[jreach].y
+            for i = 1:4
+                xi[i] = nodes_local[i].x
+                yi[i] = nodes_local[i].y
+                if i == 1
+                    xi[5] = nodes_local[i].x
+                    yi[5] = nodes_local[i].y
+                end
+            end
+
+            label --> false
+            seriescolor --> :black
+            if shownodes
+                markershape --> :x
+            end
+
+            #Plot the element numbers
+            if showelemnums
+                
+            end
+
+            xi, yi
+        end
+
+        if showelemnums
+            nodes_local = nodes[elements[i].nodenum]
+            xbar = sum([n.x/4 for n in nodes_local])
+            ybar = sum([n.y/4 for n in nodes_local])
+
+            push!(xbarvec, xbar)
+            push!(ybarvec, ybar)
+            push!(annotation_labels, string(i))
+
+            annotations --> (xbarvec, ybarvec, annotation_labels)
+        end
+
+        if showorientation
+            @series begin
+                nodes_local = nodes[elements[i].nodenum]
+                xbar = sum([n.x/4 for n in nodes_local])
+                ybar = sum([n.y/4 for n in nodes_local])
+
+                cb, sb = GXBeam.element_orientation(nodes_local)
+    
+                seriescolor --> :orange
+                linewidth --> 2
+                label --> false
+                arrow --> true
+
+                [xbar, xbar+(cb/4)], [ybar, ybar+(sb/4)]
+            end
         end
     end
 
-    # x := x
-    # y := y
-
-    return x, y
+    # if shownodenums #Todo: 
+    #     nn = length(nodes)
+    #     for i = 1:nn
+    #         annotate!(plt, nodes[i].x*1.1, nodes[i].y*1.1, string(i))
+    #     end
+    # end
 end
-
