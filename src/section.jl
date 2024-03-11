@@ -341,6 +341,10 @@ function element_orientation(nodes)
     cbeta = dx/ds
     sbeta = dy/ds
 
+    # println("")
+    # @show acos(cbeta)*180/pi
+    # @show asin(sbeta)*180/pi
+
     return cbeta, sbeta
 end
 

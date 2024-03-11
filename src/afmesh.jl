@@ -886,7 +886,7 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
 end
 
 
-function mesh_cylinder(xaf, yaf, chord, thickness, material, theta)
+function mesh_cylinder(xaf, yaf, chord, thickness, material, theta; twist=0., paxis=0.5*chord)
     ### Let the airfoil outer surface be the airfoil coordinates
     #-> The outer nodes are the airfoil coordinates
     #todo: check that the airfoil vectors are the same length
@@ -894,21 +894,42 @@ function mesh_cylinder(xaf, yaf, chord, thickness, material, theta)
     #todo:  check that it is a zero thickness airfoil. 
     xex = xaf.*chord
     yex = yaf.*chord
-    np = length(xex)
-    ne = np - 1
+
+    np = length(xex) #Number of exterior points (Note: np != num_nodes)
+
+    nt = length(thickness) #Number of layers
+    if isa(thickness, Number)
+        thickness = [thickness]
+    end
+
+
+    if length(theta)!=length(thickness)
+        if length(theta)==1
+            theta = ones(nt).*theta[1]
+        else
+            error("mesh_cylinder(): ply angle length doesn't match thickness length.")
+        end
+    end
+
+    # @show thickness
+
+    ne = (np - 1)*nt #Number of layers
+    nn = (nt+1)*np #Number of nodes
+
+    
 
     ### Find the interior nodes. 
     #Assume that the order of the airfoil coordinates starts with the TE
     # and goes upper surface, then lower surface, then returns to the
     # original coordinate (zero thickness TE). 
-    xin = similar(xex) #TODO: Do I need the last point? 
-    yin = similar(yex)   #todo: Correct typing here. 
+    normx = similar(xex) #TODO: Do I need the last point? 
+    normy = similar(yex)   #todo: Correct typing here. 
 
     #todo: I should really be doing something similar to what is done in the for loop using the very last, first, and second points. 
-    xin[1] = xex[1]-thickness
-    yin[1] = yex[1]
+    normx[1] = -1
+    normy[1] = 0
 
-    #Iterate through the points to find the interior points
+    #Iterate through the points to find the normal vectors
     for i = 2:np-1 #TODO: The argument of the for loop could be made into a function. 
         #=
         Finding a vector that bisects the angle formed by the previous, current, and next points. 
@@ -939,106 +960,139 @@ function mesh_cylinder(xaf, yaf, chord, thickness, material, theta)
         ry4 = ny - yex[i]
         l4 = sqrt(rx4^2 + ry4^2)
         
-        xin[i] = xex[i] + rx4*thickness/l4
-        yin[i] = yex[i] + ry4*thickness/l4
+        normx[i] = rx4/l4
+        normy[i] = ry4/l4
     end
 
-    xin[end] = xin[1]
-    yin[end] = yin[1]
+    normx[end] = normx[1]
+    normy[end] = normy[1]
 
     #todo: Rotate the points by theta (twist). 
 
     # plt = plot(xex, yex, lab="exterior", markershape=:x, aspect_ratio=:equal)
     # plot!(plt, xin, yin, lab="interior", markershape=:x)
     # display(plt)
+    st, ct = sincos(twist)
 
     #TODO: Uses an extra set of nodes
-    #Todo. This is breaking. -> There should only be 2*(np-1) nodes (5 points, should result in 8 nodes)-> breaking for even numbers of nodes -> I was passing in repeating points. 
-    nodes = Array{Node{eltype(xex)}, 1}(undef, 2np)
+    nodes = Array{Node{eltype(xex)}, 1}(undef, nn)
     # @show np, ne, 2*(np-1), length(xex), length(xin)
     for i in eachindex(xex)
-        idx = 2*(i-1)
-        nodes[idx+1] = Node(xex[i], yex[i])
-        nodes[idx+2] = Node(xin[i], yin[i])
+        idx = (nt+1)*(i-1)
+        # xi = xex[i]
+        # yi = yex[i]
+        xi = (xex[i]-paxis)*ct - yex[i]*st + paxis
+        yi = (xex[i]-paxis)*st + yex[i]*ct
+        nodes[idx+1] = Node(xi, yi)
+
+        for j in 2:(nt+1)
+            current_thickness = sum(thickness[1:j-1])
+            # xj = xex[i]+normx[i]*current_thickness
+            # yj = yex[i]+normy[i]*current_thickness
+            xj = (xex[i]+normx[i]*current_thickness-paxis)*ct - (yex[i]+normy[i]*current_thickness)*st + paxis
+            yj = (xex[i]+normx[i]*current_thickness-paxis)*st + (yex[i]+normy[i]*current_thickness)*ct
+            nodes[idx+j] = Node(xj, yj)
+        end
     end
 
 
     ### Create elements
     elements = Array{MeshElement{eltype(xaf)}, 1}(undef, ne)
-    for i in 1:ne
-        idx = 2*(i-1)
+    idxs =  filter(i->mod(i, nt+1)!=0, 1:(nn-nt-1))
+    for i in eachindex(idxs) #1:length(idxs)-nt
+        idx = idxs[i]
         # println("")
         # @show idx
-        nodenumbers = [idx+1, idx+3, idx+4, idx+2] #original
+        nodenumbers = [idx, idx+nt+1, idx+nt+2, idx+1] #Counter clockwise oriented elements
+        # nodenumbers = [idx+nt+2, idx+1, idx, idx+nt+1,] #Clockwise oriented elements
+        # nodenumbers = [idx+nt+1, idx+nt+2, idx+1, idx] #Pokey squares (element orientation is incorrect)
+        # nodenumbers = [idx+1, idx, idx+nt+1, idx+nt+2,]
+
+        # if i>=(ne/2)
+        #     nodenumbers = [idx+nt+2, idx+1, idx, idx+nt+1]
+        # else
+        #     nodenumbers = [idx, idx+nt+1, idx+nt+2, idx+1] 
+        # end
         # nodenumbers = [idx+3, idx+4, idx+2, idx+1] #Shift by one (rotate by 90 deg)
         # nodenumbers = [idx+4, idx+2, idx+1, idx+3] #Flip the orientation angle 180 deg. 
         # @show nodenumbers
 
-        # The element angle is accounted for in the solver. 
-        # element_ang = atan(nodes[idx+3].y-nodes[idx+1].y, nodes[idx+3].x-nodes[idx+1].x) #I think these are the correct angles. 
-        # element_ang = 0
-        # element_ang = -(pi - atan(nodes[idx+3].y-nodes[idx+1].y, nodes[idx+3].x-nodes[idx+1].x)) #Works... sorta. 
-        # element_ang = atan(nodes[idx+3].x-nodes[idx+1].x, nodes[idx+3].y-nodes[idx+1].y)
-        # element_ang = atan(abs(nodes[idx+3].y-nodes[idx+1].y), abs(nodes[idx+3].x-nodes[idx+1].x))
-        # println("")
-        # @show element_ang*180/pi
-        # @show (pi - element_ang)*180/pi
-        
-        elements[i] = MeshElement(nodenumbers, material, theta) 
-        # elements[i] = MeshElement(nodenumbers, material, theta) #Question: Should this be the ply alignment, the twist, or the angle relative to the local reference frame. 
+        #Which layer we're in to grab the correct theta. 
+        current_layer = mod(idx, nt+1)
+
+        elements[i] = MeshElement(nodenumbers, material, theta[current_layer]) #Question. Should this be the ply alignment, the twist, or the angle relative to the local reference frame. # The element angle is accounted for in the solver.
     end
+
+    # idxs_end = idxs[end-nt+1:end] #beginning nodes of the last elements
+
+    #Map the left nodes of the final elements (that close the cylinder) to the right nodes of the initial elements. 
+    # for i in 1:nt #-> Causes a singular matrix...
+    #     # @show ne-nt+i
+    #     elements[end-nt+i].nodenum[2:3] .= [i, i+1]
+    # end
+
+    
 
     return nodes, elements
 end
 
-# @recipe function f(::Type{Val{:gxmesh}}, nodes, elements)
-# # @recipe function plot_mesh(nodemesh::Tuple{Array{Node}, Array{MeshElement}}; plotnumbers=false) #Didn't work. 
-# # @recipe function plot_mesh(nodes::Vector{Node}, elements::Vector{MeshElement}; plotnumbers=false) #Didn't work
-# # @recipe function plot_mesh(nodes::Array{Node}, elements::Array{MeshElement}; plotnumbers=false) #Didn't work
-# # @recipe function plot_mesh(nodemesh::NodeMesh; plotnumbers=false) #Worked
-#     # nodes = nodemesh.nodes
-#     # elements = nodemesh.elements
-#     # nodes = nodemesh[1]
-#     # elements = nodemesh[2]
-#     num_nodes = length(nodes)
-#     ne = length(elements)
+#=
+A function to 
+=#
+@recipe function plot_nodes_recipe(nodes::Array{T1, 1}; plot_numbers=false) where {T1<:Node}
+    num_nodes = length(nodes)
 
-#     aspect_ratio --> :equal
+    x = zeros(num_nodes)
+    y = zeros(num_nodes)
+    for i in eachindex(nodes)
+        x[i] = nodes[i].x
+        y[i] = nodes[i].y
+    end
 
-#     # x = zeros(num_nodes)
-#     # y = zeros(num_nodes)
-#     # for i in eachindex(nodes)
-#     #     x[i] = nodes[i].x
-#     #     y[i] = nodes[i].y
-#     # end
+    return x, y
+end
+
+
+@recipe function plot_mesh_recipe(nodes::Array{T1, 1}, elements::Array{T2, 1}) where {T1<:Node, T2<:MeshElement}
+    num_nodes = length(nodes)
+    ne = length(elements)
+
+    aspect_ratio --> :equal
+
+    # x = zeros(num_nodes)
+    # y = zeros(num_nodes)
+    # for i in eachindex(nodes)
+    #     x[i] = nodes[i].x
+    #     y[i] = nodes[i].y
+    # end
     
-#     x = zeros(5*ne)
-#     y = zeros(5*ne)
+    x = zeros(5*ne)
+    y = zeros(5*ne)
 
-#     for i = 1:ne
-#         element = elements[i]
-#         idx = 5*(i-1)
-#         # println("")
-#         nn = length(element.nodenum)
-#         for j = 1:nn+1
-#             if j<nn
-#                 jreach = element.nodenum[j+1]
-#             elseif j==nn
-#                 jreach = element.nodenum[1]
-#             elseif j==nn+1
-#                 jreach = element.nodenum[2]
-#             end
-#             # jreach = element.nodenum[j]
-#             # @show jreach
+    for i = 1:ne
+        element = elements[i]
+        idx = 5*(i-1)
+        # println("")
+        nn = length(element.nodenum)
+        for j = 1:nn+1
+            if j<nn
+                jreach = element.nodenum[j+1]
+            elseif j==nn
+                jreach = element.nodenum[1]
+            elseif j==nn+1
+                jreach = element.nodenum[2]
+            end
+            # jreach = element.nodenum[j]
+            # @show jreach
 
-#             x[idx+j] = nodes[jreach].x
-#             y[idx+j] = nodes[jreach].y
-#         end
-#     end
+            x[idx+j] = nodes[jreach].x
+            y[idx+j] = nodes[jreach].y
+        end
+    end
 
-#     # x := x
-#     # y := y
+    # x := x
+    # y := y
 
-#     return x, y
-# end
+    return x, y
+end
 
