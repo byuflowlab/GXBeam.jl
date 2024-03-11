@@ -886,155 +886,48 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
 end
 
 
-function mesh_cylinder(xaf, yaf, chord, thickness, material, theta; twist=0., paxis=0.5*chord)
-    #Todo: Convert to use radial positions? -> Nice thought, but I don't think I need it. 
-    #Todo: Do I need too be able to do different sections? -> Is this function needed? -> Nope... 
+"""
+    mesh_cylinder(R, thickness, material)
 
-    ### Let the airfoil outer surface be the airfoil coordinates
-    #-> The outer nodes are the airfoil coordinates
-    #todo: check that the airfoil vectors are the same length
-    #todo: Check that the xaf is unique... in the midpoints. 
-    #todo:  check that it is a zero thickness airfoil. 
-    xex = xaf.*chord
-    yex = yaf.*chord
+A simple function to mesh a circular cross-section. 
 
-    np = length(xex) #Number of exterior points (Note: np != num_nodes)
+*Inputs*
+- R::Float - Outer radius of the cross-section. 
+- thickness::Float
+- material::Material 
+- nr::Int - Number of radial points (How many elements to represent the layer). 
+- nt::Int - Number of tangential points (How many elements around the circle). 
+"""
+function mesh_cylinder(R, thickness, material; twist=0., paxis=0.0, nr::Int=2, nt::Int=200)
+    #Todo. Do I need too be able to do different sections? -> Is this function needed? -> Nope... Well... maybe a simple function would be handy to have on hand... and if we need to complicate it in the future... maybe I'll keep it. 
 
-    nt = length(thickness) #Number of layers
-    if isa(thickness, Number)
-        thickness = [thickness]
-    end
+    r = range(R - thickness, R, length=nr)
+    theta = range(0.0, 2*pi, length=nt)
 
+    nodes = Vector{Node{Float64}}(undef, nr*(nt-1))
+    elements = Vector{MeshElement{Float64}}(undef, (nr-1)*(nt-1))
 
-    if length(theta)!=length(thickness)
-        if length(theta)==1
-            theta = ones(nt).*theta[1]
-        else
-            error("mesh_cylinder(): ply angle length doesn't match thickness length.")
+    m = 1
+    for i = 1:nt-1
+        for j = 1:nr
+            nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]))
+            m += 1
         end
     end
 
-    # @show thickness
+    n = 1
+    for i = 1:nt-1
+        for j = 1:nr-1
+            if i == nt-1
+                ip = 0
+            else
+                ip = i
+            end
 
-    ne = (np - 1)*nt #Number of layers
-    nn = (nt+1)*np #Number of nodes
-
-    
-
-    ### Find the interior nodes. 
-    #Assume that the order of the airfoil coordinates starts with the TE
-    # and goes upper surface, then lower surface, then returns to the
-    # original coordinate (zero thickness TE). 
-    normx = similar(xex) #TODO: Do I need the last point? 
-    normy = similar(yex)   #todo: Correct typing here. 
-
-    #todo: I should really be doing something similar to what is done in the for loop using the very last, first, and second points. 
-    normx[1] = -1
-    normy[1] = 0
-
-    #Iterate through the points to find the normal vectors
-    for i = 2:np-1 #TODO: The argument of the for loop could be made into a function. 
-        #=
-        Finding a vector that bisects the angle formed by the previous, current, and next points. 
-        =#
-
-        #A vector between the last point and the current
-        rx1 = xex[i]-xex[i-1]
-        ry1 = yex[i]-yex[i-1]
-
-        #A vector between the next and current point (from current to next)
-        rx2 = xex[i+1]-xex[i]
-        ry2 = yex[i+1]-yex[i]
-
-        #The vector from last to next
-        rx3 = rx1+rx2
-        ry3 = ry1+ry2
-
-        
-        l1 = sqrt(rx1^2 + ry1^2)
-        l2 = sqrt(rx2^2 + ry2^2)
-        # @show l1, l2
-        percent = l1/(l1+l2)
-
-        nx = xex[i-1] + rx3*percent
-        ny = yex[i-1] + ry3*percent
-
-        rx4 = nx - xex[i]
-        ry4 = ny - yex[i]
-        l4 = sqrt(rx4^2 + ry4^2)
-        
-        normx[i] = rx4/l4
-        normy[i] = ry4/l4
-    end
-
-    normx[end] = normx[1]
-    normy[end] = normy[1]
-
-    #todo: Rotate the points by theta (twist). 
-
-    # plt = plot(xex, yex, lab="exterior", markershape=:x, aspect_ratio=:equal)
-    # plot!(plt, xin, yin, lab="interior", markershape=:x)
-    # display(plt)
-    st, ct = sincos(twist)
-
-    #TODO: Uses an extra set of nodes
-    nodes = Array{Node{eltype(xex)}, 1}(undef, nn)
-    # @show np, ne, 2*(np-1), length(xex), length(xin)
-    for i in eachindex(xex)
-        idx = (nt+1)*(i-1)
-        # xi = xex[i]
-        # yi = yex[i]
-        xi = (xex[i]-paxis)*ct - yex[i]*st + paxis
-        yi = (xex[i]-paxis)*st + yex[i]*ct
-        nodes[idx+1] = Node(xi, yi)
-
-        for j in 2:(nt+1)
-            current_thickness = sum(thickness[1:j-1])
-            # xj = xex[i]+normx[i]*current_thickness
-            # yj = yex[i]+normy[i]*current_thickness
-            xj = (xex[i]+normx[i]*current_thickness-paxis)*ct - (yex[i]+normy[i]*current_thickness)*st + paxis
-            yj = (xex[i]+normx[i]*current_thickness-paxis)*st + (yex[i]+normy[i]*current_thickness)*ct
-            nodes[idx+j] = Node(xj, yj)
+            elements[n] = MeshElement([nr*ip+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*ip+j+1], material, 0.0)
+            n += 1
         end
     end
-
-
-    ### Create elements
-    elements = Array{MeshElement{eltype(xaf)}, 1}(undef, ne)
-    idxs =  filter(i->mod(i, nt+1)!=0, 1:(nn-nt-1))
-    for i in eachindex(idxs) #1:length(idxs)-nt
-        idx = idxs[i]
-        # println("")
-        # @show idx
-        nodenumbers = [idx, idx+nt+1, idx+nt+2, idx+1] #Counter clockwise oriented elements
-        # nodenumbers = [idx+nt+2, idx+1, idx, idx+nt+1,] #Clockwise oriented elements
-        # nodenumbers = [idx+nt+1, idx+nt+2, idx+1, idx] #Pokey squares (element orientation is incorrect)
-        # nodenumbers = [idx+1, idx, idx+nt+1, idx+nt+2,]
-
-        # if i>=(ne/2)
-        #     nodenumbers = [idx+nt+2, idx+1, idx, idx+nt+1]
-        # else
-        #     nodenumbers = [idx, idx+nt+1, idx+nt+2, idx+1] 
-        # end
-        # nodenumbers = [idx+3, idx+4, idx+2, idx+1] #Shift by one (rotate by 90 deg)
-        # nodenumbers = [idx+4, idx+2, idx+1, idx+3] #Flip the orientation angle 180 deg. 
-        # @show nodenumbers
-
-        #Which layer we're in to grab the correct theta. 
-        current_layer = mod(idx, nt+1)
-
-        elements[i] = MeshElement(nodenumbers, material, theta[current_layer]) #Question. Should this be the ply alignment, the twist, or the angle relative to the local reference frame. # The element angle is accounted for in the solver.
-    end
-
-    # idxs_end = idxs[end-nt+1:end] #beginning nodes of the last elements
-
-    #Map the left nodes of the final elements (that close the cylinder) to the right nodes of the initial elements. 
-    # for i in 1:nt #-> Causes a singular matrix...
-    #     # @show ne-nt+i
-    #     elements[end-nt+i].nodenum[2:3] .= [i, i+1]
-    # end
-
-    
 
     return nodes, elements
 end
