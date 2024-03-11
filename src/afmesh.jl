@@ -887,9 +887,9 @@ end
 
 
 function mesh_cylinder(xaf, yaf, chord, thickness, material, theta; twist=0., paxis=0.5*chord)
-    #Todo: Convert to use radius? 
-    #Todo: Do I need too be able to do different sections? -> Is this function needed? 
-    
+    #Todo: Convert to use radial positions? -> Nice thought, but I don't think I need it. 
+    #Todo: Do I need too be able to do different sections? -> Is this function needed? -> Nope... 
+
     ### Let the airfoil outer surface be the airfoil coordinates
     #-> The outer nodes are the airfoil coordinates
     #todo: check that the airfoil vectors are the same length
