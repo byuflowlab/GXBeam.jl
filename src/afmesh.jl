@@ -887,25 +887,13 @@ end
 
 
 """
-    mesh_cylinder(R, thickness, material)
-
-A simple function to mesh a circular cross-section. 
-
-*Inputs*
-- R::Float - Outer radius of the cross-section. 
-- thickness::Float
-- material::Material 
-- nr::Int - Number of radial points (How many elements to represent the layer). 
-- nt::Int - Number of tangential points (How many elements around the circle). 
 """
-function mesh_cylinder(R, thickness, material; twist=0., paxis=0.0, nr::Int=2, nt::Int=200)
-    #Todo. Do I need too be able to do different sections? -> Is this function needed? -> Nope... Well... maybe a simple function would be handy to have on hand... and if we need to complicate it in the future... maybe I'll keep it. 
-
-    r = range(R - thickness, R, length=nr)
+function mesh_radial_layer!(nodes, elements, R_outer, R_inner, material, plyangle, nr, nt)
+    r = range(R_inner, R_outer, length=nr)
+    # r = range(R - thickness, R, length=nr)
     theta = range(0.0, 2*pi, length=nt)
 
     nodes = Vector{Node{Float64}}(undef, nr*(nt-1))
-    elements = Vector{MeshElement{Float64}}(undef, (nr-1)*(nt-1))
 
     m = 1
     for i = 1:nt-1
@@ -924,10 +912,60 @@ function mesh_cylinder(R, thickness, material; twist=0., paxis=0.0, nr::Int=2, n
                 ip = i
             end
 
-            elements[n] = MeshElement([nr*ip+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*ip+j+1], material, 0.0)
+            elements[n] = MeshElement([nr*ip+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*ip+j+1], material, plyangle)
             n += 1
         end
     end
+end
+
+
+"""
+    mesh_cylinder(R, thickness, material)
+
+A simple function to mesh a circular cross-section. 
+
+*Inputs*
+- r::Vector{Float} - A vector of all the radial location of nodes. Assumed from least to greatest. 
+- materials::Vector{Material} - All of the materials used in the cross section. 
+- material_idx::Vector{Int} - The index of the material in the materials vector for each layer.
+Assumed in order of outermost layer to inner most layer. Note: This is opposite to the order of `r`. 
+- plyangles::Vector{Float} - The ply angle of a given radial element (same order as material_idx).
+- nt::Int - Number of tangential points (How many elements around the circle). 
+"""
+function mesh_cylinder(r, materials, material_idx; plyangles=zeros(length(r)-1), nt::Int=200)
+    nr = length(r) #Number of radial points. 
+    nn = nr*(nt-1) #Number of nodes
+    ne = (nr-1)*(nt-1) #Number of elements
+
+
+    nodes = Vector{Node{Float64}}(undef, nn)
+    elements = Vector{MeshElement{Float64}}(undef, ne)
+    theta = range(0.0, 2*pi, length=nt)
+
+    m = 1
+    for i = 1:nt-1
+        for j = 1:nr
+            nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]))
+            m += 1
+        end
+    end
+
+    n = 1
+    for i = 1:nt-1
+        for j = 1:nr-1
+            if i == nt-1
+                ip = 0
+            else
+                ip = i
+            end
+            
+            material = materials[material_idx[j]] #Extract the correct material
+
+            elements[n] = MeshElement([nr*ip+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*ip+j+1], material, plyangles[j])
+            n += 1
+        end
+    end
+    
 
     return nodes, elements
 end
