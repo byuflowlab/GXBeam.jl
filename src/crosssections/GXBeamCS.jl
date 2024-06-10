@@ -3,6 +3,7 @@ module GXBeamCS
 import ForwardDiff
 using UnPack
 using SparseArrays
+using StaticArrays
 
 # from section
 export Material, Node, MeshElement
