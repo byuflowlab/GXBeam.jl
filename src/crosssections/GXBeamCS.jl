@@ -5,7 +5,7 @@ using UnPack
 using SparseArrays
 using StaticArrays
 
-# from section
+# from fem
 export Material, Node, MeshElement
 export initialize_cache, compliance_matrix, mass_matrix, plotmesh
 export strain_recovery, plotsoln, tsai_wu
@@ -14,8 +14,8 @@ export strain_recovery, plotsoln, tsai_wu
 export Layer
 export afmesh
 
-# section properties
-include("section.jl")
+# section properties using finite element based approach
+include("fem.jl")
 
 # airfoil meshing
 include("afmesh.jl")
