@@ -1,7 +1,8 @@
 # Unit Tests for section.jl and afmesh.jl
 
-using GXBeam, LinearAlgebra, Random, Test
+using GXBeam.GXBeamCS, LinearAlgebra, Random, Test
 using ForwardDiff, FiniteDiff
+import GXBeam
 
 @testset "section properties: material stiffness matrix" begin
 
@@ -18,7 +19,7 @@ using ForwardDiff, FiniteDiff
     nu13 = rand(RNG)
     rho = 1.0
     mat = Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho)
-    Q1 = GXBeam.stiffness(mat)
+    Q1 = GXBeamCS.stiffness(mat)
 
     nu21 = nu12*E2/E1
     nu31 = nu13*E3/E1
@@ -602,7 +603,7 @@ linearinterp(xdata, ydata, x::AbstractVector) = linearinterp.(Ref(xdata), Ref(yd
     s11 = zeros(n)
     s22 = zeros(n)
     for i = 1:n
-        _, _, yvec[i] = GXBeam.area_and_centroid_of_element(nodes[elements[idx[i]].nodenum])
+        _, _, yvec[i] = GXBeamCS.area_and_centroid_of_element(nodes[elements[idx[i]].nodenum])
         s11[i] = sigma_b[3, idx[i]]
         s22[i] = sigma_b[1, idx[i]]
     end
@@ -893,7 +894,7 @@ end
     s22 = zeros(n)
     s12 = zeros(n)
     for i = 1:n
-        _, _, x3vec[i] = GXBeam.area_and_centroid_of_element(nodes[elements[idx[i]].nodenum])
+        _, _, x3vec[i] = GXBeamCS.area_and_centroid_of_element(nodes[elements[idx[i]].nodenum])
         s11[i] = sigma_b[3, idx[i]]
         s22[i] = sigma_b[1, idx[i]]
         s12[i] = sigma_b[5, idx[i]]
@@ -1097,7 +1098,7 @@ end
     nu23 = 0.3
     rho = 2.7e3
 
-    material = GXBeam.Material(E1, E2, E3, G12, G13, G23,
+    material = Material(E1, E2, E3, G12, G13, G23,
                                     nu12, nu13, nu23, rho)
 
     # model square cross section mesh
@@ -1107,8 +1108,8 @@ end
     xs = range(0.0, stop=beam_length/10, length=nx+1)
     ys = range(0.0, stop=beam_length/10, length=ny+1)
 
-    nodes = [GXBeam.Node(xs[i], ys[j]) for j in 1:ny+1 for i in 1:nx+1]
-    elements = [GXBeam.MeshElement([i+(j-1)*(nx+1),
+    nodes = [Node(xs[i], ys[j]) for j in 1:ny+1 for i in 1:nx+1]
+    elements = [MeshElement([i+(j-1)*(nx+1),
                                     i+1+(j-1)*(nx+1),
                                     nx+2+i+(j-1)*(nx+1),
                                     nx+1+i+(j-1)*(nx+1)], material, 0.0)
@@ -1116,9 +1117,9 @@ end
 
     # get compliance, mass matrices
     cache = initialize_cache(nodes, elements)
-    compliance = [GXBeam.compliance_matrix(nodes, elements; cache, gxbeam_order=true, shear_center=false)[1]
+    compliance = [compliance_matrix(nodes, elements; cache, gxbeam_order=true, shear_center=false)[1]
                     for i in 1:num_beam_elements]
-    mass = [GXBeam.mass_matrix(nodes, elements)[1] for i in 1:num_beam_elements]
+    mass = [mass_matrix(nodes, elements)[1] for i in 1:num_beam_elements]
 
     # model cantilever beam in GXBeam
     xb = range(0.0, stop=beam_length, length=num_beam_elements+1)
@@ -1152,7 +1153,7 @@ end
 
     # run GXBeam strain recovery
     strain_beam, stress_beam,
-        strain_ply, stress_ply = GXBeam.strain_recovery(F_GXBeam, M_GXBeam, nodes, elements, cache;
+        strain_ply, stress_ply = strain_recovery(F_GXBeam, M_GXBeam, nodes, elements, cache;
                                                         gxbeam_order=true)
 
     #strains

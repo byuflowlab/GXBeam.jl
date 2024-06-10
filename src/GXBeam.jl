@@ -58,26 +58,14 @@ export deform_cross_section, deform_cross_section!
 
 export write_vtk
 
-# from section
-export Material, Node, MeshElement
-export initialize_cache, compliance_matrix, mass_matrix, plotmesh
-export strain_recovery, plotsoln, tsai_wu
-
-# from afmesh
-export Layer
-export afmesh
 
 const GAUSS_NODES = SVector(-0.8611363115940526, -0.3399810435848563, 0.3399810435848563, 0.8611363115940526)
 const GAUSS_WEIGHTS = SVector(0.34785484513745385, 0.6521451548625462, 0.6521451548625462, 0.34785484513745385)
 
+include("crosssections/GXBeamCS.jl")
+
 # common math functions
 include("math.jl")
-
-# section properties
-include("section.jl")
-
-# airfoil meshing
-include("afmesh.jl")
 
 # assembly creation
 include("assembly.jl")
