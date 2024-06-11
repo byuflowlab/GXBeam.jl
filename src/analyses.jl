@@ -2760,9 +2760,9 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             paug[irate+7:irate+9] = 2/dt*V + Vdot
             paug[irate+10:irate+12] = 2/dt*Ω + Ωdot
 
-            # if ipoint==length(assembly.points)
-            #     println("TDA: $it")
-            #     @show paug
+            # if ipoint==length(assembly.points)&&it==2
+            #     # println("TDA: $it")
+            #     @show typeof(paug)
             #     println("")
             # end
         end
@@ -2970,9 +2970,11 @@ function initialize_system!(system::DynamicSystem, assembly, tvec; #Todo: Do I n
     # augment parameter vector with space for the initial states
     if isnothing(p)
         # parameter vector is non-existant
+        # println("No parameter vector")
         paug = zeros(eltype(x), 12*length(assembly.points))
     else
         # parameter vector exists
+        # println("Parameter vector exists")
         paug = zeros(eltype(x), 12*length(assembly.points) + length(p))
         # copy parameter values to the augmented parameter vector
         paug[12*length(assembly.points) + 1 : 12*length(assembly.points) + length(p)] .= p
@@ -3585,10 +3587,10 @@ function matrixfree_lsolve!(x0, p, constants, residual!, jacobian!; coupled_jaco
     return x
 end
 
-function mylinsolve!(A, b)
-    prob = LinearProblem(A, b)
-    return solve(prob).u
-end
+# function mylinsolve!(A, b)
+#     prob = LinearProblem(A, b)
+#     return solve(prob).u
+# end
 
 # nonlinear analysis function
 function nlsolve!(p, constants, residual!, jacobian!)

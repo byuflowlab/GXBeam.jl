@@ -341,3 +341,15 @@ point `r`, initial transformation matrix `Cab`, and curvature vector `k`.
 """
 @inline curve_coordinates(r, Cab, k, s) = curve_coordinates(r, Cab, k*k', tilde(k), sqrt(k'*k), s)
 @inline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^3)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)
+
+function total_mass(elements::Vector{Element{TF}}) where TF
+    mass = 0.0
+    for elem in elements
+        mass += elem.mass[1]*elem.L
+    end
+    return mass
+end
+
+function total_mass(assembly::Assembly)
+    return total_mass(assembly.elements)
+end

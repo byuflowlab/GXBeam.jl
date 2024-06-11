@@ -807,6 +807,30 @@ function area_and_centroid_of_element(node)
     return A, xc, yc
 end
 
+"""
+    mesh_area(nodes, elements)
+
+Compute total area of the mesh.
+
+**Inputs**
+- `nodes::Vector{Node{TF}}`: all the nodes in the mesh
+- `elements::Vector{MeshElement{TF}}`: all the elements in the mesh
+
+**Returns**
+- `A::TF`: total area of the mesh
+"""
+function mesh_area(nodes, elements)
+
+    A = 0.0
+
+    for element in elements
+        node = nodes[element.nodenum]
+        A += area_and_centroid_of_element(node)[1]
+    end
+
+    return A
+end
+
 
 """
     mass_matrix(nodes, elements)

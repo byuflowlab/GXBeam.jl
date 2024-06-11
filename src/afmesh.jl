@@ -501,6 +501,7 @@ function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     # find first crossing on aft half of airfoil
     n = length(ydiff) ÷ 2  # integer division
     iu = findfirst(ydiff[n+1:end] .< 0.0)
+    # @show iu
     if isnothing(iu)  # no crossing
         return 0.0, 0.0, xu, yu, xl, yl
     end
@@ -544,10 +545,11 @@ end
 """
 create nodes and elements for half (upper or lower) portion of airfoil
 """
-function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
+function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te, TEthickness)
     nl = length(segments[1])  # number of layers (same for all segments)
 
     TF = promote_type(eltype(xu), eltype(yu), eltype(txu), eltype(tyu), eltype(eltype(eltype(segments))), eltype(chord), eltype(x_te), eltype(y_te))
+
     # initialize
     nxu = length(xu)
     if x_te != 0.0
@@ -557,6 +559,7 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
         nodes_te = 0
         elements_te = 0
     end
+    
     nodesu = Vector{Node{TF}}(undef, nxu * (nl + 1) + nodes_te)
     elementsu = Vector{MeshElement{TF}}(undef, (nxu - 1) * nl + elements_te)
 
@@ -595,12 +598,13 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
         end
     end
 
-    # add trailing edge nodes
-    if x_te != 0.0
+    ### add trailing edge nodes
+    if x_te != 0.0 # There is intersection of TE thickness
         # pull out last row thickness and normalize it
         last_t = [layer.t for layer in segments[end]]
         norm_t = cumsum(last_t)
         norm_t /= norm_t[end]
+
         # distribute points according to that normalization starting at (chord, 0) ending at (x_te, y_te)
         nodesu[n] = Node(chord, zero(TF))
         n += 1
@@ -611,26 +615,30 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
             n += 1
         end
     else
-        # modify last row of nodes to create angled transition from n-1 to n-nl
-        # start
+        ### modify last row of nodes to create angled transition from n-1 to n-nl 
+        # start 
         nsx = nodesu[n-nl-2].x
         nsy = nodesu[n-nl-2].y
-        # end
+        # end 
         nex = nodesu[n-nl-1].x
         ney = nodesu[n-nl-1].y
 
-        for j = 1:nl+1
-            njy = nodesu[n - (nl+1) - j].y  # use last row height (could really do either)
 
-            frac = (njy - nsy)/(ney - nsy)
-            nodesu[n - j] = Node(nsx + frac*(nex-nsx), njy)
-        end
+        ### Adam's hack to try and connect the final section.
+        if !TEthickness
+            for j = 1:nl+1
+                njy = nodesu[n - (nl+1) - j].y  # use last row height (could really do either)
 
-        # move second to last row back halfway to make room
-        for j = 1:nl+1
-            newx = 0.5 * (nodesu[n - (nl+1) - j].x + nodesu[n - 2*(nl+1) - j].x)
-            newy = 0.5 * (nodesu[n - (nl+1) - j].y + nodesu[n - 2*(nl+1) - j].y)
-            nodesu[n - nl-1 - j] = Node(newx, newy)
+                frac = (njy - nsy)/(ney - nsy)
+                nodesu[n - j] = Node(nsx + frac*(nex-nsx), njy)
+            end
+
+            # move second to last row back halfway to make room
+            for j = 1:nl+1
+                newx = 0.5 * (nodesu[n - (nl+1) - j].x + nodesu[n - 2*(nl+1) - j].x)
+                newy = 0.5 * (nodesu[n - (nl+1) - j].y + nodesu[n - 2*(nl+1) - j].y)
+                nodesu[n - nl-1 - j] = Node(newx, newy)
+            end
         end
 
         nxu -= 1  # hack for next part to create correct number of elements
@@ -656,7 +664,7 @@ end
 given nodes/elements for upper surface and lower surface separately,
 combine into one set making sure to reuse the common nodes that occur at the LE/TE
 """
-function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
+function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te, TEthickness, verbose)
 
     TN = promote_type(eltype(eltype(nodesu)), eltype(eltype(nodesl)))
     TE = promote_type(eltype(eltype(elementsu)), eltype(eltype(elementsl)))
@@ -719,15 +727,23 @@ function combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayers, x_te)
             nodenum = [nnu-nt+k+1; oldnodenum[1]; oldnodenum[4]; nnu-nt+k]
             elements[i] = MeshElement(nodenum, elementsl[j].material, elementsl[j].theta)
         end
+        return nodes, elements
     else
         # add new elements to close trailing edge.
         for i = 1:nlayers
             nodenum = [nnl-i+1+(nnu-nt); nnl-i+(nnu-nt); nnu-i; nnu-i+1]
             elements[neu+nel+i] = MeshElement(nodenum, elementsu[end-i+1].material, elementsu[end-i+1].theta)
         end
+
+        if TEthickness
+            return nodes, elements[1:end-(nlayers+1)]
+        else
+            @warn("afmesh(): Your TE thickness is non-zero and you haven't closed the loop.")
+            return nodes, elements
+        end
     end
 
-    return nodes, elements
+    # return nodes, elements[1:end-(nlayers+1)]
 end
 
 """
@@ -820,7 +836,24 @@ in the normal direction, using the number of grid points as defined by segment w
 - `nodes::Vector{Node{Float64}}`: nodes for this mesh
 - `elements::Vector{MeshElement{Float64}}`: elements for this mesh
 """
-function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, wns=4, wnt=nothing)
+function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; ds=nothing, dt=nothing, ns=nothing, nt=nothing, wns=4, wnt=nothing, TEthickness=false, TEweb=true, verbose=true)
+
+    if TEthickness&&TEweb 
+        t_TE = 0.
+        for i in eachindex(segments[end])
+            t_TE += segments[end][i].t
+        end
+        
+        #Check if the TE will intersect
+        if (yaf[1] - t_TE/chord) >= (yaf[end] + t_TE/chord)
+            web_TE = segments[end]
+            # web_TE_loc = 1 - t_TE/(2*chord)
+            web_TE_loc = 1 - t_TE/(chord)
+
+            push!(webloc, web_TE_loc)
+            push!(webs, web_TE)
+        end
+    end
 
     # -------------- preprocessing -----------------
     # preprocess the segments so all have same number of layers
@@ -849,22 +882,44 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     idx_webu = vector_ints(nw)
     idx_webl = vector_ints(nw)
     nx_web = vector_ints(nw)
+    # @show length(xiu), length(yiu), length(xu), length(yu), length(txu), length(tyu)
     for i = 1:nw
         idx_webu[i], xiu, yiu, xu, yu, txu, tyu = web_intersections(xiu, yiu, xu, yu, txu, tyu, chord, webloc[i], webs[i])
         idx_webl[i], xil, yil, xl, yl, txl, tyl = web_intersections(xil, yil, xl, yl, txl, tyl, chord, webloc[i], webs[i])
         nx_web[i] = length(webs[i]) + 1
     end
 
+    # map((a, b) -> println(a, ", ", b), xu,  yu) #Right
+    # map((a, b) -> println(a, ", ", b), xiu,  yiu) ##Seems right, not sure exactly what it is. But I think it's the interior x for the upper surface. 
+
+
+
     # determine intersection point for trailing edge.  (note must be done at end)
     x_te, y_te, xu, yu, xl, yl = te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     # -----------------------------------------------------------------
 
+    # @show x_te # x_te = 0 for no intersection. 
+    # map((a, b) -> println(a, ", ", b), xu,  yu) #Not screwed up yet... so then nodes_half must be screwing it up. (Probably because x_te==0. )
+    # map((a, b) -> println(a, ", ", b), xl,  yl) #But the lower mesh is dying after this point. 
+
     # ------------------ build mesh --------------------
-    nodesu, elementsu = nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te)
-    nodesl, elementsl = nodes_half(xl, yl, txl, tyl, xbreak, segments, chord, x_te, y_te)
+    # println("upper mesh") #Oh the lower mesh is dying. -> Actually, the upper surface looks like it might be jacked up as well. 
+    nodesu, elementsu = nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te, TEthickness)
+    # println("")
+    # println("lower mesh")
+    nodesl, elementsl = nodes_half(xl, yl, txl, tyl, xbreak, segments, chord, x_te, y_te, TEthickness)
+
+    # println("nodesu")
+    # map(nodei -> println(nodei.x, ", ", nodei.y), nodesu[end-13:end])
+    # println("nodesl")
+    # map(nodei -> println(nodei.x, ", ", nodei.y), nodesl[end-13:end])
 
     nlayer = length(segments[1])
-    nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer, x_te)
+    nodes, elements = combine_halfs(nodesu, elementsu, nodesl, elementsl, nlayer, x_te, TEthickness, verbose)
+
+    # for j= 1:4
+    #     println(nodes[elements[end-2].nodenum[j]].x, ", ", nodes[elements[end-2].nodenum[j]].y)
+    # end
 
     if nw > 0 # only add webs if there are webs defined
         nodes, elements = addwebs(idx_webu, idx_webl, nx_web, nodes, elements, webs, length(nodesu), nlayer, wns)
@@ -885,38 +940,6 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     return nodes, elements
 end
 
-
-"""
-"""
-function mesh_radial_layer!(nodes, elements, R_outer, R_inner, material, plyangle, nr, nt)
-    r = range(R_inner, R_outer, length=nr)
-    # r = range(R - thickness, R, length=nr)
-    theta = range(0.0, 2*pi, length=nt)
-
-    nodes = Vector{Node{Float64}}(undef, nr*(nt-1))
-
-    m = 1
-    for i = 1:nt-1
-        for j = 1:nr
-            nodes[m] = Node(r[j]*cos(theta[i]), r[j]*sin(theta[i]))
-            m += 1
-        end
-    end
-
-    n = 1
-    for i = 1:nt-1
-        for j = 1:nr-1
-            if i == nt-1
-                ip = 0
-            else
-                ip = i
-            end
-
-            elements[n] = MeshElement([nr*ip+j, nr*(i-1)+j, nr*(i-1)+j+1, nr*ip+j+1], material, plyangle)
-            n += 1
-        end
-    end
-end
 
 
 """

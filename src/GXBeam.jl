@@ -20,7 +20,7 @@ using SciMLBase
 using UnPack
 using WriteVTK
 
-using LinearSolve
+# using LinearSolve
 using RecipesBase
 
 export AbstractSystem, StaticSystem, DynamicSystem, ExpandedSystem
