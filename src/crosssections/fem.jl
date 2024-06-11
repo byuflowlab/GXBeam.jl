@@ -51,6 +51,10 @@ Base.convert(::Type{Material{TF}}, m::Material) where {TF} = Material{TF}(m)
 function Material(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho,
     S1t, S1c, S2t, S2c, S3t, S3c, S12, S13, S23)
 
+    if S1c < 0 || S2c < 0 || S3c < 0
+        @warn "the compressive strengths should be input as positive numbers"
+    end
+
     return Material(promote(E1, E2, E3, G12, G13, G23, nu12, nu13, nu23, rho,
     S1t, S1c, S2t, S2c, S3t, S3c, S12, S13, S23)...)
 end
