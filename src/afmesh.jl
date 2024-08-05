@@ -1090,3 +1090,108 @@ end
     #     end
     # end
 end
+
+@recipe function plot_sol_recipe(nodes::Array{T1, 1}, elements::Array{T2, 1}, soln::Array{T3, 1}, cgcolor;
+    shownodenums=false, showelemnums=false, shownodes=false, showorientation=false,
+    loval=minimum(soln), hival=maximum(soln), locol=:blue, hicol=:red) where {T1<:Node, T2<:MeshElement, T3}
+
+    # L = hival - loval
+    # vals = (soln .- loval) ./ L #mapped to zero and one. 
+    # vals = (soln .- loval) ./ L
+    # vals = round.(Int, (soln .- loval)./ (L).*255 .+ 1)
+
+    # cg = cgrad(cgcolor)
+    colorbar --> true
+    fill --> true
+    fc --> cgcolor
+
+    ne = length(elements)
+    aspect_ratio --> :equal
+
+    if showelemnums
+        xbarvec = Float64[]
+        ybarvec = Float64[]
+        annotation_labels = String[]
+    end
+
+    for i = 1:ne
+        @series begin
+            nodes_local = nodes[elements[i].nodenum]
+            xi = zeros(5)
+            yi = zeros(5)
+
+            for i = 1:4
+                xi[i] = nodes_local[i].x
+                yi[i] = nodes_local[i].y
+                if i == 1
+                    xi[5] = nodes_local[i].x
+                    yi[5] = nodes_local[i].y
+                end
+            end
+
+            label --> false
+            seriescolor --> :black
+            if shownodes
+                markershape --> :x
+            end
+
+            # fill --> (0, 0.5, :green)
+            # fill --> (0, 0.5, cgrad([locol, hicol], vals[i])) #cgrad not defined
+            # if i==2
+            #     fill --> (0, 0.5, :green)
+            # else
+            #     fill --> (0, 0.5, :red)
+            # end
+
+            # fill --> (0, 0.8, cgcolor[vals[i]])
+
+            fill_z --> soln[i]
+            # if i in 4:6
+            #     fill_z --> soln[i]
+            # end
+
+            #Plot the element numbers
+            if showelemnums
+                
+            end
+
+            xi, yi
+        end
+
+        if showelemnums
+            nodes_local = nodes[elements[i].nodenum]
+            xbar = sum([n.x/4 for n in nodes_local])
+            ybar = sum([n.y/4 for n in nodes_local])
+
+            push!(xbarvec, xbar)
+            push!(ybarvec, ybar)
+            push!(annotation_labels, string(i))
+
+            annotations --> (xbarvec, ybarvec, annotation_labels)
+        end
+
+        if showorientation
+            @series begin
+                nodes_local = nodes[elements[i].nodenum]
+                xbar = sum([n.x/4 for n in nodes_local])
+                ybar = sum([n.y/4 for n in nodes_local])
+
+                cb, sb = GXBeam.element_orientation(nodes_local)
+    
+                seriescolor --> :orange
+                linewidth --> 2
+                label --> false
+                arrow --> true
+
+                [xbar, xbar+(cb/4)], [ybar, ybar+(sb/4)]
+            end
+        end
+    end
+
+    # if shownodenums #Todo: 
+    #     nn = length(nodes)
+    #     for i = 1:nn
+    #         annotate!(plt, nodes[i].x*1.1, nodes[i].y*1.1, string(i))
+    #     end
+    # end
+end
