@@ -26,7 +26,7 @@ UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
-julia = "1.6-1.8"
+julia = "1.6"
 ArnoldiMethod = "0.0.4 - 0.4"
 ChainRulesCore = "1"
 FLOWMath = "0.3 - 0.5"
