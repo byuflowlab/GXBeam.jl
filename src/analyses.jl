@@ -952,7 +952,7 @@ function solve_eigensystem(x, K, M, nev)
     A = LinearMap{T}(f!, fc!, nx, nx; ismutating=true)
 
     # compute eigenvalues and eigenvectors
-    λ, V = partialeigen(partialschur(A; nev=min(nx, nev), which=LM(), tol=1e-9)[1])
+    λ, V = partialeigen(partialschur(A; nev=min(nx, nev), which=ArnoldiMethod.LM(), tol=1e-9)[1])
 
     # sort eigenvalues by magnitude
     perm = sortperm(λ, by=(λ) -> (abs(λ), imag(λ)), rev=true)
