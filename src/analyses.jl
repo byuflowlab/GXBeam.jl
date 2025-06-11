@@ -591,12 +591,17 @@ end
 
 # residual function for a steady analysis (in format expected by ImplicitAD)
 function steady_residual!(resid, x, p, constants)
+    # @show x
 
     # unpack indices and control flags
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
+
+    # @show dload[1]
+    # @show pcond[1]
+    # @show typeof(x)
 
     # compute and return the residual
     return steady_system_residual!(resid, x, indices, two_dimensional, force_scaling,
@@ -2787,6 +2792,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
         else
             if isnothing(xpfunc)
                 # @show t
+                # println("this statement")
 
                 x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
 
@@ -3601,18 +3607,23 @@ function nlsolve!(p, constants, residual!, jacobian!)
     # unpack nonlinear solver parameters
     @unpack show_trace, method, linesearch, ftol, iterations = constants
 
+    # @show p
+
     # wrap the residual
     f!(resid, x) = residual!(resid, x, p, constants)
 
     # wrap the jacobian
     j!(jacob, x) = jacobian!(jacob, x, p, constants)
 
-    # jjabrahms = zero(jacob)
-    # j!(jjabrahms, x)
-    # @show typeof(LinearAlgebra.factorize(jjabrahms)) #Appears to always be UmfpackLU
+    # @show x[1] #always zero
+    # @show x
 
     # construct temporary storage
     df = NLsolve.OnceDifferentiable(f!, j!, x, resid, jacob)
+
+    # @show df.F[1] #Always zero. 
+    # @show df.DF[1,1] #Always zero.
+
 
     # solve the system
     result = NLsolve.nlsolve(df, x,
@@ -3628,6 +3639,18 @@ function nlsolve!(p, constants, residual!, jacobian!)
     resid .= df.F
     jacob .= df.DF
     converged[] = result.f_converged
+
+    # @show x[1] #Very close but slightly different. 
+
+    # if !result.f_converged
+    #     # @show fieldnames(typeof(result))
+
+    #     #(:method, :initial_x, :zero, :residual_norm, :iterations, :x_converged, :xtol, :f_converged, :ftol, :trace, :f_calls, :g_calls)
+    #     # @show result.zero
+    #     # @show result.f_converged
+    #     # @show result.x_converged #-> Implies that the norm difference between two successive iterations is zero. (NLsolve says this is convergence. )
+    #     # @show result.residual_norm, result.xtol
+    # end
 
     # return the result
     return result.zero

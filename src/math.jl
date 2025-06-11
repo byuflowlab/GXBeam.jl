@@ -10,7 +10,7 @@ const Z3 = @SMatrix zeros(3,3)
 
 Construct the cross product operator matrix
 """
-@inline tilde(x) = @SMatrix [0 -x[3] x[2]; x[3] 0 -x[1]; -x[2] x[1] 0]
+@noinline tilde(x) = @SMatrix [0 -x[3] x[2]; x[3] 0 -x[1]; -x[2] x[1] 0]
 
 """
     wiener_milenkovic(c)
@@ -21,7 +21,7 @@ parameters in `c`.
 Note that the corresponding rotation matrix is the transpose of this
 transformation matrix.
 """
-@inline function wiener_milenkovic(c)
+@noinline function wiener_milenkovic(c)
 
     c0 = 2 - c'*c/8
 
@@ -49,7 +49,7 @@ Extract a scaling parameter which may be multiplied by the angular parameters
 to yield the Wiener-Milenkovic rotation parameters.  Use of this scaling
 parameter allows deflections greater than 360 degrees.
 """
-@inline function rotation_parameter_scaling(θ)
+@noinline function rotation_parameter_scaling(θ)
 
     θ = real(θ)
 
@@ -66,22 +66,22 @@ parameter allows deflections greater than 360 degrees.
     return scaling
 end
 
-@inline function rotation_parameter_scaling_θ(θ)
+@noinline function rotation_parameter_scaling_θ(θ)
 
     return rotation_parameter_scaling_θ(rotation_parameter_scaling(θ), θ)
 end
 
-@inline function rotation_parameter_scaling_θ(scaling, θ)
+@noinline function rotation_parameter_scaling_θ(scaling, θ)
 
     return ifelse(isone(scaling), zero(θ), (1 - scaling)*θ/(θ'*θ))
 end
 
-@inline function rotation_parameter_scaling_θ_θ(θ)
+@noinline function rotation_parameter_scaling_θ_θ(θ)
 
     return rotation_parameter_scaling_θ_θ(rotation_parameter_scaling(θ), θ)
 end
 
-@inline function rotation_parameter_scaling_θ_θ(scaling, θ)
+@noinline function rotation_parameter_scaling_θ_θ(scaling, θ)
 
     return ifelse(isone(scaling), (@SMatrix zeros(eltype(θ),3,3)), (1 - scaling)/(θ'*θ)*(I - 3*θ*θ'/(θ'*θ)))
 end
@@ -91,7 +91,7 @@ end
 
 Returns the transformation matrix `C` given the three angular parameters in `θ`.
 """
-@inline function get_C(θ)
+@noinline function get_C(θ)
 
     scaling = rotation_parameter_scaling(θ)
 
@@ -106,9 +106,9 @@ end
 Calculate the derivative of the Wiener-Milenkovic transformation matrix `C` with
 respect to each of the rotation parameters in `θ`.
 """
-@inline get_C_θ(c) = get_C_θ(get_C(c), c)
+@noinline get_C_θ(c) = get_C_θ(get_C(c), c)
 
-@inline function get_C_θ(C, θ)
+@noinline function get_C_θ(C, θ)
 
     scaling = rotation_parameter_scaling(θ)
     scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
@@ -157,7 +157,7 @@ Calculate the matrix Q as defined in the paper "Geometrically nonlinear analysis
 of composite beams using Wiener-Milenković parameters" by Qi Wang and Wenbin Yu
 given the rotational parameters in `θ`.
 """
-@inline function get_Q(θ)
+@noinline function get_Q(θ)
 
     scaling = rotation_parameter_scaling(θ)
 
@@ -175,9 +175,9 @@ end
 Calculate the derivative of the matrix `Q` with respect to each of the rotation
 parameters in `θ`.
 """
-@inline get_Q_θ(θ) = get_Q_θ(get_Q(θ), θ)
+@noinline get_Q_θ(θ) = get_Q_θ(get_Q(θ), θ)
 
-@inline function get_Q_θ(Q, θ)
+@noinline function get_Q_θ(Q, θ)
 
     scaling = rotation_parameter_scaling(θ)
     scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
@@ -209,7 +209,7 @@ end
 
 Calculate the matrix `ΔQ` for structural damping calculations
 """
-@inline function get_ΔQ(θ, Δθ, Q=get_Q(θ))
+@noinline function get_ΔQ(θ, Δθ, Q=get_Q(θ))
 
     scaling = rotation_parameter_scaling(θ)
     scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
@@ -238,7 +238,7 @@ parameters in `θ`.
 """
 get_ΔQ_θ(θ, Δθ, Q=get_Q(θ)) = get_ΔQ_θ(θ, Δθ, Q, get_Q_θ(Q, θ)...)
 
-@inline function get_ΔQ_θ(θ, Δθ, Q, Q_θ1, Q_θ2, Q_θ3)
+@noinline function get_ΔQ_θ(θ, Δθ, Q, Q_θ1, Q_θ2, Q_θ3)
 
     # calculate scaling factor
     scaling = GXBeam.rotation_parameter_scaling(θ)
@@ -286,7 +286,7 @@ Calculate the matrix inverse `Qinv` as defined in the paper "Geometrically
 nonlinear analysis of composite beams using Wiener-Milenković parameters" by
 Qi Wang and Wenbin Yu given the rotational parameters in `θ`.
 """
-@inline function get_Qinv(θ)
+@noinline function get_Qinv(θ)
 
     scaling = rotation_parameter_scaling(θ)
 
@@ -303,7 +303,7 @@ end
 Calculate the derivative of the matrix inverse `Qinv` with respect to each of the
 rotation parameters in `θ`.
 """
-@inline function get_Qinv_θ(θ)
+@noinline function get_Qinv_θ(θ)
 
     scaling = rotation_parameter_scaling(θ)
     scaling_θ = rotation_parameter_scaling_θ(scaling, θ)
@@ -328,14 +328,14 @@ end
 Return the product of a 3x3x3 tensor represented by `A_1`, `A_2`, and `A_3` with
 the vector `b`.
 """
-@inline mul3(A_1, A_2, A_3, b) = hcat(A_1*b, A_2*b, A_3*b)
+@noinline mul3(A_1, A_2, A_3, b) = hcat(A_1*b, A_2*b, A_3*b)
 
 """
     gauss_quadrature(f, a, b)
 
 Default gauss-quadrature function used for integrating distributed loads.
 """
-@inline function gauss_quadrature(f, a, b)
+@noinline function gauss_quadrature(f, a, b)
     h = b - a
     c = (a + b)/2
     x = h/2*GAUSS_NODES .+ c

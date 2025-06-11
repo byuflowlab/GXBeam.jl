@@ -328,8 +328,8 @@ end
 Return the transformation matrix at `s` along the length of the beam given
 the curvature vector `k` and the initial transformation matrix `Cab`.
 """
-@inline curve_triad(Cab, k, s) = curve_triad(Cab, k*k', tilde(k), sqrt(k'*k), s)
-@inline curve_triad(Cab, kkt, ktilde, kn, s) = SMatrix{3,3}(Cab*((I - kkt/kn^2)*cos(kn*s) +
+@noinline curve_triad(Cab, k, s) = curve_triad(Cab, k*k', tilde(k), sqrt(k'*k), s)
+@noinline curve_triad(Cab, kkt, ktilde, kn, s) = SMatrix{3,3}(Cab*((I - kkt/kn^2)*cos(kn*s) +
     ktilde/kn*sin(kn*s) + kkt/kn^2))
 
 """
@@ -339,8 +339,8 @@ the curvature vector `k` and the initial transformation matrix `Cab`.
 Return the coordinates at `s` along the length of the beam given the starting
 point `r`, initial transformation matrix `Cab`, and curvature vector `k`.
 """
-@inline curve_coordinates(r, Cab, k, s) = curve_coordinates(r, Cab, k*k', tilde(k), sqrt(k'*k), s)
-@inline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^3)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)
+@noinline curve_coordinates(r, Cab, k, s) = curve_coordinates(r, Cab, k*k', tilde(k), sqrt(k'*k), s)
+@noinline curve_coordinates(r, Cab, kkt, ktilde, kn, s) = r + SVector{3}(Cab*((I/kn - kkt/kn^3)*sin(kn*s) + ktilde/kn^2*(1-cos(kn*s)) + kkt/kn^2*s)*e1)
 
 function total_mass(elements::Vector{Element{TF}}) where TF
     mass = 0.0
