@@ -28,7 +28,10 @@ makedocs(;
             joinpath("examples", "dynamic-joined-wing.md"),
             joinpath("examples", "vertical-axis-wind-turbine.md"),
         ],
-        "API Reference" => joinpath("reference", "reference.md"),
+        "API Reference" => [
+            joinpath("reference", "public.md"),
+            joinpath("reference", "private.md"),
+        ],
     ],
     sitename = "GXBeam.jl",
     authors = "Taylor McDonnell <taylormcd@byu.edu>",
