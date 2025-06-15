@@ -121,7 +121,25 @@ function SciMLBase.ODEProblem(system::AbstractSystem, assembly, tspan;
 end
 
 """
-    ODEFunction(system::GXBeam.AbstractSystem, assembly; kwargs...)
+    SciMLBase.ODEFunction(system::AbstractSystem, assembly;
+    # general keyword arguments
+    prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
+    distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
+    point_masses=Dict{Int,PointMass{Float64}}(),
+    linear_velocity=(@SVector zeros(3)),
+    angular_velocity=(@SVector zeros(3)),
+    gravity=(@SVector zeros(3)),
+    # control flag keyword arguments
+    structural_damping=true,
+    two_dimensional=false,
+    constant_mass_matrix=true,
+    sparse=false,
+    # sensitivity analysis keyword arguments
+    xpfunc = nothing,
+    pfunc = (p, t) -> (;),
+    p = nothing,
+    # additional keyword arguments (passed to ODEFunction constructor)
+    kwargs...)
 
 Construct a `ODEFunction` for the system of nonlinear beams contained in `assembly`
 which may be used with the DifferentialEquations package.
@@ -272,18 +290,20 @@ function SciMLBase.ODEFunction(system::AbstractSystem, assembly;
         # mass matrix
         TF = eltype(system)
         nx = indices.nstates
-        M = zeros(TF, nx, nx)
+        
         update_mass_matrix! = (jacob, x, p, t) -> begin
             # zero out all mass matrix entries
-            M .= 0.0
+            jacob .= 0.0 
+
             # compute mass matrix
             mass_matrix!(jacob, x, p, (; constants..., t))
+
             # change sign of mass matrix
-            M .*= -1
-            # return result
-            return M
+            jacob .*= -1
         end
-        mass_matrix = SciMLBase.DiffEqArrayOperator(M, update_func = update_mass_matrix!)
+        
+        M = zeros(TF, nx, nx)
+        mass_matrix = SciMLBase.MatrixOperator(M, update_func! = update_mass_matrix!) 
 
         # residual function
         f = (resid, u, p, t) -> dynamic_residual!(resid, du, u, p, (; constants..., t))
