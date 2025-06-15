@@ -34,6 +34,7 @@ makedocs(;
     authors = "Taylor McDonnell <taylormcd@byu.edu>",
 )
 
-deploydocs(
+deploydocs(;
     repo = "github.com/byuflowlab/GXBeam.jl.git",
+    devbranch = "master"
 )

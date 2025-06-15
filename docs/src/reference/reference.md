@@ -160,6 +160,7 @@ GXBeam.point_load_jacobians
 GXBeam.point_displacement
 GXBeam.point_displacement_jacobians
 GXBeam.point_displacement_rates
+GXBeam.point_velocity_rates
 GXBeam.point_velocities
 GXBeam.initial_point_displacement
 GXBeam.initial_point_velocity_rates
@@ -200,17 +201,20 @@ GXBeam.dynamic_point_resultant_jacobians
 GXBeam.expanded_steady_point_resultant_jacobians
 GXBeam.expanded_dynamic_point_resultant_jacobians
 GXBeam.mass_matrix_point_resultant_jacobians
+GXBeam.point_velocity_jacobians
 GXBeam.initial_point_velocity_jacobians
 GXBeam.newmark_point_velocity_jacobians
 GXBeam.dynamic_point_velocity_jacobians
 GXBeam.expanded_point_velocity_jacobians
 GXBeam.mass_matrix_point_velocity_jacobians
 GXBeam.insert_static_point_jacobians!
+GXBeam.insert_steady_point_jacobians!
 GXBeam.insert_initial_point_jacobians!
 GXBeam.insert_dynamic_point_jacobians!
 GXBeam.insert_expanded_steady_point_jacobians!
 GXBeam.insert_expanded_dynamic_point_jacobians!
 GXBeam.insert_mass_matrix_point_jacobians!
+GXBeam.insert_expanded_mass_matrix_point_jacobians!
 GXBeam.static_point_jacobian!
 GXBeam.steady_point_jacobian!
 GXBeam.initial_point_jacobian!
@@ -236,9 +240,8 @@ GXBeam.newmark_element_properties
 GXBeam.dynamic_element_properties
 GXBeam.expanded_steady_element_properties
 GXBeam.expanded_dynamic_element_properties
-GXBeam.compatability_residuals
-GXBeam.expanded_element_steady_velocity_residuals
-GXBeam.expanded_element_dynamic_velocity_residuals
+GXBeam.compatibility_residuals
+GXBeam.expanded_element_velocity_residuals
 GXBeam.expanded_element_equilibrium_residuals
 GXBeam.static_element_resultants
 GXBeam.dynamic_element_resultants
@@ -261,8 +264,7 @@ GXBeam.expanded_steady_element_jacobian_properties
 GXBeam.expanded_dynamic_element_jacobian_properties
 GXBeam.mass_matrix_element_jacobian_properties
 GXBeam.expanded_mass_matrix_element_jacobian_properties
-GXBeam.expanded_element_steady_velocity_jacobians
-GXBeam.expanded_element_dynamic_velocity_jacobians
+GXBeam.expanded_element_velocity_jacobians
 GXBeam.expanded_steady_element_equilibrium_jacobians
 GXBeam.expanded_dynamic_element_equilibrium_jacobians
 GXBeam.expanded_mass_matrix_element_equilibrium_jacobians
@@ -272,7 +274,6 @@ GXBeam.initial_element_resultant_jacobians
 GXBeam.dynamic_element_resultant_jacobians
 GXBeam.expanded_element_resultant_jacobians
 GXBeam.mass_matrix_element_resultant_jacobians
-GXBeam.expanded_mass_matrix_element_velocity_jacobians
 GXBeam.static_element_jacobian!
 GXBeam.steady_element_jacobian!
 GXBeam.initial_element_jacobian!
@@ -291,6 +292,8 @@ GXBeam.SystemIndices
 GXBeam.default_force_scaling
 GXBeam.curve_triad
 GXBeam.curve_coordinates
+GXBeam.set_initial_state!
+GXBeam.two_dimensional_residual!
 GXBeam.static_system_residual!
 GXBeam.initial_system_residual!
 GXBeam.steady_system_residual!
@@ -298,6 +301,7 @@ GXBeam.newmark_system_residual!
 GXBeam.dynamic_system_residual!
 GXBeam.expanded_steady_system_residual!
 GXBeam.expanded_dynamic_system_residual!
+GXBeam.two_dimensional_jacobian!
 GXBeam.static_system_jacobian!
 GXBeam.steady_system_jacobian!
 GXBeam.initial_system_jacobian!
@@ -308,6 +312,35 @@ GXBeam.expanded_dynamic_system_jacobian!
 GXBeam.system_mass_matrix!
 GXBeam.expanded_system_mass_matrix
 GXBeam.expanded_system_mass_matrix!
+```
+
+### Section
+```@docs
+GXBeam.SectionCache
+GXBeam.area_and_centroid_of_element
+GXBeam.redistribute_thickness
+GXBeam.combine_halfs
+GXBeam.nodes_half
+GXBeam.rotate_ply_to_element
+GXBeam.insertpoint
+GXBeam.tangential
+GXBeam.element_orientation
+GXBeam.element_submatrix
+GXBeam.addwebs
+GXBeam.web_intersections
+GXBeam.parseairfoil
+GXBeam.node2idx
+GXBeam.node2idx!
+GXBeam.reorder
+GXBeam.find_inner_surface
+GXBeam.elementQ
+GXBeam.resample
+GXBeam.stiffness
+GXBeam.preprocess_layers
+GXBeam.linearsolve
+GXBeam.rotate_element_to_beam
+GXBeam.element_integrand
+GXBeam.te_inner_intersection
 ```
 
 ## Index

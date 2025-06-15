@@ -7,7 +7,7 @@
 # (e.g. `system = DynamicSystem(TF, assembly)` where `TF` is an appropriate floating point
 # type).
 #
-# For example, consider the [Cantilever with a Tip Moment](@id tipmoment) example.  Suppose
+# For example, consider the [Cantilever with a Tip Moment](@ref tipmoment) example.  Suppose
 # we were interested in the sensitivity of tip x and y-displacement with respect to
 # the nondimensional tip moment ``\lambda`` when ``\lambda=1``.  These sensitivites may
 # be computed as follows:
