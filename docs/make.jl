@@ -34,8 +34,8 @@ makedocs(;
         ],
     ],
     format = Documenter.HTMLWriter.HTML(
-        size_threshold_warn = 300,
-        size_threshold = 400
+        size_threshold_warn = 307200,  # 300 KiB
+        size_threshold = 409600 # 400 KiB
     ),
     sitename = "GXBeam.jl",
     authors = "Taylor McDonnell <taylormcd@byu.edu>",
