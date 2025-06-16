@@ -33,6 +33,10 @@ makedocs(;
             joinpath("reference", "private.md"),
         ],
     ],
+    format = Documenter.HTMLWriter.HTML(
+        size_threshold_warn = 300,
+        size_threshold = 400
+    ),
     sitename = "GXBeam.jl",
     authors = "Taylor McDonnell <taylormcd@byu.edu>",
 )
