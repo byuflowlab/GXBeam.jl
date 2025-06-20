@@ -28,12 +28,20 @@ makedocs(;
             joinpath("examples", "dynamic-joined-wing.md"),
             joinpath("examples", "vertical-axis-wind-turbine.md"),
         ],
-        "API Reference" => joinpath("reference", "reference.md"),
+        "API Reference" => [
+            joinpath("reference", "public.md"),
+            joinpath("reference", "private.md"),
+        ],
     ],
+    format = Documenter.HTMLWriter.HTML(
+        size_threshold_warn = 307200,  # 300 KiB
+        size_threshold = 409600 # 400 KiB
+    ),
     sitename = "GXBeam.jl",
     authors = "Taylor McDonnell <taylormcd@byu.edu>",
 )
 
-deploydocs(
+deploydocs(;
     repo = "github.com/byuflowlab/GXBeam.jl.git",
+    devbranch = "master"
 )
