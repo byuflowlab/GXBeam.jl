@@ -1468,7 +1468,7 @@ corresponding to a beam element for a constant mass matrix system
     return (; Pdot_Vdot, Pdot_Ωdot, Hdot_Vdot, Hdot_Ωdot)
 end
 
-# --- Compatability Residuals --- #
+# ---  Residuals --- #
 
 """
     compatibility_residuals(properties)
