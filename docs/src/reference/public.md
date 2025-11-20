@@ -98,6 +98,10 @@ initial_condition_analysis
 initial_condition_analysis!
 time_domain_analysis
 time_domain_analysis!
+initialize_system!
+step_system!
+take_step
+simulate
 ```
 
 ### Post-Processing

@@ -2829,7 +2829,11 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
     return system, history, converged[]
 end
 
+"""
+    initialize_system!(system, assembly, tvec; kwargs...)
 
+Pre-allocate the history for a stepped time-domain analysis and conduct the initial condition analysis. 
+"""
 function initialize_system!(system::DynamicSystem, assembly, tvec; #Todo: Do I need to pass in system? If I'm allocating, I might as well allocate the system as well. 
     # general keyword arguments
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
@@ -2995,8 +2999,34 @@ end
     step_system!(history, system, assembly, tvec; kwargs...)
 
 A similar function to time_domain_analysis, but instead history is already allocated and it only takes one step with the system. 
+
+**Inputs**
+- system::DynamicSystem : The dynamic system to be stepped.
+- paug: The augmented parameter vector.
+- x: The current state vector.
+- constants: The constants tuple.
+- initial_state: The initial state of the system.
+- assembly: The assembly of the system.
+- tvec: The time vector.
+- i: The current time step index.
+- prescribed_conditions: A dictionary of prescribed conditions.
+- distributed_loads: A dictionary of distributed loads.
+- point_masses: A dictionary of point masses.
+- linear_velocity: The linear velocity of the body frame.
+- angular_velocity: The angular velocity of the body frame.
+- linear_acceleration: The linear acceleration of the body frame.
+- angular_acceleration: The angular acceleration of the body frame.
+- gravity: The gravity vector in the body frame.
+- structural_damping: A flag indicating whether to enable structural damping.
+- linear: A flag indicating whether a linear analysis should be performed.
+- show_trace: A flag indicating whether to display the solution progress.
+- update_linearization: A flag indicating whether to update the linearization state variables for a linear analysis with the instantaneous state variables.
+- xpfunc: A function that returns parameters as a function of the state variables.
+- pfunc: A function that returns parameters as a function of time.
+- p: Sensitivity parameters.
+- converged: A reference to a boolean indicating whether the solution converged.
 """
-function step_system!(system::DynamicSystem, paug, x, constants, initial_state, assembly, tvec, i; #Todo: Do we even need history? 
+function step_system!(system::DynamicSystem, paug, x, constants, initial_state, assembly, tvec, i;
     # general keyword arguments
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
@@ -3007,28 +3037,12 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
     angular_acceleration=(@SVector zeros(3)),
     gravity=(@SVector zeros(3)),
     ## control flag keyword arguments
-    # reset_state=true,
-    # steady_state=false,
     structural_damping=true,
     linear=false,
-    # two_dimensional=false,
     show_trace=false,
-    # save=eachindex(tvec),
-    ## initial condition analysis keyword arguments
-    # u0=fill((@SVector zeros(3)), length(assembly.points)),
-    # theta0=fill((@SVector zeros(3)), length(assembly.points)),
-    # V0=fill((@SVector zeros(3)), length(assembly.points)),
-    # Omega0=fill((@SVector zeros(3)), length(assembly.points)),
-    # Vdot0=fill((@SVector zeros(3)), length(assembly.points)),
-    # Omegadot0=fill((@SVector zeros(3)), length(assembly.points)),
     ## linear analysis keyword arguments
     update_linearization=false,
     ## nonlinear analysis keyword arguments
-    # method=:newton,
-    # linesearch=LineSearches.BackTracking(maxstep=1e6),
-    # ftol=1e-9,
-    # iterations=1000,
-    # sensitivity analysis keyword arguments
     xpfunc = nothing,
     pfunc = (p, t) -> (;),
     p = nothing,
@@ -3077,22 +3091,11 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
         V, Ω = point_velocities(x, indices.icol_point[ipoint])
 
         # extract rate variables
-        if i <= 2 #i == 1 #doesn't work because the approximation requires dtprev
-
-            # println("SS: Got here. $i")
-
-            # if ipoint==length(assembly.points) #Good. 
-            #     @show u, θ
-            # end
-
-            udot = initial_state.points[ipoint].udot #Todo: What do I need to do here. Something needs to happen. Oh... making sure that the correct initial_state is passed in. 
+        if i <= 2 
+            udot = initial_state.points[ipoint].udot 
             θdot = initial_state.points[ipoint].thetadot
             Vdot = initial_state.points[ipoint].Vdot
             Ωdot = initial_state.points[ipoint].Omegadot
-            
-            # if ipoint==length(assembly.points) #Good. 
-            #     @show udot, θdot, Vdot, Ωdot
-            # end
 
         else
             dtprev = tvec[i-1] - tvec[i-2]
@@ -3108,12 +3111,6 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
         paug[irate+4:irate+6] = 2/dt*θ + θdot
         paug[irate+7:irate+9] = 2/dt*V + Vdot
         paug[irate+10:irate+12] = 2/dt*Ω + Ωdot
-
-        # if ipoint==length(assembly.points)
-        #     println("SS: $i")
-        #     @show paug
-        #     println("")
-        # end
     end
 
     # solve for the new set of state variables
@@ -3135,43 +3132,21 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
 
     else
         if isnothing(xpfunc)
-            # @show t
-
             x = ImplicitAD.implicit(newmark_nlsolve!, newmark_residual!, paug, constants; drdy=newmark_drdy)
-
-            # println("x")
-            # @show_tracked_array x
-
         else
             x = ImplicitAD.implicit(newmark_matrixfree_nlsolve!, newmark_residual!, paug, constants; drdy=matrixfree_jacobian)
         end
     end
 
-        
-    # add state to history
-    # history[i] = newmark_output(system, x, paug, constants)
     historyi = newmark_output(system, x, paug, constants)
-    
-    # if it in save
-    #     # @show paug
-    #     history[i] = newmark_output(system, x, paug, constants)
-    #     # isave += 1
-    # end
 
     # stop early if unconverged
-    # @show converged
     if !converged[]
         # print error message
         if show_trace
             println("Solution failed to converge")
         end
-        # trim the time history
-        # history = history[1:it]
-        # # exit time simulation
-        # break
     end
-
-    # end #End the time domain simulation. 
 
     return system, historyi, constants, paug, x, converged[]
 end
@@ -3181,21 +3156,14 @@ end
 
 function implicit_euler_residual!(resid, rn, inputs, p) 
 
-    # @show typeof(resid)
-    # @show typeof(rn)
-    # @show typeof(inputs)
-
     t, dt, n, nd,
     assembly, prescribed_conditions, distributed_loads, point_masses,
     gravity, linear_velocity, angular_velocity,
     xpfunc, pfunc,
     indices, force_scaling, structural_damping, two_dimensional = p
 
-    # @show typeof(assembly)
-
     ### Extract the states
     x = view(inputs, 1:n) #previous states
-    # dx = view(inputs, n+1:2*n) #previous state rates - unused
 
 
     ### Update the inputs based on the design variables. 
@@ -3256,7 +3224,15 @@ function implicit_euler_solve(inputs, p)
     return result.zero
 end
 
+"""
+    take_step(x, dx, system, assembly, t, tprev, 
+    prescribed_conditions, distributed_loads, point_masses,
+    gravity, linear_velocity, angular_velocity,
+    xpfunc, pfunc, p,
+    structural_damping, two_dimensional)
 
+Take a single implicit Euler time step for the given system.
+"""
 function take_step(x, dx, system, assembly, t, tprev, 
     prescribed_conditions, distributed_loads, point_masses,
     gravity, linear_velocity, angular_velocity,
@@ -3298,7 +3274,8 @@ end
 
 
 """
-    simulate()
+    simulate(assembly, tvec; prescribed_conditions, distributed_loads, point_masses, gravity, linear_velocity, angular_velocity,
+    xpfunc, pfunc, p, structural_damping, two_dimensional, verbose)
 
 Use the take_step function to run a time_domain_analysis. 
 """

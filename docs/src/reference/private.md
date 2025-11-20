@@ -214,6 +214,8 @@ GXBeam.linearsolve
 GXBeam.rotate_element_to_beam
 GXBeam.element_integrand
 GXBeam.te_inner_intersection
+GXBeam.mesh_area
+GXBeam.mesh_cylinder
 ```
 
 ## Index
