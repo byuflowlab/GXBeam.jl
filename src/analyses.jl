@@ -506,6 +506,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
                 end
             else
                 if isnothing(xpfunc)
+                    # @show typeof(p)
                     x = ImplicitAD.implicit(steady_nlsolve!, steady_residual!, p, constants; drdy=steady_drdy)
                 else
                     x = ImplicitAD.implicit(steady_matrixfree_nlsolve!, steady_residual!, p, constants; drdy=matrixfree_jacobian)
@@ -1912,7 +1913,6 @@ function initial_condition_analysis!(system, assembly, t0;
     else
         if isnothing(xpfunc)
             x = ImplicitAD.implicit(initial_nlsolve!, initial_residual!, p, constants; drdy=initial_drdy)
-            
         else
             x = ImplicitAD.implicit(initial_matrixfree_nlsolve!, initial_residual!, p, constants; drdy=matrixfree_jacobian)
         end
