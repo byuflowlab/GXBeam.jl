@@ -29,6 +29,8 @@ include("examples/rotating.jl")
 include("examples/wind-turbine-blade.jl")
 include("examples/static-joined-wing.jl")
 include("examples/dynamic-joined-wing.jl")
+include("examples/stepsystem.jl")
+include("examples/impliciteuler.jl")
 
 # interfaces
 include("interfaces/diffeq.jl")

@@ -501,7 +501,7 @@ function te_inner_intersection(xiu, yiu, xil, yil, xu, yu, xl, yl)
     # find first crossing on aft half of airfoil
     n = length(ydiff) ÷ 2  # integer division
     iu = findfirst(ydiff[n+1:end] .< 0.0)
-    # @show iu
+    
     if isnothing(iu)  # no crossing
         return 0.0, 0.0, xu, yu, xl, yl
     end

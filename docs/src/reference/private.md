@@ -187,6 +187,14 @@ GXBeam.expanded_system_mass_matrix
 GXBeam.expanded_system_mass_matrix!
 ```
 
+### Analysis
+```@docs
+GXBeam.initialize_system!
+GXBeam.step_system!
+GXBeam.take_step
+GXBeam.simulate
+```
+
 ### Section
 ```@docs
 GXBeam.SectionCache

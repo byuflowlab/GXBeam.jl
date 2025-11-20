@@ -506,7 +506,6 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
                 end
             else
                 if isnothing(xpfunc)
-                    # @show typeof(p)
                     x = ImplicitAD.implicit(steady_nlsolve!, steady_residual!, p, constants; drdy=steady_drdy)
                 else
                     x = ImplicitAD.implicit(steady_matrixfree_nlsolve!, steady_residual!, p, constants; drdy=matrixfree_jacobian)
@@ -1931,22 +1930,16 @@ function initial_condition_analysis!(system, assembly, t0;
 
     else
         # initialize storage
-        # dx = similar(original_system.dx, eltype(state)) #TODO: Why don't I just use x and create a dx? Is there a link there that'll break something? 
-        # x = similar(original_system.x, eltype(state))
         xx = similar(original_system.x, eltype(state)) 
         dxx = similar(original_system.dx, eltype(state)) 
         
 
         # construct state and rate vectors
-        # set_rate!(dx, original_system, assembly, state; prescribed_conditions=pcond)
-        # set_state!(x, original_system, assembly, state; prescribed_conditions=pcond)
         set_state!(xx, original_system, assembly, state; prescribed_conditions=pcond) 
         set_rate!(dxx, original_system, assembly, state; prescribed_conditions=pcond) 
     
 
         # copy only the primal portion of the variables . 
-        # dual_safe_copy!(system.dx, dx)  
-        # dual_safe_copy!(system.x, x)
         dual_safe_copy!(system.x, xx)  
         dual_safe_copy!(system.dx, dxx)
          
@@ -2501,28 +2494,6 @@ function time_domain_analysis(assembly, tvec; kwargs...)
     return time_domain_analysis!(system, assembly, tvec; kwargs...)
 end
 
-# macro show_tracked_array(arr)
-#     # A show macro to show a tracked array that may or may not have duals. 
-#     print(string(arr)) #Todo: Not printing???
-#     print(" = ")
-    
-#     quote
-#         access = $(esc(arr)) #xp not defined - scoping issue
-
-#         if isa(access[1], ReverseDiff.TrackedReal)
-#             newarr = [access[i].value for i in eachindex(access)]
-#             println(newarr)
-
-#         elseif isa(access[1], ForwardDiff.Dual)
-#             newarr = [access[i].value for i in eachindex(access)]
-#             println(newarr)
-
-#         else
-#             println(access)
-#         end
-#     end
-# end
-
 function show_tracked_array(arr)
     if isa(arr[1], ReverseDiff.TrackedReal)
         newarr = [arr[i].value for i in eachindex(arr)]
@@ -2834,7 +2805,7 @@ end
 
 Pre-allocate the history for a stepped time-domain analysis and conduct the initial condition analysis. 
 """
-function initialize_system!(system::DynamicSystem, assembly, tvec; #Todo: Do I need to pass in system? If I'm allocating, I might as well allocate the system as well. 
+function initialize_system!(system::DynamicSystem, assembly, tvec;
     # general keyword arguments
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
@@ -3278,6 +3249,8 @@ end
     xpfunc, pfunc, p, structural_damping, two_dimensional, verbose)
 
 Use the take_step function to run a time_domain_analysis. 
+
+WARNING: The implicit Euler method is not as stable as the Newmark-beta method. You may experience instability for stiff systems or large time steps.
 """
 function simulate(assembly, tvec; 
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),

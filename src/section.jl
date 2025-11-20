@@ -341,10 +341,6 @@ function element_orientation(nodes)
     cbeta = dx/ds
     sbeta = dy/ds
 
-    # println("")
-    # @show acos(cbeta)*180/pi
-    # @show asin(sbeta)*180/pi
-
     return cbeta, sbeta
 end
 
@@ -965,7 +961,7 @@ function strain_recovery(F, M, nodes, elements, cache; gxbeam_order=true)
 
     # concatenate forces/moments
     if gxbeam_order
-        new_idxs = [2,3,1] 
+        new_idxs = [2,3,1]
         theta = vcat(SVector{3}(F[new_idxs]), SVector{3}(M[new_idxs])) # convert input loads from GXBeam local frame to stress recovery local frame
 
     else
@@ -982,7 +978,7 @@ function strain_recovery(F, M, nodes, elements, cache; gxbeam_order=true)
 
     else
         idx_b = [1, 2, 6, 3, 4, 5]   # xx, yy, zz, xy, xz, yz
-        
+
     end
     idx_p = [6, 1, 2, 4, 5, 3]   # 11, 22, 33, 12, 13, 23
 
