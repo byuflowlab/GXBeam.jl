@@ -624,7 +624,7 @@ function nodes_half(xu, yu, txu, tyu, xbreak, segments, chord, x_te, y_te, TEthi
         ney = nodesu[n-nl-1].y
 
 
-        ### Adam's hack to try and connect the final section.
+        ### Connect the final section.
         if !TEthickness
             for j = 1:nl+1
                 njy = nodesu[n - (nl+1) - j].y  # use last row height (could really do either)
@@ -874,7 +874,6 @@ function afmesh(xaf, yaf, chord, twist, paxis, xbreak, webloc, segments, webs; d
     # find inner surface curves
     xiu, yiu = find_inner_surface(xu, yu, txu, tyu, segments, xbreak)
     xil, yil = find_inner_surface(xl, yl, txl, tyl, segments, xbreak)
-    # @show xil[end], yil[end]
 
     # add webs. note that doing so changes the mesh so tangential directions and inner surface must be recomputed
     # webloc[i] must be in increasing order so that the previous indices in idx_web remain correct as points are added behind them.

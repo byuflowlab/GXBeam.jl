@@ -591,17 +591,11 @@ end
 
 # residual function for a steady analysis (in format expected by ImplicitAD)
 function steady_residual!(resid, x, p, constants)
-    # @show x
-
     # unpack indices and control flags
     @unpack indices, structural_damping, two_dimensional, force_scaling = constants
 
     # combine constants and parameters
     assembly, pcond, dload, pmass, gvec, vb_p, ωb_p, ab_p, αb_p = steady_parameters(x, p, constants)
-
-    # @show dload[1]
-    # @show pcond[1]
-    # @show typeof(x)
 
     # compute and return the residual
     return steady_system_residual!(resid, x, indices, two_dimensional, force_scaling,
@@ -3589,18 +3583,6 @@ function nlsolve!(p, constants, residual!, jacobian!)
     resid .= df.F
     jacob .= df.DF
     converged[] = result.f_converged
-
-    # @show x[1] #Very close but slightly different. 
-
-    # if !result.f_converged
-    #     # @show fieldnames(typeof(result))
-
-    #     #(:method, :initial_x, :zero, :residual_norm, :iterations, :x_converged, :xtol, :f_converged, :ftol, :trace, :f_calls, :g_calls)
-    #     # @show result.zero
-    #     # @show result.f_converged
-    #     # @show result.x_converged #-> Implies that the norm difference between two successive iterations is zero. (NLsolve says this is convergence. )
-    #     # @show result.residual_norm, result.xtol
-    # end
 
     # return the result
     return result.zero
