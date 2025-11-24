@@ -5,3 +5,5 @@
 Manifest.toml
 .DS_Store
 .vscode
+*/Manifest.toml
+docs/build/

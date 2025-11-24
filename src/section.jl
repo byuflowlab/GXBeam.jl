@@ -803,6 +803,30 @@ function area_and_centroid_of_element(node)
     return A, xc, yc
 end
 
+"""
+    mesh_area(nodes, elements)
+
+Compute total area of the mesh.
+
+**Inputs**
+- `nodes::Vector{Node{TF}}`: all the nodes in the mesh
+- `elements::Vector{MeshElement{TF}}`: all the elements in the mesh
+
+**Returns**
+- `A::TF`: total area of the mesh
+"""
+function mesh_area(nodes, elements)
+
+    A = 0.0
+
+    for element in elements
+        node = nodes[element.nodenum]
+        A += area_and_centroid_of_element(node)[1]
+    end
+
+    return A
+end
+
 
 """
     mass_matrix(nodes, elements)
@@ -939,8 +963,10 @@ function strain_recovery(F, M, nodes, elements, cache; gxbeam_order=true)
     if gxbeam_order
         new_idxs = [2,3,1]
         theta = vcat(SVector{3}(F[new_idxs]), SVector{3}(M[new_idxs])) # convert input loads from GXBeam local frame to stress recovery local frame
+
     else
         theta = vcat(SVector{3}(F), SVector{3}(M))
+
     end
 
     # indices into global matrices
@@ -949,8 +975,10 @@ function strain_recovery(F, M, nodes, elements, cache; gxbeam_order=true)
     # save reordering index
     if gxbeam_order
         idx_b = [6, 1, 2, 5, 3, 4]   # zz, xx, yy, yz, xy, xz
+
     else
         idx_b = [1, 2, 6, 3, 4, 5]   # xx, yy, zz, xy, xz, yz
+
     end
     idx_p = [6, 1, 2, 4, 5, 3]   # 11, 22, 33, 12, 13, 23
 

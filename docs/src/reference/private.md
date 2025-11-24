@@ -187,6 +187,14 @@ GXBeam.expanded_system_mass_matrix
 GXBeam.expanded_system_mass_matrix!
 ```
 
+### Analysis
+```@docs
+GXBeam.initialize_system!
+GXBeam.step_system!
+GXBeam.take_step
+GXBeam.simulate
+```
+
 ### Section
 ```@docs
 GXBeam.SectionCache
@@ -214,6 +222,8 @@ GXBeam.linearsolve
 GXBeam.rotate_element_to_beam
 GXBeam.element_integrand
 GXBeam.te_inner_intersection
+GXBeam.mesh_area
+GXBeam.mesh_cylinder
 ```
 
 ## Index

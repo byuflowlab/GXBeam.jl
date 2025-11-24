@@ -20,6 +20,8 @@ using SciMLBase
 using UnPack
 using WriteVTK
 
+using RecipesBase
+
 export AbstractSystem, StaticSystem, DynamicSystem, ExpandedSystem
 
 export static_analysis, static_analysis!
