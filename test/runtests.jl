@@ -1,5 +1,5 @@
 using GXBeam
-using DifferentialEquations
+using OrdinaryDiffEq
 import Elliptic
 using LinearAlgebra
 using ForwardDiff

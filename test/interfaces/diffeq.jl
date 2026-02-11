@@ -1,4 +1,4 @@
-using GXBeam, LinearAlgebra, DifferentialEquations, Test
+using GXBeam, LinearAlgebra, OrdinaryDiffEq, Test
 
 @testset "DifferentialEquations" begin
 
