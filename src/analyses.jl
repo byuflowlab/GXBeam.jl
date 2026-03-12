@@ -1924,19 +1924,19 @@ function initial_condition_analysis!(system, assembly, t0;
 
     else
         # initialize storage
-        xx = similar(original_system.x, eltype(state)) 
-        dxx = similar(original_system.dx, eltype(state)) 
-        
+        xx = similar(original_system.x, eltype(state))
+        dxx = similar(original_system.dx, eltype(state))
+
 
         # construct state and rate vectors
-        set_state!(xx, original_system, assembly, state; prescribed_conditions=pcond) 
-        set_rate!(dxx, original_system, assembly, state; prescribed_conditions=pcond) 
-    
+        set_state!(xx, original_system, assembly, state; prescribed_conditions=pcond)
+        set_rate!(dxx, original_system, assembly, state; prescribed_conditions=pcond)
 
-        # copy only the primal portion of the variables . 
-        dual_safe_copy!(system.x, xx)  
+
+        # copy only the primal portion of the variables .
+        dual_safe_copy!(system.x, xx)
         dual_safe_copy!(system.dx, dxx)
-         
+
     end
 
     # return the system, state, and the (de-referenced) convergence flag
@@ -2159,7 +2159,7 @@ function initial_state_analysis!(system, assembly, t0;
     else
         if isnothing(xpfunc)
             x = ImplicitAD.implicit(initial_nlsolve!, initial_residual!, p, constants; drdy=initial_drdy)
-            
+
         else
             x = ImplicitAD.implicit(initial_matrixfree_nlsolve!, initial_residual!, p, constants; drdy=matrixfree_jacobian)
         end
@@ -2178,19 +2178,19 @@ function initial_state_analysis!(system, assembly, t0;
 
     # else
     #     # initialize storage
-        xx = similar(original_system.x, eltype(state)) 
-        dxx = similar(original_system.dx, eltype(state)) 
-        
+        xx = similar(original_system.x, eltype(state))
+        dxx = similar(original_system.dx, eltype(state))
+
 
         # construct state and rate vectors
-        set_state!(xx, original_system, assembly, state; prescribed_conditions=pcond) 
-        set_rate!(dxx, original_system, assembly, state; prescribed_conditions=pcond) 
-    
+        set_state!(xx, original_system, assembly, state; prescribed_conditions=pcond)
+        set_rate!(dxx, original_system, assembly, state; prescribed_conditions=pcond)
 
-        # copy only the primal portion of the variables . 
-        dual_safe_copy!(system.x, xx)  
+
+        # copy only the primal portion of the variables .
+        dual_safe_copy!(system.x, xx)
         dual_safe_copy!(system.dx, dxx)
-         
+
     # end
 
     # return the system, state, and the (de-referenced) convergence flag
@@ -2717,7 +2717,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
 
             else
                 dtprev = tvec[it-1] - tvec[it-2]
-                
+
                 udot = 2/dtprev*u - SVector(paug[irate+1], paug[irate+2], paug[irate+3])
                 θdot = 2/dtprev*θ - SVector(paug[irate+4], paug[irate+5], paug[irate+6])
                 Vdot = 2/dtprev*V - SVector(paug[irate+7], paug[irate+8], paug[irate+9])
@@ -2769,7 +2769,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
             end
         end
 
-        
+
         # add state to history
         if it in save
             # @show paug
@@ -2797,7 +2797,7 @@ end
 """
     initialize_system!(system, assembly, tvec; kwargs...)
 
-Pre-allocate the history for a stepped time-domain analysis and conduct the initial condition analysis. 
+Pre-allocate the history for a stepped time-domain analysis and conduct the initial condition analysis.
 """
 function initialize_system!(system::DynamicSystem, assembly, tvec;
     # general keyword arguments
@@ -2932,7 +2932,7 @@ function initialize_system!(system::DynamicSystem, assembly, tvec;
 
     # --- Initialize Time-Domain Solution --- #
 
-    # initialize storage for each time step #Todo: I should check the types at some point. 
+    # initialize storage for each time step #Todo: I should check the types at some point.
     history = Vector{AssemblyState{eltype(x), Vector{PointState{eltype(x)}}, Vector{ElementState{eltype(x)}}}}(undef, length(save))
     isave = 1
 
@@ -2963,7 +2963,7 @@ end
 """
     step_system!(history, system, assembly, tvec; kwargs...)
 
-A similar function to time_domain_analysis, but instead history is already allocated and it only takes one step with the system. 
+A similar function to time_domain_analysis, but instead history is already allocated and it only takes one step with the system.
 
 **Inputs**
 - system::DynamicSystem : The dynamic system to be stepped.
@@ -3024,7 +3024,7 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
 
     # current time step size
     if i == 1
-        dt = 0 #Todo: Should this case ever happen? If so, what safeguards can I put up to protect against it? 
+        dt = 0 #Todo: Should this case ever happen? If so, what safeguards can I put up to protect against it?
     else
         dt = tvec[i] - tvec[i-1]
     end
@@ -3056,15 +3056,15 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
         V, Ω = point_velocities(x, indices.icol_point[ipoint])
 
         # extract rate variables
-        if i <= 2 
-            udot = initial_state.points[ipoint].udot 
+        if i <= 2
+            udot = initial_state.points[ipoint].udot
             θdot = initial_state.points[ipoint].thetadot
             Vdot = initial_state.points[ipoint].Vdot
             Ωdot = initial_state.points[ipoint].Omegadot
 
         else
             dtprev = tvec[i-1] - tvec[i-2]
-                
+
             udot = 2/dtprev*u - SVector(paug[irate+1], paug[irate+2], paug[irate+3])
             θdot = 2/dtprev*θ - SVector(paug[irate+4], paug[irate+5], paug[irate+6])
             Vdot = 2/dtprev*V - SVector(paug[irate+7], paug[irate+8], paug[irate+9])
@@ -3115,11 +3115,11 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
 
     return system, historyi, constants, paug, x, converged[]
 end
-    
 
 
 
-function implicit_euler_residual!(resid, rn, inputs, p) 
+
+function implicit_euler_residual!(resid, rn, inputs, p)
 
     t, dt, n, nd,
     assembly, prescribed_conditions, distributed_loads, point_masses,
@@ -3131,14 +3131,14 @@ function implicit_euler_residual!(resid, rn, inputs, p)
     x = view(inputs, 1:n) #previous states
 
 
-    ### Update the inputs based on the design variables. 
+    ### Update the inputs based on the design variables.
     if nd>0
         xd = view(inputs, 2n+1:2n+nd) #Design variables
     else
         xd = nothing
     end
 
-    parameters = isnothing(xpfunc) ? pfunc(xd, t) : xpfunc(x, xd, t) #Todo: This will unfortunately get called at every time step. 
+    parameters = isnothing(xpfunc) ? pfunc(xd, t) : xpfunc(x, xd, t) #Todo: This will unfortunately get called at every time step.
     assmb = get(parameters, :assembly, assembly)
     pcs = get(parameters, :prescribed_conditions, prescribed_conditions)
     dls = get(parameters, :distributed_loads, distributed_loads)
@@ -3155,12 +3155,12 @@ function implicit_euler_residual!(resid, rn, inputs, p)
     omegavec = typeof(av) <: AbstractVector ? SVector{3}(av) : SVector{3}(av(t))
 
 
-    #Extract the outputs. 
+    #Extract the outputs.
     xn = view(rn, 1:n) #New state
     dxn = view(rn, n+1:2n) #New state rates
 
-    constraint = view(resid, 1:n) #The algebraic equations of the DAE. 
-    integrand = view(resid, n+1:2n) #The differential equations of the DAE. 
+    constraint = view(resid, 1:n) #The algebraic equations of the DAE.
+    integrand = view(resid, n+1:2n) #The differential equations of the DAE.
 
 
     #Constraining the states and state rates to be consistent. #Todo: Something is sneaking in as a trackedReal. I suspect it's the assembly (from pfunc)
@@ -3168,29 +3168,29 @@ function implicit_euler_residual!(resid, rn, inputs, p)
         structural_damping, assmb, pcond, dload, pmass,
         gvec, vvec, omegavec)
 
-    #Constraining the state rates to be an implicit Euler step. 
-    integrand .= @. x + dxn*dt - xn 
+    #Constraining the state rates to be an implicit Euler step.
+    integrand .= @. x + dxn*dt - xn
 end
 
 function implicit_euler_solve(inputs, p)
 
     dt = p[2]
     n = p[3]
-    
+
     x = view(inputs, 1:n)
     dx = view(inputs, n+1:2*n)
-    #TODO: I could make a smaller inputs for the residual. 
-    
+    #TODO: I could make a smaller inputs for the residual.
+
     residual! = (resid, rn) -> implicit_euler_residual!(resid, rn, inputs, p)
 
-    #TODO: Is there a way I can provide the jacobian to speed up calcs? or minimally decrease the length of the tape. 
-    result = nlsolve(residual!, vcat(x + dx.*dt, dx)) #Adding autodiff=:forward didn't decrease the length of the tape. 
+    #TODO: Is there a way I can provide the jacobian to speed up calcs? or minimally decrease the length of the tape.
+    result = nlsolve(residual!, vcat(x + dx.*dt, dx)) #Adding autodiff=:forward didn't decrease the length of the tape.
 
     return result.zero
 end
 
 """
-    take_step(x, dx, system, assembly, t, tprev, 
+    take_step(x, dx, system, assembly, t, tprev,
     prescribed_conditions, distributed_loads, point_masses,
     gravity, linear_velocity, angular_velocity,
     xpfunc, pfunc, p,
@@ -3198,12 +3198,12 @@ end
 
 Take a single implicit Euler time step for the given system.
 """
-function take_step(x, dx, system, assembly, t, tprev, 
+function take_step(x, dx, system, assembly, t, tprev,
     prescribed_conditions, distributed_loads, point_masses,
     gravity, linear_velocity, angular_velocity,
     xpfunc, pfunc, p,
     structural_damping, two_dimensional)
-    
+
     #TODO: Make an inplace version that doesn't allocate.
     @unpack force_scaling, indices = system
 
@@ -3229,10 +3229,10 @@ function take_step(x, dx, system, assembly, t, tprev,
     xpfunc, pfunc,
     indices, force_scaling, structural_damping, two_dimensional)
 
-    
+
     x_out = implicit(implicit_euler_solve, implicit_euler_residual!, inputs, params)
 
-    # , result.x_converged #TODO: get the convergence. 
+    # , result.x_converged #TODO: get the convergence.
     return x_out[1:n], x_out[n+1:end]
 end
 
@@ -3242,11 +3242,11 @@ end
     simulate(assembly, tvec; prescribed_conditions, distributed_loads, point_masses, gravity, linear_velocity, angular_velocity,
     xpfunc, pfunc, p, structural_damping, two_dimensional, verbose)
 
-Use the take_step function to run a time_domain_analysis. 
+Use the take_step function to run a time_domain_analysis.
 
 WARNING: The implicit Euler method is not as stable as the Newmark-beta method. You may experience instability for stiff systems or large time steps.
 """
-function simulate(assembly, tvec; 
+function simulate(assembly, tvec;
     prescribed_conditions=Dict{Int,PrescribedConditions{Float64}}(),
     distributed_loads=Dict{Int,DistributedLoads{Float64}}(),
     point_masses=Dict{Int,PointMass{Float64}}(),
@@ -3285,7 +3285,7 @@ function simulate(assembly, tvec;
     converged[1] = converged0
     history[1] = initial_state
 
-    
+
     ### Loop through the solution
     if verbose
         println("Solving...")
@@ -3299,13 +3299,13 @@ function simulate(assembly, tvec;
         tprev = tvec[i-1]
         dt = t-tprev
 
-        #TODO: I probably will need to update the prescribed_conditions, distributed_loads, gravity, linear_velocity, and anything else that I'm supposed to 
+        #TODO: I probably will need to update the prescribed_conditions, distributed_loads, gravity, linear_velocity, and anything else that I'm supposed to
         parameters = isnothing(xpfunc) ? pfunc(p, t) : xpfunc(x[i,:], p, t)
         pcond = get(parameters, :prescribed_conditions, prescribed_conditions)
         pcond = typeof(pcond) <: AbstractDict ? pcond : pcond(t)
 
 
-        x[i,:], dx[i,:] = take_step(x[i-1,:], dx[i-1,:], system, assembly, t, tprev, 
+        x[i,:], dx[i,:] = take_step(x[i-1,:], dx[i-1,:], system, assembly, t, tprev,
                             prescribed_conditions, distributed_loads, point_masses,
                             gravity, linear_velocity, angular_velocity,
                             xpfunc, pfunc, p,
@@ -3565,7 +3565,7 @@ function nlsolve!(p, constants, residual!, jacobian!)
     # construct temporary storage
     df = NLsolve.OnceDifferentiable(f!, j!, x, resid, jacob)
 
-    # @show df.F[1] #Always zero. 
+    # @show df.F[1] #Always zero.
     # @show df.DF[1,1] #Always zero.
 
 
@@ -3783,28 +3783,34 @@ function expanded_mass_matrix!(jacob, p, constants)
         assembly, pcond, pmass)
 end
 
-# sparsity pattern detection
-function jacobian_colors(residual!, x, p, constants)
-    resid = similar(x)
-    config = ForwardDiff.JacobianConfig(residual!, resid, x)
-    J1 = ForwardDiff.jacobian(residual!, resid, x1, config)
-    J2 = ForwardDiff.jacobian(residual!, resid, x2, config)
-    J3 = ForwardDiff.jacobian(residual!, resid, x3, config)
-    @. jacob = abs(J1) + abs(J2) + abs(J3)
-    return SparseDiffTools.matrix_colors(jacob)
+# sparse backend for automatic differentiation
+const SPARSE_AD_BACKEND = AutoSparse(
+    AutoForwardDiff();
+    sparsity_detector=SparseConnectivityTracer.TracerSparsityDetector(),
+    coloring_algorithm=SparseMatrixColorings.GreedyColoringAlgorithm(),
+)
+
+# automatic differentiation jacobian construction (sparse, with coloring)
+function autodiff_jacobian!(jacob, residual!, x, p, constants)
+    f! = (r, x) -> residual!(r, x, p, constants)
+    y = constants.resid
+    prep = prepare_jacobian(f!, y, SPARSE_AD_BACKEND, x)
+    jacobian!(f!, y, jacob, prep, SPARSE_AD_BACKEND, x)
+    return jacob
 end
 
-# automatic differentiation jacobian construction
-function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x))
-
-    f = (r, x) -> residual!(r, x, p, constants)
-
-    return SparseDiffTools.forwarddiff_color_jacobian!(jacob, f, x, colorvec = colors)
-end
+# forward-mode backend for pushforward (JVP)
+const FORWARD_AD_BACKEND = AutoForwardDiff()
 
 # matrix-free jacobian construction
 function matrixfree_jacobian(residual!, x, p, constants)
-    return SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
+    f! = (resid, x) -> residual!(resid, x, p, constants)
+    n = length(x)
+    y = constants.resid
+    prep = prepare_pushforward(f!, y, FORWARD_AD_BACKEND, x, (x,))
+    return LinearMap(n; ismutating=true) do Jv, v
+        pushforward!(f!, y, (Jv,), prep, FORWARD_AD_BACKEND, x, (v,))
+    end
 end
 
 # copy the entire array
