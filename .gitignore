@@ -7,3 +7,6 @@ Manifest.toml
 .vscode
 */Manifest.toml
 docs/build/
+*.claude
+claude.md
+*fromclaude.md
