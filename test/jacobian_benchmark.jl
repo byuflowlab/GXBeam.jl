@@ -9,7 +9,7 @@ Run from the GXBeam root directory:
 """
 
 using GXBeam, LinearAlgebra, Printf, Statistics, BenchmarkTools, ForwardDiff, SparseDiffTools
-using DifferentiationInterface, SparseMatrixColorings, StaticArrays
+using DifferentiationInterface, SparseMatrixColorings, StaticArrays, IterativeSolvers, LinearMaps
 
 # ============================================================================
 # Setup: Create cantilever beam assembly
@@ -46,7 +46,7 @@ system, state, converged = static_analysis(
     assembly,
     prescribed_conditions = prescribed_conditions,
     distributed_loads = distributed_loads,
-    linear = true
+    linear = false
 )
 
 # Extract state vector and parameters
@@ -131,6 +131,17 @@ println("  Jacobian nonzeros: $nnz_count / $(nstate*nstate) ($(round(100*nnz_cou
 println("  Colors (SparseDiffTools): $(maximum(colors_st)) for $nstate DOFs")
 println()
 
+# Initial state vector for solve benchmarks — mirrors static_analysis! line 128
+fresh_system = StaticSystem(assembly)
+x_init = GXBeam.static_state_vector(fresh_system, nothing, p, constants)
+
+# Sparse storage for analytical Jacobian preconditioner in GMRES solvers
+K_pc = copy(system.K)
+
+# Pre-allocated system for GXBeam baseline solve (avoids allocating a new StaticSystem each sample)
+gx_system = StaticSystem(assembly)
+
+
 # ============================================================================
 # Benchmark functions
 # ============================================================================
@@ -193,6 +204,79 @@ function bench_di_pullback!(dx, f!, prep, backend, x, w)
     return pullback(f!, dx, prep, backend, x, (w,))
 end
 
+# --- GXBeam built-in solve (xpfunc path: JacVec + GMRES + analytical preconditioner) ---
+# Passing xpfunc=(x,p,t)->(;) triggers static_matrixfree_nlsolve! → matrixfree_nlsolve! internally.
+function bench_gxbeam_solve!(system, assembly, prescribed_conditions, distributed_loads)
+    _, _, converged = static_analysis!(
+        system,
+        assembly,
+        prescribed_conditions = prescribed_conditions,
+        distributed_loads = distributed_loads,
+        linear = false,
+        xpfunc = (x, p, t) -> (;),
+    )
+    return converged
+end
+
+# --- Newton solver: SparseDiffTools GMRES backend ---
+# Mirrors GXBeam's matrixfree_nlsolve!: JacVec (SparseDiffTools) as the GMRES matvec operator,
+# and static_jacobian! (analytical) as the LU preconditioner each Newton step.
+# Because the preconditioner is exact (it IS the true Jacobian), GMRES converges in 1 iteration
+# per Newton step — i.e. this is effectively a preconditioned direct solve.
+function newton_solve_st_gmres!(x_init, p, constants, K_pc; ftol=1e-9, maxiter=1000)
+    x = copy(x_init)
+    r = zeros(length(x))
+    dx = zeros(length(x))
+    for iter = 1:maxiter
+        GXBeam.static_residual!(r, x, p, constants)
+        norm(r, Inf) < ftol && return x, iter - 1, norm(r, Inf)
+        # Build matrix-free JacVec operator (SparseDiffTools ForwardDiff JVP)
+        JV = GXBeam.matrixfree_jacobian(GXBeam.static_residual!, x, p, constants)
+        # Assemble analytical Jacobian into K_pc and factor as LU preconditioner
+        GXBeam.static_jacobian!(K_pc, x, p, constants)
+        Pl = lu(K_pc)
+        fill!(dx, 0)
+        IterativeSolvers.gmres!(dx, JV, r; Pl=Pl, initially_zero=true,
+            abstol=ftol/10, reltol=ftol/10, maxiter=maxiter)
+        x .-= dx
+    end
+    GXBeam.static_residual!(r, x, p, constants)
+    return x, maxiter, norm(r, Inf)
+end
+
+# --- Newton solver: DifferentiationInterface GMRES backend ---
+# Same structure as the ST version, but the GMRES matvec uses DI pushforward wrapped in a
+# LinearMap instead of SparseDiffTools JacVec. The analytical preconditioner is identical.
+# v_buf/dy_buf are pre-allocated plain Vectors because GMRES internally passes SubArray views,
+# and DI's type-consistency check requires the tangent type to match what was used in prepare_pushforward.
+function newton_solve_di_gmres!(x_init, f_di!, prep_pf, backend, p, constants, K_pc; ftol=1e-9, maxiter=1000)
+    x = copy(x_init)
+    r = zeros(length(x))
+    dx = zeros(length(x))
+    n = length(x)
+    v_buf  = zeros(n)   # plain Vector buffer for tangent (GMRES may pass SubArray views)
+    dy_buf = zeros(n)   # plain Vector buffer passed to pushforward for type-consistency with prep
+    for iter = 1:maxiter
+        f_di!(r, x)
+        norm(r, Inf) < ftol && return x, iter - 1, norm(r, Inf)
+        x_cap = copy(x)   # snapshot for LinearMap closure — stable across GMRES matvecs
+        # Wrap DI pushforward as a LinearMap: pushforward returns the JVP as a Tuple, not in-place
+        JV = LinearMap{Float64}(n, n; ismutating=true) do dy, v
+            v_buf .= v
+            dy .= only(pushforward(f_di!, dy_buf, prep_pf, backend, x_cap, (v_buf,)))
+        end
+        # Assemble analytical Jacobian into K_pc and factor as LU preconditioner
+        GXBeam.static_jacobian!(K_pc, x, p, constants)
+        Pl = lu(K_pc)
+        fill!(dx, 0)
+        IterativeSolvers.gmres!(dx, JV, r; Pl=Pl, initially_zero=true,
+            abstol=ftol/10, reltol=ftol/10, maxiter=maxiter)
+        x .-= dx
+    end
+    f_di!(r, x)
+    return x, maxiter, norm(r, Inf)
+end
+
 # ============================================================================
 # Warmup
 # ============================================================================
@@ -214,6 +298,18 @@ println()
 # Sanity check: JVP from ST and DI should agree
 err = norm(w_buf - dy0)
 println("JVP sanity check (ST mul! vs DI pushforward): norm(w_buf - dy0) = $(round(err, sigdigits=3))")
+println()
+
+# Warmup GMRES Newton solvers and GXBeam xpfunc baseline (JIT compilation)
+x_st, iters_st, rnorm_st = newton_solve_st_gmres!(x_init, p, constants, K_pc)
+x_di, iters_di, rnorm_di = newton_solve_di_gmres!(x_init, f_di!, prep_pf, mf_backend, p, constants, K_pc)
+bench_gxbeam_solve!(gx_system, assembly, prescribed_conditions, distributed_loads)
+
+println("Solve sanity check (GMRES Newton, both backends):")
+println("  ST: iters=$iters_st, ||r||_inf=$(round(rnorm_st, sigdigits=3))")
+println("  DI: iters=$iters_di, ||r||_inf=$(round(rnorm_di, sigdigits=3))")
+println("  ||x_ST - x_DI||   = $(round(norm(x_st - x_di), sigdigits=3))")
+println("  ||x_ST - x0||     = $(round(norm(x_st - x0), sigdigits=3))  (vs GXBeam linear solve)")
 println()
 
 # ============================================================================
@@ -266,6 +362,23 @@ println("DifferentiationInterface pullback J'*v (pre-computed prep)...")
 bdi_pb = @benchmark bench_di_pullback!($dx0, $f_di!, $prep_pb, $mf_backend, $x0, $w0) samples=100 seconds=30
 display(bdi_pb); println()
 
+println("--- Full system solve (GMRES Newton-Krylov, mirrors GXBeam xpfunc path) ---")
+println()
+
+println("SparseDiffTools GMRES Newton (JacVec matvec)...")
+bst_solve = @benchmark newton_solve_st_gmres!($x_init, $p, $constants, $K_pc) samples=30 seconds=30
+display(bst_solve); println()
+
+fill!(x_init, 0)   # reinitialize for clean cold-start
+println("DifferentiationInterface GMRES Newton (pushforward matvec)...")
+bdi_solve = @benchmark newton_solve_di_gmres!($x_init, $f_di!, $prep_pf, $mf_backend, $p, $constants, $K_pc) samples=30 seconds=30
+display(bdi_solve); println()
+
+fill!(x_init, 0)   # reinitialize for clean cold-start
+println("GXBeam static_analysis! xpfunc path (JacVec+GMRES baseline)...")
+bgx_solve = @benchmark bench_gxbeam_solve!($gx_system, $assembly, $prescribed_conditions, $distributed_loads) samples=30 seconds=30
+display(bgx_solve); println()
+
 # ============================================================================
 # Summary table
 # ============================================================================
@@ -297,6 +410,9 @@ rows = [
     ("SparseDiffTools JacVec apply  J*v", bst_mf_apply),
     ("DiffInterface   pushforward   J*v", bdi_pf),
     ("DiffInterface   pullback      J'*v",bdi_pb),
+    ("SparseDiffTools GMRES Newton (JacVec)",       bst_solve),
+    ("DiffInterface   GMRES Newton (pushforward)",  bdi_solve),
+    ("GXBeam xpfunc path (JacVec+GMRES baseline)", bgx_solve),
 ]
 
 println("| Method | Min (ms) | Mean (ms) | Std (ms) | Med (ms) | Max (ms) | Allocs | Mem (MB) |")
@@ -307,10 +423,15 @@ for (label, b) in rows
 end
 println()
 
-st_c_min = minimum(bst_c.times);       di_c_min  = minimum(bdi_c.times)
-st_f_min = minimum(bst_f.times);       di_f_min  = minimum(bdi_f.times)
+st_c_min = minimum(bst_c.times);       di_c_min   = minimum(bdi_c.times)
+st_f_min = minimum(bst_f.times);       di_f_min   = minimum(bdi_f.times)
 st_apply_min = minimum(bst_mf_apply.times); pf_min = minimum(bdi_pf.times)
-println("**Compute-only speedup (ST/DI):**   $(round(ms(st_c_min)/ms(di_c_min), digits=2))x — $(st_c_min < di_c_min ? "ST faster" : "DI faster")")
-println("**Full pipeline speedup (ST/DI):**   $(round(ms(st_f_min)/ms(di_f_min), digits=2))x — $(st_f_min < di_f_min ? "ST faster" : "DI faster")")
-println("**JVP speedup (ST apply / DI pf):**  $(round(ms(st_apply_min)/ms(pf_min), digits=2))x — $(st_apply_min < pf_min ? "ST faster" : "DI faster")")
+st_solve_min = minimum(bst_solve.times); di_solve_min = minimum(bdi_solve.times)
+gx_solve_min = minimum(bgx_solve.times)
+println("**Compute-only speedup (ST/DI):**      $(round(ms(st_c_min)/ms(di_c_min), digits=2))x — $(st_c_min < di_c_min ? "ST faster" : "DI faster")")
+println("**Full pipeline speedup (ST/DI):**      $(round(ms(st_f_min)/ms(di_f_min), digits=2))x — $(st_f_min < di_f_min ? "ST faster" : "DI faster")")
+println("**JVP speedup (ST apply / DI pf):**     $(round(ms(st_apply_min)/ms(pf_min), digits=2))x — $(st_apply_min < pf_min ? "ST faster" : "DI faster")")
+println("**GMRES Newton speedup (ST/DI):**       $(round(ms(st_solve_min)/ms(di_solve_min), digits=2))x — $(st_solve_min < di_solve_min ? "ST faster" : "DI faster")")
+println("**GMRES vs GXBeam xpfunc (ST/GXBeam):** $(round(ms(st_solve_min)/ms(gx_solve_min), digits=2))x — $(st_solve_min < gx_solve_min ? "ST faster" : "GXBeam faster")")
+println("**GMRES vs GXBeam xpfunc (DI/GXBeam):** $(round(ms(di_solve_min)/ms(gx_solve_min), digits=2))x — $(di_solve_min < gx_solve_min ? "DI faster" : "GXBeam faster")")
 println()
