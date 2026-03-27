@@ -3078,6 +3078,20 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
         paug[irate+10:irate+12] = 2/dt*Ω + Ωdot
     end
 
+    # update paug with sensitivity parameters, if they exist
+    if !isnothing(p)
+        np = length(assembly.points)
+        required_len = 12 * np + length(p)
+        if length(paug) < required_len
+            throw(ArgumentError(
+                "paug has length $(length(paug)), but at least $required_len elements " *
+                "are required to store initialization terms for $(np) points and a " *
+                "parameter vector p of length $(length(p)).",
+            ))
+        end
+        paug[12*np + 1 : 12*np + length(p)] .= p
+    end
+
     # solve for the new set of state variables
     if linear
         if update_linearization
@@ -3207,8 +3221,6 @@ function take_step(x, dx, system, assembly, t, tprev,
     #TODO: Make an inplace version that doesn't allocate.
     @unpack force_scaling, indices = system
 
-    # @show x
-    # @show dx
 
     ### Prepare the vector of design vars (which includes the states and state rates)
     if isnothing(p)
@@ -3485,8 +3497,6 @@ function newmark_output(system, x, p, constants)
     dual_safe_copy!(system.x, x)
     dual_safe_copy!(system.dx, dx)
 
-    # @show x
-    # @show dx
 
     # return result
     return AssemblyState(dx, x, system, assembly; prescribed_conditions=pcond)
