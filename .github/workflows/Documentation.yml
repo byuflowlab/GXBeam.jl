@@ -13,8 +13,8 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
       - name: Install dependencies
@@ -22,7 +22,10 @@ jobs:
           PYTHON: ""
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Build and deploy
+        # Deployment uses GITHUB_TOKEN (HTTPS). No SSH deploy key required.
+        # The contents: write permission above grants GITHUB_TOKEN push access to gh-pages.
+        # Deployment is skipped on pull requests; docs are still built to catch errors.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If authenticating with GitHub Actions token
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # If authenticating with SSH deploy key
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHON: ""
         run: julia --project=docs/ docs/make.jl
