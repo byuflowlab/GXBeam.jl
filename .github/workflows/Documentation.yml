@@ -25,7 +25,6 @@ jobs:
         # Deployment uses GITHUB_TOKEN (HTTPS). No SSH deploy key required.
         # The contents: write permission above grants GITHUB_TOKEN push access to gh-pages.
         # Deployment is skipped on pull requests; docs are still built to catch errors.
-        if: github.event_name != 'pull_request'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHON: ""
