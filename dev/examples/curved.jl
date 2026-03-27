@@ -61,4 +61,3 @@ mkpath("curved-visualization")
 write_vtk("curved-visualization/curved-visualization", assembly, state)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-

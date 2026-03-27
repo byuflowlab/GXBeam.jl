@@ -312,4 +312,3 @@ write_vtk("static-joined-wing-visualization/static-joined-wing-visualization", a
     sections = section)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-

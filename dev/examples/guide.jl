@@ -213,4 +213,3 @@ plot!(rpm, theta_z_l, label="Linear")
 plot!(show=true)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-

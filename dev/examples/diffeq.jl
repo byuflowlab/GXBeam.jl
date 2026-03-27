@@ -232,4 +232,3 @@ mkpath("dynamic-wind-turbine")
 write_vtk("dynamic-wind-turbine/dynamic-wind-turbine", assembly, gxbeam_history, t; sections = sections)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-

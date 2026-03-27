@@ -226,4 +226,3 @@ p = [1e5, 20] # force magnitude and frequency
 ForwardDiff.jacobian(objfun, p)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-

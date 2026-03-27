@@ -101,4 +101,3 @@ end
 @btime ReverseDiff.jacobian(objfun2, [1.0])
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-

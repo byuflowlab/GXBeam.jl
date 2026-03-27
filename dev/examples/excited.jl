@@ -98,4 +98,3 @@ plot!(t, w14_gxbeam, label="GXBeam")
 plot!(show=true)
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-

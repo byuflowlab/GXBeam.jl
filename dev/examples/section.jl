@@ -227,4 +227,3 @@ data2 = [0.00011487650775416497  0.004832104832104944
 ]
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
-
