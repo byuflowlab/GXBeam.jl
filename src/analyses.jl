@@ -3081,6 +3081,14 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
     # update paug with sensitivity parameters, if they exist
     if !isnothing(p)
         np = length(assembly.points)
+        required_len = 12 * np + length(p)
+        if length(paug) < required_len
+            throw(ArgumentError(
+                "paug has length $(length(paug)), but at least $required_len elements " *
+                "are required to store initialization terms for $(np) points and a " *
+                "parameter vector p of length $(length(p)).",
+            ))
+        end
         paug[12*np + 1 : 12*np + length(p)] .= p
     end
 
