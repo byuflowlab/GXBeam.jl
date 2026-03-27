@@ -106,7 +106,7 @@ nnz_count = count(!iszero, J_dense)
 J_pattern = abs.(J_dense) .> (maximum(abs, J_dense) * 1e-12)
 colors_st = SparseDiffTools.matrix_colors(J_pattern)
 
-# DifferentiationInterface: prepare sparse backend once
+# DifferentiationInterface: prepare sparse backend once - Todo: need to see if I can give the sparsity pattern here too to avoid redundant detection in the "full pipeline" benchmark.
 di_backend = AutoSparse(
     AutoForwardDiff();
     sparsity_detector  = DenseSparsityDetector(AutoForwardDiff(); atol=1e-5),
