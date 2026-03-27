@@ -3092,9 +3092,6 @@ function step_system!(system::DynamicSystem, paug, x, constants, initial_state, 
         paug[12*np + 1 : 12*np + length(p)] .= p
     end
 
-
-
-
     # solve for the new set of state variables
     if linear
         if update_linearization
