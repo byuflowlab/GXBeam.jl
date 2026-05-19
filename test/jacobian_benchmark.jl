@@ -1,8 +1,37 @@
 """
     jacobian_benchmark.jl
 
-Benchmark script comparing SparseDiffTools and DifferentiationInterface
-for sparse Jacobian computation on a cantilever beam problem.
+Benchmark script comparing SparseDiffTools (ST) and DifferentiationInterface (DI)
+as AD backends for GXBeam's solver paths, on a cantilever beam problem.
+
+# Two distinct comparison scopes
+
+1. **Assembled sparse Jacobian** (compute-only + full-pipeline rows).
+   Builds the full sparse Jacobian via colored forward-mode AD.
+   Relevant if AD were to replace GXBeam's analytical Jacobian in the default
+   NLsolve path, or anywhere a fully assembled J is needed.
+     - compute-only:  sparsity pattern and coloring are pre-computed.
+     - full pipeline: includes sparsity detection + coloring + compute (cold start).
+
+2. **Matrix-free JVP** (JacVec/pushforward rows + GMRES Newton rows).
+   This is what GXBeam's `xpfunc` solve path actually does: `matrixfree_nlsolve!`
+   uses GMRES with on-the-fly JVPs as the matvec and the analytical structural
+   Jacobian (LU-factored) as the left preconditioner. No full AD Jacobian is
+   assembled in this path — only JVPs.
+     - JVP rows:           head-to-head ST `JacVec` mul! vs DI `pushforward`.
+     - GMRES Newton rows:  same Newton/GMRES/analytical-preconditioner scaffolding
+                           with only the JVP backend swapped; plus GXBeam's
+                           `static_analysis!(xpfunc=...)` as a baseline.
+
+# Outputs
+
+Prints to stdout:
+  - Problem setup info (state size, sparsity, color count).
+  - Sanity checks (ST vs DI JVP agreement; GMRES Newton solutions match).
+  - Per-benchmark `BenchmarkTools` trial displays.
+  - A summary markdown table (min/mean/std/median/max time, allocs, memory).
+  - Min-time speedup ratios for each ST-vs-DI comparison and ST/DI vs the
+    GXBeam xpfunc baseline.
 
 Run from the GXBeam root directory:
     julia --project=test test/jacobian_benchmark.jl
