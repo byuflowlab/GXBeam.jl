@@ -1,0 +1,45 @@
+Tue May 19 18:32:45 MDT 2026
+715d3d718619d6d6b786e604f82fa467f7868584
+715d3d718 Add multi-session migration plan: SparseDiffTools → DifferentiationInterface
+=== Date ===
+
+=== Julia version ===
+Julia Version 1.11.9
+Commit 53a02c0720c (2026-02-06 00:27 UTC)
+Build Info:
+  Official https://julialang.org/ release
+Platform Info:
+  OS: macOS (x86_64-apple-darwin24.0.0)
+  CPU: 12 × Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
+  WORD_SIZE: 64
+  LLVM: libLLVM-16.0.6 (ORCJIT, skylake)
+Threads: 1 default, 0 interactive, 1 GC (on 12 virtual cores)
+Environment:
+  DYLD_LIBRARY_PATH = /opt/intel/oneapi/tbb/2021.7.0/env/../lib:/opt/intel/oneapi/mkl/2022.2.0/lib:/opt/intel/oneapi/ippcp/2021.6.1/lib:/opt/intel/oneapi/ipp/2021.6.1/lib:/opt/intel/oneapi/dnnl/2022.2.0/cpu_iomp/lib:/opt/intel/oneapi/dal/2021.7.0/lib:/opt/intel/oneapi/compiler/2022.2.0/mac/compiler/lib/intel64_mac:/opt/intel/oneapi/compiler/2022.2.0/mac/compiler/lib
+
+=== Threads ===
+Threads.nthreads() = 1
+
+=== Git HEAD ===
+
+=== Pkg.status() ===
+Status `~/.julia/dev/GXBeam/test/Project.toml`
+⌃ [6e4b80f9] BenchmarkTools v1.6.3
+⌃ [0c46a032] DifferentialEquations v7.17.0
+⌃ [a0c0ee7d] DifferentiationInterface v0.7.16
+  [b305315f] Elliptic v1.0.1
+⌃ [6a86dc24] FiniteDiff v2.29.0
+⌃ [f6369f11] ForwardDiff v1.3.2
+  [974624c9] GXBeam v1.1.0 `~/.julia/dev/GXBeam`
+  [42fd0dbc] IterativeSolvers v0.9.4
+  [7a12625a] LinearMaps v3.11.4
+  [2774e3e8] NLsolve v4.5.1
+  [47a9eef4] SparseDiffTools v2.26.0
+⌃ [0a514795] SparseMatrixColorings v0.4.24
+⌃ [90137ffa] StaticArrays v1.9.17
+  [3a884ed6] UnPack v1.0.2
+  [37e2e46d] LinearAlgebra v1.11.0
+  [9a3f8284] Random v1.11.0
+  [8dfed614] Test v1.11.0
+Info Packages marked with ⌃ have new versions available and may be upgradable.
+Warning The project dependencies or compat requirements have changed since the manifest was last resolved. It is recommended to `Pkg.resolve()` or consider `Pkg.update()` if necessary.
