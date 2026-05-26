@@ -30,9 +30,13 @@ These apply to every session that touches this migration:
    - At session end (especially for overnight runs): commit any in-progress work on
      `di-migration`, then `git checkout jacobian-comparison` so Adam can work on other
      tasks during the day without the migration branch checked out.
-2. **No environment changes without approval** (per `.claude/rules/julia.md`). Any
-   `Project.toml` edit or `Pkg.add/rm/update` requires explicit user approval before
-   running.
+2. **NEVER edit `Project.toml` or `Manifest.toml` directly.** These files are
+   managed exclusively by Julia's `Pkg`. All dependency adds / removes / compat
+   changes go through `Pkg.add`, `Pkg.rm`, `Pkg.update`, `Pkg.resolve`,
+   `Pkg.compat` (or REPL `] add`/`rm`/etc.). User approval to "add a dep" is
+   approval to run the Pkg command, not to hand-edit the file. Direct edits
+   desync Project.toml from Manifest.toml and have caused incidents. Also: ask
+   the user before running any `Pkg.*` command. See `.claude/rules/julia.md`.
 3. **Run tests after each phase**, not at the end. The phases below are sized to be
    independently testable.
 4. **No `--no-verify`, no force pushes, no amending shared commits.**
@@ -106,8 +110,9 @@ signatures, so downstream code in `analyses.jl` doesn't change yet.
 
 4. **`GXBeam.jl` imports**: replace `import SparseDiffTools` with
    `import DifferentiationInterface as DI`, `import SparseMatrixColorings`,
-   `import LinearMaps`. Defer `Project.toml` edits to the dependency-update step
-   (separate commit, requires user approval).
+   `import LinearMaps`. Adding the corresponding deps to `Project.toml` is **not**
+   a text edit — use `Pkg.add` via Julia (see workflow rule 2 at the top of this
+   file). Each Pkg command requires explicit user approval.
 
 **Verification:**
 - Run `julia --project test/runtests.jl` — all tests pass.
@@ -124,10 +129,13 @@ signatures, so downstream code in `analyses.jl` doesn't change yet.
 **Requires explicit user approval before running any `Pkg` commands.**
 
 1. Verify no `SparseDiffTools.` references remain in `src/` (grep).
-2. Edit [Project.toml](Project.toml): remove `SparseDiffTools` entry at line 24 and
-   compat bound at line 46. Add `DifferentiationInterface`, `SparseMatrixColorings`,
-   `LinearMaps` with appropriate compat bounds.
-3. `Pkg.resolve()` and verify the resulting `Manifest.toml` is clean.
+2. **Do not edit Project.toml by hand.** Use Pkg:
+   `julia --project -e 'using Pkg; Pkg.rm("SparseDiffTools"); Pkg.add(["DifferentiationInterface", "SparseMatrixColorings"])'`
+   (LinearMaps is already a dep — confirm before adding). Pin compat with
+   `Pkg.compat("DifferentiationInterface", "0.7")` etc. Each Pkg command needs
+   explicit user approval.
+3. Inspect the resulting Project.toml + Manifest.toml diff with `git diff` to
+   confirm Pkg made the expected edits.
 4. Run full test suite.
 
 **Verification:** Tests pass; `Pkg.status()` shows no SparseDiffTools.
