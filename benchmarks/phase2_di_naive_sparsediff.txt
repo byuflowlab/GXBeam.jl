@@ -1,0 +1,188 @@
+Benchmark Configuration:
+  Problem size (state variables): 150
+  Assembly: cantilever with 12 elements
+
+Sparsity info:
+  Jacobian nonzeros: 771 / 22500 (3.4%)
+  Colors (SparseDiffTools): 10 for 150 DOFs
+
+Warming up (JIT compilation)...
+Done.
+
+JVP sanity check (ST mul! vs DI pushforward): norm(w_buf - dy0) = 16.6
+
+Solve sanity check (GMRES Newton, both backends):
+  ST: iters=1, ||r||_inf=3.08e-13
+  DI: iters=1, ||r||_inf=3.08e-13
+  ||x_ST - x_DI||   = 0.0
+  ||x_ST - x0||     = 2.79e-20  (vs GXBeam linear solve)
+
+======================================================================
+JACOBIAN BENCHMARK: SparseDiffTools vs DifferentiationInterface
+======================================================================
+
+--- Compute-only (sparsity/coloring pre-computed) ---
+
+SparseDiffTools (colored ForwardDiff, compute only)...
+BenchmarkTools.Trial: 30 samples with 1 evaluation per sample.
+ Range (min … max):   9.533 ms … 21.238 ms  ┊ GC (min … max):  0.00% … 48.07%
+ Time  (median):     12.982 ms              ┊ GC (median):    12.85%
+ Time  (mean ± σ):   12.557 ms ±  2.548 ms  ┊ GC (mean ± σ):  17.09% ± 15.22%
+
+      ▂               ▂█                                       
+  ▅████▁█▅▁▁▅▁▁▁▅▁▁▁▁▅██▁█▁▅▁▁▁▁▁▅▁▅▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▅ ▁
+  9.53 ms         Histogram: frequency by time        21.2 ms <
+
+ Memory estimate: 21.87 MiB, allocs estimate: 199459.
+
+DifferentiationInterface (sparse ForwardDiff, compute only)...
+BenchmarkTools.Trial: 30 samples with 1 evaluation per sample.
+ Range (min … max):  90.840 μs … 102.441 μs  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     93.164 μs               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   93.571 μs ±   2.290 μs  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  ▃ █   █  █     ▃    ▃ ▃                                       
+  █▁█▇▇▁█▇▁█▁▇▇▁▇█▁▁▇▇█▇█▇▇▁▁▇▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▇ ▁
+  90.8 μs         Histogram: frequency by time          102 μs <
+
+ Memory estimate: 344.44 KiB, allocs estimate: 1324.
+
+--- Full pipeline (includes sparsity detection + coloring) ---
+
+SparseDiffTools (full pipeline)...
+BenchmarkTools.Trial: 10 samples with 1 evaluation per sample.
+ Range (min … max):  14.138 ms … 20.319 ms  ┊ GC (min … max):  0.00% … 35.82%
+ Time  (median):     16.199 ms              ┊ GC (median):    20.09%
+ Time  (mean ± σ):   16.477 ms ±  1.712 ms  ┊ GC (mean ± σ):  20.87% ±  8.71%
+
+  █         ██ █  █     █  █  █      █                      █  
+  █▁▁▁▁▁▁▁▁▁██▁█▁▁█▁▁▁▁▁█▁▁█▁▁█▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  14.1 ms         Histogram: frequency by time        20.3 ms <
+
+ Memory estimate: 29.80 MiB, allocs estimate: 216949.
+
+DifferentiationInterface (full pipeline)...
+BenchmarkTools.Trial: 10 samples with 1 evaluation per sample.
+ Range (min … max):  10.287 ms … 14.462 ms  ┊ GC (min … max):  0.00% … 25.26%
+ Time  (median):     13.406 ms              ┊ GC (median):    24.56%
+ Time  (mean ± σ):   12.808 ms ±  1.591 ms  ┊ GC (mean ± σ):  18.57% ± 11.94%
+
+  █    ██                                   ████      █   █ █  
+  █▁▁▁▁██▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁████▁▁▁▁▁▁█▁▁▁█▁█ ▁
+  10.3 ms         Histogram: frequency by time        14.5 ms <
+
+ Memory estimate: 21.88 MiB, allocs estimate: 199166.
+
+--- Matrix-free Jacobian-vector products ---
+
+SparseDiffTools JacVec construction...
+BenchmarkTools.Trial: 30 samples with 9 evaluations per sample.
+ Range (min … max):  2.768 μs … 210.891 μs  ┊ GC (min … max):  0.00% … 97.71%
+ Time  (median):     2.894 μs               ┊ GC (median):     0.00%
+ Time  (mean ± σ):   9.962 μs ±  37.950 μs  ┊ GC (mean ± σ):  68.95% ± 17.84%
+
+  █                                                            
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▅ ▁
+  2.77 μs      Histogram: log(frequency) by time       211 μs <
+
+ Memory estimate: 23.95 KiB, allocs estimate: 41.
+
+SparseDiffTools JacVec apply (J*v)...
+BenchmarkTools.Trial: 100 samples with 1 evaluation per sample.
+ Range (min … max):  63.207 μs … 81.119 μs  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     65.669 μs              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   66.659 μs ±  2.992 μs  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+     ▄▅█▃▇ ▂                                                   
+  ▃▁▆███████▇▆▅▅▆▇▆▅▃▃▅▃▁▆▃▅▁▅▁▃▁▁▁▁▁▁▁▁▁▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃ ▃
+  63.2 μs         Histogram: frequency by time        80.7 μs <
+
+ Memory estimate: 146.38 KiB, allocs estimate: 1318.
+
+DifferentiationInterface pushforward J*v (pre-computed prep)...
+BenchmarkTools.Trial: 100 samples with 1 evaluation per sample.
+ Range (min … max):  63.554 μs … 119.995 μs  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     67.433 μs               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   69.671 μs ±   8.025 μs  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+   ▁▇█▄▅▇█▁▄▁                                                   
+  ▅██████████▆▁▅▆▃▁▅▃▁▁▃▁▁▁▃▁▁▁▁▃▃▃▁▁▁▁▁▁▃▁▁▁▁▁▁▃▁▁▁▁▁▃▃▁▁▁▁▁▃ ▃
+  63.6 μs         Histogram: frequency by time         96.8 μs <
+
+ Memory estimate: 146.38 KiB, allocs estimate: 1318.
+
+DifferentiationInterface pullback J'*v (pre-computed prep)...
+BenchmarkTools.Trial: 100 samples with 1 evaluation per sample.
+ Range (min … max):   9.862 ms … 15.647 ms  ┊ GC (min … max):  0.00% … 29.58%
+ Time  (median):     13.357 ms              ┊ GC (median):    25.00%
+ Time  (mean ± σ):   12.689 ms ±  1.577 ms  ┊ GC (mean ± σ):  19.29% ± 11.54%
+
+  ▃                                    █ ▇ ▄▂                  
+  █▃▅▅▇▅▁▆▇▅▁▃▁▁▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▅▆▇███▇██▇▅▆▆▃▁▃▁▃▁▁▁▃▁▁▃ ▃
+  9.86 ms         Histogram: frequency by time        15.3 ms <
+
+ Memory estimate: 21.63 MiB, allocs estimate: 198004.
+
+--- Full system solve (GMRES Newton-Krylov, mirrors GXBeam xpfunc path) ---
+
+SparseDiffTools GMRES Newton (JacVec matvec)...
+BenchmarkTools.Trial: 30 samples with 1 evaluation per sample.
+ Range (min … max):  530.061 μs …   2.990 ms  ┊ GC (min … max):  0.00% … 74.47%
+ Time  (median):     564.899 μs               ┊ GC (median):     0.00%
+ Time  (mean ± σ):   649.183 μs ± 443.783 μs  ┊ GC (mean ± σ):  11.43% ± 13.60%
+
+  █                                                              
+  █▇▁▃▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃ ▁
+  530 μs           Histogram: frequency by time         2.99 ms <
+
+ Memory estimate: 675.27 KiB, allocs estimate: 2385.
+
+DifferentiationInterface GMRES Newton (pushforward matvec)...
+BenchmarkTools.Trial: 30 samples with 1 evaluation per sample.
+ Range (min … max):  461.829 μs …   2.245 ms  ┊ GC (min … max):  0.00% … 74.00%
+ Time  (median):     470.899 μs               ┊ GC (median):     0.00%
+ Time  (mean ± σ):   536.229 μs ± 323.283 μs  ┊ GC (mean ± σ):  10.33% ± 13.51%
+
+  █                                                              
+  ██▅▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▅ ▁
+  462 μs        Histogram: log(frequency) by time       2.25 ms <
+
+ Memory estimate: 655.25 KiB, allocs estimate: 2361.
+
+GXBeam static_analysis! xpfunc path (JacVec+GMRES baseline)...
+BenchmarkTools.Trial: 30 samples with 1 evaluation per sample.
+ Range (min … max):  516.785 μs …   2.841 ms  ┊ GC (min … max):  0.00% … 73.89%
+ Time  (median):     541.669 μs               ┊ GC (median):     0.00%
+ Time  (mean ± σ):   621.470 μs ± 421.179 μs  ┊ GC (mean ± σ):  11.26% ± 13.49%
+
+  █▃                                                             
+  ██▁▁▁▅▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▅ ▁
+  517 μs        Histogram: log(frequency) by time       2.84 ms <
+
+ Memory estimate: 696.70 KiB, allocs estimate: 2636.
+
+==============================================================================================================
+SUMMARY
+==============================================================================================================
+
+| Method | Min (ms) | Mean (ms) | Std (ms) | Med (ms) | Max (ms) | Allocs | Mem (MB) |
+|---|---|---|---|---|---|---|---|
+| SparseDiffTools compute-only | 9.533 | 12.557 | 2.548 | 12.982 | 21.238 | 199459 | 22.93 |
+| DiffInterface   compute-only | 0.091 | 0.094 | 0.002 | 0.093 | 0.102 | 1324 | 0.35 |
+| SparseDiffTools full pipeline | 14.138 | 16.477 | 1.712 | 16.199 | 20.319 | 216949 | 31.25 |
+| DiffInterface   full pipeline | 10.287 | 12.808 | 1.591 | 13.406 | 14.462 | 199166 | 22.94 |
+| SparseDiffTools JacVec construct | 0.003 | 0.010 | 0.038 | 0.003 | 0.211 | 41 | 0.02 |
+| SparseDiffTools JacVec apply  J*v | 0.063 | 0.067 | 0.003 | 0.066 | 0.081 | 1318 | 0.15 |
+| DiffInterface   pushforward   J*v | 0.064 | 0.070 | 0.008 | 0.067 | 0.120 | 1318 | 0.15 |
+| DiffInterface   pullback      J'*v | 9.862 | 12.689 | 1.577 | 13.357 | 15.647 | 198004 | 22.68 |
+| SparseDiffTools GMRES Newton (JacVec) | 0.530 | 0.649 | 0.444 | 0.565 | 2.990 | 2385 | 0.69 |
+| DiffInterface   GMRES Newton (pushforward) | 0.462 | 0.536 | 0.323 | 0.471 | 2.245 | 2361 | 0.67 |
+| GXBeam xpfunc path (JacVec+GMRES baseline) | 0.517 | 0.621 | 0.421 | 0.542 | 2.841 | 2636 | 0.71 |
+
+**Compute-only speedup (ST/DI):**      104.94x — DI faster
+**Full pipeline speedup (ST/DI):**      1.37x — DI faster
+**JVP speedup (ST apply / DI pf):**     0.99x — ST faster
+**GMRES Newton speedup (ST/DI):**       1.15x — DI faster
+**GMRES vs GXBeam xpfunc (ST/GXBeam):** 1.03x — GXBeam faster
+**GMRES vs GXBeam xpfunc (DI/GXBeam):** 0.89x — DI faster
+
