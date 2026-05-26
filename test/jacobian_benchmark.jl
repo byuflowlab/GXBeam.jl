@@ -87,6 +87,7 @@ p = nothing
 # static_residual! only unpacks: indices, two_dimensional, force_scaling, assembly,
 # prescribed_conditions, distributed_loads, point_masses, gravity, xpfunc, pfunc, t
 constants = (;
+    system,
     assembly,
     indices          = system.indices,
     two_dimensional  = false,
