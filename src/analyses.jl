@@ -3801,7 +3801,12 @@ function jacobian_colors(residual!, x, p, constants)
     J2 = ForwardDiff.jacobian(residual!, resid, x2, config)
     J3 = ForwardDiff.jacobian(residual!, resid, x3, config)
     @. jacob = abs(J1) + abs(J2) + abs(J3)
-    return SparseDiffTools.matrix_colors(jacob)
+    result = SparseMatrixColorings.coloring(
+        sparse(jacob),
+        SparseMatrixColorings.ColoringProblem(),
+        SparseMatrixColorings.GreedyColoringAlgorithm(),
+    )
+    return SparseMatrixColorings.column_colors(result)
 end
 
 # automatic differentiation jacobian construction
@@ -3809,12 +3814,59 @@ function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x
 
     f = (r, x) -> residual!(r, x, p, constants)
 
-    return SparseDiffTools.forwarddiff_color_jacobian!(jacob, f, x, colorvec = colors)
+    backend = DifferentiationInterface.AutoSparse(
+        DifferentiationInterface.AutoForwardDiff();
+        sparsity_detector  = DifferentiationInterface.DenseSparsityDetector(
+                                 DifferentiationInterface.AutoForwardDiff(); atol=1e-5),
+        coloring_algorithm = SparseMatrixColorings.GreedyColoringAlgorithm(),
+    )
+
+    r_buf = similar(x)
+    prep = DifferentiationInterface.prepare_jacobian(f, r_buf, backend, x)
+    DifferentiationInterface.jacobian!(f, r_buf, jacob, prep, backend, x)
+
+    return jacob
 end
 
 # matrix-free jacobian construction
+# Returns a LinearMap that mul!s via DI pushforward (forward action) and DI pullback
+# (adjoint action). Used by the xpfunc / GMRES path in `matrixfree_nlsolve!`
+# (which only needs `mul!(out, A, v)`) and as `drdy` in `ImplicitAD.implicit`
+# (which additionally needs `A'` to apply via mul! for reverse-mode AD).
+#
+# Buffer pattern (v_buf/dy_buf/w_buf/dx_buf) mirrors `newton_solve_di_gmres!` in
+# test/jacobian_benchmark.jl: GMRES passes SubArray views and DI's type-consistency
+# check requires the tangent type to match what was used in prepare_*.
 function matrixfree_jacobian(residual!, x, p, constants)
-    return SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
+    f = (r, x) -> residual!(r, x, p, constants)
+    n = length(x)
+    backend = DifferentiationInterface.AutoForwardDiff()
+
+    v0 = zeros(eltype(x), n)
+    w0 = zeros(eltype(x), n)
+    dy0 = zeros(eltype(x), n)
+    dx0 = zeros(eltype(x), n)
+    prep_pf = DifferentiationInterface.prepare_pushforward(f, dy0, backend, x, (v0,))
+    prep_pb = DifferentiationInterface.prepare_pullback(f,  dx0, backend, x, (w0,))
+
+    x_cap  = copy(x)
+    dy_buf = zeros(eltype(x), n)
+    dx_buf = zeros(eltype(x), n)
+    v_buf  = zeros(eltype(x), n)
+    w_buf  = zeros(eltype(x), n)
+
+    fwd! = (out, v) -> begin
+        v_buf .= v
+        out .= only(DifferentiationInterface.pushforward(f, dy_buf, prep_pf, backend, x_cap, (v_buf,)))
+        return out
+    end
+    adj! = (out, w) -> begin
+        w_buf .= w
+        out .= only(DifferentiationInterface.pullback(f, dx_buf, prep_pb, backend, x_cap, (w_buf,)))
+        return out
+    end
+
+    return LinearMap{eltype(x)}(fwd!, adj!, n, n; ismutating=true)
 end
 
 # copy the entire array

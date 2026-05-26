@@ -14,6 +14,8 @@ using NLsolve
 import Roots
 using ReverseDiff
 using SparseArrays
+import DifferentiationInterface
+import SparseMatrixColorings
 import SparseDiffTools
 using StaticArrays
 using SciMLBase
