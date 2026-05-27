@@ -105,8 +105,9 @@ function classify(ratio::Float64; threshold::Float64=0.03)
     end
 end
 
-function compare(a_rows, b_rows; col::String="min")
-    idx = COL_INDEX[col]
+function compare(a_rows, b_rows; verdict_col::String="min")
+    verdict_idx = COL_INDEX[verdict_col]
+    min_idx, mean_idx = COL_INDEX["min"], COL_INDEX["mean"]
     a_dict = Dict(name => t for (name, t) in a_rows)
     b_dict = Dict(name => t for (name, t) in b_rows)
 
@@ -120,51 +121,64 @@ function compare(a_rows, b_rows; col::String="min")
         n in seen || (push!(seen, n); push!(names, n))
     end
 
-    pairs = Tuple{String, Union{Float64,Missing}, Union{Float64,Missing}, Union{Float64,Missing}, String}[]
+    rows = NamedTuple[]
     for n in names
         a = get(a_dict, n, nothing)
         b = get(b_dict, n, nothing)
-        a_val = isnothing(a) ? missing : a[idx]
-        b_val = isnothing(b) ? missing : b[idx]
-        ratio = (ismissing(a_val) || ismissing(b_val)) ? missing : (b_val / a_val)
-        tag = ismissing(ratio) ? "missing" : classify(ratio)
-        push!(pairs, (n, a_val, b_val, ratio, tag))
+        a_min  = isnothing(a) ? missing : a[min_idx]
+        b_min  = isnothing(b) ? missing : b[min_idx]
+        a_mean = isnothing(a) ? missing : a[mean_idx]
+        b_mean = isnothing(b) ? missing : b[mean_idx]
+        a_v = isnothing(a) ? missing : a[verdict_idx]
+        b_v = isnothing(b) ? missing : b[verdict_idx]
+        r_min  = (ismissing(a_min)  || ismissing(b_min))  ? missing : (b_min  / a_min)
+        r_mean = (ismissing(a_mean) || ismissing(b_mean)) ? missing : (b_mean / a_mean)
+        r_v    = (ismissing(a_v)    || ismissing(b_v))    ? missing : (b_v    / a_v)
+        tag = ismissing(r_v) ? "missing" : classify(r_v)
+        push!(rows, (; name=n, a_min, b_min, r_min, a_mean, b_mean, r_mean, tag))
     end
-    return pairs
+    return rows
 end
 
-function print_report(file_a, file_b, col, pairs)
-    label = COL_LABELS[col]
+function print_report(file_a, file_b, verdict_col, rows)
     println()
-    println("Comparing $label timings")
+    println("Comparing timings (B vs A)")
     println("  A (baseline):  $file_a")
     println("  B (rerun):     $file_b")
     println("  ratio = B / A;  >1 means B slower, <1 means B faster")
+    println("  verdict uses the $verdict_col column")
     println()
-    # Header
-    @printf("%-32s %12s %12s %8s   %s\n", "Workload", "A ($col, ms)", "B ($col, ms)", "B/A", "verdict")
-    println(repeat('-', 80))
+    # Header: workload, min A, min B, min B/A, mean A, mean B, mean B/A, verdict
+    @printf("%-32s %10s %10s %8s   %10s %10s %8s   %s\n",
+            "Workload", "MinA(ms)", "MinB(ms)", "min B/A",
+            "MeanA(ms)", "MeanB(ms)", "mean B/A", "verdict")
+    println(repeat('-', 110))
     n_slower = 0; n_faster = 0; n_same = 0; n_missing = 0
-    worst_slowdown_name = ""; worst_slowdown_ratio = -Inf
-    for (name, a, b, ratio, tag) in pairs
-        a_str = ismissing(a) ? "  -" : @sprintf("%12.3f", a)
-        b_str = ismissing(b) ? "  -" : @sprintf("%12.3f", b)
-        r_str = ismissing(ratio) ? "    -" : @sprintf("%8.2fx", ratio)
-        @printf("%-32s %s %s %s   %s\n", name, a_str, b_str, r_str, tag)
-        if tag == "slower"
+    worst_name = ""; worst_ratio = -Inf
+    for r in rows
+        a_min  = ismissing(r.a_min)  ? "    -"   : @sprintf("%10.3f", r.a_min)
+        b_min  = ismissing(r.b_min)  ? "    -"   : @sprintf("%10.3f", r.b_min)
+        rmin   = ismissing(r.r_min)  ? "    -"   : @sprintf("%8.2fx", r.r_min)
+        a_mean = ismissing(r.a_mean) ? "    -"   : @sprintf("%10.3f", r.a_mean)
+        b_mean = ismissing(r.b_mean) ? "    -"   : @sprintf("%10.3f", r.b_mean)
+        rmean  = ismissing(r.r_mean) ? "    -"   : @sprintf("%8.2fx", r.r_mean)
+        @printf("%-32s %s %s %s   %s %s %s   %s\n",
+                r.name, a_min, b_min, rmin, a_mean, b_mean, rmean, r.tag)
+        if r.tag == "slower"
             n_slower += 1
-            if !ismissing(ratio) && ratio > worst_slowdown_ratio
-                worst_slowdown_ratio = ratio; worst_slowdown_name = name
+            verdict_r = verdict_col == "mean" ? r.r_mean : r.r_min
+            if !ismissing(verdict_r) && verdict_r > worst_ratio
+                worst_ratio = verdict_r; worst_name = r.name
             end
-        elseif tag == "faster"; n_faster += 1
-        elseif tag == "~same"; n_same += 1
+        elseif r.tag == "faster"; n_faster += 1
+        elseif r.tag == "~same"; n_same += 1
         else; n_missing += 1
         end
     end
     println()
     println("Summary: $n_faster faster, $n_same ~same, $n_slower slower, $n_missing missing")
-    if n_slower > 0 && !isempty(worst_slowdown_name)
-        @printf("Worst slowdown: %s at %.2fx\n", worst_slowdown_name, worst_slowdown_ratio)
+    if n_slower > 0 && !isempty(worst_name)
+        @printf("Worst slowdown (%s): %s at %.2fx\n", verdict_col, worst_name, worst_ratio)
     end
     return n_slower
 end
@@ -176,5 +190,5 @@ a_rows = parse_summary(opts.file_a)
 b_rows = parse_summary(opts.file_b)
 isempty(a_rows) && error("could not parse a SUMMARY table from $(opts.file_a)")
 isempty(b_rows) && error("could not parse a SUMMARY table from $(opts.file_b)")
-pairs = compare(a_rows, b_rows; col=opts.col)
-print_report(opts.file_a, opts.file_b, opts.col, pairs)
+rows = compare(a_rows, b_rows; verdict_col=opts.col)
+print_report(opts.file_a, opts.file_b, opts.col, rows)
