@@ -548,6 +548,20 @@ end
 # Driver
 # ============================================================================
 
+# Scale benchmark precision. Each entry in WORKLOADS gives a *base* sample count
+# and a *base* seconds budget; effective values are base × multiplier. Bump the
+# multipliers when you want denser sampling (e.g. before/after a perf-relevant
+# change); leave at 1 for fast iteration. Defaults bumped from 1×/1× to 5×/5×
+# in May 2026 after Phase 3 surfaced workloads where the 3-sample default
+# produced noise-dominated comparisons.
+#
+# Wall-time at 5×/5× is ~10 min total, dominated by static-joined-wing-follower
+# (~25 samples × ~15s) and static-joined-wing-nonlinear (~25 × ~8s). The
+# seconds cap stops a workload early once its budget is exhausted, so fast
+# workloads still finish quickly even with large sample multipliers.
+const SAMPLE_MULTIPLIER  = 5
+const SECONDS_MULTIPLIER = 5
+
 const WORKLOADS = [
     ("cantilever",                   setup_cantilever,                solve_cantilever,                30, 30),
     ("curved",                       setup_curved,                    solve_curved,                    20, 30),
@@ -583,7 +597,9 @@ println()
 
 # Timed pass
 results = Tuple{String, BenchmarkTools.Trial}[]
-for (name, setup_fn, solve_fn, n_samples, n_seconds) in WORKLOADS
+for (name, setup_fn, solve_fn, base_samples, base_seconds) in WORKLOADS
+    n_samples = round(Int, base_samples * SAMPLE_MULTIPLIER)
+    n_seconds = base_seconds * SECONDS_MULTIPLIER
     println("--- $name (samples=$n_samples, seconds=$n_seconds) ---")
     s = setup_fn()
     bm = @benchmarkable $solve_fn($s)
