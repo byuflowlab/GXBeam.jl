@@ -1,0 +1,236 @@
+EXAMPLES BENCHMARK SUITE
+======================================================================
+
+Warming up (JIT compilation)...
+  cantilever... ok
+  curved... ok
+  overdetermined... ok
+  tipforce... ok
+  tipmoment... ok
+  static-joined-wing-linear... ok
+  static-joined-wing-nonlinear... ok
+  static-joined-wing-follower... ok
+  rotating-steady-state... ok
+  rotating-eigenvalue... ok
+  wind-turbine-blade-undamped... ok
+  wind-turbine-blade-damped... ok
+  dynamic-joined-wing-undamped... ok
+  dynamic-joined-wing-damped... ok
+  impliciteuler... ok
+  stepsystem... ok
+
+--- cantilever (samples=150, seconds=150) ---
+BenchmarkTools.Trial: 150 samples with 1 evaluation per sample.
+ Range (min … max):  541.689 μs …   1.412 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     651.716 μs               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   700.952 μs ± 166.780 μs  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █▂                                                             
+  ██▆▆▄▃▄▆▆▄▆▁▃▅▃▃▄▆▄▅▅▃▄▃▃▁▃▃▁▃▃▃▃▁▃▁▁▃▁▁▃▃▄▃▃▁▁▁▁▁▃▁▁▁▁▃▁▁▁▁▃ ▃
+  542 μs           Histogram: frequency by time          1.2 ms <
+
+ Memory estimate: 581.83 KiB, allocs estimate: 840.
+
+--- curved (samples=100, seconds=150) ---
+BenchmarkTools.Trial: 100 samples with 1 evaluation per sample.
+ Range (min … max):  115.806 ms … 249.189 ms  ┊ GC (min … max): 4.89% … 30.44%
+ Time  (median):     124.892 ms               ┊ GC (median):    5.13%
+ Time  (mean ± σ):   132.630 ms ±  23.416 ms  ┊ GC (mean ± σ):  5.80% ±  2.93%
+
+  ██ ▁▅▁                                                         
+  ██▄███▄▆▇▆▅▅▄▃▃▃▆▃▄▁▁▁▁▁▁▁▃▁▁▁▁▄▁▁▃▁▁▁▁▁▁▁▁▁▁▃▁▁▁▁▁▁▁▁▃▁▁▁▁▁▃ ▃
+  116 ms           Histogram: frequency by time          232 ms <
+
+ Memory estimate: 92.30 MiB, allocs estimate: 18336.
+
+--- overdetermined (samples=150, seconds=150) ---
+BenchmarkTools.Trial: 150 samples with 1 evaluation per sample.
+ Range (min … max):  698.945 μs …   1.243 ms  ┊ GC (min … max): 0.00% … 0.00%
+ Time  (median):     775.854 μs               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   810.660 μs ± 107.487 μs  ┊ GC (mean ± σ):  0.00% ± 0.00%
+
+  █▁▂                                                            
+  ███▆▆▃▅▆▅█▆▃▅▅▃▄▃▃▃▄▆▆▅▄▃▁▃▄▃▃▃▄▁▃▁▅▃▃▃▁▁▃▁▁▃▁▁▃▁▁▁▁▁▁▁▃▁▁▁▁▃ ▃
+  699 μs           Histogram: frequency by time         1.17 ms <
+
+ Memory estimate: 753.41 KiB, allocs estimate: 1712.
+
+--- tipforce (samples=50, seconds=300) ---
+BenchmarkTools.Trial: 50 samples with 1 evaluation per sample.
+ Range (min … max):  141.327 ms … 253.128 ms  ┊ GC (min … max): 1.36% … 2.99%
+ Time  (median):     151.864 ms               ┊ GC (median):    5.16%
+ Time  (mean ± σ):   164.783 ms ±  27.516 ms  ┊ GC (mean ± σ):  4.73% ± 1.82%
+
+     ▄▄█                                                         
+  ▃▃▃████▃▃▃▅▁▁▅▅▁▁▁▁▁▅▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▅▁▁▁▁▃▃▁▁▁▁▁▃▁▁▁▁▃▁▁▁▁▁▁▃ ▁
+  141 ms           Histogram: frequency by time          253 ms <
+
+ Memory estimate: 115.56 MiB, allocs estimate: 22894.
+
+--- tipmoment (samples=50, seconds=300) ---
+BenchmarkTools.Trial: 50 samples with 1 evaluation per sample.
+ Range (min … max):  17.670 ms … 24.614 ms  ┊ GC (min … max): 0.00% … 15.05%
+ Time  (median):     18.533 ms              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   19.237 ms ±  1.540 ms  ┊ GC (mean ± σ):  1.22% ±  3.24%
+
+     ▁▆▆█▁▁     ▁                                              
+  ▇▄▄██████▇▇▁▁▄█▁▄▁▁▄▁▄▁▄▁▄▁▁▁▄▁▁▄▄▁▁▁▄▄▄▁▁▁▄▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄ ▁
+  17.7 ms         Histogram: frequency by time        24.6 ms <
+
+ Memory estimate: 14.48 MiB, allocs estimate: 3006.
+
+--- static-joined-wing-linear (samples=25, seconds=450) ---
+BenchmarkTools.Trial: 25 samples with 1 evaluation per sample.
+ Range (min … max):  26.012 ms … 35.597 ms  ┊ GC (min … max): 0.00% … 12.19%
+ Time  (median):     28.477 ms              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   29.054 ms ±  2.578 ms  ┊ GC (mean ± σ):  1.49% ±  3.55%
+
+  █ ▁ ▁▁█ ▁█ ▁ ▁ ▁  ▁ █▁█   ▁▁      ▁     ▁                 █  
+  █▁█▁███▁██▁█▁█▁█▁▁█▁███▁▁▁██▁▁▁▁▁▁█▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  26 ms           Histogram: frequency by time        35.6 ms <
+
+ Memory estimate: 22.34 MiB, allocs estimate: 2205.
+
+--- static-joined-wing-nonlinear (samples=25, seconds=450) ---
+BenchmarkTools.Trial: 25 samples with 1 evaluation per sample.
+ Range (min … max):   9.027 s …   11.565 s  ┊ GC (min … max): 5.23% … 6.09%
+ Time  (median):      9.983 s               ┊ GC (median):    5.48%
+ Time  (mean ± σ):   10.049 s ± 634.582 ms  ┊ GC (mean ± σ):  5.44% ± 0.25%
+
+  ▁   ▁ ▁ ▁  ▁▁ ▁█▁ ▁▁  ▁ ▁█ ▁ ▁ ▁▁ ▁     ▁       ▁▁        ▁  
+  █▁▁▁█▁█▁█▁▁██▁███▁██▁▁█▁██▁█▁█▁██▁█▁▁▁▁▁█▁▁▁▁▁▁▁██▁▁▁▁▁▁▁▁█ ▁
+  9.03 s          Histogram: frequency by time         11.6 s <
+
+ Memory estimate: 5.14 GiB, allocs estimate: 754828.
+
+--- static-joined-wing-follower (samples=25, seconds=450) ---
+BenchmarkTools.Trial: 22 samples with 1 evaluation per sample.
+ Range (min … max):  18.466 s … 23.720 s  ┊ GC (min … max): 5.20% … 5.84%
+ Time  (median):     20.095 s             ┊ GC (median):    5.75%
+ Time  (mean ± σ):   20.629 s ±  1.573 s  ┊ GC (mean ± σ):  5.66% ± 0.16%
+
+  ▁ ▁  ▁▁  ▁  █▁ ▁▁▁▁▁ ▁          ▁▁▁         ▁█        ▁ ▁  
+  █▁█▁▁██▁▁█▁▁██▁█████▁█▁▁▁▁▁▁▁▁▁▁███▁▁▁▁▁▁▁▁▁██▁▁▁▁▁▁▁▁█▁█ ▁
+  18.5 s         Histogram: frequency by time        23.7 s <
+
+ Memory estimate: 10.43 GiB, allocs estimate: 1395818.
+
+--- rotating-steady-state (samples=25, seconds=450) ---
+BenchmarkTools.Trial: 25 samples with 1 evaluation per sample.
+ Range (min … max):  28.593 ms … 38.010 ms  ┊ GC (min … max): 0.00% … 9.64%
+ Time  (median):     30.269 ms              ┊ GC (median):    0.00%
+ Time  (mean ± σ):   30.670 ms ±  2.264 ms  ┊ GC (mean ± σ):  0.98% ± 2.83%
+
+  █▁   ▁    ▄     ▄                                            
+  ██▆▁▆█▁▁▆▁█▆▁▆▆▆█▁▁▁▁▁▁▁▁▁▆▁▁▆▁▁▁▁▁▁▁▁▁▁▁▁▁▁▆▁▁▁▁▁▁▁▁▁▁▁▁▁▆ ▁
+  28.6 ms         Histogram: frequency by time          38 ms <
+
+ Memory estimate: 16.39 MiB, allocs estimate: 2757.
+
+--- rotating-eigenvalue (samples=15, seconds=600) ---
+BenchmarkTools.Trial: 15 samples with 1 evaluation per sample.
+ Range (min … max):  155.097 ms … 192.026 ms  ┊ GC (min … max): 0.00% … 6.33%
+ Time  (median):     169.903 ms               ┊ GC (median):    6.05%
+ Time  (mean ± σ):   171.272 ms ±  11.526 ms  ┊ GC (mean ± σ):  5.22% ± 3.59%
+
+  ▁      █  ▁▁   ▁   ▁    █      ▁        █      ▁         ▁  ▁  
+  █▁▁▁▁▁▁█▁▁██▁▁▁█▁▁▁█▁▁▁▁█▁▁▁▁▁▁█▁▁▁▁▁▁▁▁█▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁█▁▁█ ▁
+  155 ms           Histogram: frequency by time          192 ms <
+
+ Memory estimate: 84.53 MiB, allocs estimate: 768580.
+
+--- wind-turbine-blade-undamped (samples=15, seconds=600) ---
+BenchmarkTools.Trial: 15 samples with 1 evaluation per sample.
+ Range (min … max):  146.590 ms … 173.726 ms  ┊ GC (min … max): 0.00% … 2.73%
+ Time  (median):     153.125 ms               ┊ GC (median):    3.03%
+ Time  (mean ± σ):   154.031 ms ±   6.537 ms  ┊ GC (mean ± σ):  2.80% ± 1.61%
+
+                  █ ▃                                            
+  ▇▁▁▇▁▁▇▁▇▇▁▁▇▇▇▁█▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▇▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▇ ▁
+  147 ms           Histogram: frequency by time          174 ms <
+
+ Memory estimate: 82.49 MiB, allocs estimate: 68878.
+
+--- wind-turbine-blade-damped (samples=15, seconds=600) ---
+BenchmarkTools.Trial: 15 samples with 1 evaluation per sample.
+ Range (min … max):  150.521 ms … 218.810 ms  ┊ GC (min … max): 1.95% … 4.26%
+ Time  (median):     156.902 ms               ┊ GC (median):    3.35%
+ Time  (mean ± σ):   161.665 ms ±  16.633 ms  ┊ GC (mean ± σ):  2.86% ± 1.66%
+
+  █▁▁ ██▁▁  ▁ ▁▁▁                                             ▁  
+  ███▁████▁▁█▁███▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  151 ms           Histogram: frequency by time          219 ms <
+
+ Memory estimate: 83.53 MiB, allocs estimate: 68890.
+
+--- dynamic-joined-wing-undamped (samples=15, seconds=600) ---
+BenchmarkTools.Trial: 15 samples with 1 evaluation per sample.
+ Range (min … max):  574.489 ms … 894.918 ms  ┊ GC (min … max): 4.09% … 2.96%
+ Time  (median):     618.788 ms               ┊ GC (median):    3.83%
+ Time  (mean ± σ):   670.567 ms ± 108.523 ms  ┊ GC (mean ± σ):  3.16% ± 1.14%
+
+    ▃█                                                           
+  ▇▇██▁▁▁▁▇▁▇▁▁▁▁▁▁▁▁▇▁▁▁▁▁▇▁▁▁▁▁▁▁▁▁▁▁▁▇▁▁▁▁▁▇▁▁▁▁▁▇▁▁▁▁▁▁▁▁▁▇ ▁
+  574 ms           Histogram: frequency by time          895 ms <
+
+ Memory estimate: 248.71 MiB, allocs estimate: 173031.
+
+--- dynamic-joined-wing-damped (samples=15, seconds=600) ---
+BenchmarkTools.Trial: 15 samples with 1 evaluation per sample.
+ Range (min … max):  232.710 ms … 272.437 ms  ┊ GC (min … max): 5.58% … 1.91%
+ Time  (median):     249.470 ms               ┊ GC (median):    5.23%
+ Time  (mean ± σ):   250.207 ms ±  11.128 ms  ┊ GC (mean ± σ):  4.61% ± 2.20%
+
+  ▁     ▁    ▁     █▁      █▁▁  ▁  ▁        ▁               ▁ ▁  
+  █▁▁▁▁▁█▁▁▁▁█▁▁▁▁▁██▁▁▁▁▁▁███▁▁█▁▁█▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁█ ▁
+  233 ms           Histogram: frequency by time          272 ms <
+
+ Memory estimate: 133.93 MiB, allocs estimate: 148503.
+
+--- impliciteuler (samples=15, seconds=600) ---
+BenchmarkTools.Trial: 15 samples with 1 evaluation per sample.
+ Range (min … max):  1.442 s …    1.859 s  ┊ GC (min … max): 4.62% … 4.84%
+ Time  (median):     1.522 s               ┊ GC (median):    4.54%
+ Time  (mean ± σ):   1.564 s ± 121.982 ms  ┊ GC (mean ± σ):  4.57% ± 0.39%
+
+  █  ▁▁▁   ▁ ██   ▁               ▁▁        ▁              ▁  
+  █▁▁███▁▁▁█▁██▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁██▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1.44 s         Histogram: frequency by time         1.86 s <
+
+ Memory estimate: 334.62 MiB, allocs estimate: 424437.
+
+--- stepsystem (samples=15, seconds=600) ---
+BenchmarkTools.Trial: 15 samples with 1 evaluation per sample.
+ Range (min … max):  148.509 ms … 263.202 ms  ┊ GC (min … max): 0.00% … 4.73%
+ Time  (median):     157.591 ms               ┊ GC (median):    4.29%
+ Time  (mean ± σ):   173.763 ms ±  38.579 ms  ┊ GC (mean ± σ):  3.52% ± 1.97%
+
+  ▁  █   ▄                                                       
+  █▆▁█▆▆▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▆▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▆▁▆ ▁
+  149 ms           Histogram: frequency by time          263 ms <
+
+ Memory estimate: 83.49 MiB, allocs estimate: 52125.
+
+
+==============================================================================================================
+SUMMARY
+==============================================================================================================
+
+| Workload | Min (ms) | Mean (ms) | Std (ms) | Med (ms) | Max (ms) | Allocs | Mem (MB) |
+|---|---|---|---|---|---|---|---|
+| cantilever | 0.542 | 0.701 | 0.167 | 0.652 | 1.412 | 840 | 0.60 |
+| curved | 115.806 | 132.630 | 23.416 | 124.892 | 249.189 | 18336 | 96.79 |
+| overdetermined | 0.699 | 0.811 | 0.107 | 0.776 | 1.243 | 1712 | 0.77 |
+| tipforce | 141.327 | 164.783 | 27.516 | 151.864 | 253.128 | 22894 | 121.17 |
+| tipmoment | 17.670 | 19.237 | 1.540 | 18.533 | 24.614 | 3006 | 15.19 |
+| static-joined-wing-linear | 26.012 | 29.054 | 2.578 | 28.477 | 35.597 | 2205 | 23.42 |
+| static-joined-wing-nonlinear | 9027.158 | 10049.144 | 634.582 | 9983.230 | 11564.563 | 754828 | 5516.99 |
+| static-joined-wing-follower | 18466.076 | 20628.848 | 1573.337 | 20095.041 | 23719.937 | 1395818 | 11203.67 |
+| rotating-steady-state | 28.593 | 30.670 | 2.264 | 30.269 | 38.010 | 2757 | 17.19 |
+| rotating-eigenvalue | 155.097 | 171.272 | 11.526 | 169.903 | 192.026 | 768580 | 88.64 |
+| wind-turbine-blade-undamped | 146.590 | 154.031 | 6.537 | 153.125 | 173.726 | 68878 | 86.50 |
+| wind-turbine-blade-damped | 150.521 | 161.665 | 16.633 | 156.902 | 218.810 | 68890 | 87.59 |
+| dynamic-joined-wing-undamped | 574.489 | 670.567 | 108.523 | 618.788 | 894.918 | 173031 | 260.79 |
+| dynamic-joined-wing-damped | 232.710 | 250.207 | 11.128 | 249.470 | 272.437 | 148503 | 140.43 |
+| impliciteuler | 1442.048 | 1564.337 | 121.982 | 1521.702 | 1859.239 | 424437 | 350.87 |
+| stepsystem | 148.509 | 173.763 | 38.579 | 157.591 | 263.202 | 52125 | 87.54 |
