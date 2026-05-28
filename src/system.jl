@@ -219,6 +219,13 @@ mutable struct StaticSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}} 
     indices::SystemIndices
     force_scaling::TF
     t::TF
+    # DI prep caches (lazy-initialized on first call to autodiff_jacobian! /
+    # matrixfree_jacobian). Untyped `Any` to avoid parameterizing the struct on
+    # the DI prep types; type stability on the hot path is restored via the
+    # function barriers `_autodiff_jacobian_inner!` and `_build_linearmap`
+    # (see src/analyses.jl).
+    prep_jacobian::Any
+    prep_jvp::Any
 end
 Base.eltype(::StaticSystem{TF, TV, TM}) where {TF, TV, TM} = TF
 
@@ -256,7 +263,7 @@ function StaticSystem(TF, assembly; force_scaling = default_force_scaling(assemb
 
     x, r = promote(x, r)
 
-    return StaticSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, indices, force_scaling, t)
+    return StaticSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(x, r, K, indices, force_scaling, t, nothing, nothing)
 end
 
 """
@@ -273,6 +280,9 @@ mutable struct DynamicSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}}
     indices::SystemIndices
     force_scaling::TF
     t::TF
+    # DI prep caches; see StaticSystem above.
+    prep_jacobian::Any
+    prep_jvp::Any
 end
 Base.eltype(::DynamicSystem{TF, TV, TM}) where {TF, TV, TM} = TF
 
@@ -311,7 +321,7 @@ function DynamicSystem(TF, assembly; force_scaling = default_force_scaling(assem
     t = zero(TF)
 
     return DynamicSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(dx, x, r, K, M,
-        indices, force_scaling, t)
+        indices, force_scaling, t, nothing, nothing)
 end
 
 """
@@ -329,6 +339,9 @@ mutable struct ExpandedSystem{TF, TV<:AbstractVector{TF}, TM<:AbstractMatrix{TF}
     indices::SystemIndices
     force_scaling::TF
     t::TF
+    # DI prep caches; see StaticSystem above.
+    prep_jacobian::Any
+    prep_jvp::Any
 end
 Base.eltype(::ExpandedSystem{TF, TV, TM}) where {TF, TV, TM} = TF
 
@@ -367,7 +380,7 @@ function ExpandedSystem(TF, assembly; force_scaling = default_force_scaling(asse
     t = zero(TF)
 
     return ExpandedSystem{TF, Vector{TF}, SparseMatrixCSC{TF, Int64}}(dx, x, r, K, M,
-        indices, force_scaling, t)
+        indices, force_scaling, t, nothing, nothing)
 end
 
 # default system is a DynamicSystem

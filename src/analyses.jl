@@ -114,6 +114,7 @@ function static_analysis!(system::StaticSystem, assembly;
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, and current time
         assembly, indices, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # pointers to the pre-allocated storage and the convergence flag
@@ -432,6 +433,7 @@ function steady_state_analysis!(system::Union{DynamicSystem, ExpandedSystem}, as
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, and current time
         assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # pointers to the pre-allocated storage and the convergence flag
@@ -874,6 +876,7 @@ function linearize!(system, assembly;
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, and current time
         assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # default parameters
@@ -1337,6 +1340,7 @@ function eigenvalue_analysis!(system, assembly;
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, and current time
         assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(time),
         # default parameters
@@ -1794,6 +1798,7 @@ function initial_condition_analysis!(system, assembly, t0;
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, and current time
         assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(t0),
         # pointers to the pre-allocated storage and the convergence flag
@@ -2047,6 +2052,7 @@ function initial_state_analysis!(system, assembly, t0;
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, and current time
         assembly, indices, structural_damping, two_dimensional, force_scaling, xpfunc, pfunc, t=first(t0),
         # pointers to the pre-allocated storage and the convergence flag
@@ -2610,6 +2616,7 @@ function time_domain_analysis!(system::DynamicSystem, assembly, tvec;
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, current time, and time step
         assembly, indices, two_dimensional, structural_damping, force_scaling, xpfunc, pfunc, t, dt,
         # pointers to the pre-allocated storage and the convergence flag
@@ -2901,6 +2908,7 @@ function initialize_system!(system::DynamicSystem, assembly, tvec;
 
     # package up keyword arguments corresponding to this analysis
     constants = (;
+        system,
         # assembly, indices, control flags, parameter function, current time, and time step
         assembly, indices, two_dimensional, structural_damping, force_scaling, xpfunc, pfunc, t, dt,
         # pointers to the pre-allocated storage and the convergence flag
@@ -3793,28 +3801,148 @@ function expanded_mass_matrix!(jacob, p, constants)
         assembly, pcond, pmass)
 end
 
-# sparsity pattern detection
-function jacobian_colors(residual!, x, p, constants)
-    resid = similar(x)
-    config = ForwardDiff.JacobianConfig(residual!, resid, x)
-    J1 = ForwardDiff.jacobian(residual!, resid, x1, config)
-    J2 = ForwardDiff.jacobian(residual!, resid, x2, config)
-    J3 = ForwardDiff.jacobian(residual!, resid, x3, config)
-    @. jacob = abs(J1) + abs(J2) + abs(J3)
-    return SparseDiffTools.matrix_colors(jacob)
+# Mutable functor wrapping (residual!, p, constants). Used as the function object
+# passed to DI's prepare_jacobian / prepare_pushforward / prepare_pullback. Because
+# the *type* of this struct is stable (parameterized on R, P, C), DI's type-identity
+# check accepts a cached prep against a fresh functor instance — and because the
+# struct is mutable, we can update `.p` and `.c` between calls to point at the
+# current solve's captures without changing the type.
+mutable struct ResidualWithCapture{R, P, C}
+    residual!::R
+    p::P
+    c::C
+end
+(f::ResidualWithCapture)(r, x) = f.residual!(r, x, f.p, f.c)
+
+# Debug counter — bumped every time we build a fresh DI sparse-jacobian prep.
+# Within a single solve, expect this to increment by 1 (or 0 if the prep is
+# already warm). Used by tests/diagnostics to verify "sparsity detected once per
+# solve". Not exported.
+const _SPARSITY_DETECTION_COUNT = Ref(0)
+
+# automatic differentiation jacobian construction (DI-backed, prep cached on System)
+#
+# Cache key is (typeof(residual!), typeof(p), typeof(constants), length(x)). The
+# captured-type components matter: `ResidualWithCapture{R,P,C}` is parameterized
+# on the concrete types of `p` and `constants` set at first build. If a re-solve
+# hands in `p` or `constants` with a different concrete type (e.g. a different
+# xpfunc closure), the else-branch assignment would go through
+# `convert(P_old, p_new)` and either error or silently truncate. Rebuilding when
+# the types change avoids that trap.
+function autodiff_jacobian!(jacob, residual!, x, p, constants)
+    system = constants.system
+    cached = system.prep_jacobian
+    key = (typeof(residual!), typeof(p), typeof(constants), length(x))
+
+    needs_build = cached === nothing ||
+                  !(cached isa NamedTuple) ||
+                  cached.key !== key
+
+    if needs_build
+        _SPARSITY_DETECTION_COUNT[] += 1
+        functor = ResidualWithCapture(residual!, p, constants)
+        backend = DifferentiationInterface.AutoSparse(
+            DifferentiationInterface.AutoForwardDiff();
+            sparsity_detector  = DifferentiationInterface.DenseSparsityDetector(
+                                     DifferentiationInterface.AutoForwardDiff(); atol=1e-5),
+            coloring_algorithm = SparseMatrixColorings.GreedyColoringAlgorithm(),
+        )
+        r_buf = similar(x)
+        prep = DifferentiationInterface.prepare_jacobian(functor, r_buf, backend, x)
+        cached = (key=key, functor=functor, prep=prep,
+                  backend=backend, r_buf=r_buf)
+        system.prep_jacobian = cached
+    else
+        # Refresh captured state. Functor instance and type are unchanged, so
+        # the cached prep stays valid.
+        cached.functor.p = p
+        cached.functor.c = constants
+    end
+
+    _autodiff_jacobian_inner!(jacob, x, cached)
+    return jacob
 end
 
-# automatic differentiation jacobian construction
-function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x))
-
-    f = (r, x) -> residual!(r, x, p, constants)
-
-    return SparseDiffTools.forwarddiff_color_jacobian!(jacob, f, x, colorvec = colors)
+# Function barrier — specializes on the concrete type of `cached`, restoring
+# type stability downstream of the `Any` field access on `system.prep_jacobian`.
+function _autodiff_jacobian_inner!(jacob, x, cached)
+    DifferentiationInterface.jacobian!(
+        cached.functor, cached.r_buf, jacob, cached.prep, cached.backend, x)
+    return jacob
 end
 
-# matrix-free jacobian construction
+# matrix-free jacobian construction (DI-backed, prep cached on System)
+#
+# Returns a LinearMap that mul!s via DI pushforward (forward action) and DI pullback
+# (adjoint action). Used by the xpfunc / GMRES path in `matrixfree_nlsolve!`
+# (which only needs `mul!(out, A, v)`) and as `drdy` in `ImplicitAD.implicit`
+# (which additionally needs `A'` to apply via mul! for reverse-mode AD).
+#
+# Buffer pattern (v_buf/dy_buf/w_buf/dx_buf) mirrors `newton_solve_di_gmres!` in
+# test/jacobian_benchmark.jl: GMRES passes SubArray views and DI's type-consistency
+# check requires the tangent type to match what was used in prepare_*.
 function matrixfree_jacobian(residual!, x, p, constants)
-    return SparseDiffTools.JacVec((resid, x)->residual!(resid, x, p, constants), x)
+    system = constants.system
+    cached = system.prep_jvp
+    n = length(x)
+    # See autodiff_jacobian! for the rationale behind keying on
+    # typeof(p) / typeof(constants).
+    key = (typeof(residual!), typeof(p), typeof(constants), n)
+
+    needs_build = cached === nothing ||
+                  !(cached isa NamedTuple) ||
+                  cached.key !== key
+
+    if needs_build
+        functor = ResidualWithCapture(residual!, p, constants)
+        backend = DifferentiationInterface.AutoForwardDiff()
+
+        v0  = zeros(eltype(x), n); w0  = zeros(eltype(x), n)
+        dy0 = zeros(eltype(x), n); dx0 = zeros(eltype(x), n)
+        prep_pf = DifferentiationInterface.prepare_pushforward(functor, dy0, backend, x, (v0,))
+        prep_pb = DifferentiationInterface.prepare_pullback(functor,  dx0, backend, x, (w0,))
+
+        cached = (
+            key=key, functor=functor, backend=backend,
+            prep_pf=prep_pf, prep_pb=prep_pb, n=n,
+            v_buf=zeros(eltype(x), n), w_buf=zeros(eltype(x), n),
+            dy_buf=zeros(eltype(x), n), dx_buf=zeros(eltype(x), n),
+        )
+        system.prep_jvp = cached
+    else
+        cached.functor.p = p
+        cached.functor.c = constants
+    end
+
+    return _build_linearmap(x, cached)
+end
+
+# Function barrier — concrete-type-stable LinearMap construction.
+function _build_linearmap(x, cached)
+    x_cap   = copy(x)
+    functor = cached.functor
+    backend = cached.backend
+    prep_pf = cached.prep_pf
+    prep_pb = cached.prep_pb
+    v_buf   = cached.v_buf
+    w_buf   = cached.w_buf
+    dy_buf  = cached.dy_buf
+    dx_buf  = cached.dx_buf
+
+    fwd! = (out, v) -> begin
+        v_buf .= v
+        out .= only(DifferentiationInterface.pushforward(
+            functor, dy_buf, prep_pf, backend, x_cap, (v_buf,)))
+        return out
+    end
+    adj! = (out, w) -> begin
+        w_buf .= w
+        out .= only(DifferentiationInterface.pullback(
+            functor, dx_buf, prep_pb, backend, x_cap, (w_buf,)))
+        return out
+    end
+
+    return LinearMap{eltype(x)}(fwd!, adj!, cached.n, cached.n; ismutating=true)
 end
 
 # copy the entire array
