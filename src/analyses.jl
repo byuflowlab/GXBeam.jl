@@ -3821,14 +3821,22 @@ end
 const _SPARSITY_DETECTION_COUNT = Ref(0)
 
 # automatic differentiation jacobian construction (DI-backed, prep cached on System)
-function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x))
+#
+# Cache key is (typeof(residual!), typeof(p), typeof(constants), length(x)). The
+# captured-type components matter: `ResidualWithCapture{R,P,C}` is parameterized
+# on the concrete types of `p` and `constants` set at first build. If a re-solve
+# hands in `p` or `constants` with a different concrete type (e.g. a different
+# xpfunc closure), the else-branch assignment would go through
+# `convert(P_old, p_new)` and either error or silently truncate. Rebuilding when
+# the types change avoids that trap.
+function autodiff_jacobian!(jacob, residual!, x, p, constants)
     system = constants.system
     cached = system.prep_jacobian
+    key = (typeof(residual!), typeof(p), typeof(constants), length(x))
 
     needs_build = cached === nothing ||
                   !(cached isa NamedTuple) ||
-                  cached.key !== typeof(residual!) ||
-                  length(cached.r_buf) != length(x)
+                  cached.key !== key
 
     if needs_build
         _SPARSITY_DETECTION_COUNT[] += 1
@@ -3841,7 +3849,7 @@ function autodiff_jacobian!(jacob, residual!, x, p, constants; colors=1:length(x
         )
         r_buf = similar(x)
         prep = DifferentiationInterface.prepare_jacobian(functor, r_buf, backend, x)
-        cached = (key=typeof(residual!), functor=functor, prep=prep,
+        cached = (key=key, functor=functor, prep=prep,
                   backend=backend, r_buf=r_buf)
         system.prep_jacobian = cached
     else
@@ -3877,11 +3885,13 @@ function matrixfree_jacobian(residual!, x, p, constants)
     system = constants.system
     cached = system.prep_jvp
     n = length(x)
+    # See autodiff_jacobian! for the rationale behind keying on
+    # typeof(p) / typeof(constants).
+    key = (typeof(residual!), typeof(p), typeof(constants), n)
 
     needs_build = cached === nothing ||
                   !(cached isa NamedTuple) ||
-                  cached.key !== typeof(residual!) ||
-                  cached.n != n
+                  cached.key !== key
 
     if needs_build
         functor = ResidualWithCapture(residual!, p, constants)
@@ -3893,7 +3903,7 @@ function matrixfree_jacobian(residual!, x, p, constants)
         prep_pb = DifferentiationInterface.prepare_pullback(functor,  dx0, backend, x, (w0,))
 
         cached = (
-            key=typeof(residual!), functor=functor, backend=backend,
+            key=key, functor=functor, backend=backend,
             prep_pf=prep_pf, prep_pb=prep_pb, n=n,
             v_buf=zeros(eltype(x), n), w_buf=zeros(eltype(x), n),
             dy_buf=zeros(eltype(x), n), dx_buf=zeros(eltype(x), n),

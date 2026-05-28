@@ -107,7 +107,8 @@ function build_autodiff_cache(::Type{T}, n::Int) where {T}
     x_ref = zeros(T, n)
     r_buf = similar(x_ref)
     prep  = DI.prepare_jacobian(functor, r_buf, backend, x_ref)
-    return (; key=typeof(residual!), functor=functor, prep=prep,
+    key = (typeof(residual!), Nothing, Nothing, n)
+    return (; key=key, functor=functor, prep=prep,
               backend=backend, r_buf=r_buf)
 end
 
@@ -122,7 +123,8 @@ function build_matrixfree_cache(::Type{T}, n::Int) where {T}
     prep_pf = DI.prepare_pushforward(functor, dy0, backend, x_ref, (v0,))
     prep_pb = DI.prepare_pullback(functor,  dx0, backend, x_ref, (w0,))
 
-    return (; key=typeof(residual!), functor=functor, backend=backend,
+    key = (typeof(residual!), Nothing, Nothing, n)
+    return (; key=key, functor=functor, backend=backend,
               prep_pf=prep_pf, prep_pb=prep_pb, n=n,
               v_buf=zeros(T, n), w_buf=zeros(T, n),
               dy_buf=zeros(T, n), dx_buf=zeros(T, n))
