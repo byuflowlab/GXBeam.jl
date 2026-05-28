@@ -1,8 +1,0 @@
-Steady State Analysis: 
-  5.386 ms (508 allocations: 3.89 MiB)
-Eigenvalue Analysis: 
-  10.339 ms (35711 allocations: 7.96 MiB)
-Time Marching Analysis: 
-  6.940 s (3558035 allocations: 3.98 GiB)
-Steady State Analysis (xpfunc / matrix-free GMRES path): 
-  106.866 ms (586608 allocations: 90.30 MiB)
