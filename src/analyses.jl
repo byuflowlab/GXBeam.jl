@@ -3801,22 +3801,6 @@ function expanded_mass_matrix!(jacob, p, constants)
         assembly, pcond, pmass)
 end
 
-# sparsity pattern detection
-function jacobian_colors(residual!, x, p, constants)
-    resid = similar(x)
-    config = ForwardDiff.JacobianConfig(residual!, resid, x)
-    J1 = ForwardDiff.jacobian(residual!, resid, x1, config)
-    J2 = ForwardDiff.jacobian(residual!, resid, x2, config)
-    J3 = ForwardDiff.jacobian(residual!, resid, x3, config)
-    @. jacob = abs(J1) + abs(J2) + abs(J3)
-    result = SparseMatrixColorings.coloring(
-        sparse(jacob),
-        SparseMatrixColorings.ColoringProblem(),
-        SparseMatrixColorings.GreedyColoringAlgorithm(),
-    )
-    return SparseMatrixColorings.column_colors(result)
-end
-
 # Mutable functor wrapping (residual!, p, constants). Used as the function object
 # passed to DI's prepare_jacobian / prepare_pushforward / prepare_pullback. Because
 # the *type* of this struct is stable (parameterized on R, P, C), DI's type-identity
